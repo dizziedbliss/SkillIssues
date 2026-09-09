@@ -1,0 +1,1192 @@
+You are the lead software architect and implementation engineer for a 24-hour hackathon project called SkillIssues.
+
+Your job is to BUILD the working MVP, not just describe it.
+
+==================================================
+PROJECT
+==================================================
+
+SkillIssues is a developer-growth platform that bridges the gap between learning to code and learning to develop software.
+
+Problem:
+
+Students and aspiring developers can learn programming through tutorials and coding platforms, but often struggle to apply their knowledge to real-world software development. They do not know what they are ready for, what they should work on next, or how to gain meaningful practical experience.
+
+At the same time, thousands of real software issues exist in open-source projects, but many are overlooked because developers cannot easily discover issues that match their skills and interests.
+
+SkillIssues connects these two sides.
+
+The core loop is:
+
+Developer Profile
+        ↓
+Personalized Challenge
+        ↓
+Real Open-Source Issue
+        ↓
+Work on Real Codebase
+        ↓
+Pull Request
+        ↓
+GitHub Verification
+        ↓
+Updated Developer Progress
+        ↓
+Harder / Better Next Challenge
+        ↓
+REPEAT
+
+
+==================================================
+CRITICAL CONSTRAINT
+==================================================
+
+WE HAVE APPROXIMATELY 24 HOURS.
+
+Prioritize a complete, working vertical slice over theoretical completeness.
+
+Do NOT build unnecessary enterprise infrastructure.
+
+Do NOT add:
+- Kubernetes
+- Kafka
+- complex event buses
+- Elasticsearch
+- Redis unless genuinely required
+- multiple databases
+- microservices for trivial functionality
+- complex ML training pipelines
+- recruiter marketplace
+- social network
+- chat
+- unnecessary admin dashboards
+- automatic code execution
+- automatic PR generation
+- complicated AI agents
+
+Every feature must support the core product loop.
+
+If a feature is not required for the demo, defer it.
+
+==================================================
+HIGH-LEVEL ARCHITECTURE
+==================================================
+
+Use a service-oriented architecture managed with Docker Compose.
+
+Architecture:
+
+                    ┌────────────────────┐
+                    │     FRONTEND       │
+                    │ React / TypeScript │
+                    └─────────┬──────────┘
+                              │
+                              ▼
+                    ┌────────────────────┐
+                    │     API SERVICE    │
+                    │ Auth + User APIs   │
+                    │ Issue APIs         │
+                    └──────┬───────┬─────┘
+                           │       │
+              ┌────────────┘       └──────────────┐
+              ▼                                   ▼
+     ┌──────────────────┐              ┌────────────────────┐
+     │ RECOMMENDATION   │              │ CONTRIBUTION       │
+     │ SERVICE          │              │ SERVICE            │
+     │                  │              │ PR verification    │
+     │ filter / rank    │              │ GitHub tracking    │
+     └────────┬─────────┘              └──────────┬─────────┘
+              │                                   │
+              └────────────────┬──────────────────┘
+                               ▼
+                    ┌────────────────────┐
+                    │    POSTGRESQL      │
+                    │ repos / issues /   │
+                    │ users / profiles / │
+                    │ contributions      │
+                    └────────────────────┘
+
+                    BACKGROUND SIDE
+                              │
+                              ▼
+                    ┌────────────────────┐
+                    │ INGESTION SERVICE  │
+                    │                    │
+                    │ Kaggle dataset     │
+                    │ repo qualification│
+                    │ GitHub GraphQL     │
+                    │ incremental sync  │
+                    └─────────┬──────────┘
+                              │
+                              ▼
+                    ┌────────────────────┐
+                    │ SCHEDULER / WORKER │
+                    │ sync jobs          │
+                    │ periodic refresh   │
+                    └────────────────────┘
+
+
+==================================================
+SERVICES
+==================================================
+
+Create these services:
+
+1. frontend
+2. api-service
+3. ingestion-service
+4. recommendation-service
+5. contribution-service
+6. scheduler/worker
+7. postgres
+
+Do NOT make every tiny function a separate service.
+
+The services should have clear responsibilities.
+
+--------------------------------------------------
+1. FRONTEND
+--------------------------------------------------
+
+Use React + TypeScript.
+
+Responsibilities:
+
+- Login
+- Developer onboarding
+- Developer profile
+- Preferences
+- Recommended challenges
+- Issue details
+- Difficulty display
+- Required skills
+- Technology
+- Repository information
+- Start Challenge
+- Contribution status
+- Progress
+- Completed challenges
+
+The UI should be clean and functional.
+
+Do not spend excessive time on visual animations.
+
+Core screens:
+
+/login
+/onboarding
+/dashboard
+/issues/:id
+/profile
+/progress
+
+Dashboard should immediately communicate:
+
+"Here are the challenges that match you."
+
+Example:
+
+Recommended Challenge
+
+Fix authentication error handling
+Difficulty: Intermediate
+Skills: Python, REST APIs
+Technology: FastAPI
+Why recommended:
+- Matches Python skill
+- Slightly above current difficulty
+- Relevant to selected interests
+
+CTA:
+START CHALLENGE
+
+
+==================================================
+2. API SERVICE
+==================================================
+
+Use FastAPI.
+
+This is the main HTTP API consumed by the frontend.
+
+Responsibilities:
+
+- authentication
+- user profile
+- preferences
+- issue retrieval
+- recommendation requests
+- contribution status
+- progress
+- health endpoint
+
+Example endpoints:
+
+POST /auth/github
+GET  /me
+GET  /profile
+PUT  /profile
+GET  /preferences
+PUT  /preferences
+
+GET /issues
+GET /issues/{issue_id}
+
+GET /recommendations
+GET /recommendations/{user_id}
+
+GET /contributions
+GET /contributions/{id}
+
+GET /health
+
+
+Do not expose internal service credentials to the frontend.
+
+
+==================================================
+3. INGESTION SERVICE
+==================================================
+
+This is responsible for repository and issue data.
+
+INPUT:
+
+Kaggle repository dataset.
+
+Initial repository qualification:
+
+- archived == false
+- stars > 50
+- forkingAllowed == true
+- valid / non-null license
+
+Also calculate contribution-readiness signals where possible:
+
+- license
+- activity
+- forkability
+- issue availability
+- historical contribution activity
+- repository activity
+
+Do not try to crawl every GitHub repository from scratch.
+
+The existing dataset provides the candidate repository universe.
+
+Pipeline:
+
+Kaggle dataset
+    ↓
+clean
+    ↓
+filter
+    ↓
+repository qualification
+    ↓
+database
+    ↓
+GitHub GraphQL synchronization
+    ↓
+issues
+    ↓
+issue analysis
+    ↓
+database
+
+
+==================================================
+4. GITHUB GRAPHQL
+==================================================
+
+Use GitHub GraphQL for repository/issue synchronization.
+
+Do NOT fetch unnecessary fields.
+
+Use pagination.
+
+Use incremental synchronization.
+
+Each repository must have:
+
+last_synced_at
+
+Initial sync:
+fetch required issue data.
+
+Subsequent sync:
+fetch only issues changed since the previous synchronization where possible.
+
+Use updated timestamps and appropriate GitHub issue filtering/order.
+
+Store synchronization state.
+
+Do NOT implement:
+"fetch every repository every hour."
+
+Use priority-based synchronization.
+
+Example:
+
+HIGH PRIORITY:
+- frequently requested repositories
+- highly active repositories
+- repositories with recent changes
+
+MEDIUM:
+- active repositories
+
+LOW:
+- dormant repositories
+
+User-requested stale repository:
+trigger priority refresh.
+
+
+==================================================
+5. GITHUB RATE LIMIT SAFETY
+==================================================
+
+Treat GitHub API limits as a first-class engineering constraint.
+
+Never assume:
+
+1 repository = 1 API request.
+
+GraphQL is point-based and has query/node/secondary limits.
+
+Design the ingestion service to:
+
+- request only required fields
+- paginate connections
+- limit concurrency
+- track remaining rate limit
+- back off when necessary
+- retry safely
+- avoid duplicate requests
+- cache/index data locally
+- prefer incremental synchronization
+- never continuously crawl unchanged data
+
+Do not hammer GitHub.
+
+Create a small rate-limit utility that records:
+
+limit
+remaining
+used
+reset time
+query cost
+
+The system must degrade gracefully when GitHub rate limits are reached.
+
+
+==================================================
+6. ISSUE ANALYSIS
+==================================================
+
+Do NOT build an expensive ML training pipeline.
+
+For MVP, implement a transparent heuristic difficulty engine.
+
+Inputs may include:
+
+- issue labels
+- issue state
+- issue age/activity
+- issue description length/signals
+- number of comments
+- repository complexity
+- repository size
+- programming language
+- technology
+- historical PR complexity if available
+- number of files/components involved if available
+
+Output:
+
+difficulty_score: 1-10
+
+and:
+
+difficulty:
+BEGINNER
+INTERMEDIATE
+ADVANCED
+
+Also extract / map:
+
+required_skills
+technologies
+learning_tags
+
+Keep the implementation explainable.
+
+Later AI/ML can improve this.
+
+
+==================================================
+7. RECOMMENDATION SERVICE
+==================================================
+
+This is one of the most important components.
+
+Input:
+
+Developer profile:
+- skills
+- experience
+- interests
+- current progress
+- completed challenges
+- difficulty history
+
+Issue:
+- difficulty
+- required skills
+- technologies
+- repository quality
+- learning tags
+
+Calculate a recommendation score.
+
+Example conceptual scoring:
+
+skill_match
++ interest_match
++ difficulty_fit
++ learning_value
++ repository_quality
+
+The exact weights should be configurable.
+
+IMPORTANT:
+
+Do not recommend only issues the user already knows how to solve.
+
+Prefer challenges that are:
+
+"appropriate but slightly challenging."
+
+The system should support progression.
+
+Example:
+
+Beginner Python
+    ↓
+Easy Python issue
+    ↓
+Intermediate Python issue
+    ↓
+API / backend issue
+    ↓
+More complex backend issue
+
+
+==================================================
+8. CONTRIBUTION SERVICE
+==================================================
+
+Track:
+
+user
+issue
+repository
+branch/PR
+PR URL
+PR state
+created_at
+updated_at
+merged_at
+
+States:
+
+STARTED
+PR_OPEN
+PR_CLOSED
+PR_MERGED
+
+GitHub is the source of truth.
+
+Never allow the frontend to claim:
+
+"my PR was merged."
+
+The backend must verify the PR state using GitHub.
+
+Only verified merged contributions count as completed contributions.
+
+This prevents contribution/point farming.
+
+
+==================================================
+9. PROGRESS SYSTEM
+==================================================
+
+When a PR is merged:
+
+1. verify merge
+2. mark contribution completed
+3. update developer progress
+4. record completed difficulty
+5. update demonstrated skills
+6. update contribution history
+7. allow recommendation engine to consider harder challenges
+
+This creates:
+
+CONTRIBUTE
+→ LEARN
+→ GROW
+→ NEXT CHALLENGE
+
+
+==================================================
+10. DATABASE
+==================================================
+
+Use PostgreSQL.
+
+Create a clean schema.
+
+Minimum tables:
+
+users
+
+developer_profiles
+
+developer_skills
+
+developer_preferences
+
+repositories
+
+issues
+
+issue_skills
+
+issue_technologies
+
+contributions
+
+sync_state
+
+recommendations
+
+Possible relationships:
+
+users
+  ↓
+developer_profiles
+  ↓
+skills / preferences / progress
+
+repositories
+  ↓
+issues
+  ↓
+issue_skills / technologies
+
+users
+  ↓
+contributions
+  ↓
+issues / repositories / GitHub PR
+
+
+Add indexes for:
+
+repository GitHub ID
+issue GitHub ID
+repository language
+issue difficulty
+issue state
+issue updated_at
+issue technology
+issue skills
+user ID
+
+
+==================================================
+11. GITHUB LOGIN
+==================================================
+
+Implement GitHub authentication.
+
+Prefer a GitHub App for production architecture.
+
+Separate:
+
+A. application/installation authentication
+for platform-side GitHub operations
+
+B. user authorization
+for actions/data associated with a specific user
+
+Do not expose GitHub secrets in frontend code.
+
+Store credentials/tokens server-side.
+
+For the hackathon, keep permissions minimal.
+
+Do not request unnecessary private repository permissions.
+
+User flow:
+
+Login with GitHub
+    ↓
+GitHub authorization
+    ↓
+backend callback
+    ↓
+user created/found
+    ↓
+developer profile
+    ↓
+dashboard
+
+
+==================================================
+12. ELECTRON CLIENT
+==================================================
+
+Electron is responsible for local repository interaction.
+
+Do NOT move the entire backend into Electron.
+
+Electron responsibilities:
+
+- open local workspace
+- clone selected repository
+- show repository path
+- launch/open local development environment
+- detect basic local Git state
+- provide push/edit workflow where feasible
+
+Core flow:
+
+Recommended Issue
+    ↓
+Start Challenge
+    ↓
+Electron
+    ↓
+Clone Repository
+    ↓
+Local Development
+    ↓
+Git Push
+    ↓
+Pull Request
+    ↓
+Backend Verification
+
+
+SECURITY:
+
+Never automatically execute arbitrary cloned repository code.
+
+Do not allow unrestricted arbitrary filesystem paths.
+
+Validate paths.
+
+Do not expose backend secrets to Electron.
+
+
+==================================================
+13. DOCKER
+==================================================
+
+Everything required for the backend should run through Docker Compose.
+
+Create:
+
+compose.yaml
+
+Services:
+
+frontend
+api
+ingestion
+recommendation
+contribution
+worker
+postgres
+
+Use Docker networks.
+
+Use PostgreSQL persistent volume.
+
+Use environment variables.
+
+Create:
+
+.env.example
+
+NEVER commit real secrets.
+
+Expected command:
+
+docker compose up --build
+
+should start the complete backend environment.
+
+Also support:
+
+docker compose down
+
+docker compose logs
+
+docker compose ps
+
+
+Each service should have:
+
+Dockerfile
+health check where appropriate
+environment configuration
+clear startup command
+
+
+==================================================
+14. SERVICE COMMUNICATION
+==================================================
+
+For the hackathon, use simple HTTP APIs between services.
+
+Do NOT introduce Kafka/RabbitMQ/etc.
+
+Example:
+
+API
+ →
+Recommendation Service
+
+API
+ →
+Contribution Service
+
+Worker
+ →
+Ingestion Service
+
+Services communicate using Docker Compose service names.
+
+Example:
+
+http://recommendation-service:8000
+
+
+==================================================
+15. BACKGROUND JOBS
+==================================================
+
+The worker/scheduler handles:
+
+- initial repository synchronization
+- periodic issue refresh
+- stale repository detection
+- priority refresh
+- retry handling
+
+Do not block the API while synchronization occurs.
+
+Example:
+
+POST /admin/sync/repository/{id}
+
+should enqueue/trigger work rather than making the user wait for a huge GitHub request.
+
+
+==================================================
+16. CACHING
+==================================================
+
+Do NOT add Redis initially.
+
+PostgreSQL + proper indexes are sufficient for the MVP.
+
+If performance later requires caching, add Redis as an optimization.
+
+Do not add infrastructure merely to make the architecture look scalable.
+
+
+==================================================
+17. FRONTEND + BACKEND DEVELOPMENT
+==================================================
+
+The frontend must communicate ONLY through API endpoints.
+
+No direct GitHub secret access.
+
+No database access from frontend.
+
+No business logic duplicated unnecessarily in frontend.
+
+Use typed request/response models.
+
+
+==================================================
+18. SECURITY
+==================================================
+
+Implement minimum viable security:
+
+- environment variables for secrets
+- no credentials in Git
+- server-side GitHub verification
+- input validation
+- API rate limiting where reasonable
+- authentication middleware
+- safe filesystem handling in Electron
+- no arbitrary repository code execution
+- sanitize untrusted GitHub issue content before sending it to an LLM
+- prevent duplicate contribution rewards
+- CORS configuration
+- secure token handling
+
+
+==================================================
+19. OBSERVABILITY
+==================================================
+
+Every service needs useful logs.
+
+Log:
+
+timestamp
+service
+operation
+success/failure
+error
+
+Especially log:
+
+GitHub API failures
+rate-limit status
+sync start/end
+recommendation requests
+PR verification
+database failures
+
+Add:
+
+GET /health
+
+for each HTTP service where practical.
+
+
+==================================================
+20. SEED / DEMO MODE
+==================================================
+
+THIS IS EXTREMELY IMPORTANT FOR THE HACKATHON.
+
+Create a demo/seed mode.
+
+We must be able to populate the database with a small set of real or representative repository/issue data without waiting for a massive synchronization.
+
+Example:
+
+python seed.py
+
+or:
+
+docker compose run ingestion python seed.py
+
+The demo must work even if GitHub API access temporarily fails.
+
+However, do NOT fake GitHub verification in the real contribution flow.
+
+Use real GitHub data wherever practical.
+
+
+==================================================
+21. DEVELOPMENT ORDER
+==================================================
+
+DO NOT build everything simultaneously.
+
+Implement in this order:
+
+PHASE 1:
+Repository structure
+Docker Compose
+PostgreSQL
+API skeleton
+health checks
+
+PHASE 2:
+Kaggle ingestion
+repository filtering
+database schema
+
+PHASE 3:
+GitHub GraphQL integration
+one repository
+pagination
+issue storage
+
+PHASE 4:
+incremental synchronization
+sync_state
+rate-limit handling
+
+PHASE 5:
+issue analysis
+difficulty
+skills
+technology
+
+PHASE 6:
+developer profile
+preferences
+
+PHASE 7:
+recommendation engine
+
+PHASE 8:
+frontend dashboard
+issue page
+profile
+
+PHASE 9:
+GitHub authentication
+
+PHASE 10:
+contribution tracking
+PR verification
+
+PHASE 11:
+Electron client
+clone workflow
+
+PHASE 12:
+progression loop
+
+PHASE 13:
+security + error handling
+
+PHASE 14:
+Docker integration test
+full demo
+
+
+==================================================
+22. REQUIRED DEMO
+==================================================
+
+The final demo must be able to show:
+
+1. User logs in
+2. User chooses skills/interests
+3. Dashboard recommends an issue
+4. Issue displays:
+   - difficulty
+   - required skills
+   - technology
+   - repository
+   - why it was recommended
+5. User starts challenge
+6. Repository can be cloned locally through Electron
+7. User works on code
+8. User submits PR
+9. Backend checks GitHub
+10. Contribution becomes verified
+11. Profile/progress updates
+12. Recommendation changes toward the next challenge
+
+If we cannot complete the full PR lifecycle in the available time, the demo must still have a functioning recommendation + real issue + local clone flow, while keeping PR verification implemented as far as possible.
+
+
+==================================================
+23. CODE QUALITY
+==================================================
+
+Use:
+
+- clear project structure
+- typed models
+- environment configuration
+- reusable GitHub client
+- reusable database layer
+- service interfaces
+- error handling
+- logging
+- README
+
+Do not create giant 2,000-line files.
+
+Do not duplicate GitHub API logic across services.
+
+Create a shared/common package only when it genuinely reduces duplication.
+
+
+==================================================
+24. REPOSITORY STRUCTURE
+==================================================
+
+Use a monorepo:
+
+SkillIssues/
+
+├── frontend/
+├── services/
+│   ├── api/
+│   ├── ingestion/
+│   ├── recommendation/
+│   ├── contribution/
+│   └── worker/
+│
+├── electron/
+│
+├── database/
+│   ├── migrations/
+│   └── seed/
+│
+├── shared/
+│
+├── docker/
+│
+├── compose.yaml
+├── .env.example
+├── .gitignore
+└── README.md
+
+
+==================================================
+25. ENVIRONMENT VARIABLES
+==================================================
+
+Create .env.example containing placeholders for:
+
+DATABASE_URL=
+GITHUB_APP_ID=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+GITHUB_PRIVATE_KEY=
+GITHUB_WEBHOOK_SECRET=
+FRONTEND_URL=
+API_URL=
+
+If using an AI provider later:
+
+AI_API_KEY=
+
+Never hardcode secrets.
+
+
+==================================================
+26. IMPORTANT ARCHITECTURAL DECISIONS
+==================================================
+
+Use PostgreSQL.
+
+Use GitHub GraphQL.
+
+Use incremental synchronization.
+
+Use persistent issue/repository indexing.
+
+Use heuristic difficulty estimation for MVP.
+
+Use personalized recommendation.
+
+Use GitHub as source of truth for contribution status.
+
+Use Electron only for local development interaction.
+
+Use Docker Compose for the multi-container environment.
+
+Do NOT use Redis unless required.
+
+Do NOT use Kafka.
+
+Do NOT use Kubernetes.
+
+Do NOT build an elaborate AI system.
+
+Do NOT crawl all GitHub continuously.
+
+
+==================================================
+27. RESEARCH REQUIREMENT
+==================================================
+
+When implementing GitHub functionality, consult current official GitHub documentation before making assumptions about:
+
+- GraphQL authentication
+- GitHub Apps
+- user authorization
+- permissions
+- rate limits
+- pagination
+- issue queries
+- PR data
+- webhooks
+
+Use official GitHub documentation as the source of truth.
+
+When implementing Docker Compose, use current Docker documentation.
+
+If a technical decision is uncertain, research it before coding rather than inventing an API.
+
+==================================================
+28. IMPLEMENTATION BEHAVIOR
+==================================================
+
+Do NOT just generate a huge amount of code at once.
+
+First inspect the repository.
+
+Then:
+
+1. explain the proposed structure
+2. create the base repository
+3. create Docker Compose
+4. create database
+5. create service skeletons
+6. verify they start
+7. implement one feature at a time
+8. run tests / health checks after each major step
+9. fix errors before continuing
+
+At every stage, prioritize a WORKING SYSTEM.
+
+If a requested feature conflicts with the 24-hour constraint, implement the smallest production-sensible version that preserves the core behavior.
+
+Never silently remove a core feature.
+
+If you simplify something, document the simplification.
+
+==================================================
+FINAL SUCCESS CRITERIA
+==================================================
+
+At the end, this command:
+
+docker compose up --build
+
+must start the backend stack.
+
+The frontend must be able to communicate with the API.
+
+The database must initialize.
+
+The repository/issue ingestion pipeline must work.
+
+The recommendation engine must return personalized issues.
+
+The user must be able to view a recommended issue.
+
+The contribution system must track GitHub PR state.
+
+The developer profile must update from verified contributions.
+
+The system must demonstrate the complete:
+
+LEARN → MATCH → BUILD → CONTRIBUTE → VERIFY → GROW → REPEAT
+
+loop.
+
+START BY INSPECTING THE EXISTING PROJECT FILES AND THEN IMPLEMENT PHASE 1.

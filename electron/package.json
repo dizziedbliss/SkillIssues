@@ -1,0 +1,1 @@
+{"name":"skillissues-desktop","private":true,"main":"main.js","scripts":{"start":"electron ."},"devDependencies":{"electron":"latest"}}
