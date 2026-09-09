@@ -1,141 +1,55 @@
+el('difficulty-filter').addEventListener('change', (event) => { difficultyFilter = event.target.value; loadIssues(el('search').value.trim()); });
+el('sort-filter').addEventListener('change', (event) => { sortFilter = event.target.value; loadIssues(el('search').value.trim()); });
 const API = 'http://localhost:8000';
 let selected = null;
+let contributionId = null;
 let destination = '';
 let issues = [];
+let savedIssues = [];
+let working = [];
 let submissions = [];
 let activeTab = 'all';
-let challengeStarted = false;
+let difficultyFilter = '';
+let sortFilter = 'recommended';
 const el = (id) => document.getElementById(id);
 
-// Startup invariant: the desktop opens on discovery; no local path UI is active until a challenge starts.
-function resetStartupState() {
-  el('workspace').hidden = true;
-  el('clone-handoff').hidden = true;
-  el('git-actions').hidden = true;
-  el('start-challenge').hidden = false;
-  el('destination').value = 'Documents/SkillIssues';
+async function api(path, options = {}) {
+  return window.skillIssuesDesktop.apiRequest(path, { ...options, headers: { ...(options.body ? {'Content-Type': 'application/json'} : {}), ...(options.headers || {}) } });
 }
+function daysAgo(value) { if (!value) return 'recently'; const days = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86400000)); return days ? `${days}d ago` : 'today'; }
+function resetStartupState() { el('workspace').hidden = true; el('clone-handoff').hidden = true; el('git-actions').hidden = true; el('start-challenge').hidden = false; el('destination').textContent = 'Documents/SkillIssues'; }
+function setAuthStatus(message) { el('auth-status').textContent = message; }
+function issueAuthor(issue) { return String(issue.repository || '').split('/')[0]; }
+function saved(issue) { return savedIssues.some((item) => item.id === issue.id); }
 
 async function loadIssues(query = '') {
   el('issues').innerHTML = '<div class="loading">Loading challenges...</div>';
   try {
-    const response = await fetch(`${API}/issues?limit=8${query ? `&search=${encodeURIComponent(query)}` : ''}`);
-    if (!response.ok) throw new Error('The SkillIssues API is unavailable.');
-    issues = await response.json();
-    try { submissions = await (await fetch(`${API}/contributions`, { credentials: 'include' })).json(); } catch { submissions = []; }
-    try {
-      const profile = await (await fetch(`${API}/me`, { credentials: 'include' })).json();
-      el('profile-avatar').src = profile.avatar_url || '';
-      el('profile-name').textContent = profile.username || 'Profile';
-      el('profile-handle').textContent = profile.username ? `@${profile.username}` : '';
-      el('profile-quote').textContent = profile.bio || 'Build your next contribution.';
-      el('profile-languages').innerHTML = (profile.preferred_languages || []).map((language) => `<span>${escapeHtml(language)}</span>`).join('');
-      el('profile-completed').innerHTML = `<span>${profile.completed_count || 0}</span>`;
-      el('profile-level').textContent = profile.target_level || 'BEGINNER';
-      el('profile-progress').style.width = `${profile.progress_score || 0}%`;
-    } catch { /* The issue feed remains usable when profile data is unavailable. */ }
-    el('issue-count').textContent = String(issues.length).padStart(2, '0');
-    renderIssues();
-  } catch (error) {
-    el('issues').innerHTML = `<div class="loading">${escapeHtml(error.message)}</div>`;
-  }
+    const [recommendations, savedResult, workingResult, submissionResult] = await Promise.all([
+      api(query || difficultyFilter ? `/issues?limit=20${query ? `&search=${encodeURIComponent(query)}` : ''}${difficultyFilter ? `&difficulty=${difficultyFilter}` : ''}` : '/recommendations?limit=20'), api('/saved'), api('/working'), api('/contributions')
+    ]);
+    issues = recommendations; if (sortFilter === 'difficulty-asc') issues.sort((a, b) => a.difficulty_score - b.difficulty_score); if (sortFilter === 'difficulty-desc') issues.sort((a, b) => b.difficulty_score - a.difficulty_score); if (sortFilter === 'recent') issues.sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at))); savedIssues = savedResult; working = workingResult; submissions = submissionResult.filter((item) => item.state !== 'STARTED');
+    try { const profile = await api('/me'); el('profile-avatar').src = profile.avatar_url || ''; el('profile-name').textContent = profile.username || 'Profile'; el('profile-handle').textContent = profile.username ? `@${profile.username}` : ''; el('profile-quote').textContent = profile.bio || 'Build your next contribution.'; el('profile-languages').innerHTML = (profile.preferred_languages || []).map((language) => `<span>${escapeHtml(language)}</span>`).join(''); el('profile-completed').innerHTML = `<span>${profile.completed_count || 0}</span>`; el('profile-level').textContent = profile.target_level || 'BEGINNER'; el('profile-progress').style.width = `${profile.progress_score || 0}%`; } catch { /* Demo mode can still show issues when profile auth is unavailable. */ }
+    el('issue-count').textContent = String(issues.length).padStart(2, '0'); el('saved-count').textContent = String(savedIssues.length).padStart(2, '0'); el('working-count').textContent = String(working.length).padStart(2, '0'); el('submission-count').textContent = String(submissions.length).padStart(2, '0'); renderIssues();
+  } catch (error) { setAuthStatus('Authentication required'); el('issues').innerHTML = `<div class="loading">${escapeHtml(error.message)}</div>`; }
 }
 
 function renderIssues() {
-  const visibleIssues = activeTab === 'saved' ? issues.filter((issue) => issue.saved) : issues;
-  if (activeTab === 'submissions') {
-    el('issues').innerHTML = submissions.length ? submissions.map((item) => `<article class="issue submission-card"><div class="issue-main"><div><h2 class="issue-title">${escapeHtml(item.title || 'Untitled challenge')}</h2><div class="issue-repo">${escapeHtml(item.repository || 'Repository')}</div></div><span class="tag action">${escapeHtml(item.state)}</span></div><div class="issue-meta"><div class="issue-tags"><span class="tag">${item.pr_url ? 'PR attached' : 'Not submitted'}</span></div></div></article>`).join('') : '<div class="loading">No submissions yet. Start a challenge from the home feed.</div>';
-    return;
-  }
-  el('issues').innerHTML = visibleIssues.map((issue) => `
-    <article class="issue ${selected?.id === issue.id ? 'selected' : ''}" data-id="${issue.id}">
-      <div class="issue-main"><div><h2 class="issue-title">${escapeHtml(issue.title)}</h2><div class="issue-repo">${escapeHtml(issue.repository)}</div></div><span class="difficulty ${issue.difficulty.toLowerCase()}">${issue.difficulty}</span></div>
-      <div class="issue-meta"><div class="issue-tags"><span class="tag">${escapeHtml(issue.language || 'Open source')}</span><span class="tag">${issue.difficulty_score}/10</span><span class="tag">◌ ${issue.comments || 0}</span></div><div class="issue-actions"><span class="tag light">${escapeHtml(issue.technologies?.[0] || 'Issue')}</span><button class="tag action view-issue" data-id="${issue.id}">View Issue</button><button class="save" data-save="${issue.id}" title="Save issue">♧</button></div></div>
-    </article>`).join('');
-  el('issues').querySelectorAll('.issue').forEach((card) => card.addEventListener('click', (event) => {
-    if (event.target.closest('.view-issue') || event.target.closest('.save')) return;
-    selectIssue(issues.find((issue) => String(issue.id) === card.dataset.id));
-  }));
-  el('issues').querySelectorAll('.view-issue').forEach((button) => button.addEventListener('click', () => selectIssue(issues.find((issue) => String(issue.id) === button.dataset.id))));
-  el('issues').querySelectorAll('.save').forEach((button) => button.addEventListener('click', () => { const issue = issues.find((item) => String(item.id) === button.dataset.save); if (issue) issue.saved = !issue.saved; button.textContent = issue?.saved ? '♥' : '♧'; button.title = issue?.saved ? 'Saved' : 'Save issue'; }));
+  if (activeTab === 'working') { el('feed-subtitle').textContent = 'Repositories you are actively solving'; renderWorking(); return; }
+  if (activeTab === 'submissions') { el('feed-subtitle').textContent = 'Pull requests under review and completed'; renderSubmissions(); return; }
+  const visible = activeTab === 'saved' ? savedIssues : issues; el('feed-subtitle').textContent = activeTab === 'saved' ? 'Challenges to do later' : 'Personalized for your current level and preferences';
+  el('issues').innerHTML = visible.length ? visible.map((issue) => `<article class="issue" data-id="${issue.id}"><div class="issue-main"><div><h2 class="issue-title">#${issue.number || ''} ${escapeHtml(issue.title)}</h2><div class="issue-repo">${escapeHtml(issue.repository)}</div></div><span class="difficulty ${issue.difficulty.toLowerCase()}">${issue.difficulty}</span></div><div class="issue-author">${escapeHtml(issueAuthor(issue))} · ${daysAgo(issue.updated_at)} · ◌ ${issue.comments || 0}</div><div class="issue-meta"><div class="issue-tags"><span class="tag">${escapeHtml(issue.language || 'Open source')}</span><span class="tag">${issue.difficulty_score}/10</span>${(issue.technologies || []).slice(0, 2).map((technology) => `<span class="tag light">${escapeHtml(technology)}</span>`).join('')}</div><div class="issue-actions"><button class="tag action view-issue" data-id="${issue.id}">View Issue ↗</button><button class="save ${saved(issue) ? 'saved' : ''}" data-save="${issue.id}" title="${saved(issue) ? 'Remove saved issue' : 'Save issue'}">${saved(issue) ? '♥' : '♧'}</button></div></div></article>`).join('') : '<div class="loading">Nothing here yet.</div>';
+  el('issues').querySelectorAll('.issue').forEach((card) => card.addEventListener('click', (event) => { if (!event.target.closest('.view-issue') && !event.target.closest('.save')) selectIssue(visible.find((issue) => String(issue.id) === card.dataset.id)); }));
+  el('issues').querySelectorAll('.view-issue').forEach((button) => button.addEventListener('click', () => selectIssue(visible.find((issue) => String(issue.id) === button.dataset.id))));
+  el('issues').querySelectorAll('.save').forEach((button) => button.addEventListener('click', () => void toggleSave(visible.find((issue) => String(issue.id) === button.dataset.save))));
 }
-
-function selectIssue(issue) {
-  if (!issue) return;
-  selected = issue;
-  renderIssues();
-  el('workspace').hidden = false;
-  el('difficulty').textContent = `${issue.difficulty} · ${issue.difficulty_score}/10`;
-  el('difficulty').className = `difficulty ${issue.difficulty.toLowerCase()}`;
-  el('title').textContent = issue.title;
-  el('repository').textContent = `${issue.repository} · ${issue.language || 'Open source'}`;
-  el('github').href = issue.url;
-  el('body').textContent = issue.body || 'No issue description available.';
-  el('skills').innerHTML = (issue.required_skills || []).map((skill) => `<span class="tag">${escapeHtml(skill)}</span>`).join('');
-  challengeStarted = false;
-  el('clone-handoff').hidden = true;
-  el('start-challenge').hidden = false;
-  el('result').hidden = true;
-  updateCloneButton();
-}
-
-function updateCloneButton() { el('clone').disabled = !selected; }
-
-function startChallenge() {
-  challengeStarted = true;
-  el('start-challenge').hidden = true;
-  el('clone-handoff').hidden = false;
-}
-
-async function cloneRepository() {
-  if (!selected) return;
-  el('clone').disabled = true;
-  el('clone').textContent = 'Cloning...';
-  try {
-    const result = await window.skillIssuesDesktop.cloneRepository(selected.repository_url);
-    const status = await window.skillIssuesDesktop.inspectWorkspace(result.path);
-    destination = result.path;
-    el('git-actions').hidden = false;
-    showResult(`Cloned to ${result.path}\n\nGit state\n${status.status || 'Clean working tree'}\n\nCommand log\n${result.path}/.skillissues/commands.log`);
-  } catch (error) { showResult(error.message, true); }
-  finally { el('clone').innerHTML = 'Clone repository <span>↗</span>'; updateCloneButton(); }
-}
-
-function showResult(message, error = false) {
-  const result = el('result');
-  result.hidden = false;
-  result.className = `result${error ? ' error' : ''}`;
-  result.textContent = message;
-}
-
-function escapeHtml(value) {
-  return String(value).replace(/[&<>'"]/g, (character) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[character]);
-}
-
-el('search-button').addEventListener('click', () => loadIssues(el('search').value.trim()));
-el('search').addEventListener('keydown', (event) => { if (event.key === 'Enter') loadIssues(el('search').value.trim()); });
-el('clear-search').addEventListener('click', () => { el('search').value = ''; loadIssues(); });
-el('filter-button').addEventListener('click', () => el('search').focus());
-el('start-challenge').addEventListener('click', startChallenge);
-el('clone').addEventListener('click', cloneRepository);
-el('branch-button').addEventListener('click', async () => {
-  try {
-    await window.skillIssuesDesktop.createBranch(destination, el('branch').value.trim());
-    el('push-button').disabled = false;
-    showResult(`Branch created: ${el('branch').value.trim()}\n\nCommand log\n${destination}/.skillissues/commands.log`);
-  } catch (error) { showResult(error.message, true); }
-});
-el('push-button').addEventListener('click', async () => {
-  try {
-    await window.skillIssuesDesktop.pushBranch(destination, el('branch').value.trim());
-    showResult(`Branch pushed: ${el('branch').value.trim()}\n\nCommand log\n${destination}/.skillissues/commands.log`);
-  } catch (error) { showResult(error.message, true); }
-});
-el('open-workspace').addEventListener('click', async () => {
-  try { await window.skillIssuesDesktop.openWorkspace(destination); showResult(`Opened workspace\n\n${destination}`); }
-  catch (error) { showResult(error.message, true); }
-});
-el('close-workspace').addEventListener('click', () => { el('workspace').hidden = true; });
-document.querySelectorAll('.counts button').forEach((button) => button.addEventListener('click', () => { document.querySelectorAll('.counts button').forEach((item) => item.classList.remove('active')); button.classList.add('active'); activeTab = button.dataset.tab; renderIssues(); }));
-resetStartupState();
-loadIssues();
+function renderWorking() { el('issues').innerHTML = working.length ? working.map((item) => `<article class="issue"><div class="issue-main"><div><h2 class="issue-title">#${item.number} ${escapeHtml(item.title)}</h2><div class="issue-repo">${escapeHtml(item.repository)} · ${escapeHtml(item.language || 'Open source')}</div></div><span class="tag action">WORKING</span></div><div class="issue-meta"><div class="issue-tags"><span class="tag">Cloned and tracking</span><span class="tag">Started ${daysAgo(item.created_at)}</span></div><div class="issue-actions"><button class="tag action" data-working="${item.id}">Open workspace</button><button class="tag action" data-working-submit="${item.id}">Submit PR</button></div></div></article>`).join('') : '<div class="loading">Solve an issue to start tracking a local workspace.</div>'; el('issues').querySelectorAll('[data-working]').forEach((button) => button.addEventListener('click', async () => { const item = working.find((entry) => String(entry.id) === button.dataset.working); if (!item) return; try { const resolved = await window.skillIssuesDesktop.resolveRepositoryWorkspace(item.repository); destination = resolved.path; contributionId = item.id; selected = { ...item, id: item.issue_id, url: item.issue_url, repository_url: item.repository_url, body: item.body || '', required_skills: item.required_skills || [], technologies: item.technologies || [], difficulty: 'WORKING', difficulty_score: 0, comments: 0 }; selectIssue(selected); el('start-challenge').hidden = true; el('clone-handoff').hidden = false; el('git-actions').hidden = false; showResult(`Workspace ready\n\n${destination}`); } catch (error) { showResult(error.message, true); } })); el('issues').querySelectorAll('[data-working-submit]').forEach((button) => button.addEventListener('click', () => { const item = working.find((entry) => String(entry.id) === button.dataset.workingSubmit); if (item) { contributionId = item.id; void window.skillIssuesDesktop.resolveRepositoryWorkspace(item.repository).then((resolved) => { destination = resolved.path; contributionId = item.id; return submitPullRequest(); }).catch((error) => showResult(error.message, true)); } })); }
+function renderSubmissions() { el('issues').innerHTML = submissions.length ? submissions.map((item) => `<article class="issue"><div class="issue-main"><div><h2 class="issue-title">#${item.number} ${escapeHtml(item.title)}</h2><div class="issue-repo">${escapeHtml(item.repository)} · ${escapeHtml(item.language || 'Open source')}</div></div><span class="tag action">${item.state === 'PR_MERGED' ? 'ACCEPTED' : item.state === 'PR_CLOSED' ? 'REJECTED' : 'REVIEW REQUIRED'}</span></div><div class="issue-meta"><div class="issue-tags"><span class="tag">Submitted ${daysAgo(item.created_at)}</span></div><div class="issue-actions">${item.pr_url ? `<a class="tag action" href="${escapeHtml(item.pr_url)}" target="_blank">View submission ↗</a>` : ''}<a class="tag" href="${escapeHtml(item.issue_url)}" target="_blank">View issue ↗</a></div></div></article>`).join('') : '<div class="loading">Submit a pull request to see it here.</div>'; }
+async function toggleSave(issue) { if (!issue) return; try { if (saved(issue)) await api(`/saved/${issue.id}`, { method: 'DELETE' }); else await api('/saved', { method: 'POST', body: JSON.stringify({ issue_id: issue.id }) }); await loadIssues(); } catch (error) { showResult(error.message, true); } }
+function selectIssue(issue) { if (!issue) return; selected = issue; el('workspace').hidden = false; el('difficulty').textContent = `${issue.difficulty} · ${issue.difficulty_score}/10`; el('difficulty').className = `difficulty ${issue.difficulty.toLowerCase()}`; el('title').textContent = `#${issue.number} ${issue.title}`; el('repository').textContent = `${issue.repository} · ${issue.language || 'Open source'}`; el('github').href = issue.url; el('body').textContent = issue.body || 'No issue description available.'; el('skills').innerHTML = (issue.required_skills || []).map((skill) => `<span class="tag">${escapeHtml(skill)}</span>`).join(''); el('clone-handoff').hidden = true; el('start-challenge').hidden = false; el('result').hidden = true; }
+async function startChallenge() { if (!selected) return; try { const contribution = await api('/contributions', { method: 'POST', body: JSON.stringify({ issue_id: selected.id }) }); contributionId = contribution.id; el('start-challenge').hidden = true; el('clone-handoff').hidden = false; await loadIssues(); } catch (error) { showResult(error.message, true); } }
+async function cloneRepository() { if (!selected) return; el('clone').disabled = true; el('clone').textContent = 'Cloning...'; try { const result = await window.skillIssuesDesktop.cloneRepository(selected.repository_url); destination = result.path; const status = await window.skillIssuesDesktop.inspectWorkspace(result.path); el('git-actions').hidden = false; showResult(`Cloned to ${result.path}\n\nGit state\n${status.status || 'Clean working tree'}\n\nCommand log\n${result.path}/.skillissues/commands.log`); } catch (error) { showResult(error.message, true); } finally { el('clone').innerHTML = 'Clone repository <span>↗</span>'; } }
+async function submitPullRequest() { if (!contributionId) return showResult('Start and clone a challenge before submitting a pull request.', true); try { await api(`/contributions/${contributionId}/submit`, { method: 'POST', body: JSON.stringify({ branch: el('branch').value.trim() }) }); await loadIssues(); activeTab = 'submissions'; renderIssues(); showResult('Pull request submitted for review.'); } catch (error) { showResult(error.message, true); } }
+function showResult(message, error = false) { const result = el('result'); result.hidden = false; result.className = `result${error ? ' error' : ''}`; result.textContent = message; }
+function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]); }
+el('search-button').addEventListener('click', () => loadIssues(el('search').value.trim())); el('search').addEventListener('keydown', (event) => { if (event.key === 'Enter') loadIssues(el('search').value.trim()); }); el('clear-search').addEventListener('click', () => { el('search').value = ''; loadIssues(); }); el('filter-button').addEventListener('click', () => el('search').focus()); el('start-challenge').addEventListener('click', startChallenge); el('clone').addEventListener('click', cloneRepository); el('submit-pr').addEventListener('click', submitPullRequest); el('github-login').addEventListener('click', async () => { try { const result = await window.skillIssuesDesktop.loginWithGitHub(); setAuthStatus(result.authenticated ? 'GitHub connected' : 'Not connected'); if (result.authenticated) await loadIssues(); } catch (error) { showResult(error.message, true); } }); el('demo-login').addEventListener('click', async () => { try { await window.skillIssuesDesktop.loginDemo(); setAuthStatus('Demo profile'); await loadIssues(); } catch (error) { showResult(error.message, true); } }); el('logout').addEventListener('click', async () => { await window.skillIssuesDesktop.logout(); setAuthStatus('Signed out'); }); el('branch-button').addEventListener('click', async () => { if (!destination) return showResult('Open or clone a working repository before creating a branch.', true); try { await window.skillIssuesDesktop.createBranch(destination, el('branch').value.trim()); el('push-button').disabled = false; showResult(`Branch ready: ${el('branch').value.trim()}`); } catch (error) { showResult(error.message, true); } }); el('push-button').addEventListener('click', async () => { if (!destination) return showResult('Open or clone a working repository before pushing.', true); try { await window.skillIssuesDesktop.pushBranch(destination, el('branch').value.trim()); showResult(`Branch pushed: ${el('branch').value.trim()}`); } catch (error) { showResult(error.message, true); } }); el('open-workspace').addEventListener('click', async () => { if (!destination) return showResult('Open a working repository first.', true); try { await window.skillIssuesDesktop.openWorkspace(destination); showResult(`Opened workspace\n\n${destination}`); } catch (error) { showResult(error.message, true); } }); el('open-vscode').addEventListener('click', async () => { if (!destination) return showResult('Open a working repository first.', true); try { await window.skillIssuesDesktop.openInVSCode(destination); showResult('Opened workspace in VS Code.'); } catch (error) { showResult(error.message, true); } }); el('close-workspace').addEventListener('click', () => { el('workspace').hidden = true; }); document.querySelectorAll('.counts button').forEach((button) => button.addEventListener('click', () => { document.querySelectorAll('.counts button').forEach((item) => item.classList.remove('active')); button.classList.add('active'); activeTab = button.dataset.tab; renderIssues(); })); resetStartupState(); loadIssues();

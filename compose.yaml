@@ -26,8 +26,11 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8000/auth/github/callback}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-}
       RECOMMENDATION_URL: http://recommendation:8000
+      CONTRIBUTION_URL: http://contribution:8000
     ports:
       - "8000:8000"
     volumes:
@@ -36,6 +39,8 @@ services:
       postgres:
         condition: service_healthy
       recommendation:
+        condition: service_started
+      contribution:
         condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -48,8 +53,10 @@ services:
     environment:
       DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
       REPOSITORY_METADATA_PATH: /repo/repo_metadata.json
-      MAX_REPOSITORIES: 1000
+      MAX_REPOSITORIES: ${MAX_REPOSITORIES:-100}
       MIN_STARS: 50
+      SAMPLE_SEED: ${SAMPLE_SEED:-skillissues-demo}
+      RESET_CATALOG: ${RESET_CATALOG:-false}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       SYNC_ISSUES: ${SYNC_ISSUES:-false}
       SYNC_REPOSITORIES: 10
@@ -74,9 +81,7 @@ services:
     build: ./services/contribution
     environment:
       API_URL: http://api:8000
-    depends_on:
-      api:
-        condition: service_healthy
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
 
   worker:
     build: ./services/worker

@@ -7,6 +7,7 @@ import http.client
 import json
 import logging
 import os
+import random
 import threading
 import time
 import urllib.error
@@ -25,6 +26,8 @@ logger = logging.getLogger(__name__)
 DATABASE_URL = os.environ["DATABASE_URL"]
 METADATA_PATH = Path(os.getenv("REPOSITORY_METADATA_PATH", "/repo/repo_metadata.json"))
 MAX_REPOSITORIES = int(os.getenv("MAX_REPOSITORIES", "1000"))
+SAMPLE_SEED = os.getenv("SAMPLE_SEED", "")
+RESET_CATALOG = os.getenv("RESET_CATALOG", "false").lower() == "true"
 MIN_STARS = int(os.getenv("MIN_STARS", "50"))
 RUN_ONCE = os.getenv("RUN_ONCE", "false").lower() == "true"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
@@ -121,6 +124,8 @@ def clean_repository(record: dict[str, Any], min_stars: int = MIN_STARS) -> dict
         part for part in (text(record.get("owner")), text(record.get("name"))) if part
     )
     license_name = text(record.get("license"))
+    if license_name.lower() in {"null", "none", "n/a"}:
+        license_name = ""
     if not full_name or integer(record.get("stars")) <= min_stars:
         return None
     if record.get("isArchived") is not False or record.get("isFork") is True:
@@ -208,13 +213,38 @@ def wait_for_database() -> None:
 def import_repositories() -> int:
     if not METADATA_PATH.is_file():
         raise FileNotFoundError(f"repository metadata not found: {METADATA_PATH}")
+    try:
+        import pandas as pd
+        import ijson
+    except ModuleNotFoundError as error:
+        raise RuntimeError("pandas and ijson are required for repository import; use the ingestion Docker image or install ingestion requirements") from error
     wait_for_database()
     imported = 0
-    scanned = 0
+    seed = int.from_bytes(hashlib.sha256((SAMPLE_SEED or "skillissues").encode()).digest()[:4], "big")
+    batch_size = 25_000
+    scanned = qualified_count = 0
+    rng = random.Random(seed)
+    sample: list[dict[str, Any]] = []
+    with METADATA_PATH.open("rb") as metadata_file:
+        batch: list[dict[str, Any]] = []
+        for record in ijson.items(metadata_file, "item"):
+            batch.append(record)
+            if len(batch) < batch_size:
+                continue
+            scanned, qualified_count = _filter_batch(pd, batch, scanned, qualified_count, sample, rng)
+            batch.clear()
+        if batch:
+            scanned, qualified_count = _filter_batch(pd, batch, scanned, qualified_count, sample, rng)
+    logger.info("pandas catalog filter complete scanned=%s qualified=%s sample=%s", scanned, qualified_count, len(sample))
     with psycopg.connect(DATABASE_URL) as connection:
         with connection.cursor() as cursor:
-            for record in stream_records(METADATA_PATH):
-                scanned += 1
+            if RESET_CATALOG:
+                cursor.execute("DELETE FROM contributions")
+                cursor.execute("DELETE FROM saved_issues")
+                cursor.execute("DELETE FROM issues")
+                cursor.execute("DELETE FROM repositories")
+                logger.warning("repository catalog reset enabled; existing repository, issue, and contribution data was removed")
+            for record in sample:
                 repository = clean_repository(record)
                 if repository is None:
                     continue
@@ -231,11 +261,37 @@ def import_repositories() -> int:
                       last_synced_at = now()
                 """, repository)
                 imported += 1
-                if imported >= MAX_REPOSITORIES:
-                    break
         connection.commit()
-    logger.info("repository import complete scanned=%s imported=%s limit=%s", scanned, imported, MAX_REPOSITORIES)
+    logger.info("repository import complete scanned=%s qualified=%s imported=%s sample_size=%s", scanned, qualified_count, imported, MAX_REPOSITORIES)
     return imported
+
+
+def _filter_batch(pd: Any, records: list[dict[str, Any]], scanned: int, qualified_count: int, sample: list[dict[str, Any]], rng: random.Random) -> tuple[int, int]:
+    frame = pd.DataFrame.from_records(records)
+    stars_values = frame["stars"] if "stars" in frame else pd.Series(0, index=frame.index)
+    archived_values = frame["isArchived"] if "isArchived" in frame else pd.Series(False, index=frame.index)
+    fork_values = frame["isFork"] if "isFork" in frame else pd.Series(False, index=frame.index)
+    forking_values = frame["forkingAllowed"] if "forkingAllowed" in frame else pd.Series(False, index=frame.index)
+    license_values = frame["license"] if "license" in frame else pd.Series("", index=frame.index)
+    frame["stars"] = pd.to_numeric(stars_values, errors="coerce").fillna(0)
+    frame["license_valid"] = ~license_values.fillna("").astype(str).str.strip().str.lower().isin({"", "null", "none", "n/a"})
+    mask = (
+        (archived_values == False)
+        & (frame["stars"] > MIN_STARS)
+        & (fork_values == False)
+        & (forking_values == True)
+        & frame["license_valid"]
+    )
+    qualified = frame.loc[mask].drop(columns=["license_valid"], errors="ignore").to_dict(orient="records")
+    for record in qualified:
+        qualified_count += 1
+        if len(sample) < MAX_REPOSITORIES:
+            sample.append(record)
+        else:
+            replacement = rng.randrange(qualified_count)
+            if replacement < MAX_REPOSITORIES:
+                sample[replacement] = record
+    return scanned + len(records), qualified_count
 
 
 def repository_parts(full_name: str) -> tuple[str, str]:
@@ -309,12 +365,21 @@ def query_sync_state(repository_id: int) -> dict[str, Any]:
 def update_rate_limit(repository_id: int, rate_limit: dict[str, Any]) -> None:
     with psycopg.connect(DATABASE_URL) as connection:
         connection.execute("""
-            INSERT INTO sync_state (repository_id, rate_limit_remaining, rate_limit_reset_at)
-            VALUES (%s, %s, %s)
+            INSERT INTO sync_state
+              (repository_id, rate_limit_limit, rate_limit_remaining, rate_limit_used,
+               rate_limit_reset_at, rate_limit_cost)
+            VALUES (%s, %s, %s, %s, %s, %s)
             ON CONFLICT (repository_id) DO UPDATE SET
+              rate_limit_limit = EXCLUDED.rate_limit_limit,
               rate_limit_remaining = EXCLUDED.rate_limit_remaining,
-              rate_limit_reset_at = EXCLUDED.rate_limit_reset_at
-        """, (repository_id, rate_limit["remaining"], parse_timestamp(rate_limit["resetAt"])))
+              rate_limit_used = EXCLUDED.rate_limit_used,
+              rate_limit_reset_at = EXCLUDED.rate_limit_reset_at,
+              rate_limit_cost = EXCLUDED.rate_limit_cost
+        """, (
+            repository_id, rate_limit.get("limit"), rate_limit.get("remaining"),
+            rate_limit.get("used"), parse_timestamp(rate_limit.get("resetAt")),
+            rate_limit.get("cost"),
+        ))
 
 
 def mark_repository_synced(repository_id: int) -> None:
@@ -405,7 +470,10 @@ def serve_scheduler() -> None:
 
 
 if __name__ == "__main__":
-    import_repositories()
+    if METADATA_PATH.is_file():
+        import_repositories()
+    else:
+        logger.warning("repository metadata not found; serving sync endpoints with seed data only: %s", METADATA_PATH)
     if SYNC_ISSUES:
         sync_issues()
     if RUN_ONCE:
