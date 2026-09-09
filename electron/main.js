@@ -10,7 +10,7 @@ function isSafeWorkspace(workspace) {
 }
 
 function createWindow() {
-  const window = new BrowserWindow({ width: 1100, height: 760, webPreferences: { contextIsolation: true, sandbox: true } });
+  const window = new BrowserWindow({ width: 1100, height: 760, webPreferences: { contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.js') } });
   window.loadURL(process.env.FRONTEND_URL || 'http://localhost:5173');
 }
 
@@ -25,6 +25,20 @@ ipcMain.handle('workspace:inspect', async (_, workspace) => {
 ipcMain.handle('workspace:choose', async () => {
   const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
   return result.canceled ? null : result.filePaths[0];
+});
+
+ipcMain.handle('workspace:clone', async (_, repositoryUrl, destination) => {
+  if (typeof repositoryUrl !== 'string' || !/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repositoryUrl)) {
+    throw new Error('Only public GitHub repository URLs are supported.');
+  }
+  if (!isSafeWorkspace(destination)) throw new Error('Choose an existing destination directory.');
+  const repositoryName = repositoryUrl.split('/').pop();
+  const target = path.join(path.resolve(destination), repositoryName);
+  if (fs.existsSync(target)) throw new Error('The repository destination already exists.');
+  return new Promise((resolve, reject) => execFile('git', ['clone', '--', repositoryUrl, target], (error, stdout, stderr) => {
+    if (error) return reject(new Error(stderr.trim() || 'Repository clone failed.'));
+    resolve({ path: target, output: stdout.trim() });
+  }));
 });
 
 app.whenReady().then(createWindow);

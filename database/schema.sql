@@ -5,6 +5,13 @@ CREATE TABLE IF NOT EXISTS users (
   avatar_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS auth_sessions (
+  token TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL DEFAULT 'demo',
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '7 days'),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 CREATE TABLE IF NOT EXISTS developer_profiles (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   bio TEXT DEFAULT '',
@@ -69,6 +76,11 @@ CREATE TABLE IF NOT EXISTS sync_state (
   priority TEXT NOT NULL DEFAULT 'MEDIUM',
   rate_limit_remaining INTEGER,
   rate_limit_reset_at TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS webhook_events (
+  delivery_id TEXT PRIMARY KEY,
+  event_name TEXT NOT NULL,
+  processed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS issues_difficulty_idx ON issues(difficulty);
 CREATE INDEX IF NOT EXISTS issues_updated_idx ON issues(updated_at);
