@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { execFile } = require('node:child_process');
@@ -13,8 +13,20 @@ function validBranchName(branch) {
   return typeof branch === 'string' && /^[A-Za-z0-9][A-Za-z0-9._/-]{0,80}$/.test(branch) && !branch.includes('..');
 }
 
+function workspaceRoot() {
+  const root = path.join(app.getPath('documents'), 'SkillIssues');
+  fs.mkdirSync(root, { recursive: true });
+  return root;
+}
+
+function isWithinRoot(candidate) {
+  const root = path.resolve(workspaceRoot());
+  const resolved = path.resolve(candidate);
+  return resolved === root || resolved.startsWith(`${root}${path.sep}`);
+}
+
 function runGit(workspace, args, command) {
-  if (!isSafeWorkspace(workspace)) return Promise.reject(new Error('Choose an existing Git workspace.'));
+  if (!isSafeWorkspace(workspace)) return Promise.reject(new Error('Use a SkillIssues workspace under Documents.'));
   return new Promise((resolve, reject) => execFile('git', ['-C', path.resolve(workspace), ...args], (error, stdout, stderr) => {
     if (error) return reject(new Error(stderr.trim() || 'Git command failed.'));
     recordCommand(path.resolve(workspace), command, stdout.trim());
@@ -25,7 +37,7 @@ function runGit(workspace, args, command) {
 function isSafeWorkspace(workspace) {
   if (typeof workspace !== 'string' || workspace.length === 0) return false;
   const resolved = path.resolve(workspace);
-  return fs.existsSync(resolved) && fs.statSync(resolved).isDirectory();
+  return isWithinRoot(resolved) && fs.existsSync(resolved) && fs.statSync(resolved).isDirectory();
 }
 
 function createWindow() {
@@ -34,7 +46,7 @@ function createWindow() {
 }
 
 ipcMain.handle('workspace:inspect', async (_, workspace) => {
-  if (!isSafeWorkspace(workspace)) throw new Error('Choose an existing local workspace directory.');
+  if (!isSafeWorkspace(workspace)) throw new Error('Use a SkillIssues workspace under Documents.');
   return new Promise((resolve, reject) => execFile('git', ['-C', path.resolve(workspace), 'status', '--short', '--branch'], (error, stdout) => {
     if (error) return reject(new Error('The selected directory is not a Git workspace.'));
     recordCommand(path.resolve(workspace), `git -C "${path.resolve(workspace)}" status --short --branch`, stdout.trim());
@@ -42,16 +54,11 @@ ipcMain.handle('workspace:inspect', async (_, workspace) => {
   }));
 });
 
-ipcMain.handle('workspace:choose', async () => {
-  const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
-  return result.canceled ? null : result.filePaths[0];
-});
-
-ipcMain.handle('workspace:clone', async (_, repositoryUrl, destination) => {
+ipcMain.handle('workspace:clone', async (_, repositoryUrl) => {
   if (typeof repositoryUrl !== 'string' || !/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repositoryUrl)) {
     throw new Error('Only public GitHub repository URLs are supported.');
   }
-  if (!isSafeWorkspace(destination)) throw new Error('Choose an existing destination directory.');
+  const destination = workspaceRoot();
   const repositoryName = repositoryUrl.split('/').pop();
   const target = path.join(path.resolve(destination), repositoryName);
   if (fs.existsSync(target)) throw new Error('The repository destination already exists.');
@@ -60,6 +67,13 @@ ipcMain.handle('workspace:clone', async (_, repositoryUrl, destination) => {
     recordCommand(target, `git clone "${repositoryUrl}" "${target}"`, stdout.trim());
     resolve({ path: target, output: stdout.trim() });
   }));
+});
+
+ipcMain.handle('workspace:open', async (_, workspace) => {
+  if (!isSafeWorkspace(workspace)) throw new Error('Invalid SkillIssues workspace.');
+  const error = await shell.openPath(path.resolve(workspace));
+  if (error) throw new Error(error);
+  return { opened: true };
 });
 
 ipcMain.handle('workspace:create-branch', async (_, workspace, branch) => {

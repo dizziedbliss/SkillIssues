@@ -13,7 +13,7 @@ function resetStartupState() {
   el('clone-handoff').hidden = true;
   el('git-actions').hidden = true;
   el('start-challenge').hidden = false;
-  el('destination').value = '';
+  el('destination').value = 'Documents/SkillIssues';
 }
 
 async function loadIssues(query = '') {
@@ -22,7 +22,18 @@ async function loadIssues(query = '') {
     const response = await fetch(`${API}/issues?limit=8${query ? `&search=${encodeURIComponent(query)}` : ''}`);
     if (!response.ok) throw new Error('The SkillIssues API is unavailable.');
     issues = await response.json();
-    try { submissions = await (await fetch(`${API}/contributions`)).json(); } catch { submissions = []; }
+    try { submissions = await (await fetch(`${API}/contributions`, { credentials: 'include' })).json(); } catch { submissions = []; }
+    try {
+      const profile = await (await fetch(`${API}/me`, { credentials: 'include' })).json();
+      el('profile-avatar').src = profile.avatar_url || '';
+      el('profile-name').textContent = profile.username || 'Profile';
+      el('profile-handle').textContent = profile.username ? `@${profile.username}` : '';
+      el('profile-quote').textContent = profile.bio || 'Build your next contribution.';
+      el('profile-languages').innerHTML = (profile.preferred_languages || []).map((language) => `<span>${escapeHtml(language)}</span>`).join('');
+      el('profile-completed').innerHTML = `<span>${profile.completed_count || 0}</span>`;
+      el('profile-level').textContent = profile.target_level || 'BEGINNER';
+      el('profile-progress').style.width = `${profile.progress_score || 0}%`;
+    } catch { /* The issue feed remains usable when profile data is unavailable. */ }
     el('issue-count').textContent = String(issues.length).padStart(2, '0');
     renderIssues();
   } catch (error) {
@@ -68,29 +79,20 @@ function selectIssue(issue) {
   updateCloneButton();
 }
 
-function updateCloneButton() { el('clone').disabled = !selected || !destination; }
+function updateCloneButton() { el('clone').disabled = !selected; }
 
 function startChallenge() {
   challengeStarted = true;
   el('start-challenge').hidden = true;
   el('clone-handoff').hidden = false;
-  el('destination').focus();
-}
-
-async function chooseDestination() {
-  try {
-    destination = await window.skillIssuesDesktop.chooseWorkspace();
-    el('destination').value = destination || '';
-    updateCloneButton();
-  } catch (error) { showResult(error.message, true); }
 }
 
 async function cloneRepository() {
-  if (!selected || !destination) return;
+  if (!selected) return;
   el('clone').disabled = true;
   el('clone').textContent = 'Cloning...';
   try {
-    const result = await window.skillIssuesDesktop.cloneRepository(selected.repository_url, destination);
+    const result = await window.skillIssuesDesktop.cloneRepository(selected.repository_url);
     const status = await window.skillIssuesDesktop.inspectWorkspace(result.path);
     destination = result.path;
     el('git-actions').hidden = false;
@@ -114,7 +116,6 @@ el('search-button').addEventListener('click', () => loadIssues(el('search').valu
 el('search').addEventListener('keydown', (event) => { if (event.key === 'Enter') loadIssues(el('search').value.trim()); });
 el('clear-search').addEventListener('click', () => { el('search').value = ''; loadIssues(); });
 el('filter-button').addEventListener('click', () => el('search').focus());
-el('choose').addEventListener('click', chooseDestination);
 el('start-challenge').addEventListener('click', startChallenge);
 el('clone').addEventListener('click', cloneRepository);
 el('branch-button').addEventListener('click', async () => {
@@ -129,6 +130,10 @@ el('push-button').addEventListener('click', async () => {
     await window.skillIssuesDesktop.pushBranch(destination, el('branch').value.trim());
     showResult(`Branch pushed: ${el('branch').value.trim()}\n\nCommand log\n${destination}/.skillissues/commands.log`);
   } catch (error) { showResult(error.message, true); }
+});
+el('open-workspace').addEventListener('click', async () => {
+  try { await window.skillIssuesDesktop.openWorkspace(destination); showResult(`Opened workspace\n\n${destination}`); }
+  catch (error) { showResult(error.message, true); }
 });
 el('close-workspace').addEventListener('click', () => { el('workspace').hidden = true; });
 document.querySelectorAll('.counts button').forEach((button) => button.addEventListener('click', () => { document.querySelectorAll('.counts button').forEach((item) => item.classList.remove('active')); button.classList.add('active'); activeTab = button.dataset.tab; renderIssues(); }));
