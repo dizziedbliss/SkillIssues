@@ -1,4 +1,7 @@
 from contextlib import asynccontextmanager
+import hashlib
+import hmac
+import secrets
 from pathlib import Path
 import os
 import re
@@ -6,12 +9,13 @@ from typing import Any
 
 import httpx
 import psycopg
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skillissues:skillissues@localhost:5432/skillissues")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+GITHUB_WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
 RECOMMENDATION_URL = os.getenv("RECOMMENDATION_URL", "http://recommendation:8000")
 SCHEMA = Path(os.getenv("SCHEMA_PATH", "/database/schema.sql"))
 SEED = Path(os.getenv("SEED_PATH", "/database/seed/seed.sql"))
@@ -85,10 +89,22 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "api"}
 
 
+@app.get("/health/detail")
+def health_detail() -> dict[str, Any]:
+    counts = query("""
+        SELECT (SELECT count(*) FROM repositories) AS repositories,
+               (SELECT count(*) FROM issues) AS issues,
+               (SELECT count(*) FROM contributions) AS contributions
+    """)[0]
+    return {"status": "ok", "service": "api", "database": "ok", "counts": counts}
+
+
 @app.post("/auth/demo")
 def demo_login() -> dict[str, Any]:
     user = query("SELECT id, username, avatar_url FROM users WHERE github_id = 'demo-1'")[0]
-    return {"token": "demo-token", "user": user}
+    token = secrets.token_urlsafe(32)
+    execute("INSERT INTO auth_sessions (token, user_id, provider) VALUES (%s, %s, 'demo')", (token, user["id"]))
+    return {"token": token, "user": user}
 
 
 @app.get("/auth/github")
@@ -97,6 +113,48 @@ def github_login() -> dict[str, Any]:
     if not client_id:
         return {"enabled": False, "message": "Demo mode is active. Configure GITHUB_CLIENT_ID for OAuth."}
     return {"enabled": True, "authorize_url": f"https://github.com/login/oauth/authorize?client_id={client_id}&scope=read:user"}
+
+
+@app.get("/auth/github/callback")
+async def github_callback(code: str | None = None) -> dict[str, Any]:
+    if not code or not os.getenv("GITHUB_CLIENT_ID") or not os.getenv("GITHUB_CLIENT_SECRET"):
+        raise HTTPException(400, "GitHub OAuth is not configured or no code was provided")
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.post("https://github.com/login/oauth/access_token", data={
+            "client_id": os.environ["GITHUB_CLIENT_ID"],
+            "client_secret": os.environ["GITHUB_CLIENT_SECRET"],
+            "code": code,
+        }, headers={"Accept": "application/json"})
+        response.raise_for_status()
+        token_data = response.json()
+        access_token = token_data.get("access_token")
+        if not access_token:
+            raise HTTPException(400, "GitHub did not return an access token")
+        user_response = await client.get("https://api.github.com/user", headers={"Authorization": f"Bearer {access_token}", "Accept": "application/vnd.github+json"})
+        user_response.raise_for_status()
+        github_user = user_response.json()
+    user = query("""INSERT INTO users (github_id, username, avatar_url) VALUES (%s, %s, %s)
+        ON CONFLICT (github_id) DO UPDATE SET username = EXCLUDED.username, avatar_url = EXCLUDED.avatar_url
+        RETURNING id, username, avatar_url""", (str(github_user["id"]), github_user["login"], github_user.get("avatar_url")))[0]
+    execute("INSERT INTO developer_profiles (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user["id"],))
+    execute("INSERT INTO developer_preferences (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user["id"],))
+    session_token = secrets.token_urlsafe(32)
+    execute("INSERT INTO auth_sessions (token, user_id, provider) VALUES (%s, %s, 'github')", (session_token, user["id"]))
+    return {"token": session_token, "user": user}
+
+
+@app.post("/webhooks/github")
+async def github_webhook(request: Request) -> dict[str, Any]:
+    body = await request.body()
+    signature = request.headers.get("x-hub-signature-256", "")
+    delivery = request.headers.get("x-github-delivery", secrets.token_hex(8))
+    event_name = request.headers.get("x-github-event", "unknown")
+    if GITHUB_WEBHOOK_SECRET:
+        expected = "sha256=" + hmac.new(GITHUB_WEBHOOK_SECRET.encode(), body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            raise HTTPException(401, "Invalid webhook signature")
+    execute("INSERT INTO webhook_events (delivery_id, event_name) VALUES (%s, %s) ON CONFLICT DO NOTHING", (delivery, event_name))
+    return {"accepted": True, "delivery_id": delivery, "event": event_name}
 
 
 @app.post("/admin/sync/repository/{repository_id}", status_code=202)
@@ -166,13 +224,20 @@ def issue_query(where: str = "", params: tuple[Any, ...] = ()) -> list[dict[str,
 
 
 @app.get("/issues")
-def issues(difficulty: str | None = Query(default=None), limit: int = Query(default=20, le=50)) -> list[dict[str, Any]]:
+def issues(difficulty: str | None = Query(default=None), language: str | None = Query(default=None), search: str | None = Query(default=None), limit: int = Query(default=20, le=50)) -> list[dict[str, Any]]:
     where = "WHERE i.state = 'OPEN'"
     params: tuple[Any, ...] = ()
     if difficulty:
         where += " AND i.difficulty = %s"
         params += (difficulty.upper(),)
-    return issue_query(where + " LIMIT %s", params + (limit,))
+    if language:
+        where += " AND lower(r.language) = lower(%s)"
+        params += (language,)
+    if search:
+        where += " AND (i.title ILIKE %s OR i.body ILIKE %s OR r.full_name ILIKE %s)"
+        term = f"%{search}%"
+        params += (term, term, term)
+    return issue_query(where, params)[:limit]
 
 
 @app.get("/issues/{issue_id}")
