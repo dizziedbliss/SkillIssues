@@ -5,17 +5,19 @@ import secrets
 from pathlib import Path
 import os
 import re
+from urllib.parse import urlparse
 from typing import Any
 
 import httpx
 import psycopg
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skillissues:skillissues@localhost:5432/skillissues")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 GITHUB_WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
 RECOMMENDATION_URL = os.getenv("RECOMMENDATION_URL", "http://recommendation:8000")
 SCHEMA = Path(os.getenv("SCHEMA_PATH", "/database/schema.sql"))
 SEED = Path(os.getenv("SEED_PATH", "/database/seed/seed.sql"))
@@ -53,6 +55,8 @@ def initialize_database() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     initialize_database()
+    if not DEMO_MODE and not GITHUB_WEBHOOK_SECRET:
+        raise RuntimeError("GITHUB_WEBHOOK_SECRET is required when DEMO_MODE=false")
     yield
 
 
@@ -83,6 +87,19 @@ class ContributionUpdate(BaseModel):
     pr_number: int = Field(gt=0)
 
 
+def authenticated_user_id(request: Request) -> int:
+    authorization = request.headers.get("Authorization", "")
+    if authorization.startswith("Bearer "):
+        token = authorization.removeprefix("Bearer ").strip()
+        rows = query("SELECT user_id FROM auth_sessions WHERE token = %s AND expires_at > now()", (token,))
+        if rows:
+            return rows[0]["user_id"]
+    demo = query("SELECT id FROM users WHERE github_id = 'demo-1'")
+    if demo:
+        return demo[0]["id"]
+    raise HTTPException(401, "Authentication required")
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     query("SELECT 1")
@@ -105,6 +122,23 @@ def demo_login() -> dict[str, Any]:
     token = secrets.token_urlsafe(32)
     execute("INSERT INTO auth_sessions (token, user_id, provider) VALUES (%s, %s, 'demo')", (token, user["id"]))
     return {"token": token, "user": user}
+
+
+@app.get("/auth/session")
+def auth_session(request: Request) -> dict[str, Any]:
+    user_id = authenticated_user_id(request)
+    rows = query("SELECT id, username, avatar_url FROM users WHERE id = %s", (user_id,))
+    if not rows:
+        raise HTTPException(401, "Session user not found")
+    return {"authenticated": True, "user": rows[0]}
+
+
+@app.post("/auth/logout")
+def logout(request: Request) -> dict[str, bool]:
+    authorization = request.headers.get("Authorization", "")
+    if authorization.startswith("Bearer "):
+        execute("DELETE FROM auth_sessions WHERE token = %s", (authorization.removeprefix("Bearer ").strip(),))
+    return {"logged_out": True}
 
 
 @app.get("/auth/github")
@@ -149,11 +183,20 @@ async def github_webhook(request: Request) -> dict[str, Any]:
     signature = request.headers.get("x-hub-signature-256", "")
     delivery = request.headers.get("x-github-delivery", secrets.token_hex(8))
     event_name = request.headers.get("x-github-event", "unknown")
-    if GITHUB_WEBHOOK_SECRET:
+    if not GITHUB_WEBHOOK_SECRET:
+        if not DEMO_MODE:
+            raise HTTPException(503, "Webhook verification is not configured")
+    else:
         expected = "sha256=" + hmac.new(GITHUB_WEBHOOK_SECRET.encode(), body, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(signature, expected):
             raise HTTPException(401, "Invalid webhook signature")
-    execute("INSERT INTO webhook_events (delivery_id, event_name) VALUES (%s, %s) ON CONFLICT DO NOTHING", (delivery, event_name))
+    inserted = query("""INSERT INTO webhook_events (delivery_id, event_name) VALUES (%s, %s)
+        ON CONFLICT (delivery_id) DO NOTHING RETURNING delivery_id""", (delivery, event_name))
+    if inserted and event_name == "pull_request":
+        payload = __import__("json").loads(body or b"{}")
+        pull_request = payload.get("pull_request", {})
+        if pull_request.get("merged") and pull_request.get("html_url"):
+            apply_merged_pr(pull_request["html_url"])
     return {"accepted": True, "delivery_id": delivery, "event": event_name}
 
 
@@ -328,6 +371,28 @@ def attach_pr(contribution_id: int, payload: ContributionUpdate) -> dict[str, An
     return rows[0]
 
 
+def apply_merged_pr(pr_url: str) -> bool:
+    parsed = urlparse(pr_url)
+    if parsed.netloc != "github.com":
+        return False
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) != 4 or parts[2] != "pull" or not parts[3].isdigit():
+        return False
+    rows = query("""
+        UPDATE contributions SET state = 'PR_MERGED', merged_at = now(), updated_at = now()
+        WHERE pr_url = %s AND state <> 'PR_MERGED'
+        RETURNING id, user_id, issue_id
+    """, (pr_url,))
+    for contribution_data in rows:
+        execute("""
+            UPDATE developer_profiles SET completed_count = completed_count + 1,
+              progress_score = LEAST(100, progress_score + 12),
+              demonstrated_skills = ARRAY(SELECT DISTINCT unnest(demonstrated_skills || i.required_skills))
+            FROM issues i WHERE i.id = %s AND user_id = %s
+        """, (contribution_data["issue_id"], contribution_data["user_id"]))
+    return bool(rows)
+
+
 @app.post("/contributions/{contribution_id}/verify")
 async def verify_contribution(contribution_id: int) -> dict[str, Any]:
     rows = query("SELECT * FROM contributions WHERE id = %s AND user_id = %s", (contribution_id, me()["id"]))
@@ -346,18 +411,7 @@ async def verify_contribution(contribution_id: int) -> dict[str, Any]:
     if not pr.get("merged"):
         execute("UPDATE contributions SET state = %s, updated_at = now() WHERE id = %s", ("PR_OPEN" if pr.get("state") == "open" else "PR_CLOSED", contribution_id))
         return {"verified": False, "state": pr.get("state"), "message": "GitHub confirms the PR is not merged yet."}
-    updated = query("""
-        UPDATE contributions SET state = 'PR_MERGED', merged_at = now(), updated_at = now()
-        WHERE id = %s AND user_id = %s AND state <> 'PR_MERGED'
-        RETURNING issue_id
-    """, (contribution_id, me()["id"]))
-    if updated:
-        execute("""
-            UPDATE developer_profiles SET completed_count = completed_count + 1,
-              progress_score = LEAST(100, progress_score + 12),
-              demonstrated_skills = ARRAY(SELECT DISTINCT unnest(demonstrated_skills || i.required_skills))
-            FROM issues i WHERE i.id = %s AND user_id = %s
-        """, (updated[0]["issue_id"], me()["id"]))
+    apply_merged_pr(contribution_data["pr_url"])
     return {"verified": True, "state": "PR_MERGED", "message": "Merged contribution verified by GitHub."}
 
 

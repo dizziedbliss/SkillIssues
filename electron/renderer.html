@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkillIssues Desktop</title>
+  <link rel="stylesheet" href="renderer.css">
+</head>
+<body>
+  <main class="home-shell">
+    <header class="topbar"><div class="wordmark">SkillIssues<span>You Have the Skills. We Have the Issues.</span></div></header>
+    <section class="searchbar"><span class="search-icon">⌕</span><input id="search" placeholder="Issues on JavaScript"><button id="clear-search">clear</button><button id="filter-button" title="Toggle filters">≡</button><button id="search-button">Search</button></section>
+    <section class="home-grid"><div class="feed-column"><nav class="counts"><button class="active" data-tab="all">SkillIssues <b id="issue-count">320</b></button><button data-tab="saved">Saved <b>03</b></button><button data-tab="submissions">Submissions <b>20</b></button></nav><div class="feed-heading"><h1>SkillIssues</h1><span>Skill based recommendations</span></div><div id="issues" class="issues"><div class="loading">Loading challenges...</div></div></div><aside class="profile-rail"><img class="avatar" src="https://www.figma.com/api/mcp/asset/48adeab7-a22e-41ac-9ec6-d8415a001492.png" alt="Max profile avatar"><h2>Max!!</h2><p class="handle">@dizzbliss</p><p class="quote">“I don't solve problems, I incinerate them”</p><section><label>Preferences</label><button class="edit" title="Edit preferences">↗</button><div class="chips"><span>TS</span><span>JS</span><span>HTML</span><span>CSS</span></div></section><section><label>Contribution badges</label><div class="chips"><span>10</span><span>25</span></div></section><div class="level"><span>Level&nbsp;&nbsp;26</span><div><small>19</small><i></i><small>75</small></div></div></aside></section>
+    <!-- ISSUE DETAILS stays separate from the local clone handoff. The destination picker is hidden until Start challenge is pressed. -->
+    <div id="workspace" class="workspace-drawer" hidden><div class="drawer-card"><button id="close-workspace" class="close">×</button><span id="difficulty" class="difficulty"></span><h2 id="title"></h2><p id="repository"></p><a id="github" target="_blank" rel="noreferrer">Open issue ↗</a><p id="body" class="drawer-body"></p><div id="skills" class="drawer-skills"></div><button id="start-challenge" class="primary">Start challenge <span>↗</span></button><div id="clone-handoff" hidden><div class="destination"><label>LOCAL DESTINATION</label><div class="destination-row"><input id="destination" readonly placeholder="Choose an existing folder"><button id="choose" class="secondary">Choose folder</button></div></div><button id="clone" class="primary" disabled>Clone repository <span>↗</span></button><div id="git-actions" hidden><label>BRANCH AND PUSH</label><div class="destination-row"><input id="branch" value="skillissues/work" placeholder="skillissues/work"><button id="branch-button" class="secondary">Create branch</button><button id="push-button" class="secondary" disabled>Push</button></div></div></div><div id="result" class="result" hidden></div></div></div>
+  </main>
+  <script src="renderer.js"></script>
+</body>
+</html>
