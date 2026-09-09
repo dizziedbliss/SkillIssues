@@ -8,7 +8,7 @@ ON CONFLICT (user_id) DO NOTHING;
 INSERT INTO repositories (github_id, full_name, url, description, language, stars, license) VALUES
 (1001, 'fastapi/fastapi', 'https://github.com/fastapi/fastapi', 'Modern, fast web framework for building APIs with Python.', 'Python', 80000, 'MIT'),
 (1002, 'encode/httpx', 'https://github.com/encode/httpx', 'A next generation HTTP client for Python.', 'Python', 13000, 'BSD-3-Clause'),
-(1003, 'vitejs/vite', 'https://github.com/vitejs/vite', 'Next generation frontend tooling.', 'TypeScript', 70000, 'MIT') ON CONFLICT (github_id) DO NOTHING;
+(1003, 'vitejs/vite', 'https://github.com/vitejs/vite', 'Next generation frontend tooling.', 'TypeScript', 70000, 'MIT') ON CONFLICT DO NOTHING;
 INSERT INTO issues (github_id, repository_id, number, title, body, url, difficulty_score, difficulty, required_skills, technologies, learning_tags, comments)
 SELECT 2001, id, 11900, 'Improve authentication error handling', 'Make authentication failures return consistent, actionable errors for API consumers.', 'https://github.com/fastapi/fastapi/issues/11900', 4, 'INTERMEDIATE', ARRAY['Python', 'REST APIs'], ARRAY['FastAPI', 'Pydantic'], ARRAY['error handling', 'API design'], 8 FROM repositories WHERE github_id = 1001
 ON CONFLICT (github_id) DO NOTHING;

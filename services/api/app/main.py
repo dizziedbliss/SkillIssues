@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 import os
+import re
 from typing import Any
 
 import httpx
@@ -11,6 +12,7 @@ from pydantic import BaseModel, Field
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skillissues:skillissues@localhost:5432/skillissues")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+RECOMMENDATION_URL = os.getenv("RECOMMENDATION_URL", "http://recommendation:8000")
 SCHEMA = Path(os.getenv("SCHEMA_PATH", "/database/schema.sql"))
 SEED = Path(os.getenv("SEED_PATH", "/database/seed/seed.sql"))
 
@@ -185,6 +187,12 @@ def issue(issue_id: int) -> dict[str, Any]:
 def recommendations(limit: int = Query(default=3, le=10)) -> list[dict[str, Any]]:
     user = me()
     candidates = issue_query("WHERE i.state = 'OPEN'", ())
+    try:
+        response = httpx.post(f"{RECOMMENDATION_URL}/score", json={"user": user, "issues": candidates}, timeout=5)
+        response.raise_for_status()
+        return response.json()[:limit]
+    except httpx.HTTPError:
+        pass
     user_skills = {skill.lower() for skill in (user["demonstrated_skills"] or [])}
     interests = {item.lower() for item in (user["interests"] or [])}
     target = {"BEGINNER": 3, "INTERMEDIATE": 5, "ADVANCED": 7}.get(user["target_level"], 5)
@@ -243,6 +251,8 @@ def contribution(contribution_id: int) -> dict[str, Any]:
 
 @app.put("/contributions/{contribution_id}")
 def attach_pr(contribution_id: int, payload: ContributionUpdate) -> dict[str, Any]:
+    if not re.fullmatch(r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/\d+", payload.pr_url):
+        raise HTTPException(422, "PR URL must be a GitHub pull request URL")
     rows = query("""
         UPDATE contributions SET pr_url = %s, pr_number = %s, state = 'PR_OPEN', updated_at = now()
         WHERE id = %s AND user_id = %s
@@ -271,9 +281,23 @@ async def verify_contribution(contribution_id: int) -> dict[str, Any]:
     if not pr.get("merged"):
         execute("UPDATE contributions SET state = %s, updated_at = now() WHERE id = %s", ("PR_OPEN" if pr.get("state") == "open" else "PR_CLOSED", contribution_id))
         return {"verified": False, "state": pr.get("state"), "message": "GitHub confirms the PR is not merged yet."}
-    execute("""
-        UPDATE contributions SET state = 'PR_MERGED', merged_at = now(), updated_at = now() WHERE id = %s;
-        UPDATE developer_profiles SET completed_count = completed_count + 1, progress_score = LEAST(100, progress_score + 12), demonstrated_skills = ARRAY(SELECT DISTINCT unnest(demonstrated_skills || i.required_skills))
-        FROM issues i WHERE i.id = (SELECT issue_id FROM contributions WHERE id = %s) AND user_id = %s
-    """, (contribution_id, contribution_id, me()["id"]))
+    updated = query("""
+        UPDATE contributions SET state = 'PR_MERGED', merged_at = now(), updated_at = now()
+        WHERE id = %s AND user_id = %s AND state <> 'PR_MERGED'
+        RETURNING issue_id
+    """, (contribution_id, me()["id"]))
+    if updated:
+        execute("""
+            UPDATE developer_profiles SET completed_count = completed_count + 1,
+              progress_score = LEAST(100, progress_score + 12),
+              demonstrated_skills = ARRAY(SELECT DISTINCT unnest(demonstrated_skills || i.required_skills))
+            FROM issues i WHERE i.id = %s AND user_id = %s
+        """, (updated[0]["issue_id"], me()["id"]))
     return {"verified": True, "state": "PR_MERGED", "message": "Merged contribution verified by GitHub."}
+
+
+@app.get("/progress")
+def progress() -> dict[str, Any]:
+    user = me()
+    history = contributions()
+    return {"progress_score": user["progress_score"], "completed_count": user["completed_count"], "demonstrated_skills": user["demonstrated_skills"], "contributions": history}

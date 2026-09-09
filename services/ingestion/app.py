@@ -7,6 +7,7 @@ import http.client
 import json
 import logging
 import os
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -14,6 +15,7 @@ from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import psycopg
 
@@ -28,7 +30,9 @@ RUN_ONCE = os.getenv("RUN_ONCE", "false").lower() == "true"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 SYNC_ISSUES = os.getenv("SYNC_ISSUES", "false").lower() == "true"
 SYNC_REPOSITORIES = int(os.getenv("SYNC_REPOSITORIES", "10"))
+INGESTION_PORT = int(os.getenv("INGESTION_PORT", "8000"))
 GRAPHQL_URL = "https://api.github.com/graphql"
+sync_lock = threading.Lock()
 
 ISSUES_QUERY = """
 query RepositoryIssues($owner: String!, $name: String!, $after: String, $since: DateTime) {
@@ -69,6 +73,10 @@ def parse_timestamp(value: Any) -> datetime | None:
     raw = text(value)
     if not raw:
         return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
 
 
 def difficulty_for_issue(issue: dict[str, Any], repository: dict[str, Any]) -> tuple[int, str, list[str], list[str], list[str]]:
@@ -101,10 +109,6 @@ def difficulty_for_issue(issue: dict[str, Any], repository: dict[str, Any]) -> t
     technologies = [language] if language else []
     tags = labels[:5] or ["open source", "software development"]
     return score, difficulty, list(dict.fromkeys(skills)), technologies, tags
-    try:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except ValueError:
-        return None
 
 
 def stable_github_id(full_name: str) -> int:
@@ -359,11 +363,51 @@ def sync_issues() -> int:
     return total
 
 
+class IngestionHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        if self.path != "/health":
+            self.send_error(404)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(b'{"status":"ok","service":"ingestion"}')
+
+    def do_POST(self) -> None:
+        if self.path not in ("/sync/repositories", "/sync/issues"):
+            self.send_error(404)
+            return
+        if not sync_lock.acquire(blocking=False):
+            self.send_response(409)
+            self.end_headers()
+            return
+        try:
+            result = import_repositories() if self.path.endswith("repositories") else sync_issues()
+            payload = json.dumps({"accepted": True, "imported": result}).encode("utf-8")
+            self.send_response(202)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(payload)
+        except Exception as error:
+            logger.exception("scheduled sync failed")
+            self.send_error(500, str(error))
+        finally:
+            sync_lock.release()
+
+    def log_message(self, format: str, *args: Any) -> None:
+        logger.info("scheduler request " + format, *args)
+
+
+def serve_scheduler() -> None:
+    server = ThreadingHTTPServer(("0.0.0.0", INGESTION_PORT), IngestionHandler)
+    logger.info("ingestion scheduler listening on port %s", INGESTION_PORT)
+    server.serve_forever()
+
+
 if __name__ == "__main__":
     import_repositories()
     if SYNC_ISSUES:
         sync_issues()
     if RUN_ONCE:
         raise SystemExit(0)
-    while True:
-        time.sleep(900)
+    serve_scheduler()
