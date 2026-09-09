@@ -44,6 +44,9 @@ services:
       REPOSITORY_METADATA_PATH: /repo/repo_metadata.json
       MAX_REPOSITORIES: 1000
       MIN_STARS: 50
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      SYNC_ISSUES: ${SYNC_ISSUES:-false}
+      SYNC_REPOSITORIES: 10
     volumes:
       - ./repo:/repo:ro
     depends_on:
