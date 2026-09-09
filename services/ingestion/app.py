@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import logging
 import os
 import time
+import urllib.error
+import urllib.request
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +25,33 @@ METADATA_PATH = Path(os.getenv("REPOSITORY_METADATA_PATH", "/repo/repo_metadata.
 MAX_REPOSITORIES = int(os.getenv("MAX_REPOSITORIES", "1000"))
 MIN_STARS = int(os.getenv("MIN_STARS", "50"))
 RUN_ONCE = os.getenv("RUN_ONCE", "false").lower() == "true"
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+SYNC_ISSUES = os.getenv("SYNC_ISSUES", "false").lower() == "true"
+SYNC_REPOSITORIES = int(os.getenv("SYNC_REPOSITORIES", "10"))
+GRAPHQL_URL = "https://api.github.com/graphql"
+
+ISSUES_QUERY = """
+query RepositoryIssues($owner: String!, $name: String!, $after: String, $since: DateTime) {
+    repository(owner: $owner, name: $name) {
+        issues(first: 50, after: $after, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}, filterBy: {since: $since}) {
+            nodes {
+                databaseId
+                number
+                title
+                body
+                url
+                state
+                updatedAt
+                comments { totalCount }
+                labels(first: 10) { nodes { name } }
+            }
+            pageInfo { hasNextPage endCursor }
+        }
+        stargazerCount
+    }
+    rateLimit { limit remaining used resetAt cost }
+}
+"""
 
 
 def text(value: Any) -> str:
@@ -39,6 +69,38 @@ def parse_timestamp(value: Any) -> datetime | None:
     raw = text(value)
     if not raw:
         return None
+
+
+def difficulty_for_issue(issue: dict[str, Any], repository: dict[str, Any]) -> tuple[int, str, list[str], list[str], list[str]]:
+    labels = [text(label.get("name")) for label in issue.get("labels", {}).get("nodes", [])]
+    label_text = " ".join(labels).lower()
+    body = text(issue.get("body"))
+    score = 4
+    if any(word in label_text for word in ("good first issue", "beginner", "easy")):
+        score -= 2
+    if any(word in label_text for word in ("help wanted", "intermediate")):
+        score += 1
+    if any(word in label_text for word in ("advanced", "complex", "hard")):
+        score += 2
+    if len(body) > 1800:
+        score += 1
+    if issue.get("comments", {}).get("totalCount", 0) > 10:
+        score += 1
+    if repository.get("stars", 0) > 100000:
+        score += 1
+    score = max(1, min(10, score))
+    difficulty = "BEGINNER" if score <= 3 else "INTERMEDIATE" if score <= 6 else "ADVANCED"
+    skills = []
+    language = text(repository.get("language"))
+    if language:
+        skills.append(language)
+    if any(word in label_text or word in body.lower() for word in ("api", "http", "rest")):
+        skills.append("REST APIs")
+    if any(word in label_text or word in body.lower() for word in ("docs", "documentation")):
+        skills.append("Technical Writing")
+    technologies = [language] if language else []
+    tags = labels[:5] or ["open source", "software development"]
+    return score, difficulty, list(dict.fromkeys(skills)), technologies, tags
     try:
         return datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError:
@@ -172,8 +234,135 @@ def import_repositories() -> int:
     return imported
 
 
+def repository_parts(full_name: str) -> tuple[str, str]:
+    owner, separator, name = full_name.partition("/")
+    if not separator or not owner or not name:
+        raise ValueError(f"invalid GitHub repository name: {full_name}")
+    return owner, name
+
+
+def sync_repository_issues(repository: dict[str, Any]) -> int:
+    if not GITHUB_TOKEN:
+        return 0
+    owner, name = repository_parts(repository["full_name"])
+    state = query_sync_state(repository["id"])
+    since = state.get("last_synced_at") if state else None
+    cursor: str | None = None
+    synced = 0
+    headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Content-Type": "application/json"}
+    while True:
+        variables = {"owner": owner, "name": name, "after": cursor, "since": since}
+        request = urllib.request.Request(
+            GRAPHQL_URL,
+            data=json.dumps({"query": ISSUES_QUERY, "variables": variables}).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(request, timeout=15) as response:
+                    payload = json.load(response)
+                break
+            except urllib.error.HTTPError as error:
+                if error.code in (403, 429):
+                    logger.warning("GitHub rate limit response repository=%s status=%s", repository["full_name"], error.code)
+                    return synced
+                raise
+            except (TimeoutError, http.client.IncompleteRead, urllib.error.URLError) as error:
+                if attempt == 2:
+                    logger.warning("GitHub request abandoned repository=%s error=%s", repository["full_name"], error)
+                    return synced
+                delay = 2 ** attempt
+                logger.warning("GitHub request retry repository=%s attempt=%s delay=%ss", repository["full_name"], attempt + 1, delay)
+                time.sleep(delay)
+        if payload.get("errors"):
+            raise RuntimeError(f"GitHub GraphQL error for {repository['full_name']}: {payload['errors'][0].get('message')}")
+        data = payload["data"]
+        rate_limit = data["rateLimit"]
+        update_rate_limit(repository["id"], rate_limit)
+        if rate_limit["remaining"] < 100:
+            logger.warning("GitHub rate limit low remaining=%s reset=%s", rate_limit["remaining"], rate_limit["resetAt"])
+            break
+        for issue in data["repository"]["issues"]["nodes"]:
+            score, difficulty, skills, technologies, tags = difficulty_for_issue(issue, repository)
+            upsert_issue(repository["id"], issue, score, difficulty, skills, technologies, tags)
+            synced += 1
+        page_info = data["repository"]["issues"]["pageInfo"]
+        if not page_info["hasNextPage"]:
+            break
+        cursor = page_info["endCursor"]
+    mark_repository_synced(repository["id"])
+    logger.info("issue sync complete repository=%s issues=%s", repository["full_name"], synced)
+    return synced
+
+
+def query_sync_state(repository_id: int) -> dict[str, Any]:
+    with psycopg.connect(DATABASE_URL) as connection:
+        row = connection.execute("SELECT last_synced_at FROM sync_state WHERE repository_id = %s", (repository_id,)).fetchone()
+    return {"last_synced_at": row[0].isoformat() if row and row[0] else None} if row else {}
+
+
+def update_rate_limit(repository_id: int, rate_limit: dict[str, Any]) -> None:
+    with psycopg.connect(DATABASE_URL) as connection:
+        connection.execute("""
+            INSERT INTO sync_state (repository_id, rate_limit_remaining, rate_limit_reset_at)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (repository_id) DO UPDATE SET
+              rate_limit_remaining = EXCLUDED.rate_limit_remaining,
+              rate_limit_reset_at = EXCLUDED.rate_limit_reset_at
+        """, (repository_id, rate_limit["remaining"], parse_timestamp(rate_limit["resetAt"])))
+
+
+def mark_repository_synced(repository_id: int) -> None:
+    with psycopg.connect(DATABASE_URL) as connection:
+        connection.execute("""
+            INSERT INTO sync_state (repository_id, last_synced_at, priority)
+            VALUES (%s, now(), 'MEDIUM')
+            ON CONFLICT (repository_id) DO UPDATE SET last_synced_at = now()
+        """, (repository_id,))
+
+
+def upsert_issue(repository_id: int, issue: dict[str, Any], score: int, difficulty: str, skills: list[str], technologies: list[str], tags: list[str]) -> None:
+    with psycopg.connect(DATABASE_URL) as connection:
+        connection.execute("""
+            INSERT INTO issues
+              (github_id, repository_id, number, title, body, url, state, difficulty_score,
+               difficulty, required_skills, technologies, learning_tags, comments, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (github_id) DO UPDATE SET
+              repository_id = EXCLUDED.repository_id, title = EXCLUDED.title,
+              body = EXCLUDED.body, url = EXCLUDED.url, state = EXCLUDED.state,
+              difficulty_score = EXCLUDED.difficulty_score, difficulty = EXCLUDED.difficulty,
+              required_skills = EXCLUDED.required_skills, technologies = EXCLUDED.technologies,
+              learning_tags = EXCLUDED.learning_tags, comments = EXCLUDED.comments,
+              updated_at = EXCLUDED.updated_at
+        """, (
+            issue["databaseId"], repository_id, issue["number"], issue["title"], issue.get("body") or "",
+            issue["url"], issue["state"], score, difficulty, skills, technologies, tags,
+            issue.get("comments", {}).get("totalCount", 0), parse_timestamp(issue.get("updatedAt")) or datetime.now(timezone.utc),
+        ))
+
+
+def sync_issues() -> int:
+    if not GITHUB_TOKEN:
+        logger.info("GITHUB_TOKEN not configured; skipping GitHub issue synchronization")
+        return 0
+    with psycopg.connect(DATABASE_URL) as connection:
+        repositories = connection.execute("""
+            SELECT id, full_name, language, stars FROM repositories
+            ORDER BY CASE WHEN last_activity_at IS NULL THEN 1 ELSE 0 END, last_activity_at DESC
+            LIMIT %s
+        """, (SYNC_REPOSITORIES,)).fetchall()
+    total = 0
+    for repository_id, full_name, language, stars in repositories:
+        total += sync_repository_issues({"id": repository_id, "full_name": full_name, "language": language, "stars": stars})
+    return total
+
+
 if __name__ == "__main__":
     import_repositories()
+    if SYNC_ISSUES:
+        sync_issues()
     if RUN_ONCE:
         raise SystemExit(0)
     while True:
