@@ -24,6 +24,7 @@ services:
       FRONTEND_URL: http://localhost:5173
       DEMO_MODE: "true"
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      RECOMMENDATION_URL: http://recommendation:8000
     ports:
       - "8000:8000"
     volumes:
@@ -31,6 +32,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      recommendation:
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -47,19 +50,22 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       SYNC_ISSUES: ${SYNC_ISSUES:-false}
       SYNC_REPOSITORIES: 10
+      INGESTION_PORT: 8000
     volumes:
       - ./repo:/repo:ro
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
   recommendation:
     build: ./services/recommendation
     environment:
       API_URL: http://api:8000
-    depends_on:
-      api:
-        condition: service_healthy
 
   contribution:
     build: ./services/contribution
@@ -73,9 +79,12 @@ services:
     build: ./services/worker
     environment:
       API_URL: http://api:8000
+      INGESTION_URL: http://ingestion:8000
       SYNC_INTERVAL_SECONDS: 900
     depends_on:
       api:
+        condition: service_healthy
+      ingestion:
         condition: service_healthy
 
   frontend:
