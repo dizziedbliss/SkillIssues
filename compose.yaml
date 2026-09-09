@@ -22,8 +22,11 @@ services:
     environment:
       DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
       FRONTEND_URL: http://localhost:5173
-      DEMO_MODE: "true"
+      DEMO_MODE: ${DEMO_MODE:-true}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
       RECOMMENDATION_URL: http://recommendation:8000
     ports:
       - "8000:8000"

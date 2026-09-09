@@ -58,10 +58,22 @@ docker compose run --rm -e RUN_ONCE=true -e SYNC_ISSUES=true -e MAX_REPOSITORIES
 
 The worker periodically calls ingestion. A `409` from a manual sync request means another sync is already running and is intentional overlap protection.
 
+## Electron desktop client
+
+Start Docker first so the API is available, then launch the desktop client separately:
+
+```bash
+cd electron
+npm install
+npm start
+```
+
+The desktop workflow is functional and independent from the dashboard: select a recommended issue, choose an existing local destination, clone the public repository, and inspect local Git status. The Electron renderer has no access to API secrets.
+
 ## What is complete
 
-The project now has the Compose monorepo, PostgreSQL schema, local streaming repository catalog import, GitHub GraphQL issue sync with pagination/incremental timestamps/rate-limit state, heuristic issue analysis, service-backed recommendations, profile/progress tracking, contribution state, server-side PR verification, React dashboard, and a constrained Electron workspace boundary.
+The project now has the Compose monorepo, PostgreSQL schema, local streaming repository catalog import, GitHub GraphQL issue sync with pagination/incremental timestamps/rate-limit state, heuristic issue analysis, service-backed recommendations, session-backed demo/OAuth boundaries, signed webhook intake, profile/progress tracking, contribution state, server-side PR verification, React dashboard, and a working Electron challenge, branch, push, and command-log workflow.
 
 ## Remaining roadmap
 
-Production GitHub OAuth callback/token storage, GitHub App installation authentication, webhook-driven PR updates, richer issue skill extraction, persistent job history, automated tests, and the Electron clone/push workflow remain. The MVP deliberately keeps these focused rather than adding Kafka, Redis, Kubernetes, or automatic code execution.
+GitHub App installation authentication, encrypted OAuth token storage, richer issue skill extraction, persistent job history, and deployment automation remain. The MVP deliberately keeps these focused rather than adding Kafka, Redis, Kubernetes, or automatic code execution.
