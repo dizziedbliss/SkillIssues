@@ -3,13 +3,22 @@ CREATE TABLE IF NOT EXISTS users (
   github_id TEXT UNIQUE,
   username TEXT NOT NULL,
   avatar_url TEXT,
+  github_access_token TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE users ADD COLUMN IF NOT EXISTS github_access_token TEXT;
 CREATE TABLE IF NOT EXISTS auth_sessions (
   token TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   provider TEXT NOT NULL DEFAULT 'demo',
   expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '7 days'),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS oauth_states (
+  state TEXT PRIMARY KEY,
+  code_verifier TEXT NOT NULL,
+  redirect_uri TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '10 minutes'),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS developer_profiles (
@@ -58,6 +67,12 @@ CREATE TABLE IF NOT EXISTS issues (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(repository_id, number)
 );
+CREATE TABLE IF NOT EXISTS saved_issues (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  issue_id INTEGER NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, issue_id)
+);
 CREATE TABLE IF NOT EXISTS contributions (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -74,9 +89,15 @@ CREATE TABLE IF NOT EXISTS sync_state (
   repository_id INTEGER PRIMARY KEY REFERENCES repositories(id) ON DELETE CASCADE,
   last_synced_at TIMESTAMPTZ,
   priority TEXT NOT NULL DEFAULT 'MEDIUM',
+  rate_limit_limit INTEGER,
   rate_limit_remaining INTEGER,
-  rate_limit_reset_at TIMESTAMPTZ
+  rate_limit_used INTEGER,
+  rate_limit_reset_at TIMESTAMPTZ,
+  rate_limit_cost INTEGER
 );
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS rate_limit_limit INTEGER;
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS rate_limit_used INTEGER;
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS rate_limit_cost INTEGER;
 CREATE TABLE IF NOT EXISTS webhook_events (
   delivery_id TEXT PRIMARY KEY,
   event_name TEXT NOT NULL,
@@ -85,3 +106,10 @@ CREATE TABLE IF NOT EXISTS webhook_events (
 CREATE INDEX IF NOT EXISTS issues_difficulty_idx ON issues(difficulty);
 CREATE INDEX IF NOT EXISTS issues_updated_idx ON issues(updated_at);
 CREATE INDEX IF NOT EXISTS issues_state_idx ON issues(state);
+CREATE INDEX IF NOT EXISTS repositories_language_idx ON repositories(language);
+CREATE INDEX IF NOT EXISTS issues_repository_idx ON issues(repository_id);
+CREATE INDEX IF NOT EXISTS issues_required_skills_idx ON issues USING GIN(required_skills);
+CREATE INDEX IF NOT EXISTS issues_technologies_idx ON issues USING GIN(technologies);
+CREATE INDEX IF NOT EXISTS contributions_user_idx ON contributions(user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS saved_issues_user_idx ON saved_issues(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS sync_state_priority_idx ON sync_state(priority, last_synced_at);

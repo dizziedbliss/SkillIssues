@@ -11,3 +11,16 @@ cd electron
 npm install
 npm start
 ```
+
+## Release build
+
+Run the source checks before packaging:
+
+```bash
+npm run check
+npm run dist:mac
+```
+
+The release configuration also defines `dist:linux` and `dist:win` for their respective build environments. Artifacts are written to `electron/dist/`. macOS signing and notarization are intentionally controlled by the release environment; set the standard electron-builder signing variables there rather than committing certificates or secrets.
+
+The main process uses a single-instance lock, a restrictive Content Security Policy, an allowlist for external GitHub navigation, bounded Git command execution, and a fixed `Documents/SkillIssues` workspace root. Cloned repositories are never executed automatically.
