@@ -41,8 +41,13 @@ services:
     build: ./services/ingestion
     environment:
       DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
+      REPOSITORY_METADATA_PATH: /repo/repo_metadata.json
+      MAX_REPOSITORIES: 1000
+      MIN_STARS: 50
+    volumes:
+      - ./repo:/repo:ro
     depends_on:
-      postgres:
+      api:
         condition: service_healthy
 
   recommendation:

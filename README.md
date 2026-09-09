@@ -18,13 +18,23 @@ Stop the stack with `docker compose down`. Add `GITHUB_TOKEN` to a local `.env` 
 
 - `frontend`: React + TypeScript + Vite dashboard.
 - `services/api`: FastAPI control plane, profile, issue, recommendation, contribution, and GitHub verification endpoints.
-- `services/ingestion`: ingestion boundary for future Kaggle/GitHub synchronization; seed SQL is deterministic and local for the demo.
+- `services/ingestion`: streams `repo/repo_metadata.json`, cleans and qualifies repositories, and upserts a bounded catalog into PostgreSQL. It does not load the multi-gigabyte source into memory or require Kaggle.
 - `services/recommendation`: service boundary reserved for extracting recommendation computation as traffic grows.
 - `services/contribution`: service boundary for PR workflows.
 - `services/worker`: simple priority-refresh heartbeat, intentionally no queue or cache infrastructure.
 - `database`: PostgreSQL schema and demo seed.
 
 The API recommendation score is explainable and combines skill overlap, interest overlap, language preference, difficulty fit, and repository quality. GitHub sync and rate-limit-aware ingestion are deliberately kept as the next increment rather than blocking the vertical slice.
+
+## Local repository import
+
+The repository metadata export is mounted read-only into the ingestion container. Qualification requires a non-archived repository, `stars > 50`, `forkingAllowed == true`, and a non-empty license. Import size is bounded by `MAX_REPOSITORIES` (default `1000`) so the demo remains predictable.
+
+```bash
+docker compose run --rm -e RUN_ONCE=true -e MAX_REPOSITORIES=100 ingestion
+```
+
+The source path and threshold are configurable with `REPOSITORY_METADATA_PATH` and `MIN_STARS`. The large metadata export is intentionally ignored by Git and must exist locally when running the importer.
 
 ## Core API
 

@@ -29,8 +29,10 @@ CREATE TABLE IF NOT EXISTS repositories (
   stars INTEGER NOT NULL DEFAULT 0,
   license TEXT,
   forkable BOOLEAN NOT NULL DEFAULT true,
+  last_activity_at TIMESTAMPTZ,
   last_synced_at TIMESTAMPTZ
 );
+ALTER TABLE repositories ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ;
 CREATE TABLE IF NOT EXISTS issues (
   id SERIAL PRIMARY KEY,
   github_id BIGINT UNIQUE,
