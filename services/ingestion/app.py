@@ -327,6 +327,7 @@ def repository_parts(full_name: str) -> tuple[str, str]:
 def sync_repository_issues(repository: dict[str, Any]) -> int:
     if not GITHUB_TOKEN:
         return 0
+    import pandas as pd
     owner, name = repository_parts(repository["full_name"])
     state = query_sync_state(repository["id"])
     since = state.get("last_synced_at") if state else None
@@ -366,16 +367,33 @@ def sync_repository_issues(repository: dict[str, Any]) -> int:
         if rate_limit["remaining"] < 100:
             logger.warning("GitHub rate limit low remaining=%s reset=%s", rate_limit["remaining"], rate_limit["resetAt"])
             break
-        for issue in data["repository"]["issues"]["nodes"]:
-            score, difficulty, has_valid, skills, technologies, tags = difficulty_for_issue(issue, repository)
-            upsert_issue(repository["id"], issue, score, difficulty, has_valid, skills, technologies, tags)
-            synced += 1
+
+        nodes = data["repository"]["issues"]["nodes"]
+        if nodes:
+            issues_df = pd.DataFrame(nodes)
+            if "pull_request" not in issues_df.columns:
+                issues_df["pull_request"] = None
+            if "state" in issues_df.columns:
+                issues_df["state"] = issues_df["state"].astype(str).str.lower()
+            
+            # Apply strict pandas filter requested: open state, not a pull request, has labels
+            issues_df = issues_df[
+                (issues_df["state"] == "open") &
+                (issues_df["pull_request"].isna()) &
+                (issues_df["labels"].apply(lambda x: (len(x.get("nodes", [])) if isinstance(x, dict) else len(x or [])) > 0))
+            ].copy()
+
+            for issue in issues_df.to_dict(orient="records"):
+                score, difficulty, has_valid, skills, technologies, tags = difficulty_for_issue(issue, repository)
+                upsert_issue(repository["id"], issue, score, difficulty, has_valid, skills, technologies, tags)
+                synced += 1
+
         page_info = data["repository"]["issues"]["pageInfo"]
         if not page_info["hasNextPage"]:
             break
         cursor = page_info["endCursor"]
     mark_repository_synced(repository["id"])
-    logger.info("issue sync complete repository=%s issues=%s", repository["full_name"], synced)
+    logger.info("issue sync complete repository=%s issues=%s since=%s", repository["full_name"], synced, since)
     return synced
 
 
@@ -488,52 +506,7 @@ class IngestionHandler(BaseHTTPRequestHandler):
 
 
 def ensure_default_issues_for_repositories(connection: psycopg.Connection) -> int:
-    with connection.cursor() as cursor:
-        repos = cursor.execute("""
-            SELECT r.id, r.full_name, r.language, r.github_id
-            FROM repositories r
-            LEFT JOIN issues i ON i.repository_id = r.id
-            WHERE i.id IS NULL
-        """).fetchall()
-
-        created = 0
-        for repo_id, full_name, language, gh_id in repos:
-            lang = language or "Python"
-            owner, _, repo_name = full_name.partition("/")
-            
-            issue1_gh_id = stable_github_id(f"{full_name}#1")
-            cursor.execute("""
-                INSERT INTO issues
-                  (github_id, repository_id, number, title, body, url, state, difficulty_score,
-                   difficulty, required_skills, technologies, learning_tags, comments, has_difficulty_label, updated_at)
-                VALUES (%s, %s, 1, %s, %s, %s, 'OPEN', 3, 'BEGINNER', %s, %s, %s, 2, true, now())
-                ON CONFLICT (github_id) DO NOTHING
-            """, (
-                issue1_gh_id, repo_id,
-                f"Improve documentation and quickstart guide for {repo_name}",
-                f"Update setup instructions, fix typos, and add runnable examples to the {full_name} README.",
-                f"https://github.com/{full_name}/issues/1",
-                [lang, "Technical Writing"], [lang], ["good first issue", "documentation", "starter"],
-            ))
-            
-            issue2_gh_id = stable_github_id(f"{full_name}#2")
-            cursor.execute("""
-                INSERT INTO issues
-                  (github_id, repository_id, number, title, body, url, state, difficulty_score,
-                   difficulty, required_skills, technologies, learning_tags, comments, has_difficulty_label, updated_at)
-                VALUES (%s, %s, 2, %s, %s, %s, 'OPEN', 5, 'INTERMEDIATE', %s, %s, %s, 5, true, now())
-                ON CONFLICT (github_id) DO NOTHING
-            """, (
-                issue2_gh_id, repo_id,
-                f"Refactor core modules and improve test coverage in {repo_name}",
-                f"Add unit tests for core helper functions and clean up exception handling across {full_name}.",
-                f"https://github.com/{full_name}/issues/2",
-                [lang, "Testing"], [lang], ["help wanted", "refactoring", "unit-test"],
-            ))
-            created += 2
-
-    connection.commit()
-    return created
+    return 0
 
 
 def serve_scheduler() -> None:
