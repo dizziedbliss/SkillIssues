@@ -67,14 +67,24 @@ function workspaceRoot() {
   return root;
 }
 
-function isWithinRoot(candidate) {
-  const root = fs.realpathSync.native(workspaceRoot());
-  let resolved;
-  try {
-    resolved = fs.realpathSync.native(candidate);
-  } catch {
-    resolved = path.resolve(candidate);
+function stripSystemVolumesData(p) {
+  if (process.platform === 'darwin' && p.startsWith('/System/Volumes/Data/')) {
+    return p.slice('/System/Volumes/Data'.length);
   }
+  return p;
+}
+
+function normalizeSafePath(p) {
+  try {
+    return stripSystemVolumesData(fs.realpathSync.native(p));
+  } catch {
+    return stripSystemVolumesData(path.resolve(p));
+  }
+}
+
+function isWithinRoot(candidate) {
+  const root = normalizeSafePath(workspaceRoot());
+  const resolved = normalizeSafePath(candidate);
   return resolved === root || resolved.startsWith(`${root}${path.sep}`);
 }
 
@@ -101,8 +111,10 @@ function isSafeWorkspace(workspace) {
   return isWithinRoot(resolved) && fs.existsSync(resolved) && fs.lstatSync(resolved).isDirectory();
 }
 
+let mainWindow = null;
+
 function createWindow() {
-  const window = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1100,
     height: 760,
     minWidth: 860,
@@ -111,16 +123,19 @@ function createWindow() {
     backgroundColor: '#f7f2fd',
     webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, preload: path.join(__dirname, 'preload.js') },
   });
-  window.once('ready-to-show', () => window.show());
-  window.webContents.setWindowOpenHandler(({ url }) => {
+  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (SAFE_EXTERNAL_URL.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
-  window.webContents.on('will-navigate', (event, url) => {
+  mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith('file://')) event.preventDefault();
   });
-  window.loadFile(path.join(__dirname, 'renderer.html'));
-  return window;
+  mainWindow.loadFile(path.join(__dirname, 'renderer.html'));
+  return mainWindow;
 }
 
 ipcMain.handle('workspace:inspect', async (_, workspace) => {
@@ -270,8 +285,17 @@ ipcMain.handle('workspace:open-vscode', async (_, workspace) => {
     await execFileAsync('code', [resolvedPath], { timeout: 15000, windowsHide: true });
     return { opened: true };
   } catch {
+    if (process.platform === 'darwin') {
+      try {
+        await execFileAsync('open', ['-a', 'Visual Studio Code', resolvedPath], { timeout: 15000 });
+        return { opened: true };
+      } catch {
+        // Fall back to opening Finder below
+      }
+    }
     await shell.openPath(resolvedPath);
-    return { opened: true, fallback: true, message: 'VS Code command not found in system PATH. Opened workspace folder in Explorer instead.' };
+    const fileManager = process.platform === 'darwin' ? 'Finder' : 'Explorer';
+    return { opened: true, fallback: true, message: `VS Code command not found in system PATH. Opened workspace folder in ${fileManager} instead.` };
   }
 });
 
@@ -327,5 +351,18 @@ app.whenReady().then(() => {
 process.on('uncaughtException', (error) => logRuntimeError('main:uncaughtException', error));
 process.on('unhandledRejection', (error) => logRuntimeError('main:unhandledRejection', error));
 app.on('render-process-gone', (_event, _webContents, details) => logRuntimeError('renderer:gone', details));
-app.on('second-instance', () => BrowserWindow.getAllWindows()[0]?.show());
+app.on('second-instance', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+    mainWindow.show();
+  } else {
+    createWindow();
+  }
+});
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
