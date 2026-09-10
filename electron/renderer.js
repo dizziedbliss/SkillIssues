@@ -406,7 +406,7 @@ function renderWorking() {
             comments: 0,
           };
           selectIssue(selected);
-          el("branch").value = `skillissues/issue-#${item.number || item.id}`;
+          el("branch").value = `skillissues/issue-${item.number || item.id}`;
           el("start-challenge").hidden = true;
           el("clone-handoff").hidden = false;
           el("git-actions").hidden = false;
@@ -654,7 +654,7 @@ async function startChallenge() {
       body: JSON.stringify({ issue_id: selected.id }),
     });
     contributionId = contribution.id;
-    const branchName = `skillissues/issue-#${selected.number || selected.id}`;
+    const branchName = `skillissues/issue-${selected.number || selected.id}`;
     el("branch").value = branchName;
     const result = await window.skillIssuesDesktop.cloneRepository(
       selected.repository_url,
