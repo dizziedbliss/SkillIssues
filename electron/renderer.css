@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans:wght@400;500;600;700;800;900&display=swap");
 
 :root {
   /* Canvas & Surface Tokens (Soothing Whitish Lavender - Restful & Eye-Easing) */
@@ -88,6 +88,7 @@ body {
 }
 
 .wordmark {
+  font-family: "Noto Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -109,11 +110,13 @@ body {
 }
 
 .wordmark-text {
+  font-family: "Noto Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   display: flex;
   flex-direction: column;
 }
 
 .wordmark span {
+  font-family: "Noto Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   display: block;
   color: var(--text-muted);
   font-size: 13px;
