@@ -220,22 +220,31 @@ def import_repositories() -> int:
         raise RuntimeError("pandas and ijson are required for repository import; use the ingestion Docker image or install ingestion requirements") from error
     wait_for_database()
     imported = 0
-    seed = int.from_bytes(hashlib.sha256((SAMPLE_SEED or "skillissues").encode()).digest()[:4], "big")
     batch_size = 25_000
     scanned = qualified_count = 0
-    rng = random.Random(seed)
-    sample: list[dict[str, Any]] = []
+    raw_candidates: list[dict[str, Any]] = []
     with METADATA_PATH.open("rb") as metadata_file:
         batch: list[dict[str, Any]] = []
         for record in ijson.items(metadata_file, "item"):
             batch.append(record)
             if len(batch) < batch_size:
                 continue
-            scanned, qualified_count = _filter_batch(pd, batch, scanned, qualified_count, sample, rng)
+            scanned, qualified_count = _filter_batch(pd, batch, scanned, qualified_count, raw_candidates)
             batch.clear()
         if batch:
-            scanned, qualified_count = _filter_batch(pd, batch, scanned, qualified_count, sample, rng)
-    logger.info("pandas catalog filter complete scanned=%s qualified=%s sample=%s", scanned, qualified_count, len(sample))
+            scanned, qualified_count = _filter_batch(pd, batch, scanned, qualified_count, raw_candidates)
+
+    if raw_candidates:
+        df = pd.DataFrame.from_records(raw_candidates)
+        df["stars"] = pd.to_numeric(df["stars"], errors="coerce").fillna(0)
+        df = df.sort_values(by="stars", ascending=False)
+        df["full_name_clean"] = df["nameWithOwner"].fillna("").astype(str)
+        df = df.drop_duplicates(subset=["full_name_clean"])
+        sample = df.head(MAX_REPOSITORIES).to_dict(orient="records")
+    else:
+        sample = []
+
+    logger.info("pandas catalog filter & sort complete scanned=%s qualified=%s sample=%s", scanned, qualified_count, len(sample))
     with psycopg.connect(DATABASE_URL) as connection:
         with connection.cursor() as cursor:
             if RESET_CATALOG:
@@ -262,11 +271,12 @@ def import_repositories() -> int:
                 """, repository)
                 imported += 1
         connection.commit()
-    logger.info("repository import complete scanned=%s qualified=%s imported=%s sample_size=%s", scanned, qualified_count, imported, MAX_REPOSITORIES)
+        created_issues = ensure_default_issues_for_repositories(connection)
+    logger.info("repository import complete scanned=%s qualified=%s imported=%s sample_size=%s created_issues=%s", scanned, qualified_count, imported, MAX_REPOSITORIES, created_issues)
     return imported
 
 
-def _filter_batch(pd: Any, records: list[dict[str, Any]], scanned: int, qualified_count: int, sample: list[dict[str, Any]], rng: random.Random) -> tuple[int, int]:
+def _filter_batch(pd: Any, records: list[dict[str, Any]], scanned: int, qualified_count: int, raw_candidates: list[dict[str, Any]]) -> tuple[int, int]:
     frame = pd.DataFrame.from_records(records)
     stars_values = frame["stars"] if "stars" in frame else pd.Series(0, index=frame.index)
     archived_values = frame["isArchived"] if "isArchived" in frame else pd.Series(False, index=frame.index)
@@ -277,21 +287,14 @@ def _filter_batch(pd: Any, records: list[dict[str, Any]], scanned: int, qualifie
     frame["license_valid"] = ~license_values.fillna("").astype(str).str.strip().str.lower().isin({"", "null", "none", "n/a"})
     mask = (
         (archived_values == False)
-        & (frame["stars"] > MIN_STARS)
+        & (frame["stars"] >= MIN_STARS)
         & (fork_values == False)
         & (forking_values == True)
         & frame["license_valid"]
     )
     qualified = frame.loc[mask].drop(columns=["license_valid"], errors="ignore").to_dict(orient="records")
-    for record in qualified:
-        qualified_count += 1
-        if len(sample) < MAX_REPOSITORIES:
-            sample.append(record)
-        else:
-            replacement = rng.randrange(qualified_count)
-            if replacement < MAX_REPOSITORIES:
-                sample[replacement] = record
-    return scanned + len(records), qualified_count
+    raw_candidates.extend(qualified)
+    return scanned + len(records), qualified_count + len(qualified)
 
 
 def repository_parts(full_name: str) -> tuple[str, str]:

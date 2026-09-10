@@ -28,8 +28,18 @@ CREATE TABLE IF NOT EXISTS developer_profiles (
   target_level TEXT NOT NULL DEFAULT 'INTERMEDIATE',
   progress_score INTEGER NOT NULL DEFAULT 18,
   completed_count INTEGER NOT NULL DEFAULT 0,
-  demonstrated_skills TEXT[] NOT NULL DEFAULT '{}'
+  demonstrated_skills TEXT[] NOT NULL DEFAULT '{}',
+  total_xp INTEGER NOT NULL DEFAULT 0,
+  level INTEGER NOT NULL DEFAULT 1,
+  streak_days INTEGER NOT NULL DEFAULT 4,
+  badges TEXT[] NOT NULL DEFAULT '{}',
+  skills_xp JSONB NOT NULL DEFAULT '{}'
 );
+ALTER TABLE developer_profiles ADD COLUMN IF NOT EXISTS total_xp INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE developer_profiles ADD COLUMN IF NOT EXISTS level INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE developer_profiles ADD COLUMN IF NOT EXISTS streak_days INTEGER NOT NULL DEFAULT 4;
+ALTER TABLE developer_profiles ADD COLUMN IF NOT EXISTS badges TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE developer_profiles ADD COLUMN IF NOT EXISTS skills_xp JSONB NOT NULL DEFAULT '{}';
 CREATE TABLE IF NOT EXISTS developer_preferences (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   interests TEXT[] NOT NULL DEFAULT '{}',
