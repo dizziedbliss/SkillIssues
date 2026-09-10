@@ -161,6 +161,7 @@ function createWindow() {
     minWidth: 860,
     minHeight: 640,
     show: false,
+    icon: path.join(__dirname, "icon.png"),
     backgroundColor: "#f7f2fd",
     webPreferences: {
       contextIsolation: true,
@@ -497,12 +498,12 @@ ipcMain.handle("workspace:create-branch", async (_, workspace, branch) => {
   try {
     return await runGit(
       workspace,
-      ["switch", "-c", branch],
+      ["switch", "-c", "--", branch],
       `git switch -c "${branch}"`,
     );
   } catch (error) {
     if (/branch .* already exists/i.test(error.message)) {
-      return runGit(workspace, ["switch", branch], `git switch "${branch}"`);
+      return runGit(workspace, ["switch", "--", branch], `git switch "${branch}"`);
     }
     throw error;
   }
@@ -536,6 +537,7 @@ ipcMain.handle("workspace:push", async (_, workspace, branch) => {
       "push",
       "--set-upstream",
       "origin",
+      "--",
       branch,
     ],
     `git push --set-upstream origin "${branch}"`,

@@ -38,12 +38,29 @@ body {
 }
 
 .wordmark {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   font-size: 25px;
   font-weight: 700;
   letter-spacing: 6px;
   line-height: 1;
   color: #17131d;
   text-transform: uppercase;
+}
+
+.brand-logo {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(69, 13, 130, 0.15);
+}
+
+.wordmark-text {
+  display: flex;
+  flex-direction: column;
 }
 
 .wordmark span {

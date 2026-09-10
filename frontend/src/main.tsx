@@ -3,7 +3,6 @@ import {
   ArrowLeft,
   Bookmark,
   ExternalLink,
-  Filter,
   MessageCircle,
   Pencil,
   Search,
@@ -233,7 +232,10 @@ function TokenLoginForm({ onLogin }: { onLogin: () => void }) {
     <main className="center login-screen">
       <div className="login-card">
         <div className="wordmark">
-          SkillIssues<span>You Have the Skills. We Have the Issues.</span>
+          <img src="/logo.png" alt="SkillIssues Logo" className="brand-logo" />
+          <div className="wordmark-text">
+            SkillIssues<span>You Have the Skills. We Have the Issues.</span>
+          </div>
         </div>
         <h1 className="login-title">Connect your account</h1>
         <p className="login-desc">
@@ -486,7 +488,10 @@ function App() {
     <main className="web-home">
       <header className="web-header">
         <div className="wordmark">
-          SkillIssues<span>You Have the Skills. We Have the Issues.</span>
+          <img src="/logo.png" alt="SkillIssues Logo" className="brand-logo" />
+          <div className="wordmark-text">
+            SkillIssues<span>You Have the Skills. We Have the Issues.</span>
+          </div>
         </div>
       </header>
 
@@ -515,9 +520,6 @@ function App() {
             clear
           </button>
         )}
-        <button type="button" className="filter-button" title="Filter issues">
-          <Filter size={14} />
-        </button>
         <button className="search-submit">Search</button>
       </form>
 
