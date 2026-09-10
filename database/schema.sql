@@ -31,15 +31,8 @@ CREATE TABLE IF NOT EXISTS developer_profiles (
   demonstrated_skills TEXT[] NOT NULL DEFAULT '{}',
   total_xp INTEGER NOT NULL DEFAULT 0,
   level INTEGER NOT NULL DEFAULT 1,
-  streak_days INTEGER NOT NULL DEFAULT 4,
-  badges TEXT[] NOT NULL DEFAULT '{}',
-  skills_xp JSONB NOT NULL DEFAULT '{}'
+  badges TEXT[] NOT NULL DEFAULT '{}'
 );
-ALTER TABLE developer_profiles ADD COLUMN IF NOT EXISTS total_xp INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE developer_profiles ADD COLUMN IF NOT EXISTS level INTEGER NOT NULL DEFAULT 1;
-ALTER TABLE developer_profiles ADD COLUMN IF NOT EXISTS streak_days INTEGER NOT NULL DEFAULT 4;
-ALTER TABLE developer_profiles ADD COLUMN IF NOT EXISTS badges TEXT[] NOT NULL DEFAULT '{}';
-ALTER TABLE developer_profiles ADD COLUMN IF NOT EXISTS skills_xp JSONB NOT NULL DEFAULT '{}';
 CREATE TABLE IF NOT EXISTS developer_preferences (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   interests TEXT[] NOT NULL DEFAULT '{}',
@@ -74,6 +67,7 @@ CREATE TABLE IF NOT EXISTS issues (
   technologies TEXT[] NOT NULL DEFAULT '{}',
   learning_tags TEXT[] NOT NULL DEFAULT '{}',
   comments INTEGER NOT NULL DEFAULT 0,
+  has_difficulty_label BOOLEAN NOT NULL DEFAULT false,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(repository_id, number)
 );
@@ -90,11 +84,13 @@ CREATE TABLE IF NOT EXISTS contributions (
   pr_url TEXT,
   pr_number INTEGER,
   state TEXT NOT NULL DEFAULT 'STARTED',
+  xp_awarded BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   merged_at TIMESTAMPTZ,
   UNIQUE(user_id, issue_id)
 );
+ALTER TABLE contributions ADD COLUMN IF NOT EXISTS xp_awarded BOOLEAN NOT NULL DEFAULT false;
 CREATE TABLE IF NOT EXISTS sync_state (
   repository_id INTEGER PRIMARY KEY REFERENCES repositories(id) ON DELETE CASCADE,
   last_synced_at TIMESTAMPTZ,

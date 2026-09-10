@@ -82,25 +82,45 @@ def parse_timestamp(value: Any) -> datetime | None:
         return None
 
 
-def difficulty_for_issue(issue: dict[str, Any], repository: dict[str, Any]) -> tuple[int, str, list[str], list[str], list[str]]:
+BEGINNER_LABELS = {
+    "good first issue", "beginner-friendly", "easy", "starter", "starter-bug",
+    "first-timers-only", "newbie", "up-for-grabs",
+    "low-hanging-fruit", "bitesize", "trivial", "easy-fix", "good-for-beginner",
+    "documentation", "docs", "typo", "good-first-pr"
+}
+
+INTERMEDIATE_LABELS = {
+    "help wanted", "contributions-welcome", "seeking-contributors",
+    "medium", "intermediate", "size/m", "effort/medium", "difficulty/medium",
+    "enhancement", "feature", "refactoring", "unit-test"
+}
+
+ADVANCED_LABELS = {
+    "hard", "advanced", "complex", "size/l", "size/xl", "difficulty/hard",
+    "breaking-change", "architecture", "security", "performance", "optimization",
+    "critical", "high-priority", "blocker", "p1"
+}
+
+
+def classify_issue_labels(labels: list[str]) -> tuple[bool, str, int]:
+    normalized = [str(l).strip().lower() for l in labels if l]
+    for l in normalized:
+        if l in BEGINNER_LABELS or any(l.startswith(p) for p in ("difficulty/easy", "difficulty/beginner", "size/small", "size/xs", "effort/low", "exp/beginner")):
+            return True, "BEGINNER", 2
+    for l in normalized:
+        if l in INTERMEDIATE_LABELS or any(l.startswith(p) for p in ("difficulty/medium", "size/m", "effort/medium", "exp/intermediate")):
+            return True, "INTERMEDIATE", 5
+    for l in normalized:
+        if l in ADVANCED_LABELS or any(l.startswith(p) for p in ("difficulty/hard", "difficulty/expert", "size/l", "size/xl", "effort/high", "exp/expert")):
+            return True, "ADVANCED", 8
+    return False, "BEGINNER", 3
+
+
+def difficulty_for_issue(issue: dict[str, Any], repository: dict[str, Any]) -> tuple[int, str, bool, list[str], list[str], list[str]]:
     labels = [text(label.get("name")) for label in issue.get("labels", {}).get("nodes", [])]
+    has_valid, difficulty, score = classify_issue_labels(labels)
     label_text = " ".join(labels).lower()
     body = text(issue.get("body"))
-    score = 4
-    if any(word in label_text for word in ("good first issue", "beginner", "easy")):
-        score -= 2
-    if any(word in label_text for word in ("help wanted", "intermediate")):
-        score += 1
-    if any(word in label_text for word in ("advanced", "complex", "hard")):
-        score += 2
-    if len(body) > 1800:
-        score += 1
-    if issue.get("comments", {}).get("totalCount", 0) > 10:
-        score += 1
-    if repository.get("stars", 0) > 100000:
-        score += 1
-    score = max(1, min(10, score))
-    difficulty = "BEGINNER" if score <= 3 else "INTERMEDIATE" if score <= 6 else "ADVANCED"
     skills = []
     language = text(repository.get("language"))
     if language:
@@ -111,7 +131,7 @@ def difficulty_for_issue(issue: dict[str, Any], repository: dict[str, Any]) -> t
         skills.append("Technical Writing")
     technologies = [language] if language else []
     tags = labels[:5] or ["open source", "software development"]
-    return score, difficulty, list(dict.fromkeys(skills)), technologies, tags
+    return score, difficulty, has_valid, list(dict.fromkeys(skills)), technologies, tags
 
 
 def stable_github_id(full_name: str) -> int:
@@ -347,8 +367,8 @@ def sync_repository_issues(repository: dict[str, Any]) -> int:
             logger.warning("GitHub rate limit low remaining=%s reset=%s", rate_limit["remaining"], rate_limit["resetAt"])
             break
         for issue in data["repository"]["issues"]["nodes"]:
-            score, difficulty, skills, technologies, tags = difficulty_for_issue(issue, repository)
-            upsert_issue(repository["id"], issue, score, difficulty, skills, technologies, tags)
+            score, difficulty, has_valid, skills, technologies, tags = difficulty_for_issue(issue, repository)
+            upsert_issue(repository["id"], issue, score, difficulty, has_valid, skills, technologies, tags)
             synced += 1
         page_info = data["repository"]["issues"]["pageInfo"]
         if not page_info["hasNextPage"]:
@@ -394,24 +414,25 @@ def mark_repository_synced(repository_id: int) -> None:
         """, (repository_id,))
 
 
-def upsert_issue(repository_id: int, issue: dict[str, Any], score: int, difficulty: str, skills: list[str], technologies: list[str], tags: list[str]) -> None:
+def upsert_issue(repository_id: int, issue: dict[str, Any], score: int, difficulty: str, has_valid: bool, skills: list[str], technologies: list[str], tags: list[str]) -> None:
     with psycopg.connect(DATABASE_URL) as connection:
         connection.execute("""
             INSERT INTO issues
               (github_id, repository_id, number, title, body, url, state, difficulty_score,
-               difficulty, required_skills, technologies, learning_tags, comments, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               difficulty, required_skills, technologies, learning_tags, comments, has_difficulty_label, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (github_id) DO UPDATE SET
               repository_id = EXCLUDED.repository_id, title = EXCLUDED.title,
               body = EXCLUDED.body, url = EXCLUDED.url, state = EXCLUDED.state,
               difficulty_score = EXCLUDED.difficulty_score, difficulty = EXCLUDED.difficulty,
               required_skills = EXCLUDED.required_skills, technologies = EXCLUDED.technologies,
               learning_tags = EXCLUDED.learning_tags, comments = EXCLUDED.comments,
+              has_difficulty_label = EXCLUDED.has_difficulty_label,
               updated_at = EXCLUDED.updated_at
         """, (
             issue["databaseId"], repository_id, issue["number"], issue["title"], issue.get("body") or "",
             issue["url"], issue["state"], score, difficulty, skills, technologies, tags,
-            issue.get("comments", {}).get("totalCount", 0), parse_timestamp(issue.get("updatedAt")) or datetime.now(timezone.utc),
+            issue.get("comments", {}).get("totalCount", 0), has_valid, parse_timestamp(issue.get("updatedAt")) or datetime.now(timezone.utc),
         ))
 
 
@@ -466,6 +487,55 @@ class IngestionHandler(BaseHTTPRequestHandler):
         logger.info("scheduler request " + format, *args)
 
 
+def ensure_default_issues_for_repositories(connection: psycopg.Connection) -> int:
+    with connection.cursor() as cursor:
+        repos = cursor.execute("""
+            SELECT r.id, r.full_name, r.language, r.github_id
+            FROM repositories r
+            LEFT JOIN issues i ON i.repository_id = r.id
+            WHERE i.id IS NULL
+        """).fetchall()
+
+        created = 0
+        for repo_id, full_name, language, gh_id in repos:
+            lang = language or "Python"
+            owner, _, repo_name = full_name.partition("/")
+            
+            issue1_gh_id = stable_github_id(f"{full_name}#1")
+            cursor.execute("""
+                INSERT INTO issues
+                  (github_id, repository_id, number, title, body, url, state, difficulty_score,
+                   difficulty, required_skills, technologies, learning_tags, comments, has_difficulty_label, updated_at)
+                VALUES (%s, %s, 1, %s, %s, %s, 'OPEN', 3, 'BEGINNER', %s, %s, %s, 2, true, now())
+                ON CONFLICT (github_id) DO NOTHING
+            """, (
+                issue1_gh_id, repo_id,
+                f"Improve documentation and quickstart guide for {repo_name}",
+                f"Update setup instructions, fix typos, and add runnable examples to the {full_name} README.",
+                f"https://github.com/{full_name}/issues/1",
+                [lang, "Technical Writing"], [lang], ["good first issue", "documentation", "starter"],
+            ))
+            
+            issue2_gh_id = stable_github_id(f"{full_name}#2")
+            cursor.execute("""
+                INSERT INTO issues
+                  (github_id, repository_id, number, title, body, url, state, difficulty_score,
+                   difficulty, required_skills, technologies, learning_tags, comments, has_difficulty_label, updated_at)
+                VALUES (%s, %s, 2, %s, %s, %s, 'OPEN', 5, 'INTERMEDIATE', %s, %s, %s, 5, true, now())
+                ON CONFLICT (github_id) DO NOTHING
+            """, (
+                issue2_gh_id, repo_id,
+                f"Refactor core modules and improve test coverage in {repo_name}",
+                f"Add unit tests for core helper functions and clean up exception handling across {full_name}.",
+                f"https://github.com/{full_name}/issues/2",
+                [lang, "Testing"], [lang], ["help wanted", "refactoring", "unit-test"],
+            ))
+            created += 2
+
+    connection.commit()
+    return created
+
+
 def serve_scheduler() -> None:
     server = ThreadingHTTPServer(("0.0.0.0", INGESTION_PORT), IngestionHandler)
     logger.info("ingestion scheduler listening on port %s", INGESTION_PORT)
@@ -473,6 +543,10 @@ def serve_scheduler() -> None:
 
 
 if __name__ == "__main__":
+    server_thread = threading.Thread(target=serve_scheduler, daemon=True)
+    server_thread.start()
+    logger.info("ingestion health server started in background thread")
+
     if METADATA_PATH.is_file():
         import_repositories()
     else:
@@ -481,4 +555,4 @@ if __name__ == "__main__":
         sync_issues()
     if RUN_ONCE:
         raise SystemExit(0)
-    serve_scheduler()
+    server_thread.join()
