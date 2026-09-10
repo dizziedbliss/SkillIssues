@@ -132,8 +132,30 @@ function isSafeWorkspace(workspace) {
   );
 }
 
+let mainWindow = null;
+let pendingDeepLinkUrl = null;
+
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient("skillissues", process.execPath, [
+      path.resolve(process.argv[1]),
+    ]);
+  }
+} else {
+  app.setAsDefaultProtocolClient("skillissues");
+}
+
+function sendDeepLinkToWindow(url) {
+  if (!url || typeof url !== "string") return;
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send("open-deeplink", url);
+  } else {
+    pendingDeepLinkUrl = url;
+  }
+}
+
 function createWindow() {
-  const window = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1100,
     height: 760,
     minWidth: 860,
@@ -148,16 +170,22 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
     },
   });
-  window.once("ready-to-show", () => window.show());
-  window.webContents.setWindowOpenHandler(({ url }) => {
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.show();
+    if (pendingDeepLinkUrl) {
+      sendDeepLinkToWindow(pendingDeepLinkUrl);
+      pendingDeepLinkUrl = null;
+    }
+  });
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (SAFE_EXTERNAL_URL.test(url)) void shell.openExternal(url);
     return { action: "deny" };
   });
-  window.webContents.on("will-navigate", (event, url) => {
+  mainWindow.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith("file://")) event.preventDefault();
   });
-  window.loadFile(path.join(__dirname, "renderer.html"));
-  return window;
+  mainWindow.loadFile(path.join(__dirname, "renderer.html"));
+  return mainWindow;
 }
 
 ipcMain.handle("workspace:inspect", async (_, workspace) => {
@@ -587,7 +615,24 @@ process.on("unhandledRejection", (error) =>
 app.on("render-process-gone", (_event, _webContents, details) =>
   logRuntimeError("renderer:gone", details),
 );
-app.on("second-instance", () => BrowserWindow.getAllWindows()[0]?.show());
+app.on("second-instance", (event, commandLine) => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+  const deepLink = (commandLine || []).find(
+    (arg) => typeof arg === "string" && arg.startsWith("skillissues://"),
+  );
+  if (deepLink) sendDeepLinkToWindow(deepLink);
+});
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+  sendDeepLinkToWindow(url);
+});
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });

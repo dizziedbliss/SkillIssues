@@ -96,8 +96,8 @@ function updateProfileUI(profile) {
   if (!profile) return;
   if (profile.avatar_url && el("profile-avatar"))
     el("profile-avatar").src = profile.avatar_url;
-  if (profile.username && el("profile-name"))
-    el("profile-name").textContent = profile.username;
+  if (el("profile-name"))
+    el("profile-name").textContent = profile.name || profile.username || "Developer";
   if (profile.username && el("profile-handle"))
     el("profile-handle").textContent = `@${profile.username}`;
   if (profile.bio && el("profile-quote"))
@@ -401,12 +401,26 @@ function renderWorking() {
       }),
     );
 }
+function getXpForDifficulty(difficulty) {
+  const d = (difficulty || "").toUpperCase();
+  if (d === "ADVANCED") return 250;
+  if (d === "INTERMEDIATE") return 140;
+  return 75;
+}
+
 function renderSubmissions() {
   el("issues").innerHTML = submissions.length
     ? submissions
         .map(
-          (item) =>
-            `<article class="issue"><div class="issue-main"><div><h2 class="issue-title">#${item.number} ${escapeHtml(item.title)}</h2><div class="issue-repo">${escapeHtml(item.repository)} · ${escapeHtml(item.language || "Open source")}</div></div><span class="tag action ${item.state === "PR_MERGED" ? "saved" : ""}">${item.state === "PR_MERGED" ? "ACCEPTED" : item.state === "PR_CLOSED" ? "REJECTED" : "REVIEW REQUIRED"}</span></div><div class="issue-meta"><div class="issue-tags"><span class="tag">Submitted ${daysAgo(item.created_at)}</span></div><div class="issue-actions">${item.state !== "PR_MERGED" ? `<button class="tag action" data-verify-pr="${item.id}">Check merge status ↻</button>` : ""}${item.pr_url ? `<a class="tag action" href="${escapeHtml(item.pr_url)}" target="_blank">View submission ↗</a>` : ""}<a class="tag" href="${escapeHtml(item.issue_url)}" target="_blank">View issue ↗</a></div></div></article>`,
+          (item) => {
+            const isMerged = item.state === "PR_MERGED";
+            const isClosed = item.state === "PR_CLOSED";
+            const xpEarned = getXpForDifficulty(item.difficulty);
+            const statusClass = isMerged ? "status-accepted" : isClosed ? "status-rejected" : "status-review";
+            const statusText = isMerged ? `ACCEPTED (+${xpEarned} XP) 🎉` : isClosed ? "REJECTED ✖" : "REVIEW REQUIRED ⏳";
+
+            return `<article class="issue"><div class="issue-main"><div><h2 class="issue-title">#${item.number} ${escapeHtml(item.title)}</h2><div class="issue-repo">${escapeHtml(item.repository)} · ${escapeHtml(item.language || "Open source")}</div></div><span class="tag status-pill ${statusClass}">${statusText}</span></div><div class="issue-meta"><div class="issue-tags"><span class="tag">Submitted ${daysAgo(item.created_at)}</span></div><div class="issue-actions">${item.state !== "PR_MERGED" ? `<button class="tag action" data-verify-pr="${item.id}">Check merge status ↻</button>` : ""}${item.pr_url ? `<a class="tag action" href="${escapeHtml(item.pr_url)}" target="_blank">View submission ↗</a>` : ""}<a class="tag" href="${escapeHtml(item.issue_url)}" target="_blank">View issue ↗</a></div></div></article>`;
+          }
         )
         .join("")
     : '<div class="loading">Submit a pull request to see it here.</div>';
@@ -1126,6 +1140,32 @@ document.addEventListener("DOMContentLoaded", () => {
       renderIssues();
     }),
   );
+  if (window.skillIssuesDesktop && window.skillIssuesDesktop.onOpenDeepLink) {
+    window.skillIssuesDesktop.onOpenDeepLink((url) => {
+      try {
+        const parsed = new URL(url);
+        const issueId = parsed.searchParams.get("id");
+        if (issueId) {
+          const target = (issues || []).find(
+            (i) => String(i.id) === String(issueId),
+          );
+          if (target) {
+            selectIssue(target);
+            showToast(`Opened issue #${target.number} from desktop app link`);
+          } else {
+            api(`/issues/${issueId}`)
+              .then((issue) => {
+                selectIssue(issue);
+                showToast(
+                  `Opened issue #${issue.number} from desktop app link`,
+                );
+              })
+              .catch(() => {});
+          }
+        }
+      } catch {}
+    });
+  }
   resetStartupState();
   loadIssues();
 });
