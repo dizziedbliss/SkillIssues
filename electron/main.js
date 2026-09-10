@@ -76,7 +76,7 @@ function recordCommand(workspace, command, output = "") {
 function validBranchName(branch) {
   return (
     typeof branch === "string" &&
-    /^[A-Za-z0-9][A-Za-z0-9._/-]{0,80}$/.test(branch) &&
+    /^[A-Za-z0-9][A-Za-z0-9._/#-]{0,80}$/.test(branch) &&
     !branch.includes("..")
   );
 }
@@ -498,12 +498,12 @@ ipcMain.handle("workspace:create-branch", async (_, workspace, branch) => {
   try {
     return await runGit(
       workspace,
-      ["switch", "-c", "--", branch],
+      ["switch", "-c", branch],
       `git switch -c "${branch}"`,
     );
   } catch (error) {
     if (/branch .* already exists/i.test(error.message)) {
-      return runGit(workspace, ["switch", "--", branch], `git switch "${branch}"`);
+      return runGit(workspace, ["switch", branch], `git switch "${branch}"`);
     }
     throw error;
   }
@@ -537,7 +537,6 @@ ipcMain.handle("workspace:push", async (_, workspace, branch) => {
       "push",
       "--set-upstream",
       "origin",
-      "--",
       branch,
     ],
     `git push --set-upstream origin "${branch}"`,
