@@ -17,12 +17,52 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json();
 }
 
-function daysAgo(value?: string) { if (!value) return 'recently'; const days = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86400000)); return days === 0 ? 'today' : `${days}d ago`; }
+function daysAgo(value?: string) {
+  if (!value) return "recently";
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "recently";
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 0) return "today";
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 60) return `${Math.max(1, minutes)}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return days === 0 ? "today" : `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
 function LanguageMark({ name }: { name: string }) { const icon = languageIcons[name]; return icon ? <img className="language-mark" src={`${languageLogoBase}/${icon}/${icon}.svg`} alt={`${name} logo`} onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <span className="language-mark text-mark">{name.slice(0, 2).toUpperCase()}</span>; }
 
 function IssueCard({ issue, saved, onSelect, onToggleSave }: { issue: Issue; saved: boolean; onSelect: () => void; onToggleSave: () => void }) {
-  const author = issue.repository.split('/')[0];
-  return <article className="web-issue issue-card"><div className="issue-main"><div><h2>#{issue.number} {issue.title}</h2><p>{issue.repository}</p></div><span className={`difficulty ${issue.difficulty.toLowerCase()}`}>{issue.difficulty}</span></div><div className="issue-author">{author} · {daysAgo(issue.updated_at)} · <MessageCircle size={11} /> {issue.comments || 0}</div><div className="issue-meta"><div className="atom-row"><span className="atom"><LanguageMark name={issue.language || 'Open source'} />{issue.language || 'Open source'}</span>{issue.technologies.slice(0, 2).map((technology) => <span className="atom light" key={technology}>{technology}</span>)}</div><div className="atom-row"><button className="atom action" onClick={onSelect}>View issue <ExternalLink size={11} /></button><button className={`save-button ${saved ? 'saved' : ''}`} title={saved ? 'Remove saved issue' : 'Save issue'} onClick={onToggleSave}>{saved ? <Check size={14} /> : <Bookmark size={14} />}</button></div></div></article>;
+  const author = issue.repository ? issue.repository.split('/')[0] : 'open-source';
+  return (
+    <article className="web-issue issue-card" onClick={(e) => { if (!(e.target as HTMLElement).closest('button')) onSelect(); }}>
+      <h2 className="issue-card-title">{issue.title} #{issue.number}</h2>
+      <div className="issue-card-repo">{issue.repository}</div>
+      <div className="issue-card-bottom">
+        <div className="pill-group-left">
+          <span className="pill purple">{author}</span>
+          <span className="pill purple">{daysAgo(issue.updated_at)}</span>
+          <span className="pill purple"><MessageCircle size={11} /> {issue.comments || 0}</span>
+        </div>
+        <div className="pill-group-middle">
+          <span className="pill light"><LanguageMark name={issue.language || 'Open source'} />{issue.language || 'Open source'}</span>
+          {issue.technologies.slice(0, 2).map((tech) => (
+            <span className="pill light" key={tech}>{tech}</span>
+          ))}
+        </div>
+        <div className="pill-group-right">
+          <button className="view-issue-btn view-issue" onClick={onSelect}>View Issue</button>
+          <button className={`save-icon-btn save ${saved ? 'saved' : ''}`} title={saved ? 'Remove saved issue' : 'Save issue'} onClick={(e) => { e.stopPropagation(); onToggleSave(); }}>
+            {saved ? '🔖' : '🔖'}
+          </button>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 function App() {
@@ -36,8 +76,65 @@ function App() {
   async function solve() { if (!selected) return; try { await request('/contributions', { method: 'POST', body: JSON.stringify({ issue_id: selected.id }) }); setSelected(null); await refresh(); setView('Working'); } catch { setError('Could not start tracking this challenge.'); } }
   async function saveProfile() { if (!profile) return; try { const updated = await request<Profile>('/profile', { method: 'PUT', body: JSON.stringify({ bio, experience_level: 'BEGINNER', target_level: targetLevel, interests: profile.interests, preferred_languages: languages.split(',').map((item) => item.trim()).filter(Boolean) }) }); setProfile(updated); setEditing(false); } catch { setError('Profile could not be saved.'); } }
   if (error) return <main className="center"><h1>SkillIssues</h1><p>{error}</p></main>; if (loginRequired) return <main className="center login-screen"><h1>SkillIssues</h1><p>Sign in with GitHub to receive personalized issues.</p><button className="search-submit" onClick={() => void loginGithub()}>Continue with GitHub</button><button className="secondary-button" onClick={() => void loginDemo()}>Use demo profile</button></main>; if (!profile) return <main className="center"><p>Loading your challenges...</p></main>;
+function renderMarkdown(md: string) {
+  if (!md || !md.trim()) return '<p class="empty-body">No issue description available.</p>';
+  const codeBlocks: string[] = [];
+  let text = String(md).replace(/```(\w*)\r?\n([\s\S]*?)```/g, (match, lang, code) => {
+    const escapedCode = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    codeBlocks.push(`<pre><code class="language-${lang}">${escapedCode.trim()}</code></pre>`);
+    return `\n__CODE_BLOCK_${codeBlocks.length - 1}__\n`;
+  });
+  text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const inlineCodes: string[] = [];
+  text = text.replace(/`([^`]+)`/g, (match, code) => {
+    inlineCodes.push(`<code>${code}</code>`);
+    return `__INLINE_CODE_${inlineCodes.length - 1}__`;
+  });
+  text = text.replace(/^###### (.*$)/gim, '<h6>$1</h6>');
+  text = text.replace(/^##### (.*$)/gim, '<h5>$1</h5>');
+  text = text.replace(/^#### (.*$)/gim, '<h4>$1</h4>');
+  text = text.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+  text = text.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+  text = text.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+  text = text.replace(/^\&gt;\s?(.*$)/gim, '<blockquote>$1</blockquote>');
+  text = text.replace(/^[\*\-_]{3,}$/gim, '<hr>');
+  text = text.replace(/!\[([^\]]*)\]\(([^\s\)]+)\)/g, '<img src="$2" alt="$1" />');
+  text = text.replace(/\[([^\]]+)\]\(([^\s\)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+  text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  text = text.replace(/_([^_]+)_/g, '<em>$1</em>');
+  text = text.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  text = text.replace(/^[\s]*[\-\*] (.*$)/gim, '<li>$1</li>');
+  text = text.replace(/^[\s]*\d+\. (.*$)/gim, '<li>$1</li>');
+  text = text.replace(/(<li>[\s\S]*?<\/li>)/gim, '<ul>$1</ul>');
+  text = text.replace(/<\/ul>\s*<ul>/g, '');
+  const lines = text.split(/\r?\n/);
+  const result: string[] = [];
+  let inP = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) {
+      if (inP) { result.push('</p>'); inP = false; }
+      continue;
+    }
+    if (line.startsWith('<h') || line.startsWith('<ul') || line.startsWith('<ol') || line.startsWith('<blockquote') || line.startsWith('<pre') || line.startsWith('<hr') || line.includes('__CODE_BLOCK_')) {
+      if (inP) { result.push('</p>'); inP = false; }
+      result.push(line);
+    } else {
+      if (!inP) { result.push('<p>'); inP = true; }
+      result.push(line + '<br>');
+    }
+  }
+  if (inP) result.push('</p>');
+  let finalHtml = result.join('\n');
+  inlineCodes.forEach((code, idx) => { finalHtml = finalHtml.replace(`__INLINE_CODE_${idx}__`, code); });
+  codeBlocks.forEach((block, idx) => { finalHtml = finalHtml.replace(`__CODE_BLOCK_${idx}__`, block); });
+  return finalHtml;
+}
+
   const displayed = view === 'Saved' ? savedIssues : issues;
-  return <main className="web-home"><header className="web-header"><div className="wordmark">SkillIssues<span>You Have the Skills. We Have the Issues.</span></div></header><form className="web-search" onSubmit={(event) => { event.preventDefault(); void search(); }}><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Issues on JavaScript" /><button type="button" onClick={() => { setQuery(''); void refresh(); }}>clear</button><button type="button" className="filter-button" title="Filter issues"><Filter size={13} /></button><button className="search-submit">Search</button></form><section className="web-grid"><div className="web-feed"><nav className="web-tabs">{(['SkillIssues', 'Saved', 'Working', 'Submissions'] as View[]).map((item) => <button key={item} className={view === item ? 'active' : ''} onClick={() => setView(item)}>{item} <b>{item === 'SkillIssues' ? issues.length : item === 'Saved' ? savedIssues.length : item === 'Working' ? working.length : submissions.length}</b></button>)}</nav><div className="feed-title"><h1>{view}</h1><span>{view === 'SkillIssues' ? 'Personalized for your current level and preferences' : view === 'Saved' ? 'Challenges to do later' : view === 'Working' ? 'Repositories you are actively solving' : 'Pull requests under review and completed'}</span></div>{view === 'Working' ? <WorkingList items={working} onRefresh={refresh} /> : view === 'Submissions' ? <SubmissionList items={submissions} /> : <div className="issue-feed">{displayed.length ? displayed.map((issue) => <IssueCard key={issue.id} issue={issue} saved={savedIssues.some((item) => item.id === issue.id)} onSelect={() => setSelected(issue)} onToggleSave={() => void toggleSave(issue)} />) : <p className="empty-feed">Nothing here yet.</p>}</div>}</div><aside className="web-profile"><img src={profile.avatar_url} alt={`${profile.username} profile`} /><h2>{profile.username}</h2><p className="profile-handle">@{profile.username}</p><p className="profile-quote">{profile.bio || 'Build your next contribution.'}</p><section><label>Preferences <button className="edit-button" title="Edit profile" onClick={() => setEditing(true)}><Pencil size={13} /></button></label><div className="profile-chips">{profile.preferred_languages.map((item) => <span key={item}><LanguageMark name={item} />{item}</span>)}</div></section><section><label>Contribution badges</label><div className="profile-chips"><span>{profile.completed_count} verified</span><span>{profile.target_level}</span></div></section><div className="profile-level"><span>Level {Math.max(1, Math.ceil(profile.progress_score / 10))}</span><div><small>0</small><i style={{ width: `${profile.progress_score}%` }} /><small>100</small></div></div>{editing && <div className="profile-editor"><textarea value={bio} onChange={(event) => setBio(event.target.value)} /><input value={languages} onChange={(event) => setLanguages(event.target.value)} /><select value={targetLevel} onChange={(event) => setTargetLevel(event.target.value)}><option>BEGINNER</option><option>INTERMEDIATE</option><option>ADVANCED</option></select><button className="search-submit" onClick={() => void saveProfile()}>Save</button></div>}</aside></section>{selected && <div className="web-modal" role="dialog" aria-modal="true"><article className="web-modal-card issue-detail"><button className="modal-close" onClick={() => setSelected(null)} title="Close issue"><X size={18} /></button><button className="back-link" onClick={() => setSelected(null)}><ArrowLeft size={14} /> Back to issues</button><span className={`difficulty ${selected.difficulty.toLowerCase()}`}>{selected.difficulty} · {selected.difficulty_score}/10</span><h2>#{selected.number} {selected.title}</h2><p className="modal-repo">{selected.repository} · {selected.language}</p><p className="issue-author">{selected.repository.split('/')[0]} · {daysAgo(selected.updated_at)} · <MessageCircle size={11} /> {selected.comments || 0}</p><div className="detail-body">{selected.body || 'No issue description available.'}</div><div className="atom-row">{selected.required_skills.map((skill) => <span className="atom" key={skill}>{skill}</span>)}</div><div className="modal-actions"><a href={selected.url} target="_blank" rel="noreferrer">Open issue on GitHub <ExternalLink size={13} /></a><button className="start-button" onClick={() => void solve()}>Solve and track <Check size={14} /></button></div></article></div>}</main>;
+  return <main className="web-home"><header className="web-header"><div className="wordmark">SkillIssues<span>You Have the Skills. We Have the Issues.</span></div></header><form className="web-search" onSubmit={(event) => { event.preventDefault(); void search(); }}><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Issues on JavaScript" /><button type="button" onClick={() => { setQuery(''); void refresh(); }}>clear</button><button type="button" className="filter-button" title="Filter issues"><Filter size={13} /></button><button className="search-submit">Search</button></form><section className="web-grid"><div className="web-feed"><nav className="web-tabs">{(['SkillIssues', 'Saved', 'Working', 'Submissions'] as View[]).map((item) => <button key={item} className={view === item ? 'active' : ''} onClick={() => setView(item)}>{item} <b>{item === 'SkillIssues' ? issues.length : item === 'Saved' ? savedIssues.length : item === 'Working' ? working.length : submissions.length}</b></button>)}</nav><div className="feed-title"><h1>{view}</h1><span>{view === 'SkillIssues' ? 'Personalized for your current level and preferences' : view === 'Saved' ? 'Challenges to do later' : view === 'Working' ? 'Repositories you are actively solving' : 'Pull requests under review and completed'}</span></div>{view === 'Working' ? <WorkingList items={working} onRefresh={refresh} /> : view === 'Submissions' ? <SubmissionList items={submissions} /> : <div className="issue-feed">{displayed.length ? displayed.map((issue) => <IssueCard key={issue.id} issue={issue} saved={savedIssues.some((item) => item.id === issue.id)} onSelect={() => setSelected(issue)} onToggleSave={() => void toggleSave(issue)} />) : <p className="empty-feed">Nothing here yet.</p>}</div>}</div><aside className="web-profile"><img src={profile.avatar_url} alt={`${profile.username} profile`} /><h2>{profile.username}</h2><p className="profile-handle">@{profile.username}</p><p className="profile-quote">{profile.bio || 'Build your next contribution.'}</p><section><label>Preferences <button className="edit-button" title="Edit profile" onClick={() => setEditing(true)}><Pencil size={13} /></button></label><div className="profile-chips">{profile.preferred_languages.map((item) => <span key={item}><LanguageMark name={item} />{item}</span>)}</div></section><section><label>Contribution badges</label><div className="profile-chips"><span>{profile.completed_count} verified</span><span>{profile.target_level}</span></div></section><div className="profile-level"><span>Level {Math.max(1, Math.ceil(profile.progress_score / 10))}</span><div><small>0</small><i style={{ width: `${profile.progress_score}%` }} /><small>100</small></div></div>{editing && <div className="profile-editor"><textarea value={bio} onChange={(event) => setBio(event.target.value)} /><input value={languages} onChange={(event) => setLanguages(event.target.value)} /><select value={targetLevel} onChange={(event) => setTargetLevel(event.target.value)}><option>BEGINNER</option><option>INTERMEDIATE</option><option>ADVANCED</option></select><button className="search-submit" onClick={() => void saveProfile()}>Save</button></div>}</aside></section>{selected && <div className="web-modal" role="dialog" aria-modal="true"><article className="web-modal-card issue-detail"><button className="modal-close" onClick={() => setSelected(null)} title="Close issue"><X size={18} /></button><button className="back-link" onClick={() => setSelected(null)}><ArrowLeft size={14} /> Back to issues</button><span className={`difficulty ${selected.difficulty.toLowerCase()}`}>{selected.difficulty} · {selected.difficulty_score}/10</span><h2>#{selected.number} {selected.title}</h2><p className="modal-repo">{selected.repository} · {selected.language}</p><p className="issue-author">{selected.repository.split('/')[0]} · {daysAgo(selected.updated_at)} · <MessageCircle size={11} /> {selected.comments || 0}</p><div className="detail-body markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(selected.body) }} /><div className="atom-row">{selected.required_skills.map((skill) => <span className="atom" key={skill}>{skill}</span>)}</div><div className="modal-actions"><a href={selected.url} target="_blank" rel="noreferrer">Open issue on GitHub <ExternalLink size={13} /></a><button className="start-button" onClick={() => void solve()}>Solve and track <Check size={14} /></button></div></article></div>}</main>;
 }
 
 function WorkingList({ items, onRefresh }: { items: Contribution[]; onRefresh: () => Promise<void> }) { return <div className="issue-feed">{items.length ? items.map((item) => <article className="web-issue working-card" key={item.id}><div className="issue-main"><div><h2>#{item.number} {item.title}</h2><p>{item.repository} · {item.language}</p></div><span className="atom action">Working</span></div><div className="issue-meta"><span className="atom">Cloned and tracking</span><button className="atom action" onClick={() => void onRefresh()}>Refresh status</button></div></article>) : <p className="empty-feed">Solve an issue to start tracking a local workspace.</p>}</div>; }
