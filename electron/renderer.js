@@ -314,7 +314,24 @@ function renderWorking() {
     ? working
         .map(
           (item) =>
-            `<article class="issue"><div class="issue-main"><div><h2 class="issue-title">#${item.number} ${escapeHtml(item.title)}</h2><div class="issue-repo">${escapeHtml(item.repository)} · ${escapeHtml(item.language || "Open source")}</div></div><span class="tag action">WORKING</span></div><div class="issue-meta"><div class="issue-tags"><span class="tag">Cloned and tracking</span><span class="tag">Started ${daysAgo(item.created_at)}</span></div><div class="issue-actions"><button class="tag action" data-working-vscode="${item.id}">VS Code ↗</button><button class="tag action" data-working-folder="${item.id}">Show folder</button><button class="tag action" data-working-push="${item.id}">Push & Submit PR</button></div></div></article>`,
+            `<article class="issue-card working-card">
+              <h2 class="issue-card-title">#${item.number} ${escapeHtml(item.title)}</h2>
+              <div class="issue-card-repo">${escapeHtml(item.repository)}</div>
+              <div class="issue-card-bottom">
+                <div class="pill-group-left">
+                  <span class="pill purple">Working</span>
+                  <span class="pill purple">Started ${daysAgo(item.created_at)}</span>
+                </div>
+                <div class="pill-group-middle">
+                  <span class="pill light">${escapeHtml(item.language || "Open source")}</span>
+                </div>
+                <div class="pill-group-right">
+                  <button class="view-issue-btn" data-working-vscode="${item.id}">VS Code ↗</button>
+                  <button class="view-issue-btn" data-working-folder="${item.id}">Show folder</button>
+                  <button class="view-issue-btn" data-working-push="${item.id}">Push & Submit PR</button>
+                </div>
+              </div>
+            </article>`,
         )
         .join("")
     : '<div class="loading">Solve an issue to start tracking a local workspace.</div>';
@@ -419,7 +436,24 @@ function renderSubmissions() {
             const statusClass = isMerged ? "status-accepted" : isClosed ? "status-rejected" : "status-review";
             const statusText = isMerged ? `ACCEPTED (+${xpEarned} XP) 🎉` : isClosed ? "REJECTED ✖" : "REVIEW REQUIRED ⏳";
 
-            return `<article class="issue"><div class="issue-main"><div><h2 class="issue-title">#${item.number} ${escapeHtml(item.title)}</h2><div class="issue-repo">${escapeHtml(item.repository)} · ${escapeHtml(item.language || "Open source")}</div></div><span class="tag status-pill ${statusClass}">${statusText}</span></div><div class="issue-meta"><div class="issue-tags"><span class="tag">Submitted ${daysAgo(item.created_at)}</span></div><div class="issue-actions">${item.state !== "PR_MERGED" ? `<button class="tag action" data-verify-pr="${item.id}">Check merge status ↻</button>` : ""}${item.pr_url ? `<a class="tag action" href="${escapeHtml(item.pr_url)}" target="_blank">View submission ↗</a>` : ""}<a class="tag" href="${escapeHtml(item.issue_url)}" target="_blank">View issue ↗</a></div></div></article>`;
+            return `<article class="issue-card submission-card">
+              <h2 class="issue-card-title">#${item.number} ${escapeHtml(item.title)}</h2>
+              <div class="issue-card-repo">${escapeHtml(item.repository)}</div>
+              <div class="issue-card-bottom">
+                <div class="pill-group-left">
+                  <span class="pill status-pill ${statusClass}">${statusText}</span>
+                  <span class="pill purple">Submitted ${daysAgo(item.created_at)}</span>
+                </div>
+                <div class="pill-group-middle">
+                  <span class="pill light">${escapeHtml(item.language || "Open source")}</span>
+                </div>
+                <div class="pill-group-right">
+                  ${item.state !== "PR_MERGED" ? `<button class="view-issue-btn" data-verify-pr="${item.id}">Check merge status ↻</button>` : ""}
+                  ${item.pr_url ? `<a class="view-issue-btn" href="${escapeHtml(item.pr_url)}" target="_blank">View submission ↗</a>` : ""}
+                  <a class="save-icon-btn" href="${escapeHtml(item.issue_url)}" target="_blank" title="View issue on GitHub"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+                </div>
+              </div>
+            </article>`;
           }
         )
         .join("")
