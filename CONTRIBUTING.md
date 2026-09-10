@@ -96,7 +96,7 @@ Use clear, descriptive branch names prefixed by feature or issue number:
 
 - **Preserve API Contracts**: Ensure all method signatures and JSON endpoint schemas remain backwards-compatible.
 - **Error Handling**: Provide clear error messages in response payloads and avoid swallowing runtime exceptions silently.
-- **Clean UI Feedback**: Keep button press animations, hover states, and toast notifications consistent with the overall theme (`#450d82`, `#af7ce8`, `#e6d0fa`, `#f7f2fd`).
+- **Clean UI Feedback**: Keep button press animations, hover states, and toast notifications consistent with the AWS Console dark design system (`#0f141c`, `#161e2e`, `#ec7211`, `#539fe5`).
 
 ---
 
