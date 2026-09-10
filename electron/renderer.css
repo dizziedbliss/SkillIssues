@@ -1245,16 +1245,9 @@ a.save-icon-btn:hover {
   }
 }
 
-/* Toast Notifications */
+/* Toast Notifications (Disabled) */
 .app-toast-container {
-  position: fixed;
-  bottom: 32px;
-  right: 32px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  z-index: 9999;
-  pointer-events: none;
+  display: none !important;
 }
 
 .app-toast {
@@ -1291,18 +1284,7 @@ a.save-icon-btn:hover {
 }
 
 .level-up-toast {
-  position: fixed;
-  top: 32px;
-  right: 32px;
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  border: 2px solid var(--accent-blue);
-  border-radius: 16px;
-  padding: 22px 28px;
-  box-shadow: var(--shadow-modal);
-  z-index: 999;
-  animation: slideInBounce 0.6s ease;
-  font-family: Inter, sans-serif;
+  display: none !important;
 }
 
 .level-up-toast h4 {
