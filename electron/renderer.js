@@ -36,14 +36,26 @@ function updateProfileUI(profile) {
   if (profile.bio && el('profile-quote')) el('profile-quote').textContent = profile.bio;
 
   const totalXp = profile.total_xp || 0;
-  const LEVEL_STEP_XP = 500;
-  const lvl = profile.level || Math.floor(totalXp / LEVEL_STEP_XP) + 1;
-  const minXp = (lvl - 1) * LEVEL_STEP_XP;
-  const nextXp = profile.next_level_xp || (lvl * LEVEL_STEP_XP);
+  const thresholds = [0];
+  let curr = 0;
+  for (let l = 1; l < 100; l++) {
+    curr += 150 + (l * 150);
+    thresholds.push(curr);
+  }
+  let calcLevel = 1;
+  for (let i = 0; i < thresholds.length - 1; i++) {
+    if (totalXp >= thresholds[i]) calcLevel = i + 1;
+    else break;
+  }
+
+  const lvl = profile.level || calcLevel;
+  const minXp = profile.current_level_min_xp !== undefined ? profile.current_level_min_xp : thresholds[lvl - 1];
+  const nextXp = profile.next_level_xp || thresholds[lvl];
   const progInLvl = Math.max(0, totalXp - minXp);
+  const reqXp = Math.max(1, nextXp - minXp);
   const progPct = profile.progress_percent !== undefined && profile.progress_percent !== null
     ? profile.progress_percent
-    : Math.min(100, Math.max(0, Math.floor((progInLvl / LEVEL_STEP_XP) * 100)));
+    : Math.min(100, Math.max(0, Math.floor((progInLvl / reqXp) * 100)));
 
   if (el('profile-level-badge')) el('profile-level-badge').textContent = `Level ${lvl}`;
   if (el('profile-xp-text')) el('profile-xp-text').textContent = `${totalXp.toLocaleString()} / ${nextXp.toLocaleString()} XP`;
@@ -140,13 +152,19 @@ async function submitPullRequest() { if (!contributionId) return showResult('Sta
 function showResult(message, error = false) { const result = el('result'); result.hidden = false; result.className = `result${error ? ' error' : ''}`; result.textContent = message; }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]); }
 
-const ALL_TECH_OPTIONS = ['Python', 'TypeScript', 'JavaScript', 'Go', 'Rust', 'C++', 'Java', 'C#', 'PHP', 'Ruby', 'FastAPI', 'React', 'Vue', 'Next.js', 'Node.js', 'Docker', 'Kubernetes', 'Pydantic', 'HTTPX', 'Vite', 'PostgreSQL', 'Redis', 'GraphQL', 'PyTorch', 'TensorFlow', 'Tailwind', 'Django', 'Flask'];
+let ALL_TECH_OPTIONS = ['Python', 'TypeScript', 'JavaScript', 'Go', 'Rust', 'C++', 'Java', 'C#', 'PHP', 'Ruby', 'FastAPI', 'React', 'Vue', 'Next.js', 'Node.js', 'Docker', 'Kubernetes', 'Pydantic', 'HTTPX', 'Vite', 'PostgreSQL', 'Redis', 'GraphQL', 'PyTorch', 'TensorFlow', 'Tailwind', 'Django', 'Flask'];
 let userSelectedLangs = [];
 
 async function openPreferencesModal() {
   try {
-    const profile = await api('/me');
+    const [profile, optionsRes] = await Promise.all([
+      api('/me').catch(() => ({ preferred_languages: ['Python', 'TypeScript'] })),
+      api('/preferences/options').catch(() => null)
+    ]);
     userSelectedLangs = [...(profile.preferred_languages || [])];
+    if (optionsRes && Array.isArray(optionsRes.options) && optionsRes.options.length) {
+      ALL_TECH_OPTIONS = optionsRes.options;
+    }
   } catch {
     userSelectedLangs = ['Python', 'TypeScript'];
   }
