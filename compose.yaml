@@ -54,7 +54,7 @@ services:
     environment:
       DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
       REPOSITORY_METADATA_PATH: /repo/repo_metadata.json
-      MAX_REPOSITORIES: ${MAX_REPOSITORIES:-200}
+      MAX_REPOSITORIES: ${MAX_REPOSITORIES:-500}
       MIN_STARS: 50
       SAMPLE_SEED: ${SAMPLE_SEED:-skillissues-demo}
       RESET_CATALOG: ${RESET_CATALOG:-false}
@@ -72,7 +72,7 @@ services:
       interval: 3s
       timeout: 5s
       retries: 10
-      start_period: 5s
+      start_period: 15s
 
   recommendation:
     build: ./services/recommendation

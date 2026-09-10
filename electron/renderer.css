@@ -5,21 +5,17 @@
 .drawer-card{width:min(780px,calc(100vw - 100px));max-height:calc(100vh - 70px);overflow:auto;padding:38px}.auth-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;margin-top:-30px}.auth-actions span{font-size:9px;color:#6f6578}.auth-button{border:1px solid #af7ce8;border-radius:5px;background:#e6d0fa;color:#450d82;padding:5px 8px;font-size:9px;cursor:pointer}.auth-button.subtle{background:transparent}.destination-row{flex-wrap:wrap}.destination-row .secondary{min-height:32px;padding:0 12px}.result{max-height:140px;overflow:auto}
 .pref-card{width:min(580px,calc(100vw - 60px));padding:28px}.pref-searchbar{height:46px;margin:16px 0;background:#fff;border:1px solid #af7ce8}.pref-chips-grid{display:flex;flex-wrap:wrap;gap:8px;max-height:220px;overflow-y:auto;padding:6px;border:1px solid #e6d0fa;border-radius:8px;background:#fefcfd;margin-bottom:20px}.pref-chip{background:#e6d0fa;border:1px solid #af7ce8;border-radius:4px;padding:6px 12px;font-size:11px;color:#241b2c;cursor:pointer;user-select:none;transition:all 0.15s ease}.pref-chip:hover{background:#d8bbf7}.pref-chip.selected{background:#450d82;color:#fff;border-color:#450d82;box-shadow:1px 2px 4px #00000030}.pref-save{width:100%}#preferences-modal[hidden]{display:none!important}
 .push-card{width:min(600px,calc(100vw - 60px));padding:30px}#push-modal[hidden]{display:none!important}
-
-/* RPG LEVELING, XP & BADGES STYLES */
-.rpg-level-box{margin-top:14px;background:#f7f2fd;border:1px solid #af7ce8;border-radius:8px;padding:10px 12px;box-shadow:2px 2px 4px #00000015}
-.level-header{display:flex;justify-content:space-between;align-items:baseline}
-.level-header h3{font-size:16px;font-weight:600;margin:0;color:#450d82}
-.level-title{font-size:10px;color:#6f6578;font-weight:500}
-.xp-bar-container{height:12px;background:#e6d0fa;border-radius:6px;overflow:hidden;margin:8px 0 4px;border:1px solid #af7ce8}
-.xp-bar-fill{height:100%;background:linear-gradient(90deg, #9b51e0, #450d82);border-radius:6px;transition:width 0.4s ease}
-.xp-subtext{font-size:9px;color:#450d82;font-weight:600;text-align:right}
-.streak-tag{font-size:10px;font-weight:600;margin-top:6px;color:#d9381e}
-.rpg-skills-section{margin-top:16px!important}
-.rpg-skill-row{margin-bottom:8px}
-.rpg-skill-label{display:flex;justify-content:space-between;font-size:9px;color:#241b2c;margin-bottom:2px}
-.rpg-skill-ascii{font-family:monospace;font-size:9.5px;letter-spacing:-1px;color:#450d82}
-.rpg-badges-section{margin-top:16px!important}
-.rpg-badges-grid{display:flex;flex-wrap:wrap;gap:6px}
-.badge-chip{background:#f7f2fd;border:1px solid #af7ce8;border-radius:6px;padding:4px 8px;font-size:11px;display:flex;align-items:center;gap:4px;box-shadow:1px 1px 2px #00000020}
-.badge-chip.locked{opacity:0.35;filter:grayscale(1)}
+.level-card { margin-top: 14px; background: #f7f2fd; border: 1px solid #af7ce8; border-radius: 8px; padding: 10px 12px; box-shadow: 2px 2px 4px #00000015; }
+.level-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+#profile-level-badge { font-size: 13px; font-weight: 600; color: #450d82; }
+#profile-xp-text { font-size: 10px; color: #6f6578; font-weight: 500; }
+.xp-bar-track { height: 10px; background: #e6d0fa; border-radius: 5px; overflow: hidden; border: 1px solid #af7ce8; }
+.xp-bar-fill { height: 100%; background: linear-gradient(90deg, #9b51e0, #450d82); width: 0%; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+.badges-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.badge-item { font-size: 16px; padding: 3px 6px; background: #f7f2fd; border: 1px solid #af7ce8; border-radius: 6px; box-shadow: 1px 2px 3px #00000020; cursor: help; transition: transform 0.2s ease; user-select: none; }
+.badge-item:hover { transform: scale(1.18); }
+.badge-item.locked { opacity: 0.3; filter: grayscale(100%); }
+.level-up-toast { position: fixed; top: 24px; right: 24px; background: #450d82; color: #fff; border: 2px solid #af7ce8; border-radius: 12px; padding: 16px 22px; box-shadow: 0 12px 36px #00000060; z-index: 999; animation: slideInBounce 0.6s ease; font-family: Inter, sans-serif; }
+.level-up-toast h4 { margin: 0 0 4px; font-size: 16px; color: #e6d0fa; letter-spacing: 1px; }
+.level-up-toast p { margin: 0; font-size: 12px; color: #fff; }
+@keyframes slideInBounce { 0% { transform: translateY(-50px); opacity: 0; } 60% { transform: translateY(10px); opacity: 1; } 100% { transform: translateY(0); } }

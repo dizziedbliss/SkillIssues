@@ -20,6 +20,66 @@ function setAuthStatus(message) { el('auth-status').textContent = message; }
 function issueAuthor(issue) { return String(issue.repository || '').split('/')[0]; }
 function saved(issue) { return savedIssues.some((item) => item.id === issue.id); }
 
+const ALL_BADGES = [
+  { name: 'First Blood', icon: '🩸', desc: 'Merge 1st PR' },
+  { name: 'Bug Wrangler', icon: '🩹', desc: 'Merge 3+ PRs' },
+  { name: 'Polyglot', icon: '🧪', desc: '2+ Languages' },
+  { name: 'World Traveller', icon: '🗺️', desc: '2+ Repos' },
+  { name: 'Touch Grass', icon: '🌱', desc: 'Merge 5+ PRs' }
+];
+
+function updateProfileUI(profile) {
+  if (!profile) return;
+  if (profile.avatar_url && el('profile-avatar')) el('profile-avatar').src = profile.avatar_url;
+  if (profile.username && el('profile-name')) el('profile-name').textContent = profile.username;
+  if (profile.username && el('profile-handle')) el('profile-handle').textContent = `@${profile.username}`;
+  if (profile.bio && el('profile-quote')) el('profile-quote').textContent = profile.bio;
+
+  const totalXp = profile.total_xp || 0;
+  const LEVEL_STEP_XP = 500;
+  const lvl = profile.level || Math.floor(totalXp / LEVEL_STEP_XP) + 1;
+  const minXp = (lvl - 1) * LEVEL_STEP_XP;
+  const nextXp = profile.next_level_xp || (lvl * LEVEL_STEP_XP);
+  const progInLvl = Math.max(0, totalXp - minXp);
+  const progPct = profile.progress_percent !== undefined && profile.progress_percent !== null
+    ? profile.progress_percent
+    : Math.min(100, Math.max(0, Math.floor((progInLvl / LEVEL_STEP_XP) * 100)));
+
+  if (el('profile-level-badge')) el('profile-level-badge').textContent = `Level ${lvl}`;
+  if (el('profile-xp-text')) el('profile-xp-text').textContent = `${totalXp.toLocaleString()} / ${nextXp.toLocaleString()} XP`;
+  if (el('profile-xp-bar')) el('profile-xp-bar').style.width = `${progPct}%`;
+
+  const rawBadges = profile.badges || profile.all_badges || profile.unlocked_badges || [];
+  if (rawBadges && el('profile-badges')) {
+    const userBadges = new Set(rawBadges);
+    el('profile-badges').innerHTML = ALL_BADGES.map((b) => {
+      const isUnlocked = userBadges.has(b.name);
+      return `<span class="badge-item ${isUnlocked ? 'unlocked' : 'locked'}" title="${escapeHtml(b.name)} (${b.icon}) - ${escapeHtml(b.desc)}">${b.icon}</span>`;
+    }).join('');
+  }
+  if (profile.preferred_languages && el('profile-languages')) {
+    el('profile-languages').innerHTML = profile.preferred_languages.map((language) => `<span>${escapeHtml(language)}</span>`).join('');
+  }
+  if (profile.completed_count !== undefined && el('profile-completed')) {
+    el('profile-completed').innerHTML = `<span>${profile.completed_count}</span>`;
+  }
+}
+
+function showLevelUpToast(xpInfo) {
+  if (!xpInfo) return;
+  updateProfileUI(xpInfo);
+  const existing = document.querySelector('.level-up-toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.className = 'level-up-toast';
+  const lvlUp = xpInfo.level_up ? `⚡ LEVEL UP TO LEVEL ${xpInfo.level}! ⚡` : `+${xpInfo.earned_xp} XP Gained!`;
+  const badgeUnlocked = (xpInfo.unlocked_badges && xpInfo.unlocked_badges.length) ? `<p style="margin-top:6px;">🏆 Unlocked Badge: <b>${xpInfo.unlocked_badges.join(', ')}</b>!</p>` : '';
+  const hardText = xpInfo.level_up ? `<p style="margin-top:4px; font-size:11px; opacity:0.9;">“You've unlocked harder challenges & recommendations.”</p>` : '';
+  toast.innerHTML = `<h4>${lvlUp}</h4><p>Total XP: <b>${(xpInfo.total_xp || 0).toLocaleString()} XP</b></p>${badgeUnlocked}${hardText}`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 6000);
+}
+
 async function loadIssues(query = '') {
   el('issues').innerHTML = '<div class="loading">Loading challenges...</div>';
   try {
@@ -27,38 +87,7 @@ async function loadIssues(query = '') {
       api(query ? `/issues?limit=30&search=${encodeURIComponent(query)}` : '/recommendations?limit=30'), api('/saved'), api('/working'), api('/contributions')
     ]);
     issues = recommendations; savedIssues = savedResult; working = workingResult; submissions = submissionResult.filter((item) => item.state !== 'STARTED');
-    try {
-      const profile = await api('/me');
-      el('profile-avatar').src = profile.avatar_url || '';
-      el('profile-name').textContent = profile.username || 'Profile';
-      el('profile-handle').textContent = profile.username ? `@${profile.username}` : '';
-      el('profile-quote').textContent = profile.bio || 'Build your next contribution.';
-
-      el('rpg-level-number').textContent = `Level ${profile.level || 1}`;
-      el('rpg-level-title').textContent = profile.level_title || 'Code Novice';
-      el('rpg-xp-bar').style.width = `${profile.progress_percent || 0}%`;
-      el('rpg-xp-text').textContent = `${(profile.total_xp || 0).toLocaleString()} / ${(profile.next_xp || 250).toLocaleString()} XP`;
-      el('rpg-streak').textContent = `🔥 ${profile.streak_days || 4} day streak`;
-
-      const skillsContainer = el('rpg-skills-list');
-      if (skillsContainer) {
-        skillsContainer.innerHTML = (profile.skills_bars || []).map((skill) => `
-          <div class="rpg-skill-row">
-            <div class="rpg-skill-label"><span>${escapeHtml(skill.name)}</span></div>
-            <div class="rpg-skill-ascii">${escapeHtml(skill.bar)}</div>
-          </div>
-        `).join('');
-      }
-
-      const badgesContainer = el('rpg-badges-list');
-      if (badgesContainer) {
-        badgesContainer.innerHTML = (profile.badge_objects || []).map((badge) => `
-          <div class="badge-chip ${badge.unlocked ? '' : 'locked'}" title="${escapeHtml(badge.desc)}">
-            <span>${badge.icon}</span> ${escapeHtml(badge.name)}
-          </div>
-        `).join('');
-      }
-    } catch { /* Demo mode fallback */ }
+    try { const profile = await api('/me'); updateProfileUI(profile); } catch { /* Demo mode fallback */ }
     el('issue-count').textContent = String(issues.length).padStart(2, '0'); el('saved-count').textContent = String(savedIssues.length).padStart(2, '0'); el('working-count').textContent = String(working.length).padStart(2, '0'); el('submission-count').textContent = String(submissions.length).padStart(2, '0'); renderIssues();
   } catch (error) { setAuthStatus('Authentication required'); el('issues').innerHTML = `<div class="loading">${escapeHtml(error.message)}</div>`; }
 }
@@ -89,6 +118,8 @@ function renderSubmissions() {
         button.textContent = 'Verifying...';
         const res = await api(`/contributions/${id}/verify`, { method: 'POST' });
         showResult(res.message, !res.verified);
+        if (res.xp_info && res.xp_info.merged) showLevelUpToast(res.xp_info);
+        try { const updatedProfile = await api('/me'); updateProfileUI(updatedProfile); } catch {}
         await loadIssues();
         activeTab = 'submissions';
         renderIssues();
