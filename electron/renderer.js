@@ -48,18 +48,48 @@ function setAuthStatus(message) {
   el("auth-status").textContent = message;
 }
 function issueAuthor(issue) {
-  return String(issue.repository || "").split("/")[0];
+  if (issue && issue.author) return issue.author;
+  return (
+    String(issue ? issue.repository || "" : "").split("/")[0] || "open-source"
+  );
 }
 function saved(issue) {
   return savedIssues.some((item) => item.id === issue.id);
 }
 
+const SVG_COMMENT =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px; margin-right:3px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
+const SVG_BOOKMARK =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>';
+const SVG_BOOKMARK_SAVED =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>';
+
 const ALL_BADGES = [
-  { name: "First Blood", icon: "🩸", desc: "Merge 1st PR" },
-  { name: "Bug Wrangler", icon: "🩹", desc: "Merge 3+ PRs" },
-  { name: "Polyglot", icon: "🧪", desc: "2+ Languages" },
-  { name: "World Traveller", icon: "🗺️", desc: "2+ Repos" },
-  { name: "Touch Grass", icon: "🌱", desc: "Merge 5+ PRs" },
+  {
+    name: "First Blood",
+    iconSvg: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
+    desc: "Merge 1st PR",
+  },
+  {
+    name: "Bug Wrangler",
+    iconSvg: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3 3 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6Z"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 9.8 3 11.4 3 14"/><path d="M6 17c-2 1.5-3 3.5-3 5"/><path d="M17.47 9c1.93.8 3.53 2.4 3.53 5"/><path d="M18 17c2 1.5 3 3.5 3 5"/></svg>`,
+    desc: "Merge 3+ PRs",
+  },
+  {
+    name: "Polyglot",
+    iconSvg: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>`,
+    desc: "2+ Languages",
+  },
+  {
+    name: "World Traveller",
+    iconSvg: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m14.83 9.17-2.36 5.66-5.66 2.36 2.36-5.66 5.66-2.36z"/></svg>`,
+    desc: "2+ Repos",
+  },
+  {
+    name: "Touch Grass",
+    iconSvg: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.4 19 2c1 2 2 4.1 2 7 0 6-4.5 11-10 11Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>`,
+    desc: "Merge 5+ PRs",
+  },
 ];
 
 function updateProfileUI(profile) {
@@ -112,7 +142,7 @@ function updateProfileUI(profile) {
     const userBadges = new Set(rawBadges);
     el("profile-badges").innerHTML = ALL_BADGES.map((b) => {
       const isUnlocked = userBadges.has(b.name);
-      return `<span class="badge-item ${isUnlocked ? "unlocked" : "locked"}" title="${escapeHtml(b.name)} (${b.icon}) - ${escapeHtml(b.desc)}">${b.icon}</span>`;
+      return `<span class="badge-item ${isUnlocked ? "unlocked" : "locked"}" title="${escapeHtml(b.name)} - ${escapeHtml(b.desc)}">${b.iconSvg}</span>`;
     }).join("");
   }
   if (profile.preferred_languages && el("profile-languages")) {
@@ -138,7 +168,7 @@ function showLevelUpToast(xpInfo) {
     : `+${xpInfo.earned_xp} XP Gained!`;
   const badgeUnlocked =
     xpInfo.unlocked_badges && xpInfo.unlocked_badges.length
-      ? `<p style="margin-top:6px;">🏆 Unlocked Badge: <b>${xpInfo.unlocked_badges.join(", ")}</b>!</p>`
+      ? `<p style="margin-top:6px;">Unlocking Badge: <b>${xpInfo.unlocked_badges.join(", ")}</b>!</p>`
       : "";
   const hardText = xpInfo.level_up
     ? `<p style="margin-top:4px; font-size:11px; opacity:0.9;">“You've unlocked harder challenges & recommendations.”</p>`
@@ -181,9 +211,10 @@ async function loadIssues(query = "") {
     );
     renderIssues();
   } catch (error) {
-    setAuthStatus("Authentication required");
+    setAuthStatus("Not connected");
     el("issues").innerHTML =
-      `<div class="loading">${escapeHtml(error.message)}</div>`;
+      `<div class="loading">Authentication required. Please connect your GitHub PAT Token above.</div>`;
+    el("github-token-modal").hidden = false;
   }
 }
 
@@ -215,11 +246,16 @@ function renderIssues() {
                 <div class="pill-group-left">
                   <span class="pill purple">${escapeHtml(issueAuthor(issue))}</span>
                   <span class="pill purple">${daysAgo(issue.updated_at)}</span>
-                  <span class="pill purple">💬 ${issue.comments || 0}</span>
+                  <span class="pill purple">${SVG_COMMENT} ${issue.comments || 0}</span>
                 </div>
                 <div class="pill-group-middle">
                   <span class="pill light">${escapeHtml(issue.language || "Open source")}</span>
                   ${(issue.technologies || [])
+                    .filter(
+                      (tech) =>
+                        !issue.language ||
+                        tech.toLowerCase() !== issue.language.toLowerCase(),
+                    )
                     .slice(0, 2)
                     .map(
                       (tech) =>
@@ -230,7 +266,7 @@ function renderIssues() {
                 <div class="pill-group-right">
                   <button class="view-issue-btn view-issue" data-id="${issue.id}">View Issue</button>
                   <button class="save-icon-btn save ${saved(issue) ? "saved" : ""}" data-save="${issue.id}" title="${saved(issue) ? "Remove saved issue" : "Save issue"}">
-                    ${saved(issue) ? "🔖" : "🔖"}
+                    ${saved(issue) ? SVG_BOOKMARK_SAVED : SVG_BOOKMARK}
                   </button>
                 </div>
               </div>
@@ -255,22 +291,22 @@ function renderIssues() {
   el("issues")
     .querySelectorAll(".view-issue")
     .forEach((button) =>
-      button.addEventListener("click", () =>
+      button.addEventListener("click", (e) => {
+        e.stopPropagation();
         selectIssue(
           visible.find((issue) => String(issue.id) === button.dataset.id),
-        ),
-      ),
+        );
+      }),
     );
   el("issues")
     .querySelectorAll(".save")
     .forEach((button) =>
-      button.addEventListener(
-        "click",
-        () =>
-          void toggleSave(
-            visible.find((issue) => String(issue.id) === button.dataset.save),
-          ),
-      ),
+      button.addEventListener("click", (e) => {
+        e.stopPropagation();
+        void toggleSave(
+          visible.find((issue) => String(issue.id) === button.dataset.save),
+        );
+      }),
     );
 }
 function renderWorking() {
@@ -518,8 +554,7 @@ function selectIssue(issue) {
   if (!issue) return;
   selected = issue;
   el("workspace").hidden = false;
-  el("difficulty").textContent =
-    `${issue.difficulty} · ${issue.difficulty_score}/10`;
+  el("difficulty").textContent = issue.difficulty || "BEGINNER";
   el("difficulty").className =
     `difficulty ${(issue.difficulty || "").toLowerCase()}`;
   el("title").textContent = `#${issue.number} ${issue.title}`;
@@ -564,6 +599,7 @@ async function startChallenge() {
   if (!selected) return;
   el("start-challenge").disabled = true;
   el("start-challenge").textContent = "Forking & Cloning...";
+  showRunnerProgress(true);
   try {
     const contribution = await api("/contributions", {
       method: "POST",
@@ -598,12 +634,14 @@ async function startChallenge() {
     el("start-challenge").disabled = false;
     el("start-challenge").innerHTML =
       "Solve issue (Fork & Clone) <span>↗</span>";
+    showRunnerProgress(false);
   }
 }
 async function cloneRepository() {
   if (!selected) return;
   el("clone").disabled = true;
   el("clone").textContent = "Cloning...";
+  showRunnerProgress(true);
   try {
     const result = await window.skillIssuesDesktop.cloneRepository(
       selected.repository_url,
@@ -619,7 +657,9 @@ async function cloneRepository() {
   } catch (error) {
     showResult(error.message, true);
   } finally {
+    el("clone").disabled = false;
     el("clone").innerHTML = "Re-clone repository <span>↗</span>";
+    showRunnerProgress(false);
   }
 }
 async function submitPullRequest() {
@@ -641,11 +681,40 @@ async function submitPullRequest() {
     showResult(error.message, true);
   }
 }
+function showRunnerProgress(visible) {
+  const runner = el("runner-progress");
+  if (runner) runner.hidden = !visible;
+}
+
+function showToast(message, isError = false) {
+  if (!message) return;
+  let container = document.querySelector(".app-toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.className = "app-toast-container";
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement("div");
+  toast.className = `app-toast${isError ? " error" : ""}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    toast.style.transition = "opacity 0.3s ease";
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
 function showResult(message, error = false) {
   const result = el("result");
-  result.hidden = false;
-  result.className = `result${error ? " error" : ""}`;
-  result.textContent = message;
+  if (result) {
+    result.hidden = false;
+    result.className = `result${error ? " error" : ""}`;
+    result.textContent = message;
+  }
+  if (message) {
+    showToast(String(message).split("\n")[0], error);
+  }
 }
 function escapeHtml(value) {
   return String(value).replace(
@@ -787,6 +856,7 @@ async function confirmPushPR() {
   try {
     el("confirm-push-pr").disabled = true;
     el("confirm-push-pr").textContent = "Pushing & Submitting PR...";
+    showRunnerProgress(true);
     await window.skillIssuesDesktop.commitAndPush(
       destination,
       branch,
@@ -824,111 +894,125 @@ async function confirmPushPR() {
     el("confirm-push-pr").disabled = false;
     el("confirm-push-pr").innerHTML =
       "Confirm, Push & Submit PR <span>↗</span>";
+    showRunnerProgress(false);
   }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  el("search-button").addEventListener("click", () =>
-    loadIssues(el("search").value.trim()),
-  );
-  el("search").addEventListener("keydown", (event) => {
-    if (event.key === "Enter") loadIssues(el("search").value.trim());
+  el("search-button")?.addEventListener("click", () => {
+    showRunnerProgress(true);
+    loadIssues(el("search").value.trim()).finally(() =>
+      showRunnerProgress(false),
+    );
   });
-  el("clear-search").addEventListener("click", () => {
-    el("search").value = "";
-    loadIssues();
-  });
-  el("sync-github-button")?.addEventListener("click", async () => {
-    try {
-      el("sync-github-button").disabled = true;
-      el("sync-github-button").textContent = "Syncing...";
-      const result = await api("/issues/sync", { method: "POST" });
-      showResult(result.message || "Synced issues from GitHub repositories.");
-      await loadIssues();
-    } catch (error) {
-      showResult(error.message, true);
-    } finally {
-      el("sync-github-button").disabled = false;
-      el("sync-github-button").textContent = "Sync GitHub ↻";
+  el("search")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      showRunnerProgress(true);
+      loadIssues(el("search").value.trim()).finally(() =>
+        showRunnerProgress(false),
+      );
     }
   });
+  el("clear-search")?.addEventListener("click", () => {
+    el("search").value = "";
+    showRunnerProgress(true);
+    loadIssues().finally(() => showRunnerProgress(false));
+  });
+
   el("edit-preferences")?.addEventListener("click", openPreferencesModal);
-  el("close-preferences")?.addEventListener("click", () => {
+  el("close-preferences")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     el("preferences-modal").hidden = true;
   });
   el("pref-search")?.addEventListener("input", (e) =>
     renderPrefChips(e.target.value.trim()),
   );
   el("save-preferences")?.addEventListener("click", savePreferences);
-  el("close-push-modal")?.addEventListener("click", () => {
+  el("close-push-modal")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     el("push-modal").hidden = true;
   });
   el("confirm-push-pr")?.addEventListener("click", confirmPushPR);
-  el("start-challenge").addEventListener("click", startChallenge);
-  el("clone").addEventListener("click", cloneRepository);
-  el("submit-pr").addEventListener("click", () => openPushModal());
-  el("close-token-modal")?.addEventListener("click", () => {
+  el("start-challenge")?.addEventListener("click", startChallenge);
+  el("clone")?.addEventListener("click", cloneRepository);
+  el("submit-pr")?.addEventListener("click", () => openPushModal());
+  el("close-token-modal")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     el("github-token-modal").hidden = true;
   });
-  el("github-login").addEventListener("click", () => {
+  el("github-login")?.addEventListener("click", () => {
     el("github-token-modal").hidden = false;
   });
-  // el("oauth-login-fallback")?.addEventListener("click", async () => {
-  //   try {
-  //     el("github-token-modal").hidden = true;
-  //     const result = await window.skillIssuesDesktop.loginWithGitHub();
-  //     if (!result.authenticated && result.message) {
-  //       showResult(result.message, true);
-  //       el("github-token-modal").hidden = false;
-  //       return;
-  //     }
-  //     setAuthStatus(
-  //       result.authenticated ? "GitHub connected" : "Not connected",
-  //     );
-  //     if (result.authenticated) await loadIssues();
-  //   } catch (error) {
-  //     showResult(error.message, true);
-  //   }
-  // });
-  el("submit-token-login")?.addEventListener("click", async () => {
-    const token = el("github-pat-input").value.trim();
-    if (!token)
-      return showResult("Please enter a GitHub Personal Access Token.", true);
+  el("submit-token-login")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const tokenInput = el("github-pat-input");
+    const token = tokenInput ? tokenInput.value.trim() : "";
+    const tokenErr = el("token-error");
+    if (tokenErr) tokenErr.hidden = true;
+
+    if (!token) {
+      if (tokenErr) {
+        tokenErr.textContent = "Please enter a GitHub Personal Access Token.";
+        tokenErr.hidden = false;
+      }
+      return showToast("Please enter a GitHub Personal Access Token.", true);
+    }
+
+    const btn = el("submit-token-login");
+    const origHtml = btn.innerHTML;
     try {
-      el("submit-token-login").disabled = true;
-      el("submit-token-login").textContent = "Connecting...";
+      btn.disabled = true;
+      btn.textContent = "Connecting...";
+      showRunnerProgress(true);
       const result = await window.skillIssuesDesktop.loginWithToken(token);
       el("github-token-modal").hidden = true;
-      setAuthStatus("GitHub connected");
+      if (tokenErr) tokenErr.hidden = true;
+      setAuthStatus(`GitHub: @${result.user.username}`);
+      showToast(`Connected successfully as @${result.user.username}`);
       showResult(`GitHub connected successfully as @${result.user.username}`);
       await loadIssues();
     } catch (error) {
+      if (tokenErr) {
+        tokenErr.textContent = error.message;
+        tokenErr.hidden = false;
+      }
+      showToast(error.message, true);
       showResult(error.message, true);
     } finally {
-      el("submit-token-login").disabled = false;
-      el("submit-token-login").innerHTML = "Connect with Token <span>✓</span>";
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+      showRunnerProgress(false);
     }
   });
-  el("demo-login").addEventListener("click", async () => {
+  el("demo-login")?.addEventListener("click", async () => {
     try {
+      showRunnerProgress(true);
       await window.skillIssuesDesktop.loginDemo();
       setAuthStatus("Demo profile");
       await loadIssues();
     } catch (error) {
       showResult(error.message, true);
+    } finally {
+      showRunnerProgress(false);
     }
   });
-  el("logout").addEventListener("click", async () => {
+  el("logout")?.addEventListener("click", async () => {
     await window.skillIssuesDesktop.logout();
     setAuthStatus("Signed out");
+    showToast("Signed out successfully");
   });
-  el("branch-button").addEventListener("click", async () => {
+  el("branch-button")?.addEventListener("click", async () => {
     if (!destination)
       return showResult(
         "Open or clone a working repository before creating a branch.",
         true,
       );
     try {
+      showRunnerProgress(true);
       await window.skillIssuesDesktop.createBranch(
         destination,
         el("branch").value.trim(),
@@ -937,39 +1021,108 @@ document.addEventListener("DOMContentLoaded", () => {
       showResult(`Branch ready: ${el("branch").value.trim()}`);
     } catch (error) {
       showResult(error.message, true);
+    } finally {
+      showRunnerProgress(false);
     }
   });
-  el("push-button").addEventListener("click", () => openPushModal());
-  el("open-workspace").addEventListener("click", async () => {
-    if (!destination)
-      return showResult("Open a working repository first.", true);
+  el("push-button")?.addEventListener("click", () => openPushModal());
+  el("open-workspace")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const btn = el("open-workspace");
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = "Opening...";
+    showRunnerProgress(true);
     try {
-      await window.skillIssuesDesktop.openWorkspace(destination);
-      showResult(`Opened workspace\n\n${destination}`);
+      let targetPath = destination;
+      if (!targetPath && selected && selected.repository) {
+        try {
+          const resolved =
+            await window.skillIssuesDesktop.resolveRepositoryWorkspace(
+              selected.repository,
+            );
+          targetPath = resolved.path;
+        } catch {
+          /* fallback */
+        }
+      }
+      const result = await window.skillIssuesDesktop.openWorkspace(
+        targetPath || "",
+      );
+      showToast("Opened workspace folder in Explorer");
+      showResult(`Opened workspace:\n${result.path || targetPath}`);
     } catch (error) {
       showResult(error.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+      showRunnerProgress(false);
     }
   });
-  el("open-vscode").addEventListener("click", async () => {
-    if (!destination)
-      return showResult("Open a working repository first.", true);
+  el("open-vscode")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const btn = el("open-vscode");
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = "Launching VS Code...";
+    showRunnerProgress(true);
     try {
-      const result = await window.skillIssuesDesktop.openInVSCode(destination);
+      let targetPath = destination;
+      if (!targetPath && selected && selected.repository) {
+        try {
+          const resolved =
+            await window.skillIssuesDesktop.resolveRepositoryWorkspace(
+              selected.repository,
+            );
+          targetPath = resolved.path;
+        } catch {
+          /* fallback */
+        }
+      }
+      const result = await window.skillIssuesDesktop.openInVSCode(
+        targetPath || "",
+      );
+      showToast(result.message || "Opened workspace in VS Code");
       showResult(result.message || "Opened workspace in VS Code.");
     } catch (error) {
       showResult(error.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+      showRunnerProgress(false);
     }
   });
-  el("close-workspace").addEventListener("click", () => {
+  el("close-workspace")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     el("workspace").hidden = true;
   });
+  [
+    "workspace",
+    "preferences-modal",
+    "push-modal",
+    "github-token-modal",
+  ].forEach((modalId) => {
+    const modalEl = el(modalId);
+    if (modalEl) {
+      modalEl.addEventListener("click", (e) => {
+        if (e.target === modalEl) modalEl.hidden = true;
+      });
+    }
+  });
   document.querySelectorAll(".counts button").forEach((button) =>
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const targetBtn = e.currentTarget;
       document
         .querySelectorAll(".counts button")
         .forEach((item) => item.classList.remove("active"));
-      button.classList.add("active");
-      activeTab = button.dataset.tab;
+      targetBtn.classList.add("active");
+      activeTab = targetBtn.dataset.tab;
+      showToast(`Tab switched to ${targetBtn.textContent.trim()}`);
       renderIssues();
     }),
   );

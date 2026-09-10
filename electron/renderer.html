@@ -11,32 +11,42 @@
     <link rel="stylesheet" href="renderer.css" />
   </head>
   <body>
+    <div id="runner-progress" class="runner-progress-bar" hidden>
+      <div class="runner-progress-fill"></div>
+    </div>
     <main class="home-shell">
       <header class="topbar">
         <div class="wordmark">
           SkillIssues<span>You Have the Skills. We Have the Issues.</span>
         </div>
         <div class="auth-actions">
-          <span id="auth-status">Demo mode</span
-          ><button id="github-login" class="auth-button">Connect GitHub</button>
-          <!-- <button id="demo-login" class="auth-button">Demo login</button
-          > -->
+          <span id="auth-status">Not connected</span>
+          <button id="github-login" class="auth-button">
+            Connect PAT Token
+          </button>
           <button id="logout" class="auth-button subtle">Log out</button>
         </div>
       </header>
       <section class="searchbar">
-        <span class="search-icon">⌕</span
-        ><input
+        <span class="search-icon"
+          ><svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" /></svg
+        ></span>
+        <input
           id="search"
           placeholder="Search challenges by topic, language, or repository..."
         /><button id="clear-search">clear</button
-        ><button id="search-button">Search</button
-        ><button
-          id="sync-github-button"
-          style="padding: 0 12px; margin-left: 6px; cursor: pointer"
-        >
-          Sync GitHub ↻
-        </button>
+        ><button id="search-button">Search</button>
       </section>
       <section class="home-grid">
         <div class="feed-column">
@@ -81,27 +91,84 @@
           <section style="margin-top: 18px">
             <label>Badges</label>
             <div id="profile-badges" class="badges-row">
+              <span class="badge-item locked" title="First Blood - Merge 1st PR"
+                ><svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="6" />
+                  <circle cx="12" cy="12" r="2" /></svg
+              ></span>
               <span
                 class="badge-item locked"
-                title="First Blood (🩸) - Merge 1st PR"
-                >🩸</span
-              ><span
-                class="badge-item locked"
-                title="Bug Wrangler (🩹) - Merge 3+ PRs"
-                >🩹</span
-              ><span
-                class="badge-item locked"
-                title="Polyglot (🧪) - 2+ Languages"
-                >🧪</span
-              ><span
-                class="badge-item locked"
-                title="World Traveller (🗺️) - 2+ Repos"
-                >🗺️</span
-              ><span
-                class="badge-item locked"
-                title="Touch Grass (🌱) - Merge 5+ PRs"
-                >🌱</span
-              >
+                title="Bug Wrangler - Merge 3+ PRs"
+                ><svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="m8 2 1.88 1.88" />
+                  <path d="M14.12 3.88 16 2" />
+                  <path d="M9 7.13v-1a3 3 0 1 1 6 0v1" />
+                  <path
+                    d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6Z"
+                  />
+                  <path d="M12 20v-9" />
+                  <path d="M6.53 9C4.6 9.8 3 11.4 3 14" />
+                  <path d="M6 17c-2 1.5-3 3.5-3 5" />
+                  <path d="M17.47 9c1.93.8 3.53 2.4 3.53 5" />
+                  <path d="M18 17c2 1.5 3 3.5 3 5" /></svg
+              ></span>
+              <span class="badge-item locked" title="Polyglot - 2+ Languages"
+                ><svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="m16 18 6-6-6-6" />
+                  <path d="m8 6-6 6 6 6" /></svg
+              ></span>
+              <span class="badge-item locked" title="World Traveller - 2+ Repos"
+                ><svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path
+                    d="m14.83 9.17-2.36 5.66-5.66 2.36 2.36-5.66 5.66-2.36z"
+                  /></svg
+              ></span>
+              <span class="badge-item locked" title="Touch Grass - Merge 5+ PRs"
+                ><svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.4 19 2c1 2 2 4.1 2 7 0 6-4.5 11-10 11Z"
+                  />
+                  <path
+                    d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"
+                  /></svg
+              ></span>
             </div>
           </section>
           <section style="margin-top: 18px">
@@ -112,9 +179,20 @@
                 class="edit"
                 title="Edit preferred languages and frameworks"
               >
-                ✎
-              </button></label
-            >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                  <path d="m15 5 4 4" />
+                </svg></button
+            ></label>
             <div id="profile-languages" class="chips"></div>
           </section>
           <section style="margin-top: 18px">
@@ -147,20 +225,33 @@
               Re-clone repository <span>↗</span>
             </button>
             <div id="git-actions" hidden>
-              <label>BRANCH AND PUSH</label>
-              <div class="destination-row">
-                <input
-                  id="branch"
-                  value="skillissues/work"
-                  placeholder="skillissues/work"
-                /><button id="branch-button" class="secondary">
-                  Create branch</button
-                ><button id="open-vscode" class="secondary">
-                  Open in VS Code</button
-                ><button id="open-workspace" class="secondary">
-                  Show folder</button
-                ><button id="push-button" class="secondary">Push</button
-                ><button id="submit-pr" class="secondary">Submit PR</button>
+              <div class="git-actions-section" style="margin-top: 14px">
+                <label>WORKING BRANCH</label>
+                <div class="git-branch-row">
+                  <input
+                    id="branch"
+                    class="workspace-path git-input"
+                    value="skillissues/work"
+                    placeholder="skillissues/work"
+                  />
+                  <button id="branch-button" class="secondary">
+                    Create Branch
+                  </button>
+                </div>
+              </div>
+              <div class="git-actions-section" style="margin-top: 14px">
+                <label>WORKSPACE ACTIONS</label>
+                <div class="git-buttons-row">
+                  <button id="open-vscode" class="secondary">
+                    Open in VS Code ↗
+                  </button>
+                  <button id="open-workspace" class="secondary">
+                    Show folder ↗
+                  </button>
+                  <button id="push-button" class="primary">
+                    Push & Submit PR ↗
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -247,6 +338,12 @@
               placeholder="ghp_... or github_pat_..."
             />
           </div>
+          <div
+            id="token-error"
+            class="result error"
+            style="margin-top: 10px; width: 100%"
+            hidden
+          ></div>
           <div style="display: flex; gap: 10px; margin-top: 12px">
             <button id="submit-token-login" class="primary pref-save">
               Connect with Token <span>✓</span>

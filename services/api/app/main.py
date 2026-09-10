@@ -64,9 +64,11 @@ def initialize_database() -> None:
         with connection.cursor() as cursor:
             cursor.execute(schema)
             cursor.execute("ALTER TABLE issues ADD COLUMN IF NOT EXISTS has_difficulty_label BOOLEAN NOT NULL DEFAULT false;")
+            cursor.execute("ALTER TABLE issues ADD COLUMN IF NOT EXISTS author TEXT;")
             cursor.execute("ALTER TABLE contributions ADD COLUMN IF NOT EXISTS xp_awarded BOOLEAN NOT NULL DEFAULT false;")
             cursor.execute(seed)
             cursor.execute("UPDATE issues SET has_difficulty_label = true WHERE github_id IN (2001, 2002, 2003, 999002) OR repository_id IN (SELECT id FROM repositories WHERE full_name = 'dizziedbliss/listtty');")
+            cursor.execute("UPDATE issues SET author = split_part((SELECT full_name FROM repositories WHERE repositories.id = issues.repository_id), '/', 1) WHERE author IS NULL OR author = '';")
 
 
 @asynccontextmanager
@@ -212,17 +214,32 @@ def github_login(response: Response) -> dict[str, Any]:
 
 
 class TokenAuthRequest(BaseModel):
-    token: str = Field(min_length=10, max_length=200)
+    token: str = Field(min_length=5, max_length=500)
 
 
 @app.post("/auth/github/token")
 async def github_token_login(payload: TokenAuthRequest, response: Response) -> dict[str, Any]:
     token = payload.token.strip()
-    headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
-    async with httpx.AsyncClient(timeout=10) as client:
-        user_response = await client.get("https://api.github.com/user", headers=headers)
+    auth_header = f"token {token}" if not token.startswith("Bearer ") and not token.startswith("token ") else token
+    headers = {
+        "Authorization": auth_header,
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "SkillIssues-Desktop/1.0.0",
+    }
+    async with httpx.AsyncClient(timeout=15) as client:
+        try:
+            user_response = await client.get("https://api.github.com/user", headers=headers)
+        except Exception as err:
+            raise HTTPException(502, f"Could not connect to GitHub API: {err}")
         if user_response.status_code != 200:
-            raise HTTPException(401, "Invalid GitHub Personal Access Token. Ensure the token has public_repo scope.")
+            err_msg = "Invalid GitHub Personal Access Token. Ensure the token has public_repo scope."
+            try:
+                data = user_response.json()
+                if "message" in data:
+                    err_msg = f"GitHub API error ({user_response.status_code}): {data['message']}"
+            except Exception:
+                pass
+            raise HTTPException(401, err_msg)
         github_user = user_response.json()
     user = query("""INSERT INTO users (github_id, username, avatar_url, github_access_token) VALUES (%s, %s, %s, %s)
         ON CONFLICT (github_id) DO UPDATE SET username = EXCLUDED.username, avatar_url = EXCLUDED.avatar_url, github_access_token = EXCLUDED.github_access_token
@@ -434,20 +451,7 @@ def request_repository_sync(repository_id: int, request: Request) -> dict[str, A
     return {"accepted": True, "repository": rows[0], "message": "Priority refresh queued for the worker."}
 
 
-@app.get("/me")
-def me(request: Request) -> dict[str, Any]:
-    user_id = authenticated_user_id(request)
-    rows = query("""
-        SELECT u.id, u.username, u.avatar_url, p.experience_level, p.target_level,
-               p.progress_score, p.completed_count, p.bio, p.demonstrated_skills,
-               pref.interests, pref.preferred_languages
-        FROM users u JOIN developer_profiles p ON p.user_id = u.id
-        JOIN developer_preferences pref ON pref.user_id = u.id
-        WHERE u.id = %s
-    """, (user_id,))
-    if not rows:
-        raise HTTPException(401, "Profile not found")
-    return rows[0]
+
 
 
 @app.get("/profile")
@@ -500,7 +504,8 @@ def issue_query(where: str = "", params: tuple[Any, ...] = ()) -> list[dict[str,
     return query(f"""
         SELECT i.id, i.github_id, i.number, i.title, i.body, i.url, i.state, i.updated_at::text AS updated_at,
                i.difficulty_score, i.difficulty, i.required_skills, i.technologies,
-               i.learning_tags, i.comments, r.full_name AS repository,
+               i.learning_tags, i.comments, COALESCE(i.author, split_part(r.full_name, '/', 1)) AS author,
+               r.full_name AS repository,
                r.url AS repository_url, r.description AS repository_description,
                r.language, r.stars, r.license
         FROM issues i JOIN repositories r ON r.id = i.repository_id
@@ -512,7 +517,7 @@ BEGINNER_LABELS = {
     "good first issue", "beginner-friendly", "easy", "starter", "starter-bug",
     "first-timers-only", "newbie", "up-for-grabs",
     "low-hanging-fruit", "bitesize", "trivial", "easy-fix", "good-for-beginner",
-    "documentation", "docs", "typo", "good-first-pr"
+    "documentation", "docs", "typo", "good-for-beginner"
 }
 
 INTERMEDIATE_LABELS = {
@@ -565,6 +570,7 @@ query UserReposAndIssues($username: String!) {
                         body
                         url
                         comments { totalCount }
+                        author { login }
                         labels(first: 10) { nodes { name } }
                     }
                 }
@@ -643,6 +649,8 @@ async def sync_github_issues_for_user(user_id: int) -> int:
                     issue_url = gh_issue.get("url")
                     comments = (gh_issue.get("comments") or {}).get("totalCount", 0)
                     labels = [l.get("name", "") for l in (gh_issue.get("labels") or {}).get("nodes", []) if isinstance(l, dict)]
+                    author_node = gh_issue.get("author")
+                    issue_author = (author_node.get("login") if isinstance(author_node, dict) else str(author_node or "")) or username
                     has_valid, difficulty, score = classify_issue_labels(labels)
                     if full_name.lower() == "dizziedbliss/listtty" or full_name.lower().startswith(username.lower() + "/"):
                         has_valid = True
@@ -654,15 +662,16 @@ async def sync_github_issues_for_user(user_id: int) -> int:
                     execute("""
                         INSERT INTO issues
                           (github_id, repository_id, number, title, body, url, state, difficulty_score,
-                           difficulty, required_skills, technologies, learning_tags, comments, has_difficulty_label, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, 'OPEN', %s, %s, %s, %s, %s, %s, %s, now())
+                           difficulty, required_skills, technologies, learning_tags, comments, has_difficulty_label, author, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, 'OPEN', %s, %s, %s, %s, %s, %s, %s, %s, now())
                         ON CONFLICT (github_id) DO UPDATE SET
                           title = EXCLUDED.title, body = EXCLUDED.body, url = EXCLUDED.url,
                           difficulty_score = EXCLUDED.difficulty_score, difficulty = EXCLUDED.difficulty,
-                          comments = EXCLUDED.comments, has_difficulty_label = EXCLUDED.has_difficulty_label, updated_at = now()
+                          comments = EXCLUDED.comments, has_difficulty_label = EXCLUDED.has_difficulty_label,
+                          author = EXCLUDED.author, updated_at = now()
                     """, (
                         gh_issue.get("databaseId"), repo_id, number, title, body, issue_url,
-                        score, difficulty, skills, technologies, tags, comments, has_valid
+                        score, difficulty, skills, technologies, tags, comments, has_valid, issue_author
                     ))
                     synced_count += 1
     except Exception:
@@ -709,7 +718,7 @@ async def issues(request: Request, difficulty: str | None = Query(default=None),
 
     all_issues = issue_query(where, params)
 
-    if pref_langs:
+    if pref_langs and not search:
         filtered = []
         for item in all_issues:
             repo_full = (item.get("repository") or "").lower()
@@ -982,19 +991,70 @@ def evaluate_user_badges(user_id: int) -> list[str]:
 @app.get("/me")
 def me(request: Request) -> dict[str, Any]:
     user_id = authenticated_user_id(request)
+
+    # Ensure profile row exists
+    execute("""
+        INSERT INTO developer_profiles (user_id, experience_level, target_level, progress_score, completed_count, total_xp, level, badges)
+        VALUES (%s, 'BEGINNER', 'INTERMEDIATE', 0, 0, 0, 1, '{}')
+        ON CONFLICT (user_id) DO NOTHING
+    """, (user_id,))
+
+    # Calculate actual XP & completed count from merged contributions
+    merged_stats = query("""
+        SELECT count(*) AS completed, COALESCE(SUM(
+            CASE 
+                WHEN UPPER(i.difficulty) = 'BEGINNER' THEN 75
+                WHEN UPPER(i.difficulty) = 'INTERMEDIATE' THEN 140
+                WHEN UPPER(i.difficulty) = 'ADVANCED' THEN 250
+                ELSE 75
+            END
+        ), 0) AS calc_xp
+        FROM contributions c
+        JOIN issues i ON i.id = c.issue_id
+        WHERE c.user_id = %s AND c.state = 'PR_MERGED'
+    """, (user_id,))
+
+    completed_cnt = merged_stats[0]["completed"] if merged_stats else 0
+    calc_xp = int(merged_stats[0]["calc_xp"] if merged_stats else 0)
+
+    # Fetch stored profile data
+    profile_db = query("SELECT total_xp, level, badges FROM developer_profiles WHERE user_id = %s", (user_id,))
+    stored_xp = profile_db[0]["total_xp"] if profile_db else 0
+    total_xp = max(stored_xp, calc_xp)
+
+    lvl_info = calculate_level_info(total_xp)
+    earned_badges = evaluate_user_badges(user_id)
+
+    execute("""
+        UPDATE developer_profiles SET
+          total_xp = %s,
+          level = %s,
+          progress_score = %s,
+          completed_count = %s,
+          badges = %s
+        WHERE user_id = %s
+    """, (total_xp, lvl_info["level"], lvl_info["progress_percent"], completed_cnt, earned_badges, user_id))
+
     rows = query("""
         SELECT u.id, u.username, u.avatar_url, p.experience_level, p.target_level,
                p.progress_score, p.completed_count, p.bio, p.demonstrated_skills,
-               COALESCE(p.total_xp, 0) AS total_xp, COALESCE(p.level, 1) AS level, COALESCE(p.badges, '{}') AS badges,
+               p.total_xp, p.level, p.badges,
                pref.interests, pref.preferred_languages
-        FROM users u JOIN developer_profiles p ON p.user_id = u.id
-        JOIN developer_preferences pref ON pref.user_id = u.id
+        FROM users u 
+        JOIN developer_profiles p ON p.user_id = u.id
+        LEFT JOIN developer_preferences pref ON pref.user_id = u.id
         WHERE u.id = %s
     """, (user_id,))
+
     if not rows:
         raise HTTPException(401, "Profile not found")
+
     profile_data = rows[0]
-    lvl_info = calculate_level_info(profile_data["total_xp"])
+    if profile_data.get("interests") is None:
+        profile_data["interests"] = []
+    if profile_data.get("preferred_languages") is None:
+        profile_data["preferred_languages"] = []
+
     profile_data.update(lvl_info)
     profile_data["badge_details"] = [
         {"name": b, "icon": BADGE_ICONS.get(b, "🏅")} for b in (profile_data.get("badges") or [])
@@ -1007,24 +1067,24 @@ def profile(request: Request) -> dict[str, Any]:
     return me(request)
 
 
-def apply_merged_pr(pr_url: str) -> dict[str, Any]:
-    parsed = urlparse(pr_url)
-    if parsed.netloc != "github.com":
-        return {"merged": False}
-    parts = [part for part in parsed.path.split("/") if part]
-    if len(parts) != 4 or parts[2] != "pull" or not parts[3].isdigit():
-        return {"merged": False}
-
-    rows = query("""
-        SELECT id, user_id, issue_id, state, COALESCE(xp_awarded, false) AS xp_awarded FROM contributions
-        WHERE pr_url = %s
-    """, (pr_url,))
+def apply_merged_pr(pr_url: str = "", contribution_id: int | None = None) -> dict[str, Any]:
+    rows = []
+    if contribution_id:
+        rows = query("""
+            SELECT id, user_id, issue_id, state, COALESCE(xp_awarded, false) AS xp_awarded FROM contributions
+            WHERE id = %s
+        """, (contribution_id,))
+    elif pr_url:
+        rows = query("""
+            SELECT id, user_id, issue_id, state, COALESCE(xp_awarded, false) AS xp_awarded FROM contributions
+            WHERE pr_url = %s OR LOWER(RTRIM(pr_url, '/')) = LOWER(RTRIM(%s, '/'))
+        """, (pr_url, pr_url))
 
     if not rows:
         return {"merged": False}
 
     contribution_data = rows[0]
-    contribution_id = contribution_data["id"]
+    cid = contribution_data["id"]
     user_id = contribution_data["user_id"]
     issue_id = contribution_data["issue_id"]
     already_awarded = contribution_data.get("xp_awarded", False)
@@ -1032,13 +1092,13 @@ def apply_merged_pr(pr_url: str) -> dict[str, Any]:
     execute("""
         UPDATE contributions SET state = 'PR_MERGED', merged_at = COALESCE(merged_at, now()), updated_at = now()
         WHERE id = %s
-    """, (contribution_id,))
+    """, (cid,))
 
     profile_current = query("SELECT COALESCE(total_xp, 0) AS total_xp, COALESCE(level, 1) AS level, COALESCE(badges, '{}') AS badges FROM developer_profiles WHERE user_id = %s", (user_id,))
     if not profile_current:
         execute("INSERT INTO developer_profiles (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user_id,))
         profile_current = query("SELECT COALESCE(total_xp, 0) AS total_xp, COALESCE(level, 1) AS level, COALESCE(badges, '{}') AS badges FROM developer_profiles WHERE user_id = %s", (user_id,))
-    
+
     current_xp = profile_current[0]["total_xp"]
     current_level = profile_current[0]["level"]
     old_badges = set(profile_current[0].get("badges") or [])
@@ -1063,7 +1123,7 @@ def apply_merged_pr(pr_url: str) -> dict[str, Any]:
             "message": f"PR is merged! Current Level: {lvl_info['level']} ({current_xp} XP)"
         }
 
-    # Award XP
+    # Award XP based on issue difficulty categories
     issue_rows = query("""
         SELECT i.difficulty, i.required_skills, i.technologies, i.repository_id
         FROM issues i WHERE i.id = %s
@@ -1071,18 +1131,19 @@ def apply_merged_pr(pr_url: str) -> dict[str, Any]:
 
     issue_data = issue_rows[0] if issue_rows else {}
     difficulty = str(issue_data.get("difficulty") or "BEGINNER").upper()
-    base_xp = 50 if difficulty == "BEGINNER" else 100 if difficulty == "INTERMEDIATE" else 200
+    base_xp = 75 if difficulty == "BEGINNER" else 140 if difficulty == "INTERMEDIATE" else 250
 
     bonus_xp = 25  # Merged bonus (+25)
     repo_id = issue_data.get("repository_id")
 
-    prior_repos = query("""
-        SELECT count(*) as cnt FROM contributions c
-        JOIN issues i ON i.id = c.issue_id
-        WHERE c.user_id = %s AND c.state = 'PR_MERGED' AND i.repository_id = %s
-    """, (user_id, repo_id))[0]["cnt"]
-    if prior_repos <= 1:
-        bonus_xp += 15
+    if repo_id:
+        prior_repos = query("""
+            SELECT count(*) as cnt FROM contributions c
+            JOIN issues i ON i.id = c.issue_id
+            WHERE c.user_id = %s AND c.state = 'PR_MERGED' AND i.repository_id = %s
+        """, (user_id, repo_id))[0]["cnt"]
+        if prior_repos <= 1:
+            bonus_xp += 15
 
     skills = issue_data.get("required_skills") or []
     techs = issue_data.get("technologies") or []
@@ -1090,25 +1151,26 @@ def apply_merged_pr(pr_url: str) -> dict[str, Any]:
         bonus_xp += 10
 
     earned_xp = base_xp + bonus_xp
-
     new_xp = current_xp + earned_xp
     new_lvl_info = calculate_level_info(new_xp)
     new_level = new_lvl_info["level"]
 
+    # Mark contribution as awarded
+    execute("UPDATE contributions SET xp_awarded = true WHERE id = %s", (cid,))
+
+    # Evaluate badges AFTER updating contribution state to PR_MERGED
     earned_badges = evaluate_user_badges(user_id)
     unlocked_badges = [b for b in earned_badges if b not in old_badges]
 
     execute("""
         UPDATE developer_profiles SET 
-          completed_count = completed_count + 1,
-          progress_score = LEAST(100, progress_score + 12),
+          completed_count = (SELECT count(*) FROM contributions WHERE user_id = %s AND state = 'PR_MERGED'),
+          progress_score = %s,
           total_xp = %s,
           level = %s,
           badges = %s
         WHERE user_id = %s
-    """, (new_xp, new_level, earned_badges, user_id))
-
-    execute("UPDATE contributions SET xp_awarded = true WHERE id = %s", (contribution_id,))
+    """, (user_id, new_lvl_info["progress_percent"], new_xp, new_level, earned_badges, user_id))
 
     level_up = new_level > current_level
 
@@ -1192,7 +1254,7 @@ async def verify_contribution(contribution_id: int, request: Request) -> dict[st
         execute("UPDATE contributions SET state = %s, updated_at = now() WHERE id = %s", (new_state, contribution_id))
         return {"verified": False, "state": pr_info.get("state"), "message": "GitHub confirms the PR is not merged yet."}
 
-    merge_result = apply_merged_pr(contribution_data["pr_url"])
+    merge_result = apply_merged_pr(pr_url=contribution_data["pr_url"], contribution_id=contribution_id)
     return {
         "verified": True,
         "state": "PR_MERGED",
