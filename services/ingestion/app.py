@@ -32,7 +32,7 @@ MIN_STARS = int(os.getenv("MIN_STARS", "50"))
 RUN_ONCE = os.getenv("RUN_ONCE", "false").lower() == "true"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 SYNC_ISSUES = os.getenv("SYNC_ISSUES", "false").lower() == "true"
-SYNC_REPOSITORIES = int(os.getenv("SYNC_REPOSITORIES", "10"))
+SYNC_REPOSITORIES = int(os.getenv("SYNC_REPOSITORIES", "50"))
 INGESTION_PORT = int(os.getenv("INGESTION_PORT", "8000"))
 GRAPHQL_URL = "https://api.github.com/graphql"
 sync_lock = threading.Lock()
@@ -49,6 +49,7 @@ query RepositoryIssues($owner: String!, $name: String!, $after: String, $since: 
                 url
                 state
                 updatedAt
+                author { login }
                 comments { totalCount }
                 labels(first: 10) { nodes { name } }
             }
@@ -433,12 +434,14 @@ def mark_repository_synced(repository_id: int) -> None:
 
 
 def upsert_issue(repository_id: int, issue: dict[str, Any], score: int, difficulty: str, has_valid: bool, skills: list[str], technologies: list[str], tags: list[str]) -> None:
+    author_obj = issue.get("author")
+    author_name = author_obj.get("login") if isinstance(author_obj, dict) else (text(author_obj) or None)
     with psycopg.connect(DATABASE_URL) as connection:
         connection.execute("""
             INSERT INTO issues
               (github_id, repository_id, number, title, body, url, state, difficulty_score,
-               difficulty, required_skills, technologies, learning_tags, comments, has_difficulty_label, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               difficulty, required_skills, technologies, learning_tags, comments, has_difficulty_label, updated_at, author)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (github_id) DO UPDATE SET
               repository_id = EXCLUDED.repository_id, title = EXCLUDED.title,
               body = EXCLUDED.body, url = EXCLUDED.url, state = EXCLUDED.state,
@@ -446,11 +449,13 @@ def upsert_issue(repository_id: int, issue: dict[str, Any], score: int, difficul
               required_skills = EXCLUDED.required_skills, technologies = EXCLUDED.technologies,
               learning_tags = EXCLUDED.learning_tags, comments = EXCLUDED.comments,
               has_difficulty_label = EXCLUDED.has_difficulty_label,
-              updated_at = EXCLUDED.updated_at
+              updated_at = EXCLUDED.updated_at,
+              author = EXCLUDED.author
         """, (
             issue["databaseId"], repository_id, issue["number"], issue["title"], issue.get("body") or "",
             issue["url"], issue["state"], score, difficulty, skills, technologies, tags,
             issue.get("comments", {}).get("totalCount", 0), has_valid, parse_timestamp(issue.get("updatedAt")) or datetime.now(timezone.utc),
+            author_name,
         ))
 
 

@@ -374,17 +374,30 @@ ipcMain.handle("workspace:clone", async (_, repositoryUrl) => {
 });
 
 ipcMain.handle("workspace:open", async (_, workspace) => {
-  if (!isSafeWorkspace(workspace))
-    throw new Error("Invalid SkillIssues workspace.");
-  const error = await shell.openPath(path.resolve(workspace));
+  const root = workspaceRoot();
+  let target =
+    typeof workspace === "string" && workspace.trim()
+      ? path.resolve(workspace)
+      : root;
+  if (!fs.existsSync(target)) {
+    fs.mkdirSync(target, { recursive: true });
+  }
+  if (!isWithinRoot(target)) target = root;
+  const error = await shell.openPath(target);
   if (error) throw new Error(error);
-  return { opened: true };
+  return { opened: true, path: target };
 });
 
 ipcMain.handle("workspace:open-vscode", async (_, workspace) => {
-  if (!isSafeWorkspace(workspace))
-    throw new Error("Invalid SkillIssues workspace.");
-  const resolvedPath = path.resolve(workspace);
+  const root = workspaceRoot();
+  let target =
+    typeof workspace === "string" && workspace.trim()
+      ? path.resolve(workspace)
+      : root;
+  if (!fs.existsSync(target)) {
+    fs.mkdirSync(target, { recursive: true });
+  }
+  if (!isWithinRoot(target)) target = root;
 
   const localAppData = process.env.LOCALAPPDATA || "";
   const programFiles = process.env["ProgramFiles"] || "C:\\Program Files";
@@ -429,23 +442,22 @@ ipcMain.handle("workspace:open-vscode", async (_, workspace) => {
     if (candidate.bin.includes(path.sep) && !fs.existsSync(candidate.bin))
       continue;
     try {
-      await execFileAsync(candidate.bin, [resolvedPath], {
+      await execFileAsync(candidate.bin, [target], {
         timeout: 15000,
         windowsHide: true,
         ...candidate.options,
       });
-      return { opened: true, message: `Opened ${resolvedPath} in VS Code.` };
+      return { opened: true, message: `Opened ${target} in VS Code.` };
     } catch {
       // try next candidate
     }
   }
 
-  await shell.openPath(resolvedPath);
+  await shell.openPath(target);
   return {
     opened: true,
     fallback: true,
-    message:
-      "VS Code binary not found in standard paths. Opened workspace folder in File Explorer.",
+    message: `VS Code binary not found in standard paths. Opened ${target} in File Explorer.`,
   };
 });
 

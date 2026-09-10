@@ -20,12 +20,16 @@
 }
 .auth-button {
   border: 1px solid #af7ce8;
-  border-radius: 5px;
+  border-radius: 6px;
   background: #e6d0fa;
   color: #450d82;
-  padding: 5px 8px;
-  font-size: 9px;
+  padding: 7px 14px;
+  font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .auth-button.subtle {
   background: transparent;
@@ -138,14 +142,15 @@ body {
   padding: 2px;
 }
 .counts button {
-  height: 28px;
+  height: 32px;
   border: 0;
   background: transparent;
-  padding: 0 11px;
+  padding: 0 14px;
   color: #241b2c;
-  font-size: 9px;
+  font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: 6px;
 }
 .counts button.active {
   background: #f7f2fd;
@@ -869,4 +874,244 @@ body {
 
 #oauth-login-fallback .secondary {
   display: hidden !important;
+}
+
+/* Modal Drawer Overlay Styles */
+.workspace-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(23, 19, 29, 0.65);
+  backdrop-filter: blur(5px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.workspace-drawer[hidden] {
+  display: none !important;
+}
+
+.drawer-card {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid #af7ce8;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  width: min(780px, calc(100vw - 48px));
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  color: #17131d;
+}
+
+.drawer-card .close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: #f7f2fd;
+  border: 1px solid #af7ce8;
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  line-height: 1;
+  color: #450d82;
+  cursor: pointer;
+  z-index: 100;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+.drawer-card .close:hover {
+  background: #450d82;
+  color: #ffffff;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(69, 13, 130, 0.3);
+}
+.drawer-card .close:active {
+  transform: scale(0.92) !important;
+}
+
+/* Counts Nav & Button Feedback */
+.counts button {
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.counts button:hover {
+  background: #d8c3f3;
+  color: #331557;
+}
+.counts button:active {
+  transform: scale(0.95);
+}
+.counts button.active {
+  background: #ffffff;
+  color: #450d82;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+.counts b {
+  pointer-events: none;
+  font-weight: 500;
+}
+
+/* Universal Button Press & Feedback Styles */
+button,
+.auth-button,
+.view-issue-btn,
+.primary,
+.secondary,
+.tag.action {
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  user-select: none;
+}
+button:hover,
+.auth-button:hover,
+.primary:hover,
+.secondary:hover,
+.tag.action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(69, 13, 130, 0.2);
+}
+button:active,
+.auth-button:active,
+.primary:active,
+.secondary:active,
+.tag.action:active {
+  transform: scale(0.96) translateY(1px) !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Runner Progress Bar */
+.runner-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: #e6d0fa;
+  z-index: 9999;
+  overflow: hidden;
+}
+.runner-progress-bar[hidden] {
+  display: none !important;
+}
+.runner-progress-fill {
+  height: 100%;
+  width: 45%;
+  background: linear-gradient(90deg, #9b51e0, #450d82, #af7ce8);
+  animation: runnerIndeterminate 1.2s infinite ease-in-out;
+}
+@keyframes runnerIndeterminate {
+  0% {
+    transform: translateX(-100%) scaleX(0.4);
+  }
+  50% {
+    transform: translateX(60%) scaleX(1);
+  }
+  100% {
+    transform: translateX(240%) scaleX(0.4);
+  }
+}
+
+/* App Toast Notifications */
+.app-toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 9999;
+  pointer-events: none;
+}
+.app-toast {
+  background: #450d82;
+  color: #ffffff;
+  border: 1px solid #af7ce8;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  animation: toastSlideUp 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+.app-toast.error {
+  background: #7a1515;
+  border-color: #ff6b6b;
+}
+@keyframes toastSlideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Git Actions Clean Layout */
+.git-actions-section {
+  width: 100%;
+}
+.git-actions-section label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #554865;
+  letter-spacing: 0.5px;
+  display: block;
+  margin-bottom: 6px;
+}
+.git-branch-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  align-items: center;
+}
+.git-branch-row .git-input {
+  flex: 1;
+  border: 1px solid #af7ce8;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  background: #f7f2fd;
+  color: #2b2138;
+  outline: none;
+}
+.git-branch-row .git-input:focus {
+  border-color: #450d82;
+  box-shadow: 0 0 0 2px rgba(69, 13, 130, 0.15);
+}
+.git-buttons-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.git-buttons-row button {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
