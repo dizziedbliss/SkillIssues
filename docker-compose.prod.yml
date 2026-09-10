@@ -1,0 +1,119 @@
+name: skillissues-prod
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-skillissues}
+      POSTGRES_USER: ${POSTGRES_USER:-skillissues}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-skillissues_prod_secure_pw}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-skillissues} -d ${POSTGRES_DB:-skillissues}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./services/api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD:-skillissues_prod_secure_pw}@postgres:5432/${POSTGRES_DB:-skillissues}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      DEMO_MODE: ${DEMO_MODE:-false}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8000/auth/github/callback}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-}
+      RECOMMENDATION_URL: http://recommendation:8000
+      CONTRIBUTION_URL: http://contribution:8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      recommendation:
+        condition: service_started
+      contribution:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 3s
+
+  ingestion:
+    build:
+      context: ./services/ingestion
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD:-skillissues_prod_secure_pw}@postgres:5432/${POSTGRES_DB:-skillissues}
+      REPOSITORY_METADATA_PATH: /repo/repo_metadata.json
+      MAX_REPOSITORIES: ${MAX_REPOSITORIES:-500}
+      MIN_STARS: ${MIN_STARS:-50}
+      SAMPLE_SEED: ${SAMPLE_SEED:-skillissues-prod}
+      RESET_CATALOG: ${RESET_CATALOG:-false}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      SYNC_ISSUES: ${SYNC_ISSUES:-true}
+      SYNC_REPOSITORIES: 25
+      INGESTION_PORT: 8000
+    volumes:
+      - ./repo:/repo:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  recommendation:
+    build:
+      context: ./services/recommendation
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8000
+
+  contribution:
+    build:
+      context: ./services/contribution
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8000
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+
+  worker:
+    build:
+      context: ./services/worker
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8000
+      INGESTION_URL: http://ingestion:8000
+      SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-900}
+    depends_on:
+      api:
+        condition: service_healthy
+      ingestion:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres_prod_data:

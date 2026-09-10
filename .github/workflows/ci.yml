@@ -1,0 +1,41 @@
+name: CI Quality and Build Verification
+
+on:
+  push:
+    branches: [ main, ship ]
+  pull_request:
+    branches: [ main, ship ]
+
+jobs:
+  lint-and-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install and Check Frontend
+        run: |
+          cd frontend
+          npm ci
+          npx tsc --noEmit
+      - name: Install and Check Electron
+        run: |
+          cd electron
+          npm ci
+          npm run check
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: actions/setup-buildx-action@v3
+      - name: Validate Docker Compose Configuration
+        run: |
+          docker compose config
