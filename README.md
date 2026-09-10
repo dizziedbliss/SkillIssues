@@ -1,88 +1,109 @@
 # SkillIssues
 
-SkillIssues is a focused developer-growth MVP: it matches a developer profile to appropriately challenging open-source issues, starts a contribution workspace, and verifies merged pull requests against GitHub before updating progress.
+> **You Have the Skills. We Have the Issues.**
 
-## Run the demo
+SkillIssues is a developer-growth platform designed to bridge the gap between learning syntax and mastering real-world software engineering. By matching a developer's experience level, interests, and preferred programming languages against a curated catalog of open-source GitHub issues, SkillIssues guides developers through real contributions, workspace cloning, pull request submission, and server-verified level progression.
 
-Prerequisites: Docker Desktop with Compose.
+---
 
-```bash
-docker compose up --build
+## 🚀 Key Features
+
+- **Personalized Challenge Matching**: Issues classified by difficulty (`BEGINNER`, `INTERMEDIATE`, `ADVANCED`), language, required skills, and interest tags.
+- **Authentic Open-Source Catalog**: Pre-populated catalog of over **1,600+ real GitHub issues** across top repositories (`FastAPI`, `HTTPX`, `Vite`, `React`, `Flask`, `Next.js`, `Go`, `Kubernetes`, etc.) complete with authentic issue author handles.
+- **Electron Desktop Client**:
+  - Top runner progress bar for background Git operations (forking, cloning, committing, pushing).
+  - 1-click **VS Code** workspace opening and local folder navigation.
+  - Workspace drawer with branch creation (`skillissues/issue-#<number>`), commit & push dialog, and live Git status.
+  - PAT-based direct login without complex OAuth setups.
+- **Interactive Web Dashboard (React + Vite)**:
+  - Clean markdown description rendering with syntax highlighting and GitHub Flavored Markdown support.
+  - Filter by preferences, search query override, and saved challenges tab.
+  - Profile progression sidebar with Level status, XP bar, completed count, and achievement badges.
+- **Server-Side GitHub PR Verification**: Real-time verification of pull request merge status with level progression, XP awards, and unlockable badges (`First Blood 🩸`, `Bug Wrangler 🩹`, `Polyglot 🧪`, `World Traveller 🗺️`, `Touch Grass 🌱`).
+
+---
+
+## 🔄 The Core Feedback Loop
+
+```
+  ┌──────────────────────┐
+  │  Developer Profile   │ (Skills, Languages, Target Level)
+  └──────────┬───────────┘
+             │
+             ▼
+  ┌──────────────────────┐
+  │ Personalized Match   │ (Scored by skill fit & difficulty)
+  └──────────┬───────────┘
+             │
+             ▼
+  ┌──────────────────────┐
+  │ Workspace Auto-Setup │ (Fork & Clone to local directory)
+  └──────────┬───────────┘
+             │
+             ▼
+  ┌──────────────────────┐
+  │ Solve Real Codebase  │ (Write solution in VS Code / IDE)
+  └──────────┬───────────┘
+             │
+             ▼
+  ┌──────────────────────┐
+  │ Commit & Submit PR   │ (Branch creation & GitHub Push)
+  └──────────┬───────────┘
+             │
+             ▼
+  ┌──────────────────────┐
+  │ Server Verification  │ (Verify merge & calculate XP / Badges)
+  └──────────┬───────────┘
+             │
+             ▼
+  ┌──────────────────────┐
+  │ Level Up & Progression│ (Harder challenges unlocked)
+  └──────────────────────┘
 ```
 
-Open http://localhost:5173 for the dashboard and http://localhost:8000/docs for the API. The first API startup creates the PostgreSQL schema and loads representative seed data, so the demo works without a GitHub token.
+---
 
-Stop the stack with `docker compose down`. Add `GITHUB_TOKEN` to a local `.env` to enable real pull request verification; the endpoint never treats a client claim as proof of merge.
+## 🛠️ Architecture Overview
 
-## Architecture
+SkillIssues is built with a microservice control plane powered by Docker Compose:
 
-- `frontend`: React + TypeScript + Vite dashboard.
-- `services/api`: FastAPI control plane, profile, issue, recommendation, contribution, and GitHub verification endpoints.
-- `services/ingestion`: reads `repo/repo_metadata.json` in bounded batches, uses pandas for vectorized qualification, and upserts a bounded catalog into PostgreSQL. It does not materialize the multi-gigabyte source in memory.
-- `services/recommendation`: service boundary reserved for extracting recommendation computation as traffic grows.
-- `services/contribution`: validates PR repository ownership and GitHub author attribution for contribution workflows.
-- `services/worker`: scheduled priority-refresh caller; it triggers ingestion without adding a queue or cache infrastructure.
-- `database`: PostgreSQL schema and demo seed.
+| Service | Technology | Port / Role | Description |
+| :--- | :--- | :--- | :--- |
+| **`frontend`** | React 18, Vite, TypeScript | `:5173` | Web dashboard for issue discovery, saved challenges, and profile overview. |
+| **`electron`** | Electron, Node.js, HTML/CSS/JS | Native App | Desktop client with integrated Git tools, VS Code launcher, and workspace manager. |
+| **`api`** | Python 3.12, FastAPI, Uvicorn | `:8000` | Main control plane for auth, issue search, profile management, and GitHub verification. |
+| **`ingestion`** | Python 3.12, Pandas, ijson | `:8000` (Internal) | Streamed catalog ingestion & qualification for GitHub repositories and open issues. |
+| **`recommendation`** | Python 3.12, FastAPI | Internal | Service boundary for issue scoring based on skill overlap, language fit, and difficulty. |
+| **`contribution`** | Python 3.12, FastAPI | Internal | Validates PR repository ownership and author attribution. |
+| **`worker`** | Python 3.12 | Background | Priority refresh worker for background catalog sync without heavy queues. |
+| **`postgres`** | PostgreSQL 16 Alpine | `:5432` | Relational storage for users, profiles, repositories, issues, saved challenges, and PR contributions. |
 
-The recommendation service scores skill overlap, interest overlap, language preference, difficulty fit, and repository quality. The API forwards scoring to that service with a local fallback if the service is unavailable.
+---
 
-## Local repository import
+## ⚡ Quickstart Guide
 
-The repository metadata export is mounted read-only into the ingestion container. Qualification requires a non-archived repository, `stars > 50`, `forkingAllowed == true`, and a non-empty license. Import size is bounded by `MAX_REPOSITORIES` (default `1000`) so the demo remains predictable.
+### Prerequisites
 
-```bash
-docker compose run --rm -e RUN_ONCE=true -e MAX_REPOSITORIES=100 ingestion
-```
+- **Docker Desktop** (with Compose enabled)
+- **Node.js** v20+ (for Electron desktop app)
+- **GitHub Personal Access Token (PAT)** with `repo` scope (for forking & PR verification)
 
-For a clean test catalog of exactly 100 sampled repositories, reset the local demo catalog explicitly:
+### 1. Run the Control Plane & Web App
 
-```bash
-docker compose run --rm -e RUN_ONCE=true -e RESET_CATALOG=true -e MAX_REPOSITORIES=100 -e SAMPLE_SEED=skillissues-demo ingestion
-```
-
-Do not use `RESET_CATALOG=true` in a production refresh job; it removes repository, issue, saved-issue, and contribution rows before importing.
-
-The source path and threshold are configurable with `REPOSITORY_METADATA_PATH` and `MIN_STARS`. The large metadata export is intentionally ignored by Git and must exist locally when running the importer. The ingestion image installs pandas and ijson; pandas filters each 25,000-record batch and the seeded reservoir sampler keeps only the configured sample size.
-
-Download the requested Kaggle archive with:
+Clone the repository and start the microservice stack:
 
 ```bash
-curl -L -o ~/Downloads/github-repository-metadata-with-5-stars.zip https://www.kaggle.com/api/v1/datasets/download/pelmers/github-repository-metadata-with-5-stars
+git clone https://github.com/dizziedbliss/SkillIssues.git
+cd SkillIssues
+docker compose up -d --build
 ```
 
-The archive contains `repo_metadata.json` and is several gigabytes after extraction. Extract it to the ignored `repo/` directory before running the importer:
+- Web Dashboard: [http://localhost:5173](http://localhost:5173)
+- API OpenAPI Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-```bash
-mkdir -p repo
-unzip -o ~/Downloads/github-repository-metadata-with-5-stars.zip repo_metadata.json -d repo
-docker compose run --rm -e RUN_ONCE=true -e MAX_REPOSITORIES=100 ingestion
-```
+### 2. Launch the Electron Desktop Client
 
-## Core API
-
-`GET /health`, `GET /auth/github`, `POST /auth/demo`, `GET /me`, `PUT /profile`, `GET /issues`, `GET /issues/{id}`, `GET /recommendations`, `GET /saved`, `POST /saved`, `DELETE /saved/{id}`, `GET /working`, `GET /progress`, `POST /contributions`, `PUT /contributions/{id}`, and `POST /contributions/{id}/verify`.
-
-## Current runbook
-
-```bash
-docker compose up --build
-docker compose ps
-docker compose logs -f api ingestion worker
-docker compose down
-docker compose down -v
-```
-
-Open http://localhost:5173 for the dashboard and http://localhost:8000/docs for the API. With `GITHUB_TOKEN` configured in a local `.env`, run a bounded real issue sync:
-
-```bash
-docker compose run --rm -e RUN_ONCE=true -e SYNC_ISSUES=true -e MAX_REPOSITORIES=10 ingestion
-```
-
-The worker periodically calls ingestion. A `409` from a manual sync request means another sync is already running and is intentional overlap protection.
-
-## Electron desktop client
-
-Start Docker first so the API is available, then launch the desktop client separately:
+In a separate terminal window:
 
 ```bash
 cd electron
@@ -90,47 +111,49 @@ npm install
 npm start
 ```
 
-The desktop workflow is functional and independent from the dashboard: select a recommended issue, choose an existing local destination, clone the public repository, and inspect local Git status. The Electron renderer has no access to API secrets.
+### 3. Connect Your GitHub Account
 
-## What is complete
+1. Open either the Electron client or Web Dashboard.
+2. Click **Connect GitHub** in the top navigation bar.
+3. Enter your GitHub Personal Access Token (`ghp_...` or `github_pat_...`) with `repo` scope.
+4. You are ready to fork repos, track workspaces, and verify PR contributions!
 
-The project now has the Compose monorepo, PostgreSQL schema, local streaming repository catalog import, GitHub GraphQL issue sync with pagination/incremental timestamps/rate-limit state, heuristic issue analysis, service-backed recommendations, session-backed demo/OAuth boundaries, signed webhook intake, profile/progress tracking, contribution state, server-side PR verification, React dashboard, and a working Electron challenge, branch, push, and command-log workflow.
+---
 
-## Remaining roadmap
+## 📖 Key API Endpoints
 
-GitHub App installation authentication, encrypted OAuth token storage, richer issue skill extraction, persistent job history, and deployment automation remain. The MVP deliberately keeps these focused rather than adding Kafka, Redis, Kubernetes, or automatic code execution.
+- `GET /health` - Service health status check.
+- `POST /auth/github/token` - Authenticate directly via GitHub PAT token.
+- `GET /me` - Retrieve user profile, level, XP, level progression info, and achievement badges.
+- `PUT /profile` - Update developer bio, target level, interests, and preferred languages.
+- `GET /issues` - Search and list qualified open-source issues (`?search=<query>&limit=20`).
+- `GET /issues/{id}` - Retrieve detailed issue payload.
+- `GET /recommendations` - Get personalized issue recommendations scored by developer profile.
+- `GET /saved` / `POST /saved` / `DELETE /saved/{id}` - Manage saved challenge bookmark list.
+- `GET /working` - List active local repository contributions.
+- `POST /contributions` - Track new contribution (fork & clone initialization).
+- `POST /contributions/{id}/submit` - Create branch and submit PR to GitHub.
+- `POST /contributions/{id}/verify` - Server-side verification of PR merge state + XP allocation.
 
-## Debugging runbook
+---
 
-Check the service graph first:
+## 🧪 Development & Testing
+
+Run syntax checks and format code:
 
 ```bash
-docker compose ps
-docker compose logs --tail=100 api frontend ingestion worker
-curl http://localhost:8000/health
-curl http://localhost:8000/health/detail
+# Node.js syntax verification for Electron
+node -c electron/main.js && node -c electron/preload.js && node -c electron/renderer.js
+
+# Code formatting with Prettier
+npx prettier --write "electron/**/*.{js,css,html}" "frontend/src/**/*.{ts,tsx,css}"
+
+# Rebuild containers
+docker compose up -d --build api frontend
 ```
 
-For demo authentication, click `Use demo profile` in the web client. The API creates the demo user and sets an HttpOnly `skillissues_session` cookie. Browser requests must include credentials; do not copy session cookies or GitHub tokens into frontend source.
+---
 
-For GitHub OAuth, configure `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `GITHUB_REDIRECT_URI` in `.env`. Register the exact callback URL with GitHub. The login flow uses a short-lived state cookie and PKCE, then redirects back to `FRONTEND_URL`; GitHub access tokens are never returned to the browser.
+## 📄 License
 
-For local GitHub App testing, the GitHub App settings must contain this exact **Callback URL**:
-
-```text
-http://localhost:8000/auth/github/callback
-```
-
-Set the local environment to the same value:
-
-```env
-GITHUB_REDIRECT_URI=http://localhost:8000/auth/github/callback
-```
-
-The callback URL is not the frontend URL. `http://localhost:5173` belongs in `FRONTEND_URL`; GitHub must redirect to the API callback on port `8000`. After changing `.env`, restart the API with `docker compose up -d --build api frontend`. For a deployed environment, register the HTTPS API callback URL instead, for example `https://api.example.com/auth/github/callback`, and set `GITHUB_REDIRECT_URI` to that exact HTTPS URL. GitHub compares this value exactly, including scheme, host, port, path, and trailing slash.
-
-For contribution work in Electron, connect GitHub with the `public_repo` permission before solving an issue. Electron then creates or reuses a fork, clones the fork into `Documents/SkillIssues`, pushes the branch with an ephemeral authorization header, and creates the pull request through the API. A contribution only changes progress after GitHub reports that the PR is merged. Demo mode can browse and save issues, but cannot fork, push, or create pull requests.
-
-The Electron client never opens a folder picker. It clones into `Documents/SkillIssues/<repository>` after `Start challenge`; use `Open workspace` after cloning. If clone or Git operations fail, inspect the command log at `<workspace>/.skillissues/commands.log` and confirm that Git is installed.
-
-If Docker commands fail with a daemon connection error, start Docker Desktop and rerun `docker compose up --build`. The frontend can still be checked independently with `npm --prefix frontend run typecheck` and `npm --prefix frontend run build`.
+Distributed under the [MIT License](LICENSE).
