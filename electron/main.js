@@ -35,10 +35,6 @@ async function apiRequest(pathname, options = {}, retry = true) {
   const cookie = response.headers.get('set-cookie') || '';
   const match = cookie.match(/skillissues_session=([^;]+)/);
   if (match) apiSessionToken = match[1];
-  if (response.status === 401 && retry && pathname !== '/auth/demo') {
-    await apiRequest('/auth/demo', { method: 'POST' }, false);
-    return apiRequest(pathname, options, false);
-  }
   return response;
 }
 
@@ -151,29 +147,49 @@ ipcMain.handle('api:request', async (_, pathname, options = {}) => {
 });
 
 ipcMain.handle('auth:github', async () => {
-  const authWindow = new BrowserWindow({ width: 560, height: 760, parent: BrowserWindow.getFocusedWindow() || undefined, modal: true, webPreferences: { contextIsolation: true, sandbox: true } });
   const loginResponse = await fetch(`${API_URL}/auth/github`, { headers: { Accept: 'application/json' } });
   const login = await loginResponse.json();
-  if (!login.authorize_url) throw new Error(login.message || 'GitHub login is not configured.');
-  const stateCookie = (loginResponse.headers.get('set-cookie') || '').match(/skillissues_oauth_state=([^;]+)/);
-  if (stateCookie) {
-    await authWindow.webContents.session.cookies.set({ url: `${API_URL}/`, name: 'skillissues_oauth_state', value: stateCookie[1], httpOnly: true, sameSite: 'lax', expirationDate: Math.floor(Date.now() / 1000) + 600 });
+  if (!login.authorize_url) {
+    return { authenticated: false, message: login.message || 'OAuth Client ID not configured.' };
   }
+  const authWindow = new BrowserWindow({ width: 560, height: 760, parent: BrowserWindow.getFocusedWindow() || undefined, modal: true, webPreferences: { contextIsolation: true, sandbox: true } });
   await authWindow.loadURL(login.authorize_url);
   return new Promise((resolve) => {
     let finished = false;
     const complete = async () => {
       if (finished) return;
       finished = true;
-      const cookies = await authWindow.webContents.session.cookies.get({ url: `${API_URL}/` });
-      const sessionCookie = cookies.find((cookie) => cookie.name === 'skillissues_session');
+      const cookies = await authWindow.webContents.session.cookies.get({ name: 'skillissues_session' });
+      const sessionCookie = cookies[0];
       if (sessionCookie) apiSessionToken = sessionCookie.value;
       if (!authWindow.isDestroyed()) authWindow.close();
       resolve({ authenticated: Boolean(sessionCookie) });
     };
-    authWindow.webContents.on('did-navigate', (_event, url) => { if (url.startsWith(process.env.FRONTEND_URL || 'http://localhost:5173')) void complete(); });
-    authWindow.on('closed', () => { if (!finished) { finished = true; resolve({ authenticated: false }); } });
+    authWindow.webContents.on('will-redirect', (_event, url) => {
+      if (url.startsWith(process.env.FRONTEND_URL || 'http://localhost:5173') || url.includes('/auth/github/callback')) {
+        setTimeout(() => void complete(), 600);
+      }
+    });
+    authWindow.webContents.on('did-navigate', (_event, url) => {
+      if (url.startsWith(process.env.FRONTEND_URL || 'http://localhost:5173')) {
+        void complete();
+      }
+    });
+    authWindow.on('closed', () => { if (!finished) { finished = true; resolve({ authenticated: Boolean(apiSessionToken) }); } });
   });
+});
+
+ipcMain.handle('auth:github-token', async (_, token) => {
+  if (typeof token !== 'string' || !token.trim()) throw new Error('Enter a valid GitHub Personal Access Token.');
+  const data = await apiJson('/auth/github/token', {
+    method: 'POST',
+    body: JSON.stringify({ token: token.trim() }),
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (data.session_token) {
+    apiSessionToken = data.session_token;
+  }
+  return { authenticated: true, user: data.user };
 });
 
 ipcMain.handle('auth:demo', async () => {
@@ -182,7 +198,15 @@ ipcMain.handle('auth:demo', async () => {
 });
 
 ipcMain.handle('auth:logout', async () => {
-  try { await apiJson('/auth/logout', { method: 'POST' }); } finally { apiSessionToken = ''; }
+  try {
+    await apiJson('/auth/purge', { method: 'POST' });
+    await apiJson('/auth/logout', { method: 'POST' });
+    await session.defaultSession.clearStorageData({ storages: ['cookies'] });
+  } catch {
+    /* ignore logout network errors */
+  } finally {
+    apiSessionToken = '';
+  }
   return { loggedOut: true };
 });
 
@@ -193,22 +217,38 @@ ipcMain.handle('workspace:clone', async (_, repositoryUrl) => {
   }
   const destination = workspaceRoot();
   let cloneUrl = repositoryUrl;
+  let isFork = false;
   try {
     const fork = await apiJson('/github/forks', { method: 'POST', body: JSON.stringify({ repository: `${match[1]}/${match[2]}` }), headers: { 'Content-Type': 'application/json' } });
-    cloneUrl = fork.clone_url;
+    if (fork && fork.clone_url) {
+      cloneUrl = fork.clone_url;
+      isFork = true;
+    }
   } catch (error) {
-    if (/public_repo|Connect GitHub|fork/i.test(error.message)) throw error;
+    throw new Error(error.message || 'Please click "Connect GitHub" before starting a challenge.');
   }
   const repositoryName = match[2];
   const target = path.join(path.resolve(destination), repositoryName);
   if (!isWithinRoot(target)) throw new Error('Invalid repository destination.');
   if (fs.existsSync(target)) {
-    if (isSafeWorkspace(target)) return { path: target, output: 'Using existing local clone.', reused: true };
+    if (isSafeWorkspace(target)) {
+      if (isFork) {
+        try {
+          await runGit(target, ['remote', 'set-url', 'origin', cloneUrl], `git remote set-url origin "${cloneUrl}"`);
+        } catch { /* ignore remote update error */ }
+      }
+      return { path: target, output: `Using local clone at ${target} (origin -> ${cloneUrl})`, reused: true };
+    }
     throw new Error('A non-Git folder already exists at the repository destination. Remove it or choose a different repository.');
   }
   try {
     const result = await execFileAsync('git', ['clone', '--', cloneUrl, target], { timeout: COMMAND_TIMEOUT_MS, maxBuffer: MAX_OUTPUT_BYTES, windowsHide: true });
     recordCommand(target, `git clone "${cloneUrl}"`, result.stdout.trim());
+    if (isFork) {
+      try {
+        await runGit(target, ['remote', 'set-url', 'origin', cloneUrl], `git remote set-url origin "${cloneUrl}"`);
+      } catch { /* ignore remote update error */ }
+    }
     return { path: target, output: result.stdout.trim() };
   } catch (error) {
     if (fs.existsSync(target)) fs.rmSync(target, { recursive: true, force: true });
@@ -225,11 +265,13 @@ ipcMain.handle('workspace:open', async (_, workspace) => {
 
 ipcMain.handle('workspace:open-vscode', async (_, workspace) => {
   if (!isSafeWorkspace(workspace)) throw new Error('Invalid SkillIssues workspace.');
+  const resolvedPath = path.resolve(workspace);
   try {
-    await execFileAsync('code', [path.resolve(workspace)], { timeout: 15000, windowsHide: true });
+    await execFileAsync('code', [resolvedPath], { timeout: 15000, windowsHide: true });
     return { opened: true };
   } catch {
-    throw new Error('VS Code command not found. Install VS Code and enable the `code` shell command.');
+    await shell.openPath(resolvedPath);
+    return { opened: true, fallback: true, message: 'VS Code command not found in system PATH. Opened workspace folder in Explorer instead.' };
   }
 });
 
@@ -247,6 +289,28 @@ ipcMain.handle('workspace:create-branch', async (_, workspace, branch) => {
 
 ipcMain.handle('workspace:push', async (_, workspace, branch) => {
   if (!validBranchName(branch)) throw new Error('Invalid branch name.');
+  const remote = await runGit(workspace, ['remote', 'get-url', 'origin'], 'git remote get-url origin');
+  if (!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?$/.test(remote.output.trim())) {
+    throw new Error('Push stopped: origin is not a public GitHub repository URL.');
+  }
+  const credentials = await apiJson('/github/git-token');
+  const auth = Buffer.from(`x-access-token:${credentials.token}`).toString('base64');
+  return runGit(workspace, ['-c', `http.extraheader=AUTHORIZATION: basic ${auth}`, 'push', '--set-upstream', 'origin', branch], `git push --set-upstream origin "${branch}"`);
+});
+
+ipcMain.handle('workspace:commit-and-push', async (_, workspace, branch, commitMessage) => {
+  if (!validBranchName(branch)) throw new Error('Invalid branch name.');
+  if (!isSafeWorkspace(workspace)) throw new Error('Invalid workspace.');
+  try {
+    const status = await runGit(workspace, ['status', '--porcelain'], 'git status --porcelain');
+    if (status.output.trim().length > 0) {
+      const msg = (commitMessage && commitMessage.trim()) || `SkillIssues: update for ${branch}`;
+      await runGit(workspace, ['add', '.'], 'git add .');
+      await runGit(workspace, ['commit', '-m', msg], `git commit -m "${msg}"`);
+    }
+  } catch {
+    /* proceed if commit not required */
+  }
   const remote = await runGit(workspace, ['remote', 'get-url', 'origin'], 'git remote get-url origin');
   if (!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?$/.test(remote.output.trim())) {
     throw new Error('Push stopped: origin is not a public GitHub repository URL.');
