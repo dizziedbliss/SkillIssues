@@ -474,26 +474,9 @@ def preferences(request: Request) -> dict[str, Any]:
     return {"interests": user["interests"], "preferred_languages": user["preferred_languages"]}
 
 
-LINGUIST_LANGUAGES_AND_FRAMEWORKS = [
-    "Python", "TypeScript", "JavaScript", "Go", "Rust", "C++", "C", "C#",
-    "Java", "Ruby", "PHP", "Swift", "Kotlin", "Dart", "HTML", "CSS", "Shell",
-    "Scala", "Elixir", "Haskell", "Lua", "React", "Vue", "Angular", "Svelte",
-    "Next.js", "Node.js", "Express", "FastAPI", "Django", "Flask", "Docker",
-    "Kubernetes", "PostgreSQL", "Redis", "GraphQL", "PyTorch", "TensorFlow", "Tailwind"
-]
-
-
-@app.get("/preferences/options")
-def preference_options() -> dict[str, list[str]]:
-    db_langs = [row["language"] for row in query("SELECT DISTINCT language FROM repositories WHERE language IS NOT NULL AND language != ''")]
-    all_options = list(dict.fromkeys(LINGUIST_LANGUAGES_AND_FRAMEWORKS + db_langs))
-    return {"options": all_options}
-
-
 @app.put("/preferences")
 def update_preferences(payload: ProfileUpdate, request: Request) -> dict[str, Any]:
     return update_profile(payload, request)
-
 
 
 def issue_query(where: str = "", params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
@@ -683,17 +666,11 @@ async def sync_issues_endpoint(request: Request) -> dict[str, Any]:
 
 @app.get("/issues")
 async def issues(request: Request, difficulty: str | None = Query(default=None), language: str | None = Query(default=None), search: str | None = Query(default=None), limit: int = Query(default=20, le=50)) -> list[dict[str, Any]]:
-    pref_langs: list[str] = []
-    user_name = ""
     try:
         user_id = authenticated_user_id(request)
         await sync_github_issues_for_user(user_id)
-        user = me(request)
-        pref_langs = [x.lower() for x in (user.get("preferred_languages") or [])]
-        user_name = (user.get("username") or "").lower()
     except Exception:
         pass
-
     where = "WHERE i.state = 'OPEN' AND (i.has_difficulty_label = true OR r.full_name = 'dizziedbliss/listtty')"
     params: tuple[Any, ...] = ()
     if difficulty:
@@ -703,28 +680,10 @@ async def issues(request: Request, difficulty: str | None = Query(default=None),
         where += " AND lower(r.language) = lower(%s)"
         params += (language,)
     if search:
-        where += " AND (i.title ILIKE %s OR i.body ILIKE %s OR r.full_name ILIKE %s OR r.language ILIKE %s OR %s = ANY(i.technologies) OR %s = ANY(i.learning_tags) OR %s = ANY(i.required_skills))"
+        where += " AND (i.title ILIKE %s OR i.body ILIKE %s OR r.full_name ILIKE %s)"
         term = f"%{search}%"
-        params += (term, term, term, term, search, search, search)
-
-    all_issues = issue_query(where, params)
-
-    if pref_langs:
-        filtered = []
-        for item in all_issues:
-            repo_full = (item.get("repository") or "").lower()
-            is_user_repo = repo_full == "dizziedbliss/listtty" or (user_name and repo_full.startswith(user_name + "/"))
-            item_lang = (item.get("language") or "").lower()
-            item_techs = {t.lower() for t in (item.get("technologies") or [])}
-            item_skills = {s.lower() for s in (item.get("required_skills") or [])}
-            item_tags = {g.lower() for g in (item.get("learning_tags") or [])}
-            
-            matches_pref = (item_lang in pref_langs) or bool(set(pref_langs) & (item_techs | item_skills | item_tags))
-            if is_user_repo or matches_pref:
-                filtered.append(item)
-        return filtered[:limit]
-
-    return all_issues[:limit]
+        params += (term, term, term)
+    return issue_query(where, params)[:limit]
 
 
 @app.get("/issues/{issue_id}")
@@ -768,14 +727,12 @@ async def recommendations(request: Request, limit: int = Query(default=3, le=50)
     interests = {x.lower() for x in (user.get("interests") or [])}
     target_map = {"BEGINNER": 1, "INTERMEDIATE": 3, "ADVANCED": 5}
     target = target_map.get(user.get("target_level", "INTERMEDIATE"), 3)
-    user_name = (user.get("username") or "").lower()
 
     if preferred_set:
         filtered = [
             item for item in candidates
             if (item.get("language") and item["language"].lower() in preferred_set)
             or bool(preferred_set & ({t.lower() for t in (item.get("technologies") or [])} | {s.lower() for s in (item.get("required_skills") or [])} | {g.lower() for g in (item.get("learning_tags") or [])}))
-            or (item.get("repository") and (item["repository"].lower() == "dizziedbliss/listtty" or (user_name and item["repository"].lower().startswith(user_name + "/"))))
         ]
         if filtered:
             candidates = filtered
@@ -789,7 +746,6 @@ async def recommendations(request: Request, limit: int = Query(default=3, le=50)
                 item for item in results
                 if (item.get("language") and item["language"].lower() in preferred_set)
                 or bool(preferred_set & ({t.lower() for t in (item.get("technologies") or [])} | {s.lower() for s in (item.get("required_skills") or [])} | {g.lower() for g in (item.get("learning_tags") or [])}))
-                or (item.get("repository") and (item["repository"].lower() == "dizziedbliss/listtty" or (user_name and item["repository"].lower().startswith(user_name + "/"))))
             ]
             if res_filtered:
                 results = res_filtered
@@ -916,34 +872,23 @@ BADGE_ICONS = {
 }
 
 
+LEVEL_STEP_XP = 500
+
+
 def calculate_level_info(total_xp: int) -> dict[str, int]:
     total_xp = max(0, int(total_xp or 0))
-    thresholds = [0]
-    curr = 0
-    for l in range(1, 100):
-        curr += 150 + (l * 150)
-        thresholds.append(curr)
-
-    level = 1
-    for i in range(len(thresholds) - 1):
-        if total_xp >= thresholds[i]:
-            level = i + 1
-        else:
-            break
-
-    min_xp = thresholds[level - 1]
-    max_xp = thresholds[level]
+    level = (total_xp // LEVEL_STEP_XP) + 1
+    min_xp = (level - 1) * LEVEL_STEP_XP
+    max_xp = level * LEVEL_STEP_XP
     progress_in_level = total_xp - min_xp
-    level_xp_required = max(1, max_xp - min_xp)
-    progress_percent = min(100, max(0, int((progress_in_level / level_xp_required) * 100)))
-
+    progress_percent = min(100, int((progress_in_level / LEVEL_STEP_XP) * 100))
     return {
         "level": level,
         "total_xp": total_xp,
         "current_level_min_xp": min_xp,
         "next_level_xp": max_xp,
         "progress_in_level": progress_in_level,
-        "level_xp_required": level_xp_required,
+        "level_xp_required": LEVEL_STEP_XP,
         "progress_percent": progress_percent
     }
 
@@ -1071,9 +1016,9 @@ def apply_merged_pr(pr_url: str) -> dict[str, Any]:
 
     issue_data = issue_rows[0] if issue_rows else {}
     difficulty = str(issue_data.get("difficulty") or "BEGINNER").upper()
-    base_xp = 50 if difficulty == "BEGINNER" else 100 if difficulty == "INTERMEDIATE" else 200
+    base_xp = 150 if difficulty == "BEGINNER" else 350 if difficulty == "INTERMEDIATE" else 600
 
-    bonus_xp = 25  # Merged bonus (+25)
+    bonus_xp = 100  # Merged bonus (+100)
     repo_id = issue_data.get("repository_id")
 
     prior_repos = query("""
@@ -1082,12 +1027,12 @@ def apply_merged_pr(pr_url: str) -> dict[str, Any]:
         WHERE c.user_id = %s AND c.state = 'PR_MERGED' AND i.repository_id = %s
     """, (user_id, repo_id))[0]["cnt"]
     if prior_repos <= 1:
-        bonus_xp += 15
+        bonus_xp += 50
 
     skills = issue_data.get("required_skills") or []
     techs = issue_data.get("technologies") or []
     if len(skills) > 1 or len(techs) > 1:
-        bonus_xp += 10
+        bonus_xp += 50
 
     earned_xp = base_xp + bonus_xp
 
