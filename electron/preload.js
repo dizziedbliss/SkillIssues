@@ -22,4 +22,6 @@ contextBridge.exposeInMainWorld("skillIssuesDesktop", {
     ipcRenderer.invoke("workspace:push", workspace, branch),
   commitAndPush: (workspace, branch, message) =>
     ipcRenderer.invoke("workspace:commit-and-push", workspace, branch, message),
+  onOpenDeepLink: (callback) =>
+    ipcRenderer.on("open-deeplink", (_event, url) => callback(url)),
 });

@@ -2,7 +2,6 @@ import { StrictMode, useEffect, useState } from "react";
 import {
   ArrowLeft,
   Bookmark,
-  Check,
   ExternalLink,
   Filter,
   MessageCircle,
@@ -26,9 +25,12 @@ type Issue = {
   comments: number;
   url: string;
   updated_at?: string;
+  author?: string;
 };
+
 type Profile = {
   username: string;
+  name?: string;
   avatar_url: string;
   bio: string;
   target_level: string;
@@ -43,6 +45,7 @@ type Profile = {
   badge_details?: { name: string; icon: string }[];
   progress_percent?: number;
 };
+
 type Contribution = {
   id: number;
   issue_id: number;
@@ -50,14 +53,17 @@ type Contribution = {
   title: string;
   repository: string;
   language: string;
+  difficulty?: string;
   state: string;
   pr_url: string | null;
   created_at: string;
   issue_url: string;
 };
+
 type View = "SkillIssues" | "Saved" | "Working" | "Submissions";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
 const languageIcons: Record<string, string> = {
   Python: "python",
   TypeScript: "typescript",
@@ -65,6 +71,7 @@ const languageIcons: Record<string, string> = {
   HTML: "html5",
   CSS: "css3",
 };
+
 const languageLogoBase =
   "https://raw.githubusercontent.com/abranhe/programming-languages-logos/master/src";
 
@@ -101,6 +108,14 @@ function daysAgo(value?: string) {
   const months = Math.floor(days / 30);
   return `${months}mo ago`;
 }
+
+function getXpForDifficulty(difficulty?: string) {
+  const d = (difficulty || "").toUpperCase();
+  if (d === "ADVANCED") return 250;
+  if (d === "INTERMEDIATE") return 140;
+  return 75;
+}
+
 function LanguageMark({ name }: { name: string }) {
   const icon = languageIcons[name];
   return icon ? (
@@ -131,7 +146,7 @@ function IssueCard({
   onToggleSave: () => void;
 }) {
   const author =
-    (issue as any).author ||
+    issue.author ||
     (issue.repository ? issue.repository.split("/")[0] : "open-source");
   const extraTechs = (issue.technologies || [])
     .filter(
@@ -139,15 +154,16 @@ function IssueCard({
         !issue.language || tech.toLowerCase() !== issue.language.toLowerCase(),
     )
     .slice(0, 2);
+
   return (
     <article
-      className="web-issue issue-card"
+      className="issue-card"
       onClick={(e) => {
         if (!(e.target as HTMLElement).closest("button")) onSelect();
       }}
     >
       <h2 className="issue-card-title">
-        {issue.title} #{issue.number}
+        #{issue.number} {issue.title}
       </h2>
       <div className="issue-card-repo">{issue.repository}</div>
       <div className="issue-card-bottom">
@@ -170,18 +186,18 @@ function IssueCard({
           ))}
         </div>
         <div className="pill-group-right">
-          <button className="view-issue-btn view-issue" onClick={onSelect}>
+          <button className="view-issue-btn" onClick={onSelect}>
             View Issue
           </button>
           <button
-            className={`save-icon-btn save ${saved ? "saved" : ""}`}
+            className={`save-icon-btn ${saved ? "saved" : ""}`}
             title={saved ? "Remove saved issue" : "Save issue"}
             onClick={(e) => {
               e.stopPropagation();
               onToggleSave();
             }}
           >
-            <Bookmark size={13} fill={saved ? "currentColor" : "none"} />
+            <Bookmark size={14} fill={saved ? "currentColor" : "none"} />
           </button>
         </div>
       </div>
@@ -215,43 +231,29 @@ function TokenLoginForm({ onLogin }: { onLogin: () => void }) {
 
   return (
     <main className="center login-screen">
-      <h1>SkillIssues</h1>
-      <p style={{ maxWidth: "420px", marginBottom: "20px", color: "#6f6578" }}>
-        Enter your GitHub Personal Access Token (PAT) with <code>repo</code>{" "}
-        scope to sync challenges, fork repos, and track contributions directly.
-      </p>
-      <form
-        onSubmit={(e) => void handleSubmit(e)}
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "12px",
-          width: "100%",
-          maxWidth: "360px",
-        }}
-      >
-        <input
-          type="password"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          placeholder="ghp_xxxxxxxxxxxxxxxxxxxx..."
-          style={{
-            padding: "10px 14px",
-            borderRadius: "8px",
-            border: "1px solid #af7ce8",
-            outline: "none",
-            fontSize: "14px",
-          }}
-        />
-        {err && (
-          <p style={{ color: "#d90429", fontSize: "12px", margin: "0" }}>
-            {err}
-          </p>
-        )}
-        <button type="submit" className="search-submit" disabled={loading}>
-          {loading ? "Connecting..." : "Connect with Token"}
-        </button>
-      </form>
+      <div className="login-card">
+        <div className="wordmark">
+          SkillIssues<span>You Have the Skills. We Have the Issues.</span>
+        </div>
+        <h1 className="login-title">Connect your account</h1>
+        <p className="login-desc">
+          Enter your GitHub Personal Access Token (PAT) with <code>repo</code>{" "}
+          scope to sync challenges, fork repos, and track contributions directly.
+        </p>
+        <form onSubmit={(e) => void handleSubmit(e)} className="login-form">
+          <input
+            type="password"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxx..."
+            className="login-input"
+          />
+          {err && <p className="login-error">{err}</p>}
+          <button type="submit" className="search-submit login-btn" disabled={loading}>
+            {loading ? "Connecting..." : "Connect with Token"}
+          </button>
+        </form>
+      </div>
     </main>
   );
 }
@@ -271,6 +273,7 @@ function App() {
   const [bio, setBio] = useState("");
   const [languages, setLanguages] = useState("");
   const [targetLevel, setTargetLevel] = useState("INTERMEDIATE");
+
   async function refresh() {
     try {
       const [user, personalized, saved, current, submitted] = await Promise.all(
@@ -299,6 +302,7 @@ function App() {
       else setError("Start the API with docker compose up --build.");
     }
   }
+
   async function search() {
     try {
       setIssues(
@@ -310,9 +314,11 @@ function App() {
       setError("Search failed.");
     }
   }
+
   useEffect(() => {
     void refresh();
   }, []);
+
   async function toggleSave(issue: Issue) {
     const isSaved = savedIssues.some((item) => item.id === issue.id);
     if (isSaved) {
@@ -328,20 +334,7 @@ function App() {
       setSavedIssues((current) => [...current, issue]);
     }
   }
-  async function solve() {
-    if (!selected) return;
-    try {
-      await request("/contributions", {
-        method: "POST",
-        body: JSON.stringify({ issue_id: selected.id }),
-      });
-      setSelected(null);
-      await refresh();
-      setView("Working");
-    } catch {
-      setError("Could not start tracking this challenge.");
-    }
-  }
+
   async function saveProfile() {
     if (!profile) return;
     try {
@@ -364,13 +357,17 @@ function App() {
       setError("Profile could not be saved.");
     }
   }
+
   if (error)
     return (
       <main className="center">
-        <h1>SkillIssues</h1>
-        <p>{error}</p>
+        <div className="login-card">
+          <h1>SkillIssues</h1>
+          <p>{error}</p>
+        </div>
       </main>
     );
+
   if (loginRequired)
     return (
       <TokenLoginForm
@@ -380,12 +377,14 @@ function App() {
         }}
       />
     );
+
   if (!profile)
     return (
       <main className="center">
-        <p>Loading your challenges...</p>
+        <p className="loading-text">Loading your challenges...</p>
       </main>
     );
+
   function renderMarkdown(md: string) {
     if (!md || !md.trim())
       return '<p class="empty-body">No issue description available.</p>';
@@ -490,6 +489,7 @@ function App() {
           SkillIssues<span>You Have the Skills. We Have the Issues.</span>
         </div>
       </header>
+
       <form
         className="web-search"
         onSubmit={(event) => {
@@ -497,26 +497,30 @@ function App() {
           void search();
         }}
       >
-        <Search size={15} />
+        <Search size={16} className="search-icon" />
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Issues on JavaScript"
+          placeholder="Search issues by keyword, technology, or repository..."
         />
-        <button
-          type="button"
-          onClick={() => {
-            setQuery("");
-            void refresh();
-          }}
-        >
-          clear
-        </button>
+        {query && (
+          <button
+            type="button"
+            className="clear-button"
+            onClick={() => {
+              setQuery("");
+              void refresh();
+            }}
+          >
+            clear
+          </button>
+        )}
         <button type="button" className="filter-button" title="Filter issues">
-          <Filter size={13} />
+          <Filter size={14} />
         </button>
         <button className="search-submit">Search</button>
       </form>
+
       <section className="web-grid">
         <div className="web-feed">
           <nav className="web-tabs">
@@ -541,18 +545,20 @@ function App() {
               ),
             )}
           </nav>
+
           <div className="feed-title">
             <h1>{view}</h1>
             <span>
               {view === "SkillIssues"
                 ? "Personalized for your current level and preferences"
                 : view === "Saved"
-                  ? "Challenges to do later"
+                  ? "Challenges saved for later"
                   : view === "Working"
                     ? "Repositories you are actively solving"
-                    : "Pull requests under review and completed"}
+                    : "Pull requests submitted and completed"}
             </span>
           </div>
+
           {view === "Working" ? (
             <WorkingList items={working} onRefresh={refresh} />
           ) : view === "Submissions" ? (
@@ -570,27 +576,31 @@ function App() {
                   />
                 ))
               ) : (
-                <p className="empty-feed">Nothing here yet.</p>
+                <div className="empty-feed">
+                  <p>Nothing found here yet.</p>
+                </div>
               )}
             </div>
           )}
         </div>
+
         <aside className="web-profile">
-          <img src={profile.avatar_url} alt={`${profile.username} profile`} />
-          <h2>{profile.username}</h2>
+          <img className="avatar" src={profile.avatar_url} alt={`${profile.username} profile`} />
+          <h2>{profile.name || profile.username}</h2>
           <p className="profile-handle">@{profile.username}</p>
           <p className="profile-quote">
-            {profile.bio || "Build your next contribution."}
+            {profile.bio || "Build your next open-source contribution."}
           </p>
-          <section>
+
+          <section className="profile-section">
             <label>
               Preferences{" "}
               <button
                 className="edit-button"
                 title="Edit profile"
-                onClick={() => setEditing(true)}
+                onClick={() => setEditing(!editing)}
               >
-                <Pencil size={13} />
+                <Pencil size={12} />
               </button>
             </label>
             <div className="profile-chips">
@@ -602,8 +612,51 @@ function App() {
               ))}
             </div>
           </section>
-          <section>
-            <label>Contribution badges</label>
+
+          {editing && (
+            <div className="profile-editor">
+              <label className="editor-label">Bio</label>
+              <textarea
+                value={bio}
+                onChange={(event) => setBio(event.target.value)}
+                placeholder="Short bio..."
+              />
+              <label className="editor-label">Preferred Languages</label>
+              <input
+                value={languages}
+                onChange={(event) => setLanguages(event.target.value)}
+                placeholder="TypeScript, Python..."
+              />
+              <label className="editor-label">Target Level</label>
+              <select
+                value={targetLevel}
+                onChange={(event) => setTargetLevel(event.target.value)}
+              >
+                <option>BEGINNER</option>
+                <option>INTERMEDIATE</option>
+                <option>ADVANCED</option>
+              </select>
+              <div className="editor-actions">
+                <button
+                  type="button"
+                  className="cancel-btn"
+                  onClick={() => setEditing(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="search-submit"
+                  onClick={() => void saveProfile()}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          )}
+
+          <section className="profile-section">
+            <label>Contribution Badges</label>
             <div className="profile-chips">
               <span>{profile.completed_count} verified</span>
               {profile.badge_details && profile.badge_details.length > 0
@@ -619,48 +672,24 @@ function App() {
                   ))}
             </div>
           </section>
+
           <div className="profile-level">
-            <span>
-              Level {profile.level || 1} · {profile.total_xp || 0} XP
-            </span>
-            <div>
-              <small>0%</small>
-              <i
+            <div className="profile-level-header">
+              <span>Level {profile.level || 1}</span>
+              <span>{profile.total_xp || 0} XP</span>
+            </div>
+            <div className="profile-level-bar">
+              <div
+                className="profile-level-fill"
                 style={{
                   width: `${profile.progress_percent ?? profile.progress_score ?? 0}%`,
                 }}
               />
-              <small>100%</small>
             </div>
           </div>
-          {editing && (
-            <div className="profile-editor">
-              <textarea
-                value={bio}
-                onChange={(event) => setBio(event.target.value)}
-              />
-              <input
-                value={languages}
-                onChange={(event) => setLanguages(event.target.value)}
-              />
-              <select
-                value={targetLevel}
-                onChange={(event) => setTargetLevel(event.target.value)}
-              >
-                <option>BEGINNER</option>
-                <option>INTERMEDIATE</option>
-                <option>ADVANCED</option>
-              </select>
-              <button
-                className="search-submit"
-                onClick={() => void saveProfile()}
-              >
-                Save
-              </button>
-            </div>
-          )}
         </aside>
       </section>
+
       {selected && (
         <div className="web-modal" role="dialog" aria-modal="true">
           <article className="web-modal-card issue-detail">
@@ -671,29 +700,43 @@ function App() {
             >
               <X size={18} />
             </button>
-            <button className="back-link" onClick={() => setSelected(null)}>
-              <ArrowLeft size={14} /> Back to issues
-            </button>
-            <span className={`difficulty ${selected.difficulty.toLowerCase()}`}>
-              {selected.difficulty}
-            </span>
-            <h2>
+
+            <div className="modal-header-nav">
+              <button className="back-link" onClick={() => setSelected(null)}>
+                <ArrowLeft size={14} /> Back to issues
+              </button>
+              <span className={`difficulty ${selected.difficulty.toLowerCase()}`}>
+                {selected.difficulty}
+              </span>
+            </div>
+
+            <h2 className="modal-title">
               #{selected.number} {selected.title}
             </h2>
-            <p className="modal-repo">
-              {selected.repository} · {selected.language}
-            </p>
-            <p className="issue-author">
-              {(selected as any).author || selected.repository.split("/")[0]} ·{" "}
-              {daysAgo(selected.updated_at)} · <MessageCircle size={11} />{" "}
-              {selected.comments || 0}
-            </p>
+
+            <div className="modal-meta-row">
+              <span>{selected.repository}</span>
+              <span>·</span>
+              <span>{selected.language}</span>
+              <span>·</span>
+              <span>
+                {selected.author || selected.repository.split("/")[0]}
+              </span>
+              <span>·</span>
+              <span>{daysAgo(selected.updated_at)}</span>
+              <span>·</span>
+              <span>
+                <MessageCircle size={11} /> {selected.comments || 0} comments
+              </span>
+            </div>
+
             <div
               className="detail-body markdown-body"
               dangerouslySetInnerHTML={{
                 __html: renderMarkdown(selected.body),
               }}
             />
+
             <div className="atom-row">
               {selected.required_skills.map((skill) => (
                 <span className="atom" key={skill}>
@@ -701,12 +744,19 @@ function App() {
                 </span>
               ))}
             </div>
+
             <div className="modal-actions">
-              <a href={selected.url} target="_blank" rel="noreferrer">
+              <a href={selected.url} target="_blank" rel="noreferrer" className="github-link">
                 Open issue on GitHub <ExternalLink size={13} />
               </a>
-              <button className="start-button" onClick={() => void solve()}>
-                Solve and track <Check size={14} />
+              <button
+                className="desktop-app-button"
+                onClick={() => {
+                  window.location.href = `skillissues://issue?id=${selected.id}`;
+                }}
+                title="Launch and solve this issue in SkillIssues Desktop App"
+              >
+                Open in Desktop App ↗
               </button>
             </div>
           </article>
@@ -727,84 +777,118 @@ function WorkingList({
     <div className="issue-feed">
       {items.length ? (
         items.map((item) => (
-          <article className="web-issue working-card" key={item.id}>
-            <div className="issue-main">
-              <div>
-                <h2>
-                  #{item.number} {item.title}
-                </h2>
-                <p>
-                  {item.repository} · {item.language}
-                </p>
+          <article className="issue-card working-card" key={item.id}>
+            <h2 className="issue-card-title">
+              #{item.number} {item.title}
+            </h2>
+            <div className="issue-card-repo">{item.repository}</div>
+            <div className="issue-card-bottom">
+              <div className="pill-group-left">
+                <span className="pill purple">Working</span>
+                <span className="pill purple">
+                  Started {daysAgo(item.created_at)}
+                </span>
               </div>
-              <span className="atom action">Working</span>
-            </div>
-            <div className="issue-meta">
-              <span className="atom">Cloned and tracking</span>
-              <button className="atom action" onClick={() => void onRefresh()}>
-                Refresh status
-              </button>
+              <div className="pill-group-middle">
+                <span className="pill light">
+                  <LanguageMark name={item.language || "Code"} />
+                  {item.language || "Code"}
+                </span>
+              </div>
+              <div className="pill-group-right">
+                <button
+                  className="view-issue-btn"
+                  onClick={() => void onRefresh()}
+                >
+                  Refresh status
+                </button>
+              </div>
             </div>
           </article>
         ))
       ) : (
-        <p className="empty-feed">
-          Solve an issue to start tracking a local workspace.
-        </p>
+        <div className="empty-feed">
+          <p>Solve an issue in the Desktop App to start tracking your workspace.</p>
+        </div>
       )}
     </div>
   );
 }
+
 function SubmissionList({ items }: { items: Contribution[] }) {
   return (
     <div className="issue-feed">
       {items.length ? (
-        items.map((item) => (
-          <article className="web-issue submission-card" key={item.id}>
-            <div className="issue-main">
-              <div>
-                <h2>
-                  #{item.number} {item.title}
-                </h2>
-                <p>
-                  {item.repository} · {item.language}
-                </p>
+        items.map((item) => {
+          const isMerged = item.state === "PR_MERGED";
+          const isClosed = item.state === "PR_CLOSED";
+          const xpEarned = getXpForDifficulty(item.difficulty);
+
+          const statusText = isMerged
+            ? `Accepted (+${xpEarned} XP) 🎉`
+            : isClosed
+              ? "Rejected ✖"
+              : "Review required ⏳";
+
+          const statusClass = isMerged
+            ? "accepted"
+            : isClosed
+              ? "rejected"
+              : "review";
+
+          return (
+            <article
+              className="issue-card submission-card"
+              key={item.id}
+            >
+              <h2 className="issue-card-title">
+                #{item.number} {item.title}
+              </h2>
+              <div className="issue-card-repo">{item.repository}</div>
+              <div className="issue-card-bottom">
+                <div className="pill-group-left">
+                  <span className={`pill status-pill ${statusClass}`}>
+                    {statusText}
+                  </span>
+                  <span className="pill purple">
+                    Submitted {daysAgo(item.created_at)}
+                  </span>
+                </div>
+                <div className="pill-group-middle">
+                  <span className="pill light">
+                    <LanguageMark name={item.language || "Code"} />
+                    {item.language || "Code"}
+                  </span>
+                </div>
+                <div className="pill-group-right">
+                  {item.pr_url && (
+                    <a
+                      className="view-issue-btn"
+                      href={item.pr_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View PR <ExternalLink size={11} />
+                    </a>
+                  )}
+                  <a
+                    className="save-icon-btn"
+                    href={item.issue_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="View issue on GitHub"
+                  >
+                    <ExternalLink size={14} />
+                  </a>
+                </div>
               </div>
-              <span
-                className={`submission-label ${item.state === "PR_MERGED" ? "accepted" : item.state === "PR_CLOSED" ? "rejected" : "review"}`}
-              >
-                {item.state === "PR_MERGED"
-                  ? "Accepted"
-                  : item.state === "PR_CLOSED"
-                    ? "Rejected"
-                    : "Review required"}
-              </span>
-            </div>
-            <div className="issue-meta">
-              <span className="atom">Submitted {daysAgo(item.created_at)}</span>
-              {item.pr_url && (
-                <a
-                  className="atom action"
-                  href={item.pr_url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  View submission <ExternalLink size={11} />
-                </a>
-              )}
-              <a
-                className="atom"
-                href={item.issue_url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                View issue
-              </a>
-            </div>
-          </article>
-        ))
+            </article>
+          );
+        })
       ) : (
-        <p className="empty-feed">Submit a pull request to see it here.</p>
+        <div className="empty-feed">
+          <p>Submit a pull request to see your contribution status here.</p>
+        </div>
       )}
     </div>
   );

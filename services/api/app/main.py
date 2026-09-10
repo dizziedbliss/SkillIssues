@@ -66,6 +66,7 @@ def initialize_database() -> None:
             cursor.execute("ALTER TABLE issues ADD COLUMN IF NOT EXISTS has_difficulty_label BOOLEAN NOT NULL DEFAULT false;")
             cursor.execute("ALTER TABLE issues ADD COLUMN IF NOT EXISTS author TEXT;")
             cursor.execute("ALTER TABLE contributions ADD COLUMN IF NOT EXISTS xp_awarded BOOLEAN NOT NULL DEFAULT false;")
+            cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT;")
             cursor.execute(seed)
             cursor.execute("UPDATE issues SET has_difficulty_label = true WHERE github_id IN (2001, 2002, 2003, 999002) OR repository_id IN (SELECT id FROM repositories WHERE full_name = 'dizziedbliss/listtty');")
             cursor.execute("UPDATE issues SET author = split_part((SELECT full_name FROM repositories WHERE repositories.id = issues.repository_id), '/', 1) WHERE author IS NULL OR author = '';")
@@ -151,10 +152,10 @@ def demo_login(response: Response) -> dict[str, Any]:
     if not DEMO_MODE:
         raise HTTPException(404, "Demo authentication is disabled")
     user = query("""
-        INSERT INTO users (github_id, username, avatar_url)
-        VALUES ('demo-1', 'alex-dev', 'https://github.com/identicons/alex-dev.png')
-        ON CONFLICT (github_id) DO UPDATE SET username = EXCLUDED.username
-        RETURNING id, username, avatar_url
+        INSERT INTO users (github_id, username, name, avatar_url)
+        VALUES ('demo-1', 'alex-dev', 'Alex Dev', 'https://github.com/identicons/alex-dev.png')
+        ON CONFLICT (github_id) DO UPDATE SET username = EXCLUDED.username, name = EXCLUDED.name
+        RETURNING id, username, name, avatar_url
     """)[0]
     execute("INSERT INTO developer_profiles (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user["id"],))
     execute("INSERT INTO developer_preferences (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user["id"],))
@@ -241,9 +242,10 @@ async def github_token_login(payload: TokenAuthRequest, response: Response) -> d
                 pass
             raise HTTPException(401, err_msg)
         github_user = user_response.json()
-    user = query("""INSERT INTO users (github_id, username, avatar_url, github_access_token) VALUES (%s, %s, %s, %s)
-        ON CONFLICT (github_id) DO UPDATE SET username = EXCLUDED.username, avatar_url = EXCLUDED.avatar_url, github_access_token = EXCLUDED.github_access_token
-        RETURNING id, username, avatar_url""", (str(github_user["id"]), github_user["login"], github_user.get("avatar_url"), token))[0]
+        display_name = github_user.get("name") or github_user["login"]
+    user = query("""INSERT INTO users (github_id, username, name, avatar_url, github_access_token) VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (github_id) DO UPDATE SET username = EXCLUDED.username, name = EXCLUDED.name, avatar_url = EXCLUDED.avatar_url, github_access_token = EXCLUDED.github_access_token
+        RETURNING id, username, name, avatar_url""", (str(github_user["id"]), github_user["login"], display_name, github_user.get("avatar_url"), token))[0]
     execute("UPDATE users SET github_access_token = %s WHERE id = %s", (token, user["id"]))
     execute("INSERT INTO developer_profiles (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user["id"],))
     execute("INSERT INTO developer_preferences (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user["id"],))
@@ -278,9 +280,10 @@ async def github_callback(request: Request, code: str | None = None, state: str 
         user_response = await client.get("https://api.github.com/user", headers={"Authorization": f"Bearer {access_token}", "Accept": "application/vnd.github+json"})
         user_response.raise_for_status()
         github_user = user_response.json()
-    user = query("""INSERT INTO users (github_id, username, avatar_url, github_access_token) VALUES (%s, %s, %s, %s)
-        ON CONFLICT (github_id) DO UPDATE SET username = EXCLUDED.username, avatar_url = EXCLUDED.avatar_url, github_access_token = EXCLUDED.github_access_token
-        RETURNING id, username, avatar_url""", (str(github_user["id"]), github_user["login"], github_user.get("avatar_url"), access_token))[0]
+        display_name = github_user.get("name") or github_user["login"]
+    user = query("""INSERT INTO users (github_id, username, name, avatar_url, github_access_token) VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (github_id) DO UPDATE SET username = EXCLUDED.username, name = EXCLUDED.name, avatar_url = EXCLUDED.avatar_url, github_access_token = EXCLUDED.github_access_token
+        RETURNING id, username, name, avatar_url""", (str(github_user["id"]), github_user["login"], display_name, github_user.get("avatar_url"), access_token))[0]
     execute("UPDATE users SET github_access_token = %s WHERE id = %s", (access_token, user["id"]))
     execute("INSERT INTO developer_profiles (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user["id"],))
     execute("INSERT INTO developer_preferences (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user["id"],))
@@ -852,7 +855,7 @@ def start_contribution(payload: ContributionStart, request: Request) -> dict[str
 def contributions(request: Request) -> list[dict[str, Any]]:
     user_id = authenticated_user_id(request)
     return query("""
-        SELECT c.*, i.title, i.number, i.url AS issue_url, i.required_skills, i.technologies,
+        SELECT c.*, i.title, i.number, i.difficulty, i.url AS issue_url, i.required_skills, i.technologies,
                i.updated_at AS issue_updated_at, r.full_name AS repository, r.language
         FROM contributions c
         JOIN issues i ON i.id = c.issue_id JOIN repositories r ON r.id = i.repository_id
@@ -1036,7 +1039,7 @@ def me(request: Request) -> dict[str, Any]:
     """, (total_xp, lvl_info["level"], lvl_info["progress_percent"], completed_cnt, earned_badges, user_id))
 
     rows = query("""
-        SELECT u.id, u.username, u.avatar_url, p.experience_level, p.target_level,
+        SELECT u.id, u.username, COALESCE(u.name, u.username) AS name, u.avatar_url, p.experience_level, p.target_level,
                p.progress_score, p.completed_count, p.bio, p.demonstrated_skills,
                p.total_xp, p.level, p.badges,
                pref.interests, pref.preferred_languages

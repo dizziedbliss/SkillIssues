@@ -346,6 +346,24 @@ body {
   color: #211529;
   cursor: pointer;
 }
+.tag.status-pill.status-accepted {
+  background: #d8f3dc !important;
+  border: 1px solid #74c69d !important;
+  color: #1b4332 !important;
+  font-weight: 700 !important;
+}
+.tag.status-pill.status-rejected {
+  background: #ffe3e3 !important;
+  border: 1px solid #ff8787 !important;
+  color: #b71540 !important;
+  font-weight: 700 !important;
+}
+.tag.status-pill.status-review {
+  background: #fff3bf !important;
+  border: 1px solid #ffd43b !important;
+  color: #5c3900 !important;
+  font-weight: 700 !important;
+}
 .save {
   border: 0;
   background: transparent;
@@ -355,11 +373,12 @@ body {
   padding: 0;
 }
 .profile-rail {
-  position: relative;
+  position: sticky;
+  top: 20px;
+  align-self: start;
   border: 1px solid #450d82;
   border-radius: 8px;
   background: #e6d0fa;
-  min-height: 454px;
   padding: 20px 13px;
 }
 .avatar {
