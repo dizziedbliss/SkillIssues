@@ -34,8 +34,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Docker Buildx
-        uses: actions/setup-buildx-action@v3
       - name: Validate Docker Compose Configuration
         run: |
           docker compose config
