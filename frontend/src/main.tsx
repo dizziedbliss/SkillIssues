@@ -1,3 +1,14 @@
+/**
+ * @file SkillIssues React Web Dashboard
+ *
+ * Root component and state container for the web dashboard:
+ * - Issue catalog exploration, full-text search, and multi-filter controls (language, difficulty, sort)
+ * - User profile sidebar: Level progression, XP bar, achievement badges, and bio editor
+ * - Challenge bookmarks (Saved challenges tab)
+ * - Active contributions and submission history
+ * - GitHub Personal Access Token (PAT) authentication modal
+ */
+
 import { StrictMode, useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -10,6 +21,9 @@ import {
 } from "lucide-react";
 import "./styles.css";
 
+// ==============================================================================
+// Type Definitions
+// ==============================================================================
 type Issue = {
   id: number;
   number: number;
