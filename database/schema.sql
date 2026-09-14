@@ -1,3 +1,16 @@
+-- ==============================================================================
+-- SkillIssues PostgreSQL Database Schema
+--
+-- This schema manages authentication, user profiles, developer preferences,
+-- GitHub repositories, open-source issues catalog, user contributions/PRs,
+-- bookmarking, and background sync states.
+-- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 1. Authentication & Users
+-- ------------------------------------------------------------------------------
+
+-- Core user account record linked to GitHub identity
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   github_id TEXT UNIQUE,
@@ -7,6 +20,8 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE users ADD COLUMN IF NOT EXISTS github_access_token TEXT;
+
+-- Active user sessions (hashed bearer tokens with 7-day expiration)
 CREATE TABLE IF NOT EXISTS auth_sessions (
   token TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -14,6 +29,8 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
   expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '7 days'),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Ephemeral state storage for GitHub OAuth PKCE verification
 CREATE TABLE IF NOT EXISTS oauth_states (
   state TEXT PRIMARY KEY,
   code_verifier TEXT NOT NULL,
@@ -21,6 +38,12 @@ CREATE TABLE IF NOT EXISTS oauth_states (
   expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '10 minutes'),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ------------------------------------------------------------------------------
+-- 2. Developer Profiles & Preferences
+-- ------------------------------------------------------------------------------
+
+-- Progression tracking, XP accumulation, levels, and unlocked achievement badges
 CREATE TABLE IF NOT EXISTS developer_profiles (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   bio TEXT DEFAULT '',
@@ -33,11 +56,19 @@ CREATE TABLE IF NOT EXISTS developer_profiles (
   level INTEGER NOT NULL DEFAULT 1,
   badges TEXT[] NOT NULL DEFAULT '{}'
 );
+
+-- Recommendation filters (interests and preferred programming languages)
 CREATE TABLE IF NOT EXISTS developer_preferences (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   interests TEXT[] NOT NULL DEFAULT '{}',
   preferred_languages TEXT[] NOT NULL DEFAULT '{}'
 );
+
+-- ------------------------------------------------------------------------------
+-- 3. Repositories & Open-Source Issues Catalog
+-- ------------------------------------------------------------------------------
+
+-- Tracked public GitHub open-source repositories
 CREATE TABLE IF NOT EXISTS repositories (
   id SERIAL PRIMARY KEY,
   github_id BIGINT UNIQUE,
@@ -52,6 +83,8 @@ CREATE TABLE IF NOT EXISTS repositories (
   last_synced_at TIMESTAMPTZ
 );
 ALTER TABLE repositories ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ;
+
+-- Curated open-source issues with difficulty scoring and skill tags
 CREATE TABLE IF NOT EXISTS issues (
   id SERIAL PRIMARY KEY,
   github_id BIGINT UNIQUE,
@@ -71,12 +104,20 @@ CREATE TABLE IF NOT EXISTS issues (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(repository_id, number)
 );
+
+-- User bookmarked / saved challenges
 CREATE TABLE IF NOT EXISTS saved_issues (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   issue_id INTEGER NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, issue_id)
 );
+
+-- ------------------------------------------------------------------------------
+-- 4. User Contributions & PR Verification
+-- ------------------------------------------------------------------------------
+
+-- Active and completed challenge contributions linked to GitHub PRs
 CREATE TABLE IF NOT EXISTS contributions (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -91,6 +132,12 @@ CREATE TABLE IF NOT EXISTS contributions (
   UNIQUE(user_id, issue_id)
 );
 ALTER TABLE contributions ADD COLUMN IF NOT EXISTS xp_awarded BOOLEAN NOT NULL DEFAULT false;
+
+-- ------------------------------------------------------------------------------
+-- 5. Background Sync Pipeline & Webhooks
+-- ------------------------------------------------------------------------------
+
+-- Sync metadata and rate-limit tracking for catalog ingestion
 CREATE TABLE IF NOT EXISTS sync_state (
   repository_id INTEGER PRIMARY KEY REFERENCES repositories(id) ON DELETE CASCADE,
   last_synced_at TIMESTAMPTZ,
@@ -104,11 +151,18 @@ CREATE TABLE IF NOT EXISTS sync_state (
 ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS rate_limit_limit INTEGER;
 ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS rate_limit_used INTEGER;
 ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS rate_limit_cost INTEGER;
+
+-- Deduplication log for GitHub webhook deliveries
 CREATE TABLE IF NOT EXISTS webhook_events (
   delivery_id TEXT PRIMARY KEY,
   event_name TEXT NOT NULL,
   processed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ------------------------------------------------------------------------------
+-- 6. Indexes for High-Performance Queries & Full-Text Filters
+-- ------------------------------------------------------------------------------
+
 CREATE INDEX IF NOT EXISTS issues_difficulty_idx ON issues(difficulty);
 CREATE INDEX IF NOT EXISTS issues_updated_idx ON issues(updated_at);
 CREATE INDEX IF NOT EXISTS issues_state_idx ON issues(state);
