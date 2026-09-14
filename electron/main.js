@@ -1,3 +1,11 @@
+/**
+ * @file SkillIssues Electron Main Process
+ *
+ * Manages the desktop window lifecycle, secure sandboxed Git operations,
+ * local workspace isolation in ~/Documents/SkillIssues, protocol deep linking,
+ * and authenticated API communications.
+ */
+
 const { app, BrowserWindow, ipcMain, shell, session } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -5,6 +13,11 @@ const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 
 const execFileAsync = promisify(execFile);
+
+// ==============================================================================
+// Configuration & Security Constants
+// ==============================================================================
+
 const GITHUB_REPOSITORY_URL =
   /^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/;
 const SAFE_EXTERNAL_URL = /^https:\/\/(?:github\.com|www\.github\.com)(?:\/|$)/;
@@ -13,12 +26,31 @@ const MAX_OUTPUT_BYTES = 1024 * 1024;
 const API_URL = process.env.SKILLISSUES_API_URL || "http://localhost:8000";
 let apiSessionToken = "";
 
+// Enforce single-instance lock to prevent concurrent conflicting processes
+if (!app.requestSingleInstanceLock()) {
+  process.exit(0);
+}
+
+// ==============================================================================
+// Error Handling & Git Diagnostics
+// ==============================================================================
+
+/**
+ * Log runtime exceptions with diagnostic context.
+ * @param {string} scope - Context or subsystem identifier
+ * @param {any} error - Exception object or message
+ */
 function logRuntimeError(scope, error) {
   const message =
     error instanceof Error ? error.stack || error.message : String(error);
   console.error(`[${scope}] ${message}`);
 }
 
+/**
+ * Translate raw Git stderr output into clear, actionable advice for developers.
+ * @param {any} error - Git process error object
+ * @returns {string} Human-friendly error description
+ */
 function friendlyGitError(error) {
   const raw = error.stderr?.trim() || "";
   if (/403|permission to .* denied|unable to access/i.test(raw)) {
@@ -32,7 +64,18 @@ function friendlyGitError(error) {
   );
 }
 
-async function apiRequest(pathname, options = {}, retry = true) {
+// ==============================================================================
+// Authenticated API Proxying
+// ==============================================================================
+
+/**
+ * Send an authenticated HTTP request to the SkillIssues backend API.
+ * Automatically manages session token persistence from cookies/headers.
+ * @param {string} pathname - API endpoint path
+ * @param {RequestInit} [options] - Fetch configuration options
+ * @returns {Promise<Response>}
+ */
+async function apiRequest(pathname, options = {}) {
   const headers = { Accept: "application/json", ...(options.headers || {}) };
   if (apiSessionToken) headers.Authorization = `Bearer ${apiSessionToken}`;
   const response = await fetch(`${API_URL}${pathname}`, {
@@ -45,6 +88,12 @@ async function apiRequest(pathname, options = {}, retry = true) {
   return response;
 }
 
+/**
+ * Perform an API request and parse JSON payload, throwing descriptive errors on failure.
+ * @param {string} pathname - API endpoint path
+ * @param {RequestInit} [options] - Fetch configuration options
+ * @returns {Promise<any>} Parsed response data
+ */
 async function apiJson(pathname, options = {}) {
   const response = await apiRequest(pathname, options);
   const body = await response.text();
@@ -59,10 +108,16 @@ async function apiJson(pathname, options = {}) {
   return data;
 }
 
-if (!app.requestSingleInstanceLock()) {
-  process.exit(0);
-}
+// ==============================================================================
+// Workspace Sandboxing & Safe Git Execution
+// ==============================================================================
 
+/**
+ * Append executed Git commands and diagnostic logs to `.skillissues/commands.log`.
+ * @param {string} workspace - Local repository workspace path
+ * @param {string} command - Git command string representation
+ * @param {string} [output] - Command output or error text
+ */
 function recordCommand(workspace, command, output = "") {
   const logDirectory = path.join(workspace, ".skillissues");
   fs.mkdirSync(logDirectory, { recursive: true });
@@ -73,20 +128,36 @@ function recordCommand(workspace, command, output = "") {
   );
 }
 
+/**
+ * Validate branch names to prevent command injection and ensure Git ref compliance.
+ * Allows letters, digits, '.', '_', '/', '#', and '-' up to 80 characters.
+ * @param {string} branch - Proposed branch name
+ * @returns {boolean}
+ */
 function validBranchName(branch) {
   return (
     typeof branch === "string" &&
-    /^[A-Za-z0-9][A-Za-z0-9._/-]{0,80}$/.test(branch) &&
+    /^[A-Za-z0-9][A-Za-z0-9._/#-]{0,80}$/.test(branch) &&
     !branch.includes("..")
   );
 }
 
+/**
+ * Resolve the designated workspace root directory (`~/Documents/SkillIssues`).
+ * @returns {string} Absolute path to workspace root
+ */
 function workspaceRoot() {
   const root = path.join(app.getPath("documents"), "SkillIssues");
   fs.mkdirSync(root, { recursive: true });
   return root;
 }
 
+/**
+ * Ensure a candidate directory path is strictly located within the designated workspace root.
+ * Prevents directory traversal attacks (`..`).
+ * @param {string} candidate - Directory path to verify
+ * @returns {boolean}
+ */
 function isWithinRoot(candidate) {
   const root = fs.realpathSync.native(workspaceRoot());
   let resolved;
@@ -98,6 +169,28 @@ function isWithinRoot(candidate) {
   return resolved === root || resolved.startsWith(`${root}${path.sep}`);
 }
 
+/**
+ * Validate that a workspace path exists, is a directory, and is confined to the safe root.
+ * @param {string} workspace - Candidate workspace path
+ * @returns {boolean}
+ */
+function isSafeWorkspace(workspace) {
+  if (typeof workspace !== "string" || workspace.length === 0) return false;
+  const resolved = path.resolve(workspace);
+  return (
+    isWithinRoot(resolved) &&
+    fs.existsSync(resolved) &&
+    fs.lstatSync(resolved).isDirectory()
+  );
+}
+
+/**
+ * Execute a bounded Git command in the given safe workspace.
+ * @param {string} workspace - Workspace directory
+ * @param {string[]} args - Argument list passed to git CLI
+ * @param {string} command - Human-readable command description for logging
+ * @returns {Promise<{path: string, output: string}>}
+ */
 async function runGit(workspace, args, command) {
   if (!isSafeWorkspace(workspace))
     return Promise.reject(
@@ -122,19 +215,14 @@ async function runGit(workspace, args, command) {
   }
 }
 
-function isSafeWorkspace(workspace) {
-  if (typeof workspace !== "string" || workspace.length === 0) return false;
-  const resolved = path.resolve(workspace);
-  return (
-    isWithinRoot(resolved) &&
-    fs.existsSync(resolved) &&
-    fs.lstatSync(resolved).isDirectory()
-  );
-}
+// ==============================================================================
+// Window Management & Protocol Handling
+// ==============================================================================
 
 let mainWindow = null;
 let pendingDeepLinkUrl = null;
 
+// Register custom URL protocol client for deep linking (skillissues://)
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
     app.setAsDefaultProtocolClient("skillissues", process.execPath, [
@@ -154,6 +242,10 @@ function sendDeepLinkToWindow(url) {
   }
 }
 
+/**
+ * Create and configure the primary application window with strict security defaults.
+ * @returns {BrowserWindow}
+ */
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1100,
@@ -171,6 +263,7 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
     },
   });
+
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
     if (pendingDeepLinkUrl) {
@@ -178,16 +271,24 @@ function createWindow() {
       pendingDeepLinkUrl = null;
     }
   });
+
+  // Confine external link clicks to GitHub URLs opened in the system default browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (SAFE_EXTERNAL_URL.test(url)) void shell.openExternal(url);
     return { action: "deny" };
   });
+
   mainWindow.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith("file://")) event.preventDefault();
   });
+
   mainWindow.loadFile(path.join(__dirname, "renderer.html"));
   return mainWindow;
 }
+
+// ==============================================================================
+// IPC Handlers: Workspace Inspection & Resolution
+// ==============================================================================
 
 ipcMain.handle("workspace:inspect", async (_, workspace) => {
   if (!isSafeWorkspace(workspace))
@@ -228,6 +329,10 @@ ipcMain.handle("api:request", async (_, pathname, options = {}) => {
     throw new Error("Invalid API path.");
   return apiJson(pathname, options);
 });
+
+// ==============================================================================
+// IPC Handlers: Authentication
+// ==============================================================================
 
 ipcMain.handle("auth:github", async () => {
   const loginResponse = await fetch(`${API_URL}/auth/github`, {
@@ -314,6 +419,10 @@ ipcMain.handle("auth:logout", async () => {
   }
   return { loggedOut: true };
 });
+
+// ==============================================================================
+// IPC Handlers: Repository Cloning & Workspace Launchers
+// ==============================================================================
 
 ipcMain.handle("workspace:clone", async (_, repositoryUrl) => {
   const match =
@@ -433,6 +542,7 @@ ipcMain.handle("workspace:open-vscode", async (_, workspace) => {
   const programFilesX86 =
     process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
 
+  // Standard platform binary candidates for Microsoft VS Code
   const candidates = [
     { bin: "code.cmd", options: { shell: true } },
     { bin: "code", options: { shell: process.platform === "win32" } },
@@ -478,10 +588,11 @@ ipcMain.handle("workspace:open-vscode", async (_, workspace) => {
       });
       return { opened: true, message: `Opened ${target} in VS Code.` };
     } catch {
-      // try next candidate
+      // Continue to next executable candidate
     }
   }
 
+  // Fallback to opening folder in system file explorer if VS Code executable is missing
   await shell.openPath(target);
   return {
     opened: true,
@@ -489,6 +600,10 @@ ipcMain.handle("workspace:open-vscode", async (_, workspace) => {
     message: `VS Code binary not found in standard paths. Opened ${target} in File Explorer.`,
   };
 });
+
+// ==============================================================================
+// IPC Handlers: Git Branch & Push Operations
+// ==============================================================================
 
 ipcMain.handle("workspace:create-branch", async (_, workspace, branch) => {
   if (!validBranchName(branch))
@@ -498,12 +613,12 @@ ipcMain.handle("workspace:create-branch", async (_, workspace, branch) => {
   try {
     return await runGit(
       workspace,
-      ["switch", "-c", "--", branch],
+      ["switch", "-c", branch],
       `git switch -c "${branch}"`,
     );
   } catch (error) {
     if (/branch .* already exists/i.test(error.message)) {
-      return runGit(workspace, ["switch", "--", branch], `git switch "${branch}"`);
+      return runGit(workspace, ["switch", branch], `git switch "${branch}"`);
     }
     throw error;
   }
@@ -537,7 +652,6 @@ ipcMain.handle("workspace:push", async (_, workspace, branch) => {
       "push",
       "--set-upstream",
       "origin",
-      "--",
       branch,
     ],
     `git push --set-upstream origin "${branch}"`,
@@ -602,12 +716,17 @@ ipcMain.handle(
   },
 );
 
+// ==============================================================================
+// App Lifecycle & Process Event Listeners
+// ==============================================================================
+
 app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler(
     (_webContents, _permission, callback) => callback(false),
   );
   createWindow();
 });
+
 process.on("uncaughtException", (error) =>
   logRuntimeError("main:uncaughtException", error),
 );
@@ -617,6 +736,8 @@ process.on("unhandledRejection", (error) =>
 app.on("render-process-gone", (_event, _webContents, details) =>
   logRuntimeError("renderer:gone", details),
 );
+
+// Handle second instance activation (focus existing window and pass deep link)
 app.on("second-instance", (event, commandLine) => {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
@@ -627,6 +748,8 @@ app.on("second-instance", (event, commandLine) => {
   );
   if (deepLink) sendDeepLinkToWindow(deepLink);
 });
+
+// macOS protocol open-url handler
 app.on("open-url", (event, url) => {
   event.preventDefault();
   if (mainWindow) {
@@ -635,6 +758,7 @@ app.on("open-url", (event, url) => {
   }
   sendDeepLinkToWindow(url);
 });
+
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });

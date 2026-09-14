@@ -1,14 +1,28 @@
+/**
+ * @file SkillIssues Electron Renderer Script
+ *
+ * Drives the desktop user interface, managing:
+ * - Reactive state: issue catalog, saved bookmarks, active working workspaces, submissions
+ * - View routing: Explore / Saved / Working / Submissions / Settings tabs
+ * - Challenge lifecycle: Issue inspection -> Fork & Clone -> Branch Creation -> VS Code Launcher -> Commit & Push -> PR Verification
+ * - IPC bridge communication with the Electron main process (window.skillIssuesDesktop)
+ */
+
 const API = "http://localhost:8000";
-let selected = null;
-let contributionId = null;
-let destination = "";
-let issues = [];
-let savedIssues = [];
-let working = [];
-let submissions = [];
-let activeTab = "all";
-let difficultyFilter = "";
-let sortFilter = "recommended";
+
+// ==============================================================================
+// Application State
+// ==============================================================================
+let selected = null;            // Currently inspected issue object
+let contributionId = null;      // Active contribution ID for the selected challenge
+let destination = "";           // Resolved local filesystem path to workspace
+let issues = [];                // Active challenge catalog issues
+let savedIssues = [];           // Bookmarked challenge issues
+let working = [];               // Active working contributions with cloned workspaces
+let submissions = [];           // Submitted and verified contributions
+let activeTab = "all";          // Current catalog filter tab: "all" | "recommended" | "saved"
+let difficultyFilter = "";      // Difficulty filter: "" | "BEGINNER" | "INTERMEDIATE" | "ADVANCED"
+let sortFilter = "recommended"; // Catalog sort mode: "recommended" | "stars" | "recent"
 const el = (id) => document.getElementById(id);
 
 async function api(path, options = {}) {
@@ -159,23 +173,6 @@ function updateProfileUI(profile) {
 function showLevelUpToast(xpInfo) {
   if (!xpInfo) return;
   updateProfileUI(xpInfo);
-  const existing = document.querySelector(".level-up-toast");
-  if (existing) existing.remove();
-  const toast = document.createElement("div");
-  toast.className = "level-up-toast";
-  const lvlUp = xpInfo.level_up
-    ? `⚡ LEVEL UP TO LEVEL ${xpInfo.level}! ⚡`
-    : `+${xpInfo.earned_xp} XP Gained!`;
-  const badgeUnlocked =
-    xpInfo.unlocked_badges && xpInfo.unlocked_badges.length
-      ? `<p style="margin-top:6px;">Unlocking Badge: <b>${xpInfo.unlocked_badges.join(", ")}</b>!</p>`
-      : "";
-  const hardText = xpInfo.level_up
-    ? `<p style="margin-top:4px; font-size:11px; opacity:0.9;">“You've unlocked harder challenges & recommendations.”</p>`
-    : "";
-  toast.innerHTML = `<h4>${lvlUp}</h4><p>Total XP: <b>${(xpInfo.total_xp || 0).toLocaleString()} XP</b></p>${badgeUnlocked}${hardText}`;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 6000);
 }
 
 async function loadIssues(query = "") {
@@ -406,7 +403,7 @@ function renderWorking() {
             comments: 0,
           };
           selectIssue(selected);
-          el("branch").value = `skillissues/issue-#${item.number || item.id}`;
+          el("branch").value = `skillissues/issue-${item.number || item.id}`;
           el("start-challenge").hidden = true;
           el("clone-handoff").hidden = false;
           el("git-actions").hidden = false;
@@ -654,7 +651,7 @@ async function startChallenge() {
       body: JSON.stringify({ issue_id: selected.id }),
     });
     contributionId = contribution.id;
-    const branchName = `skillissues/issue-#${selected.number || selected.id}`;
+    const branchName = `skillissues/issue-${selected.number || selected.id}`;
     el("branch").value = branchName;
     const result = await window.skillIssuesDesktop.cloneRepository(
       selected.repository_url,
@@ -735,22 +732,7 @@ function showRunnerProgress(visible) {
 }
 
 function showToast(message, isError = false) {
-  if (!message) return;
-  let container = document.querySelector(".app-toast-container");
-  if (!container) {
-    container = document.createElement("div");
-    container.className = "app-toast-container";
-    document.body.appendChild(container);
-  }
-  const toast = document.createElement("div");
-  toast.className = `app-toast${isError ? " error" : ""}`;
-  toast.textContent = message;
-  container.appendChild(toast);
-  setTimeout(() => {
-    toast.style.opacity = "0";
-    toast.style.transition = "opacity 0.3s ease";
-    setTimeout(() => toast.remove(), 300);
-  }, 3000);
+  // Silent - no popup toasters as requested
 }
 
 function showResult(message, error = false) {
@@ -759,9 +741,6 @@ function showResult(message, error = false) {
     result.hidden = false;
     result.className = `result${error ? " error" : ""}`;
     result.textContent = message;
-  }
-  if (message) {
-    showToast(String(message).split("\n")[0], error);
   }
 }
 function escapeHtml(value) {
