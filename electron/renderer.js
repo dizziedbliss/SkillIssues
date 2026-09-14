@@ -1,14 +1,28 @@
+/**
+ * @file SkillIssues Electron Renderer Script
+ *
+ * Drives the desktop user interface, managing:
+ * - Reactive state: issue catalog, saved bookmarks, active working workspaces, submissions
+ * - View routing: Explore / Saved / Working / Submissions / Settings tabs
+ * - Challenge lifecycle: Issue inspection -> Fork & Clone -> Branch Creation -> VS Code Launcher -> Commit & Push -> PR Verification
+ * - IPC bridge communication with the Electron main process (window.skillIssuesDesktop)
+ */
+
 const API = "http://localhost:8000";
-let selected = null;
-let contributionId = null;
-let destination = "";
-let issues = [];
-let savedIssues = [];
-let working = [];
-let submissions = [];
-let activeTab = "all";
-let difficultyFilter = "";
-let sortFilter = "recommended";
+
+// ==============================================================================
+// Application State
+// ==============================================================================
+let selected = null;            // Currently inspected issue object
+let contributionId = null;      // Active contribution ID for the selected challenge
+let destination = "";           // Resolved local filesystem path to workspace
+let issues = [];                // Active challenge catalog issues
+let savedIssues = [];           // Bookmarked challenge issues
+let working = [];               // Active working contributions with cloned workspaces
+let submissions = [];           // Submitted and verified contributions
+let activeTab = "all";          // Current catalog filter tab: "all" | "recommended" | "saved"
+let difficultyFilter = "";      // Difficulty filter: "" | "BEGINNER" | "INTERMEDIATE" | "ADVANCED"
+let sortFilter = "recommended"; // Catalog sort mode: "recommended" | "stars" | "recent"
 const el = (id) => document.getElementById(id);
 
 async function api(path, options = {}) {
