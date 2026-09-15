@@ -1,6 +1,9 @@
 name: skillissues
 
 services:
+  # --------------------------------------------------------------------------
+  # PostgreSQL — authoritative persistent data store
+  # --------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
     environment:
@@ -17,6 +20,62 @@ services:
       timeout: 5s
       retries: 10
 
+  # --------------------------------------------------------------------------
+  # Redis — session cache, rate limiting, distributed locks, hot-path cache
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --save "" --appendonly no  # in-memory only for dev
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # --------------------------------------------------------------------------
+  # Go API — new primary backend (Phase 1: auth + proxy to Python)
+  # Set PYTHON_API_URL to point at the legacy Python api service during migration.
+  # Once all routes are ported, the Python api service is removed.
+  # --------------------------------------------------------------------------
+  go-api:
+    build:
+      context: ./go
+      dockerfile: cmd/api/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
+      REDIS_URL: redis://redis:6379/0
+      FRONTEND_URL: http://localhost:5173
+      DEMO_MODE: ${DEMO_MODE:-true}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8001/auth/github/callback}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-}
+      PYTHON_API_URL: http://api:8000  # proxy target during migration
+      PORT: 8001
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8001/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  # --------------------------------------------------------------------------
+  # Python API — legacy backend (maintained during Go migration)
+  # Will be decommissioned once all routes are ported to Go.
+  # --------------------------------------------------------------------------
   api:
     build: ./services/api
     environment:
@@ -49,6 +108,10 @@ services:
       retries: 10
       start_period: 2s
 
+  # --------------------------------------------------------------------------
+  # Python ingestion — repository metadata import + GitHub issue sync
+  # (Migrating to Go syncd in Phase 4; Kaggle ETL moves to python/ in Phase 6)
+  # --------------------------------------------------------------------------
   ingestion:
     build: ./services/ingestion
     environment:
