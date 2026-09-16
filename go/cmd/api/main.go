@@ -24,7 +24,9 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/auth"
 	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/config"
+	"github.com/dizziedbliss/skillissues/internal/contribution"
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/dizziedbliss/skillissues/internal/issue"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
 	"github.com/dizziedbliss/skillissues/internal/profile"
@@ -82,9 +84,11 @@ func main() {
 	}, authSvc)
 	profileSvc := profile.New(pool)
 	issueSvc := issue.New(pool)
+	ghClient := github.NewClient(cfg.GitHubGraphQLURL)
+	contribSvc := contribution.New(pool, cacheClient, ghClient)
 
 	// 5. Build the HTTP router and register all routes
-	mux := buildRouter(cfg, pool, cacheClient, authSvc, ghOAuth, profileSvc, issueSvc)
+	mux := buildRouter(cfg, pool, cacheClient, authSvc, ghOAuth, profileSvc, issueSvc, contribSvc, ghClient)
 
 	// 6. Start the HTTP server
 	server := &http.Server{
@@ -129,6 +133,8 @@ func buildRouter(
 	ghOAuth *auth.GitHubOAuth,
 	profileSvc *profile.Service,
 	issueSvc *issue.Service,
+	contribSvc *contribution.Service,
+	ghClient *github.Client,
 ) http.Handler {
 	mux := http.NewServeMux()
 
@@ -141,6 +147,8 @@ func buildRouter(
 		ghOAuth:    ghOAuth,
 		profileSvc: profileSvc,
 		issueSvc:   issueSvc,
+		contribSvc: contribSvc,
+		ghClient:   ghClient,
 	}
 
 	// ----- Health -----
