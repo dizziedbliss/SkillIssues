@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 // Config holds all runtime configuration for the SkillIssues backend.
@@ -79,17 +80,17 @@ func Load() (*Config, error) {
 	// Required variables
 	var missing []string
 
-	cfg.DatabaseURL = os.Getenv("DATABASE_URL")
+	cfg.DatabaseURL = cleanToken(os.Getenv("DATABASE_URL"))
 	if cfg.DatabaseURL == "" {
 		missing = append(missing, "DATABASE_URL")
 	}
 
 	cfg.RedisURL = strEnv("REDIS_URL", "redis://localhost:6379/0")
 
-	cfg.GitHubToken = os.Getenv("GITHUB_TOKEN")
+	cfg.GitHubToken = cleanToken(os.Getenv("GITHUB_TOKEN"))
 	cfg.GitHubWebhookSecret = strEnv("GITHUB_WEBHOOK_SECRET", "dev_local_webhook_secret")
-	cfg.GitHubClientID = os.Getenv("GITHUB_CLIENT_ID")
-	cfg.GitHubClientSecret = os.Getenv("GITHUB_CLIENT_SECRET")
+	cfg.GitHubClientID = cleanToken(os.Getenv("GITHUB_CLIENT_ID"))
+	cfg.GitHubClientSecret = cleanToken(os.Getenv("GITHUB_CLIENT_SECRET"))
 	cfg.AdminSyncToken = strEnv("ADMIN_SYNC_TOKEN", "dev_local_admin_sync_token")
 
 	// In strict production mode, verify they are explicitly configured
@@ -109,9 +110,13 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
+func cleanToken(s string) string {
+	return strings.Trim(strings.TrimSpace(s), "\"' \t\r\n")
+}
+
 func strEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
-		return v
+		return cleanToken(v)
 	}
 	return fallback
 }

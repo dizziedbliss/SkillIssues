@@ -28,6 +28,7 @@ func (c *Client) CreateFork(ctx context.Context, token, owner, name string) (*Fo
 		return nil, err
 	}
 
+	token = strings.Trim(strings.TrimSpace(token), "\"' \t\r\n")
 	authHeader := token
 	if !strings.HasPrefix(token, "Bearer ") && !strings.HasPrefix(token, "token ") {
 		authHeader = "Bearer " + token
@@ -76,6 +77,7 @@ func (c *Client) CreatePullRequest(ctx context.Context, token, owner, name, titl
 		return nil, err
 	}
 
+	token = strings.Trim(strings.TrimSpace(token), "\"' \t\r\n")
 	authHeader := token
 	if !strings.HasPrefix(token, "Bearer ") && !strings.HasPrefix(token, "token ") {
 		authHeader = "Bearer " + token
