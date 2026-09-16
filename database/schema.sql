@@ -184,6 +184,27 @@ CREATE TABLE IF NOT EXISTS webhook_events (
 );
 
 -- ------------------------------------------------------------------------------
+-- 5.1 Idempotent Column Migrations for Existing Databases
+-- ------------------------------------------------------------------------------
+ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS github_access_token TEXT;
+ALTER TABLE repositories ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ;
+ALTER TABLE issues ADD COLUMN IF NOT EXISTS author TEXT;
+ALTER TABLE issues ADD COLUMN IF NOT EXISTS has_difficulty_label BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE contributions ADD COLUMN IF NOT EXISTS xp_awarded BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS last_issue_sync_at TIMESTAMPTZ;
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS last_issue_update_seen TIMESTAMPTZ;
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS sync_status TEXT NOT NULL DEFAULT 'PENDING';
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS failure_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS next_sync_at TIMESTAMPTZ;
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS rate_limit_limit INTEGER;
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS rate_limit_remaining INTEGER;
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS rate_limit_used INTEGER;
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS rate_limit_reset_at TIMESTAMPTZ;
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS rate_limit_cost INTEGER;
+
+-- ------------------------------------------------------------------------------
 -- 6. Performance Indexes
 -- ------------------------------------------------------------------------------
 

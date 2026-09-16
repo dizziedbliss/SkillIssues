@@ -24,17 +24,22 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/config"
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/issue"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
+	"github.com/dizziedbliss/skillissues/internal/profile"
+	"github.com/dizziedbliss/skillissues/internal/recommendation"
 	"github.com/jackc/pgx/v5"
 )
 
 // handlers bundles all service dependencies for the handler functions.
 type handlers struct {
-	cfg     *config.Config
-	db      *db.Pool
-	cache   *cache.Client
-	authSvc *auth.Service
-	ghOAuth *auth.GitHubOAuth
+	cfg        *config.Config
+	db         *db.Pool
+	cache      *cache.Client
+	authSvc    *auth.Service
+	ghOAuth    *auth.GitHubOAuth
+	profileSvc *profile.Service
+	issueSvc   *issue.Service
 }
 
 // ---------------------------------------------------------------------------
@@ -307,19 +312,246 @@ func (h *handlers) getGitToken(w http.ResponseWriter, r *http.Request) {
 // Full Go implementations land in Phases 2–4.
 // ---------------------------------------------------------------------------
 
-func (h *handlers) syncIssues(w http.ResponseWriter, r *http.Request)         { h.proxyToPython(w, r, "/issues/sync") }
-func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request)          { h.proxyToPython(w, r, "/issues"+queryString(r)) }
-func (h *handlers) getIssue(w http.ResponseWriter, r *http.Request)            { h.proxyToPython(w, r, "/issues/"+r.PathValue("id")) }
-func (h *handlers) getSaved(w http.ResponseWriter, r *http.Request)            { h.proxyToPython(w, r, "/saved") }
-func (h *handlers) saveIssue(w http.ResponseWriter, r *http.Request)           { h.proxyToPython(w, r, "/saved") }
-func (h *handlers) unsaveIssue(w http.ResponseWriter, r *http.Request)         { h.proxyToPython(w, r, "/saved/"+r.PathValue("id")) }
-func (h *handlers) getRecommendations(w http.ResponseWriter, r *http.Request)  { h.proxyToPython(w, r, "/recommendations"+queryString(r)) }
-func (h *handlers) getMe(w http.ResponseWriter, r *http.Request)               { h.proxyToPython(w, r, "/me") }
-func (h *handlers) updateProfile(w http.ResponseWriter, r *http.Request)       { h.proxyToPython(w, r, "/profile") }
-func (h *handlers) getPreferences(w http.ResponseWriter, r *http.Request)      { h.proxyToPython(w, r, "/preferences") }
-func (h *handlers) updatePreferences(w http.ResponseWriter, r *http.Request)   { h.proxyToPython(w, r, "/preferences") }
-func (h *handlers) getPreferenceOptions(w http.ResponseWriter, r *http.Request){ h.proxyToPython(w, r, "/preferences/options") }
-func (h *handlers) getProgress(w http.ResponseWriter, r *http.Request)         { h.proxyToPython(w, r, "/progress") }
+func (h *handlers) syncIssues(w http.ResponseWriter, r *http.Request) {
+	h.proxyToPython(w, r, "/issues/sync")
+}
+
+func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit := 20
+	if lStr := q.Get("limit"); lStr != "" {
+		if l, err := strconv.Atoi(lStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+	f := issue.Filters{
+		Difficulty: q.Get("difficulty"),
+		Language:   q.Get("language"),
+		Search:     q.Get("search"),
+		Limit:      limit,
+	}
+
+	var prefLangs []string
+	var userName string
+	if userID := middleware.GetUserID(r.Context()); userID != 0 {
+		if p, err := h.profileSvc.GetFullProfile(r.Context(), userID); err == nil {
+			prefLangs = p.PreferredLanguages
+			userName = p.Username
+		}
+	}
+
+	issues, err := h.issueSvc.SearchIssues(r.Context(), f, prefLangs, userName)
+	if err != nil {
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to search issues")
+		return
+	}
+	if issues == nil {
+		issues = []issue.Issue{}
+	}
+	middleware.RespondJSON(w, http.StatusOK, issues)
+}
+
+func (h *handlers) getIssue(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		middleware.RespondError(w, http.StatusNotFound, "invalid issue id")
+		return
+	}
+	it, err := h.issueSvc.GetIssue(r.Context(), id)
+	if err != nil {
+		middleware.RespondError(w, http.StatusNotFound, "issue not found")
+		return
+	}
+	middleware.RespondJSON(w, http.StatusOK, it)
+}
+
+func (h *handlers) getSaved(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	saved, err := h.issueSvc.GetSavedIssues(r.Context(), userID)
+	if err != nil {
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to fetch saved issues")
+		return
+	}
+	middleware.RespondJSON(w, http.StatusOK, saved)
+}
+
+func (h *handlers) saveIssue(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	var body struct {
+		IssueID int `json:"issue_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.IssueID <= 0 {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "valid issue_id is required")
+		return
+	}
+	if err := h.issueSvc.SaveIssue(r.Context(), userID, body.IssueID); err != nil {
+		middleware.RespondError(w, http.StatusNotFound, "issue not found")
+		return
+	}
+	middleware.RespondJSON(w, http.StatusOK, map[string]any{
+		"saved":    true,
+		"issue_id": body.IssueID,
+	})
+}
+
+func (h *handlers) unsaveIssue(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	idStr := r.PathValue("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		middleware.RespondError(w, http.StatusNotFound, "invalid issue id")
+		return
+	}
+	_ = h.issueSvc.UnsaveIssue(r.Context(), userID, id)
+	middleware.RespondJSON(w, http.StatusOK, map[string]any{
+		"saved":    false,
+		"issue_id": id,
+	})
+}
+
+func (h *handlers) getRecommendations(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	limit := 3
+	if lStr := r.URL.Query().Get("limit"); lStr != "" {
+		if l, err := strconv.Atoi(lStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	p, err := h.profileSvc.GetFullProfile(r.Context(), userID)
+	if err != nil {
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to load developer profile")
+		return
+	}
+
+	candidates, err := h.issueSvc.GetRecommendationCandidates(r.Context())
+	if err != nil {
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to load candidate issues")
+		return
+	}
+
+	scored := recommendation.ScoreCandidates(p, candidates, limit)
+	if scored == nil {
+		scored = []issue.Issue{}
+	}
+	middleware.RespondJSON(w, http.StatusOK, scored)
+}
+
+func (h *handlers) getMe(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	p, err := h.profileSvc.GetFullProfile(r.Context(), userID)
+	if err != nil {
+		middleware.RespondError(w, http.StatusUnauthorized, "profile not found")
+		return
+	}
+	middleware.RespondJSON(w, http.StatusOK, p)
+}
+
+func (h *handlers) updateProfile(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	var body profile.ProfileUpdate
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "invalid profile update body")
+		return
+	}
+
+	p, err := h.profileSvc.UpdateProfile(r.Context(), userID, body)
+	if err != nil {
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to update profile")
+		return
+	}
+	middleware.RespondJSON(w, http.StatusOK, p)
+}
+
+func (h *handlers) getPreferences(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	p, err := h.profileSvc.GetFullProfile(r.Context(), userID)
+	if err != nil {
+		middleware.RespondError(w, http.StatusUnauthorized, "profile not found")
+		return
+	}
+	middleware.RespondJSON(w, http.StatusOK, map[string]any{
+		"interests":           p.Interests,
+		"preferred_languages": p.PreferredLanguages,
+	})
+}
+
+func (h *handlers) updatePreferences(w http.ResponseWriter, r *http.Request) {
+	h.updateProfile(w, r)
+}
+
+func (h *handlers) getPreferenceOptions(w http.ResponseWriter, r *http.Request) {
+	options, err := h.profileSvc.GetPreferenceOptions(r.Context())
+	if err != nil {
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to fetch preference options")
+		return
+	}
+	middleware.RespondJSON(w, http.StatusOK, map[string]any{"options": options})
+}
+
+func (h *handlers) getProgress(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	p, err := h.profileSvc.GetFullProfile(r.Context(), userID)
+	if err != nil {
+		middleware.RespondError(w, http.StatusUnauthorized, "profile not found")
+		return
+	}
+
+	var contribs []map[string]any
+	_ = h.db.QueryRows(r.Context(),
+		`SELECT c.id, c.user_id, c.issue_id, COALESCE(c.pr_url, ''), COALESCE(c.pr_number, 0),
+		        c.state, c.created_at::text, c.updated_at::text, COALESCE(c.merged_at::text, ''),
+		        i.title, i.number, i.difficulty, i.url AS issue_url,
+		        COALESCE(i.required_skills, '{}'), COALESCE(i.technologies, '{}'),
+		        i.updated_at::text AS issue_updated_at, r.full_name AS repository, COALESCE(r.language, '')
+		 FROM contributions c
+		 JOIN issues i ON i.id = c.issue_id
+		 JOIN repositories r ON r.id = i.repository_id
+		 WHERE c.user_id = $1 ORDER BY c.updated_at DESC`,
+		[]any{userID},
+		func(rows pgx.Rows) error {
+			var id, uID, issueID, prNum, issueNum int
+			var prURL, state, createdAt, updatedAt, mergedAt, title, diff, issueURL, issueUpdatedAt, repo, lang string
+			var skills, techs []string
+			if err := rows.Scan(&id, &uID, &issueID, &prURL, &prNum, &state, &createdAt, &updatedAt, &mergedAt,
+				&title, &issueNum, &diff, &issueURL, &skills, &techs, &issueUpdatedAt, &repo, &lang); err != nil {
+				return err
+			}
+			contribs = append(contribs, map[string]any{
+				"id":               id,
+				"user_id":          uID,
+				"issue_id":         issueID,
+				"pr_url":           prURL,
+				"pr_number":        prNum,
+				"state":            state,
+				"created_at":       createdAt,
+				"updated_at":       updatedAt,
+				"merged_at":        mergedAt,
+				"title":            title,
+				"number":           issueNum,
+				"difficulty":       diff,
+				"issue_url":        issueURL,
+				"required_skills":  skills,
+				"technologies":     techs,
+				"issue_updated_at": issueUpdatedAt,
+				"repository":       repo,
+				"language":         lang,
+			})
+			return nil
+		},
+	)
+	if contribs == nil {
+		contribs = []map[string]any{}
+	}
+
+	middleware.RespondJSON(w, http.StatusOK, map[string]any{
+		"progress_score":      p.ProgressScore,
+		"completed_count":     p.CompletedCount,
+		"demonstrated_skills": p.DemonstratedSkills,
+		"contributions":       contribs,
+	})
+}
 func (h *handlers) startContribution(w http.ResponseWriter, r *http.Request)   { h.proxyToPython(w, r, "/contributions") }
 func (h *handlers) listContributions(w http.ResponseWriter, r *http.Request)   { h.proxyToPython(w, r, "/contributions") }
 func (h *handlers) getWorking(w http.ResponseWriter, r *http.Request)          { h.proxyToPython(w, r, "/working") }
