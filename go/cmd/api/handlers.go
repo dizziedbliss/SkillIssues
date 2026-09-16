@@ -23,11 +23,14 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/auth"
 	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/config"
+	"github.com/dizziedbliss/skillissues/internal/contribution"
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/dizziedbliss/skillissues/internal/issue"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
 	"github.com/dizziedbliss/skillissues/internal/profile"
 	"github.com/dizziedbliss/skillissues/internal/recommendation"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -40,6 +43,8 @@ type handlers struct {
 	ghOAuth    *auth.GitHubOAuth
 	profileSvc *profile.Service
 	issueSvc   *issue.Service
+	contribSvc *contribution.Service
+	ghClient   *github.Client
 }
 
 // ---------------------------------------------------------------------------
@@ -276,14 +281,44 @@ func (h *handlers) authDemo(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondJSON(w, http.StatusOK, map[string]any{"user": user})
 }
 
-// ---------------------------------------------------------------------------
-// GitHub integration: forks and git-token
-// ---------------------------------------------------------------------------
-
 // forkRepository handles POST /github/forks
-// Proxied to Python during migration. Full Go port in Phase 2.
 func (h *handlers) forkRepository(w http.ResponseWriter, r *http.Request) {
-	h.proxyToPython(w, r, "/github/forks")
+	userID := middleware.GetUserID(r.Context())
+	var body struct {
+		Repository string `json:"repository"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Repository == "" {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "valid repository is required")
+		return
+	}
+
+	owner, repo, ok := strings.Cut(body.Repository, "/")
+	if !ok || owner == "" || repo == "" {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "repository must be in owner/name format")
+		return
+	}
+
+	// Fetch user's token or fallback
+	var token string
+	_ = h.db.QueryRow(r.Context(),
+		`SELECT COALESCE(github_access_token, '') FROM users WHERE id = $1`,
+		[]any{userID},
+		func(row pgx.Row) error { return row.Scan(&token) },
+	)
+	if token == "" {
+		token = h.cfg.GitHubToken
+	}
+	if token == "" {
+		middleware.RespondError(w, http.StatusForbidden, "Please click 'Connect GitHub' in top bar to authorize repository forking.")
+		return
+	}
+
+	fork, err := h.ghClient.CreateFork(r.Context(), token, owner, repo)
+	if err != nil {
+		middleware.RespondError(w, http.StatusBadGateway, fmt.Sprintf("failed to fork repository: %v", err))
+		return
+	}
+	middleware.RespondJSON(w, http.StatusOK, fork)
 }
 
 // getGitToken handles GET /github/git-token
@@ -552,15 +587,269 @@ func (h *handlers) getProgress(w http.ResponseWriter, r *http.Request) {
 		"contributions":       contribs,
 	})
 }
-func (h *handlers) startContribution(w http.ResponseWriter, r *http.Request)   { h.proxyToPython(w, r, "/contributions") }
-func (h *handlers) listContributions(w http.ResponseWriter, r *http.Request)   { h.proxyToPython(w, r, "/contributions") }
-func (h *handlers) getWorking(w http.ResponseWriter, r *http.Request)          { h.proxyToPython(w, r, "/working") }
-func (h *handlers) getContribution(w http.ResponseWriter, r *http.Request)     { h.proxyToPython(w, r, "/contributions/"+r.PathValue("id")) }
-func (h *handlers) updateContribution(w http.ResponseWriter, r *http.Request)  { h.proxyToPython(w, r, "/contributions/"+r.PathValue("id")) }
-func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request)  { h.proxyToPython(w, r, "/contributions/"+r.PathValue("id")+"/submit") }
-func (h *handlers) verifyContribution(w http.ResponseWriter, r *http.Request)  { h.proxyToPython(w, r, "/contributions/"+r.PathValue("id")+"/verify") }
-func (h *handlers) webhookGitHub(w http.ResponseWriter, r *http.Request)       { h.proxyToPython(w, r, "/webhooks/github") }
-func (h *handlers) adminSyncRepository(w http.ResponseWriter, r *http.Request) { h.proxyToPython(w, r, "/admin/sync/repository/"+r.PathValue("id")) }
+func (h *handlers) startContribution(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	var body struct {
+		IssueID int `json:"issue_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.IssueID <= 0 {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "valid issue_id is required")
+		return
+	}
+
+	c, err := h.contribSvc.StartContribution(r.Context(), userID, body.IssueID)
+	if err != nil {
+		if err == db.ErrNotFound {
+			middleware.RespondError(w, http.StatusNotFound, "issue not found")
+			return
+		}
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to start contribution")
+		return
+	}
+	middleware.RespondJSON(w, http.StatusOK, c)
+}
+
+func (h *handlers) listContributions(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	list, err := h.contribSvc.ListContributions(r.Context(), userID)
+	if err != nil {
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to list contributions")
+		return
+	}
+	middleware.RespondJSON(w, http.StatusOK, list)
+}
+
+func (h *handlers) getWorking(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	working, err := h.contribSvc.GetWorking(r.Context(), userID)
+	if err != nil {
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to list working contributions")
+		return
+	}
+	middleware.RespondJSON(w, http.StatusOK, working)
+}
+
+func (h *handlers) getContribution(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		middleware.RespondError(w, http.StatusNotFound, "invalid contribution id")
+		return
+	}
+	c, err := h.contribSvc.GetContribution(r.Context(), userID, id)
+	if err != nil {
+		middleware.RespondError(w, http.StatusNotFound, "contribution not found")
+		return
+	}
+	middleware.RespondJSON(w, http.StatusOK, c)
+}
+
+func (h *handlers) updateContribution(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		middleware.RespondError(w, http.StatusNotFound, "invalid contribution id")
+		return
+	}
+	var body struct {
+		PRURL    string `json:"pr_url"`
+		PRNumber int    `json:"pr_number"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.PRURL == "" || body.PRNumber <= 0 {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "pr_url and pr_number are required")
+		return
+	}
+
+	c, err := h.contribSvc.AttachPR(r.Context(), userID, id, body.PRURL, body.PRNumber, h.cfg.GitHubToken)
+	if err != nil {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	middleware.RespondJSON(w, http.StatusOK, c)
+}
+
+func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		middleware.RespondError(w, http.StatusNotFound, "invalid contribution id")
+		return
+	}
+	var body struct {
+		Branch string `json:"branch"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Branch == "" {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "branch name is required")
+		return
+	}
+
+	var (
+		issueID, issueNum int
+		username, userToken, title, issueBody, repoFull string
+	)
+	err = h.db.QueryRow(r.Context(),
+		`SELECT c.issue_id, u.username, COALESCE(u.github_access_token, ''),
+		        i.title, COALESCE(i.body, ''), i.number, r.full_name
+		 FROM contributions c
+		 JOIN users u ON u.id = c.user_id
+		 JOIN issues i ON i.id = c.issue_id
+		 JOIN repositories r ON r.id = i.repository_id
+		 WHERE c.id = $1 AND c.user_id = $2`,
+		[]any{id, userID},
+		func(row pgx.Row) error {
+			return row.Scan(&issueID, &username, &userToken, &title, &issueBody, &issueNum, &repoFull)
+		},
+	)
+	if err != nil {
+		middleware.RespondError(w, http.StatusNotFound, "contribution not found")
+		return
+	}
+
+	token := userToken
+	if token == "" {
+		token = h.cfg.GitHubToken
+	}
+	if token == "" && username != "alex-dev" {
+		middleware.RespondError(w, http.StatusForbidden, "Connect GitHub before submitting a pull request.")
+		return
+	}
+
+	owner, name, _ := strings.Cut(repoFull, "/")
+	prTitle := title
+	prBody := issueBody
+	if prBody == "" {
+		prBody = fmt.Sprintf("SkillIssues contribution for issue #%d", issueNum)
+	}
+
+	var prURL string
+	var prNum int
+	var pullRequest map[string]any
+
+	if token != "" && username != "alex-dev" {
+		head := body.Branch
+		if username != "" {
+			head = fmt.Sprintf("%s:%s", username, body.Branch)
+		}
+		res, err := h.ghClient.CreatePullRequest(r.Context(), token, owner, name, prTitle, head, "main", prBody)
+		if err == nil {
+			prURL = res.HTMLURL
+			prNum = res.Number
+			pullRequest = map[string]any{"html_url": prURL, "number": prNum}
+		}
+	}
+
+	if prURL == "" {
+		if username != "" {
+			prURL = fmt.Sprintf("https://github.com/%s/%s/compare/main...%s:%s?expand=1", owner, name, username, body.Branch)
+		} else {
+			prURL = fmt.Sprintf("https://github.com/%s/%s", owner, name)
+		}
+		prNum = issueNum
+		pullRequest = map[string]any{
+			"html_url":       prURL,
+			"number":         prNum,
+			"manual_compare": true,
+		}
+	}
+
+	var updated contribution.Contribution
+	_ = h.db.QueryRow(r.Context(),
+		`UPDATE contributions SET pr_url = $1, pr_number = $2, state = 'PR_OPEN', updated_at = now()
+		 WHERE id = $3
+		 RETURNING id, user_id, issue_id, pr_url, pr_number, state, xp_awarded, created_at, updated_at, merged_at`,
+		[]any{prURL, prNum, id},
+		func(row pgx.Row) error {
+			return row.Scan(&updated.ID, &updated.UserID, &updated.IssueID, &updated.PRURL, &updated.PRNumber, &updated.State, &updated.XPAwarded, &updated.CreatedAt, &updated.UpdatedAt, &updated.MergedAt)
+		},
+	)
+
+	middleware.RespondJSON(w, http.StatusOK, map[string]any{
+		"contribution": updated,
+		"pull_request": pullRequest,
+		"web_url":      prURL,
+	})
+}
+
+func (h *handlers) verifyContribution(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		middleware.RespondError(w, http.StatusNotFound, "invalid contribution id")
+		return
+	}
+
+	res, err := h.contribSvc.VerifyContribution(r.Context(), userID, id, h.cfg.GitHubToken)
+	if err != nil {
+		if err == db.ErrNotFound {
+			middleware.RespondError(w, http.StatusNotFound, "contribution not found")
+			return
+		}
+		middleware.RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	middleware.RespondJSON(w, http.StatusOK, res)
+}
+
+func (h *handlers) webhookGitHub(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		middleware.RespondError(w, http.StatusBadRequest, "failed to read body")
+		return
+	}
+
+	signature := r.Header.Get("X-Hub-Signature-256")
+	delivery := r.Header.Get("X-GitHub-Delivery")
+	if delivery == "" {
+		delivery = uuid.New().String()
+	}
+	eventName := r.Header.Get("X-GitHub-Event")
+	if eventName == "" {
+		eventName = "unknown"
+	}
+
+	if h.cfg.GitHubWebhookSecret != "" {
+		if !auth.VerifyWebhookSignature([]byte(h.cfg.GitHubWebhookSecret), body, signature) {
+			middleware.RespondError(w, http.StatusUnauthorized, "invalid webhook signature")
+			return
+		}
+	} else if !h.cfg.DemoMode {
+		middleware.RespondError(w, http.StatusServiceUnavailable, "webhook verification is not configured")
+		return
+	}
+
+	var insertedDelivery string
+	_ = h.db.QueryRow(r.Context(),
+		`INSERT INTO webhook_events (delivery_id, event_name) VALUES ($1, $2)
+		 ON CONFLICT (delivery_id) DO NOTHING RETURNING delivery_id`,
+		[]any{delivery, eventName},
+		func(row pgx.Row) error { return row.Scan(&insertedDelivery) },
+	)
+
+	if insertedDelivery != "" && eventName == "pull_request" {
+		var payload struct {
+			PullRequest struct {
+				Merged  bool   `json:"merged"`
+				HTMLURL string `json:"html_url"`
+			} `json:"pull_request"`
+		}
+		if err := json.Unmarshal(body, &payload); err == nil {
+			if payload.PullRequest.Merged && payload.PullRequest.HTMLURL != "" {
+				_, _ = h.contribSvc.ApplyMergedPRByUrl(r.Context(), payload.PullRequest.HTMLURL, h.cfg.GitHubToken)
+			}
+		}
+	}
+
+	middleware.RespondJSON(w, http.StatusOK, map[string]any{
+		"accepted":    true,
+		"delivery_id": delivery,
+		"event":       eventName,
+	})
+}
+
+func (h *handlers) adminSyncRepository(w http.ResponseWriter, r *http.Request) {
+	h.proxyToPython(w, r, "/admin/sync/repository/"+r.PathValue("id"))
+}
 
 // ---------------------------------------------------------------------------
 // Python proxy (transition layer)
