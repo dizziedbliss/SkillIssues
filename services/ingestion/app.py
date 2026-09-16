@@ -574,7 +574,10 @@ if __name__ == "__main__":
     else:
         logger.warning("repository metadata not found; serving sync endpoints with seed data only: %s", METADATA_PATH)
     if SYNC_ISSUES:
-        sync_issues()
+        try:
+            sync_issues()
+        except Exception as error:
+            logger.warning("legacy python sync_issues skipped (%s); Go syncd handles issue sync", error)
     if RUN_ONCE:
         raise SystemExit(0)
     server_thread.join()

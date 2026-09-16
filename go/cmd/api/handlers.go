@@ -366,9 +366,33 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 		Limit:      limit,
 	}
 
+	isDefaultHot := f.Difficulty == "" && f.Language == "" && f.Search == "" && f.Limit == 50
+	userID := middleware.GetUserID(r.Context())
+
+	// Fast path: cached hot issues for unauthenticated or default views
+	if isDefaultHot && userID == 0 && h.cache != nil {
+		if cached := h.cache.GetHotIssues(r.Context()); cached != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(cached)
+			return
+		}
+	}
+
+	searchKey := ""
+	if !isDefaultHot && userID == 0 && h.cache != nil {
+		searchKey = cache.CacheSearchKey(f.Difficulty, f.Language, f.Search, f.Limit)
+		if cached := h.cache.GetCachedSearch(r.Context(), searchKey); cached != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(cached)
+			return
+		}
+	}
+
 	var prefLangs []string
 	var userName string
-	if userID := middleware.GetUserID(r.Context()); userID != 0 {
+	if userID != 0 {
 		if p, err := h.profileSvc.GetFullProfile(r.Context(), userID); err == nil {
 			prefLangs = p.PreferredLanguages
 			userName = p.Username
@@ -383,6 +407,18 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 	if issues == nil {
 		issues = []issue.Issue{}
 	}
+
+	// Populate cache
+	if userID == 0 && h.cache != nil {
+		if data, err := json.Marshal(issues); err == nil {
+			if isDefaultHot {
+				h.cache.SetHotIssues(r.Context(), data, 2*time.Minute)
+			} else if searchKey != "" {
+				h.cache.SetCachedSearch(r.Context(), searchKey, data, 1*time.Minute)
+			}
+		}
+	}
+
 	middleware.RespondJSON(w, http.StatusOK, issues)
 }
 
@@ -454,6 +490,16 @@ func (h *handlers) getRecommendations(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Redis Cache lookup for default limit
+	if limit == 3 && h.cache != nil {
+		if cached := h.cache.GetRecommendations(r.Context(), userID); cached != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(cached)
+			return
+		}
+	}
+
 	p, err := h.profileSvc.GetFullProfile(r.Context(), userID)
 	if err != nil {
 		middleware.RespondError(w, http.StatusInternalServerError, "failed to load developer profile")
@@ -470,6 +516,13 @@ func (h *handlers) getRecommendations(w http.ResponseWriter, r *http.Request) {
 	if scored == nil {
 		scored = []issue.Issue{}
 	}
+
+	if limit == 3 && h.cache != nil {
+		if data, err := json.Marshal(scored); err == nil {
+			h.cache.SetRecommendations(r.Context(), userID, data, 5*time.Minute)
+		}
+	}
+
 	middleware.RespondJSON(w, http.StatusOK, scored)
 }
 
@@ -495,6 +548,9 @@ func (h *handlers) updateProfile(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		middleware.RespondError(w, http.StatusInternalServerError, "failed to update profile")
 		return
+	}
+	if h.cache != nil {
+		h.cache.InvalidateRecommendations(r.Context(), userID)
 	}
 	middleware.RespondJSON(w, http.StatusOK, p)
 }
@@ -786,6 +842,10 @@ func (h *handlers) verifyContribution(w http.ResponseWriter, r *http.Request) {
 		}
 		middleware.RespondError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	if res.Verified && res.EarnedXP > 0 && h.cache != nil {
+		h.cache.InvalidateRecommendations(r.Context(), userID)
 	}
 
 	middleware.RespondJSON(w, http.StatusOK, res)

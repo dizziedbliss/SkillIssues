@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/jackc/pgx/v5"
 )
@@ -32,12 +33,17 @@ var ErrUnauthorized = errors.New("auth: unauthorized")
 
 // Service handles session lifecycle and authentication.
 type Service struct {
-	db *db.Pool
+	db    *db.Pool
+	cache *cache.Client
 }
 
 // New creates an auth.Service.
-func New(db *db.Pool) *Service {
-	return &Service{db: db}
+func New(db *db.Pool, cacheClient ...*cache.Client) *Service {
+	s := &Service{db: db}
+	if len(cacheClient) > 0 {
+		s.cache = cacheClient[0]
+	}
+	return s
 }
 
 // ---------------------------------------------------------------------------
@@ -64,6 +70,10 @@ func (s *Service) CreateSession(ctx context.Context, userID int, provider string
 		return "", fmt.Errorf("auth: store session: %w", err)
 	}
 
+	if s.cache != nil {
+		s.cache.SetSession(ctx, hashed, userID, SessionDuration)
+	}
+
 	return raw, nil
 }
 
@@ -71,6 +81,13 @@ func (s *Service) CreateSession(ctx context.Context, userID int, provider string
 // Returns ErrUnauthorized if the token is missing, expired, or invalid.
 func (s *Service) ValidateSession(ctx context.Context, rawToken string) (int, error) {
 	hashed := hashToken(rawToken)
+
+	// Redis Fast Path (< 1ms)
+	if s.cache != nil {
+		if cachedUID := s.cache.GetSession(ctx, hashed); cachedUID > 0 {
+			return cachedUID, nil
+		}
+	}
 
 	var userID int
 	err := s.db.QueryRow(ctx,
@@ -88,12 +105,19 @@ func (s *Service) ValidateSession(ctx context.Context, rawToken string) (int, er
 		return 0, fmt.Errorf("auth: validate session: %w", err)
 	}
 
+	if s.cache != nil {
+		s.cache.SetSession(ctx, hashed, userID, SessionDuration)
+	}
+
 	return userID, nil
 }
 
 // DeleteSession invalidates a single session (logout).
 func (s *Service) DeleteSession(ctx context.Context, rawToken string) error {
 	hashed := hashToken(rawToken)
+	if s.cache != nil {
+		s.cache.DeleteSession(ctx, hashed)
+	}
 	return s.db.Exec(ctx,
 		`DELETE FROM auth_sessions WHERE token = $1`,
 		hashed,
