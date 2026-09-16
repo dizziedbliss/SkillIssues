@@ -97,8 +97,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      contribution:
-        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 3s
@@ -135,22 +133,50 @@ services:
       retries: 10
       start_period: 15s
 
-  contribution:
-    build: ./services/contribution
+  # --------------------------------------------------------------------------
+  # Go syncd — Sync Coordinator & GitHub GraphQL ingestion engine (Phase 4)
+  # --------------------------------------------------------------------------
+  syncd:
+    build:
+      context: ./go
+      dockerfile: cmd/syncd/Dockerfile
     environment:
-      API_URL: http://api:8000
+      DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
+      REDIS_URL: redis://redis:6379/0
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      DEMO_MODE: ${DEMO_MODE:-true}
+      SYNCD_PORT: 8002
+      PORT: 8002
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
 
+  # --------------------------------------------------------------------------
+  # Go worker — priority issue catalog refresh daemon (Phase 4)
+  # Replaces legacy Python services/worker.
+  # --------------------------------------------------------------------------
   worker:
-    build: ./services/worker
+    build:
+      context: ./go
+      dockerfile: cmd/worker/Dockerfile
     environment:
-      API_URL: http://api:8000
-      INGESTION_URL: http://ingestion:8000
+      API_URL: http://go-api:8001
+      SYNCD_URL: http://syncd:8002
       SYNC_INTERVAL_SECONDS: 900
     depends_on:
-      api:
+      go-api:
         condition: service_healthy
-      ingestion:
+      syncd:
         condition: service_healthy
 
   frontend:
