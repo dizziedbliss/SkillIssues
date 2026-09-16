@@ -75,7 +75,7 @@ func main() {
 	}
 
 	// 4. Instantiate service layer
-	authSvc := auth.New(pool)
+	authSvc := auth.New(pool, cacheClient)
 	ghOAuth := auth.NewGitHubOAuth(auth.GitHubConfig{
 		ClientID:     cfg.GitHubClientID,
 		ClientSecret: cfg.GitHubClientSecret,
@@ -209,8 +209,11 @@ func buildRouter(
 	mux.Handle("POST /admin/sync/repository/{id}",
 		requireAdmin(cfg.AdminSyncToken, http.HandlerFunc(h.adminSyncRepository)))
 
-	// Apply global middleware: RequestID → Logger → CORS → mux
+	// Apply global middleware: RequestID → Logger → CORS → RateLimiter → mux
 	var handler http.Handler = mux
+	if cacheClient != nil {
+		handler = middleware.RateLimiter(cacheClient, 120, time.Minute, "global")(handler)
+	}
 	handler = middleware.CORS(cfg.FrontendURL)(handler)
 	handler = middleware.Logger(handler)
 	handler = middleware.RequestID(handler)
