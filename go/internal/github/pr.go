@@ -104,6 +104,7 @@ func (c *Client) GetPullRequest(ctx context.Context, token, owner, name string, 
 		return nil, fmt.Errorf("github: create request: %w", err)
 	}
 
+	token = strings.Trim(strings.TrimSpace(token), "\"' \t\r\n")
 	authHeader := token
 	if !strings.HasPrefix(token, "Bearer ") && !strings.HasPrefix(token, "token ") {
 		authHeader = "Bearer " + token
