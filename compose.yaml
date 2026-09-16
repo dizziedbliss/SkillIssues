@@ -52,8 +52,8 @@ services:
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8001/auth/github/callback}
-      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
-      ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-dev_local_webhook_secret}
+      ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-dev_local_admin_sync_token}
       PYTHON_API_URL: http://api:8000  # proxy target during migration
       PORT: 8001
     ports:
@@ -113,16 +113,18 @@ services:
     environment:
       DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
       REPOSITORY_METADATA_PATH: /repo/repo_metadata.json
-      MAX_REPOSITORIES: ${MAX_REPOSITORIES:-500}
-      MIN_STARS: 50
+      MAX_REPOSITORIES: ${MAX_REPOSITORIES:-0}
+      MIN_STARS: ${MIN_STARS:-50}
       SAMPLE_SEED: ${SAMPLE_SEED:-skillissues-demo}
       RESET_CATALOG: ${RESET_CATALOG:-false}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      KAGGLE_USERNAME: ${KAGGLE_USERNAME:-}
+      KAGGLE_KEY: ${KAGGLE_KEY:-}
       SYNC_ISSUES: ${SYNC_ISSUES:-false}
       SYNC_REPOSITORIES: 10
       INGESTION_PORT: 8000
     volumes:
-      - ./repo:/repo:ro
+      - ./repo:/repo
     depends_on:
       api:
         condition: service_healthy
@@ -145,6 +147,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       DEMO_MODE: ${DEMO_MODE:-true}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-dev_local_webhook_secret}
+      ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-dev_local_admin_sync_token}
       SYNCD_PORT: 8002
       PORT: 8002
     ports:

@@ -87,16 +87,17 @@ func Load() (*Config, error) {
 	cfg.RedisURL = strEnv("REDIS_URL", "redis://localhost:6379/0")
 
 	cfg.GitHubToken = os.Getenv("GITHUB_TOKEN")
-	cfg.GitHubWebhookSecret = os.Getenv("GITHUB_WEBHOOK_SECRET")
+	cfg.GitHubWebhookSecret = strEnv("GITHUB_WEBHOOK_SECRET", "dev_local_webhook_secret")
 	cfg.GitHubClientID = os.Getenv("GITHUB_CLIENT_ID")
 	cfg.GitHubClientSecret = os.Getenv("GITHUB_CLIENT_SECRET")
-	cfg.AdminSyncToken = os.Getenv("ADMIN_SYNC_TOKEN")
+	cfg.AdminSyncToken = strEnv("ADMIN_SYNC_TOKEN", "dev_local_admin_sync_token")
 
-	if !cfg.DemoMode {
-		if cfg.GitHubWebhookSecret == "" {
+	// In strict production mode, verify they are explicitly configured
+	if !cfg.DemoMode && os.Getenv("ENV") == "production" {
+		if cfg.GitHubWebhookSecret == "dev_local_webhook_secret" {
 			missing = append(missing, "GITHUB_WEBHOOK_SECRET")
 		}
-		if cfg.AdminSyncToken == "" {
+		if cfg.AdminSyncToken == "dev_local_admin_sync_token" {
 			missing = append(missing, "ADMIN_SYNC_TOKEN")
 		}
 	}

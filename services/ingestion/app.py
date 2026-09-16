@@ -231,9 +231,38 @@ def wait_for_database() -> None:
     raise RuntimeError("database did not become ready")
 
 
+def ensure_metadata_file() -> bool:
+    if METADATA_PATH.is_file():
+        return True
+    kaggle_user = os.getenv("KAGGLE_USERNAME", "").strip()
+    kaggle_key = os.getenv("KAGGLE_KEY", "").strip()
+    if kaggle_user and kaggle_key:
+        logger.info("repository metadata not found at %s; downloading dataset from Kaggle...", METADATA_PATH)
+        os.environ["KAGGLE_USERNAME"] = kaggle_user
+        os.environ["KAGGLE_KEY"] = kaggle_key
+        try:
+            import subprocess
+            METADATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run([
+                "kaggle", "datasets", "download",
+                "-d", "pelmers/github-repository-metadata-with-5-stars",
+                "-p", str(METADATA_PATH.parent),
+                "--unzip"
+            ], check=True)
+            logger.info("Kaggle download and unzip complete: %s", METADATA_PATH)
+            return METADATA_PATH.is_file()
+        except Exception as error:
+            logger.error("Failed to automatically download Kaggle dataset: %s", error)
+            return False
+    logger.warning("repository metadata not found at %s and KAGGLE_USERNAME/KAGGLE_KEY not provided", METADATA_PATH)
+    return False
+
+
 def import_repositories() -> int:
+    ensure_metadata_file()
     if not METADATA_PATH.is_file():
-        raise FileNotFoundError(f"repository metadata not found: {METADATA_PATH}")
+        logger.warning("repository metadata file not found: %s", METADATA_PATH)
+        return 0
     try:
         import pandas as pd
         import ijson
@@ -261,7 +290,10 @@ def import_repositories() -> int:
         df = df.sort_values(by="stars", ascending=False)
         df["full_name_clean"] = df["nameWithOwner"].fillna("").astype(str)
         df = df.drop_duplicates(subset=["full_name_clean"])
-        sample = df.head(MAX_REPOSITORIES).to_dict(orient="records")
+        if MAX_REPOSITORIES > 0:
+            sample = df.head(MAX_REPOSITORIES).to_dict(orient="records")
+        else:
+            sample = df.to_dict(orient="records")
     else:
         sample = []
 
@@ -274,26 +306,38 @@ def import_repositories() -> int:
                 cursor.execute("DELETE FROM issues")
                 cursor.execute("DELETE FROM repositories")
                 logger.warning("repository catalog reset enabled; existing repository, issue, and contribution data was removed")
+            
+            insert_query = """
+                INSERT INTO repositories
+                    (github_id, full_name, url, description, language, stars, license, forkable, last_activity_at, last_synced_at)
+                VALUES (%(github_id)s, %(full_name)s, %(url)s, %(description)s, %(language)s,
+                        %(stars)s, %(license)s, %(forkable)s, %(pushed_at)s, now())
+                ON CONFLICT (full_name) DO UPDATE SET
+                    github_id = EXCLUDED.github_id, url = EXCLUDED.url,
+                    description = EXCLUDED.description, language = EXCLUDED.language,
+                    stars = EXCLUDED.stars, license = EXCLUDED.license,
+                    forkable = EXCLUDED.forkable, last_activity_at = EXCLUDED.last_activity_at,
+                    last_synced_at = now()
+            """
+            insert_batch: list[dict[str, Any]] = []
             for record in sample:
                 repository = clean_repository(record)
                 if repository is None:
                     continue
-                cursor.execute("""
-                    INSERT INTO repositories
-                        (github_id, full_name, url, description, language, stars, license, forkable, last_activity_at, last_synced_at)
-                    VALUES (%(github_id)s, %(full_name)s, %(url)s, %(description)s, %(language)s,
-                            %(stars)s, %(license)s, %(forkable)s, %(pushed_at)s, now())
-                                        ON CONFLICT (full_name) DO UPDATE SET
-                                            github_id = EXCLUDED.github_id, url = EXCLUDED.url,
-                      description = EXCLUDED.description, language = EXCLUDED.language,
-                      stars = EXCLUDED.stars, license = EXCLUDED.license,
-                      forkable = EXCLUDED.forkable, last_activity_at = EXCLUDED.last_activity_at,
-                      last_synced_at = now()
-                """, repository)
-                imported += 1
-        connection.commit()
+                insert_batch.append(repository)
+                if len(insert_batch) >= 2000:
+                    cursor.executemany(insert_query, insert_batch)
+                    imported += len(insert_batch)
+                    insert_batch.clear()
+                    connection.commit()
+            if insert_batch:
+                cursor.executemany(insert_query, insert_batch)
+                imported += len(insert_batch)
+                insert_batch.clear()
+                connection.commit()
+
         created_issues = ensure_default_issues_for_repositories(connection)
-    logger.info("repository import complete scanned=%s qualified=%s imported=%s sample_size=%s created_issues=%s", scanned, qualified_count, imported, MAX_REPOSITORIES, created_issues)
+    logger.info("repository import complete scanned=%s qualified=%s imported=%s sample_size=%s created_issues=%s", scanned, qualified_count, imported, len(sample), created_issues)
     return imported
 
 
@@ -525,7 +569,7 @@ if __name__ == "__main__":
     server_thread.start()
     logger.info("ingestion health server started in background thread")
 
-    if METADATA_PATH.is_file():
+    if ensure_metadata_file():
         import_repositories()
     else:
         logger.warning("repository metadata not found; serving sync endpoints with seed data only: %s", METADATA_PATH)
