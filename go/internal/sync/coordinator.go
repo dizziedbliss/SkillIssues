@@ -239,6 +239,11 @@ func (c *Coordinator) SyncRepository(ctx context.Context, repo RepositoryJob, to
 			if fetchErr == nil {
 				break
 			}
+			if strings.Contains(fetchErr.Error(), "Could not resolve to a Repository") {
+				slog.Info("repository is private or does not exist on GitHub, skipping", "repo", repo.FullName)
+				_ = MarkSyncComplete(ctx, c.db, repo.ID, github.GraphQLRateLimit{})
+				return nil
+			}
 			if strings.Contains(fetchErr.Error(), "rate limit exceeded") {
 				_ = MarkSyncFailed(ctx, c.db, repo.ID)
 				return fetchErr
