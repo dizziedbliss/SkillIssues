@@ -66,11 +66,11 @@ services:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8001/health || exit 1"]
+      test: ["CMD", "/healthcheck"]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 10
-      start_period: 5s
+      start_period: 3s
 
   # --------------------------------------------------------------------------
   # Python API — legacy backend (maintained during Go migration)
@@ -97,8 +97,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      recommendation:
-        condition: service_started
       contribution:
         condition: service_started
     healthcheck:
@@ -136,11 +134,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
-
-  recommendation:
-    build: ./services/recommendation
-    environment:
-      API_URL: http://api:8000
 
   contribution:
     build: ./services/contribution

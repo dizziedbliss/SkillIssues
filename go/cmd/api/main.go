@@ -25,7 +25,9 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/config"
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/issue"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
+	"github.com/dizziedbliss/skillissues/internal/profile"
 )
 
 func main() {
@@ -78,9 +80,11 @@ func main() {
 		RedirectURI:  cfg.GitHubRedirectURI,
 		GraphQLURL:   cfg.GitHubGraphQLURL,
 	}, authSvc)
+	profileSvc := profile.New(pool)
+	issueSvc := issue.New(pool)
 
 	// 5. Build the HTTP router and register all routes
-	mux := buildRouter(cfg, pool, cacheClient, authSvc, ghOAuth)
+	mux := buildRouter(cfg, pool, cacheClient, authSvc, ghOAuth, profileSvc, issueSvc)
 
 	// 6. Start the HTTP server
 	server := &http.Server{
@@ -123,16 +127,20 @@ func buildRouter(
 	cacheClient *cache.Client,
 	authSvc *auth.Service,
 	ghOAuth *auth.GitHubOAuth,
+	profileSvc *profile.Service,
+	issueSvc *issue.Service,
 ) http.Handler {
 	mux := http.NewServeMux()
 
 	// Handlers object bundles all dependencies for handler functions
 	h := &handlers{
-		cfg:      cfg,
-		db:       pool,
-		cache:    cacheClient,
-		authSvc:  authSvc,
-		ghOAuth:  ghOAuth,
+		cfg:        cfg,
+		db:         pool,
+		cache:      cacheClient,
+		authSvc:    authSvc,
+		ghOAuth:    ghOAuth,
+		profileSvc: profileSvc,
+		issueSvc:   issueSvc,
 	}
 
 	// ----- Health -----
