@@ -51,11 +51,22 @@ func (b *RateLimitBudget) CanProceed() bool {
 	return true
 }
 
+// BudgetSnapshot contains a point-in-time copy of rate limit metrics without lock fields.
+type BudgetSnapshot struct {
+	Limit     int       `json:"limit"`
+	Remaining int       `json:"remaining"`
+	ResetAt   time.Time `json:"reset_at"`
+}
+
 // Snapshot returns the current rate limit telemetry.
-func (b *RateLimitBudget) Snapshot() RateLimitBudget {
+func (b *RateLimitBudget) Snapshot() BudgetSnapshot {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return *b
+	return BudgetSnapshot{
+		Limit:     b.Limit,
+		Remaining: b.Remaining,
+		ResetAt:   b.ResetAt,
+	}
 }
 
 // CoordinatorConfig configures the sync coordinator.
