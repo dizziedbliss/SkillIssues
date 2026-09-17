@@ -244,6 +244,10 @@ func (c *Coordinator) SyncRepository(ctx context.Context, repo RepositoryJob, to
 				_ = MarkSyncComplete(ctx, c.db, repo.ID, github.GraphQLRateLimit{})
 				return nil
 			}
+			if strings.Contains(fetchErr.Error(), "HTTP 401") || strings.Contains(fetchErr.Error(), "Bad credentials") {
+				_ = MarkSyncFailed(ctx, c.db, repo.ID)
+				return fetchErr
+			}
 			if strings.Contains(fetchErr.Error(), "rate limit exceeded") {
 				_ = MarkSyncFailed(ctx, c.db, repo.ID)
 				return fetchErr
