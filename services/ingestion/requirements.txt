@@ -1,4 +1,0 @@
-psycopg[binary]==3.2.3
-pandas==2.2.3
-ijson==3.3.0
-kaggle==1.6.17
