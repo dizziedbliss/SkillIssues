@@ -16,7 +16,7 @@ import (
 func RateLimiter(c *cache.Client, limit int64, window time.Duration, keyPrefix string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if c == nil {
+			if c == nil || r.URL.Path == "/health" || r.URL.Path == "/health/detail" || r.URL.Path == "/metrics" {
 				next.ServeHTTP(w, r)
 				return
 			}

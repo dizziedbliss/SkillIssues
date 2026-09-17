@@ -108,6 +108,9 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("github: HTTP 401 Unauthorized (Bad credentials) - GITHUB_TOKEN is invalid, expired, or revoked on github.com")
+	}
 	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == 429 {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("github: rate limit exceeded (HTTP %d): %s", resp.StatusCode, string(body))
