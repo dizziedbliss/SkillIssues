@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: skillissues-config
+  namespace: skillissues
+data:
+  PORT: "8000"
+  SYNCD_PORT: "8002"
+  DEMO_MODE: "false"
+  FRONTEND_URL: "https://skillissues.com"
+  GITHUB_REDIRECT_URI: "https://api.skillissues.com/auth/github/callback"
+  WORKER_COUNT: "4"
+  PRIORITY_WORKER_COUNT: "2"
+  ON_DEMAND_WORKER_COUNT: "8"
+  SYNC_INTERVAL_SECONDS: "900"
+  MIN_STARS: "50"
+  MAX_REPOSITORIES: "0"
