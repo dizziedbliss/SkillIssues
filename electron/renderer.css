@@ -162,15 +162,16 @@ body {
 }
 
 .auth-button.subtle {
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-  color: var(--text-muted);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-xs);
+  color: var(--text-secondary);
 }
 
 .auth-button.subtle:hover {
   background: var(--bg-subtle);
-  color: var(--text-primary);
+  border-color: var(--border-card-hover);
+  color: #ef4444;
 }
 
 /* ---------------------------------------------------- */
