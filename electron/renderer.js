@@ -210,7 +210,7 @@ async function loadIssues(query = "") {
   } catch (error) {
     setAuthStatus("Not connected");
     el("issues").innerHTML =
-      `<div class="loading">Authentication required. Please connect your GitHub PAT Token above.</div>`;
+      `<div class="loading">Authentication required. Please sign in with GitHub above.</div>`;
     el("github-token-modal").hidden = false;
   }
 }
