@@ -2,11 +2,29 @@ name: CI Quality and Build Verification
 
 on:
   push:
-    branches: [ main, ship ]
+    branches: [ main, ship, refactor ]
   pull_request:
     branches: [ main, ship ]
 
 jobs:
+  go-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: go/go.sum
+      - name: Go vet
+        run: |
+          cd go
+          go vet ./...
+      - name: Go test (unit, no integration)
+        run: |
+          cd go
+          go test -v -short ./...
+
   lint-and-syntax:
     runs-on: ubuntu-latest
     steps:
