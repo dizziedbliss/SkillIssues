@@ -126,6 +126,41 @@ body {
   text-transform: none;
 }
 
+.web-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.web-header-user {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.web-header-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: all 0.15s ease;
+}
+
+.web-header-logout:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-hover);
+  color: #ef4444;
+}
+
 /* ---------------------------------------------------- */
 /* Searchbar (Larger & Roomier)                         */
 /* ---------------------------------------------------- */

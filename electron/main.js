@@ -151,8 +151,12 @@ async function apiJson(pathname, options = {}) {
   } catch {
     data = { detail: body };
   }
-  if (!response.ok)
+  if (!response.ok) {
+    if (response.status === 401) {
+      clearSavedSession();
+    }
     throw new Error(data.detail || `API request failed (${response.status})`);
+  }
   return data;
 }
 

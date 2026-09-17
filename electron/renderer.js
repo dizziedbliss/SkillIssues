@@ -58,8 +58,30 @@ function resetStartupState() {
   el("start-challenge").hidden = false;
   el("destination").textContent = "Documents/SkillIssues";
 }
-function setAuthStatus(message) {
-  el("auth-status").textContent = message;
+function updateAuthUI(user) {
+  const loginBtn = el("github-login");
+  const logoutBtn = el("logout");
+  const authStatus = el("auth-status");
+  if (user) {
+    if (loginBtn) loginBtn.hidden = true;
+    if (logoutBtn) logoutBtn.hidden = false;
+    if (authStatus) {
+      authStatus.hidden = true;
+      authStatus.textContent = `@${user.username || "connected"}`;
+    }
+  } else {
+    if (loginBtn) loginBtn.hidden = false;
+    if (logoutBtn) logoutBtn.hidden = true;
+    if (authStatus) {
+      authStatus.hidden = true;
+      authStatus.textContent = "Not connected";
+    }
+  }
+}
+
+function setAuthStatus(message, user = null) {
+  if (el("auth-status")) el("auth-status").textContent = message;
+  updateAuthUI(user);
 }
 function issueAuthor(issue) {
   if (issue && issue.author) return issue.author;
@@ -178,27 +200,51 @@ function showLevelUpToast(xpInfo) {
 async function loadIssues(query = "") {
   el("issues").innerHTML = '<div class="loading">Loading challenges...</div>';
   try {
-    const [recommendations, savedResult, workingResult, submissionResult] =
-      await Promise.all([
-        api(
-          query
-            ? `/issues?limit=30&search=${encodeURIComponent(query)}`
-            : "/recommendations?limit=30",
-        ),
-        api("/saved"),
-        api("/working"),
-        api("/contributions"),
-      ]);
-    issues = recommendations;
-    savedIssues = savedResult;
-    working = workingResult;
-    submissions = submissionResult.filter((item) => item.state !== "STARTED");
+    let session = null;
     try {
-      const profile = await api("/me");
-      updateProfileUI(profile);
+      session = await api("/auth/session");
     } catch {
-      /* Demo mode fallback */
+      session = { authenticated: false };
     }
+
+    if (session && session.authenticated) {
+      updateAuthUI(session.user || { username: "connected" });
+      const [recommendations, savedResult, workingResult, submissionResult] =
+        await Promise.all([
+          api(
+            query
+              ? `/issues?limit=30&search=${encodeURIComponent(query)}`
+              : "/recommendations?limit=30",
+          ).catch(() => []),
+          api("/saved").catch(() => []),
+          api("/working").catch(() => []),
+          api("/contributions").catch(() => []),
+        ]);
+      issues = Array.isArray(recommendations) ? recommendations : [];
+      savedIssues = Array.isArray(savedResult) ? savedResult : [];
+      working = Array.isArray(workingResult) ? workingResult : [];
+      submissions = (Array.isArray(submissionResult) ? submissionResult : []).filter(
+        (item) => item.state !== "STARTED",
+      );
+      try {
+        const profile = await api("/me");
+        updateProfileUI(profile);
+      } catch {
+        if (session.user) updateProfileUI(session.user);
+      }
+    } else {
+      updateAuthUI(null);
+      const catalog = await api(
+        query
+          ? `/issues?limit=30&search=${encodeURIComponent(query)}`
+          : "/issues?limit=30",
+      ).catch(() => []);
+      issues = Array.isArray(catalog) ? catalog : [];
+      savedIssues = [];
+      working = [];
+      submissions = [];
+    }
+
     el("issue-count").textContent = String(issues.length).padStart(2, "0");
     el("saved-count").textContent = String(savedIssues.length).padStart(2, "0");
     el("working-count").textContent = String(working.length).padStart(2, "0");
@@ -208,7 +254,7 @@ async function loadIssues(query = "") {
     );
     renderIssues();
   } catch (error) {
-    setAuthStatus("Not connected");
+    updateAuthUI(null);
     el("issues").innerHTML =
       `<div class="loading">Authentication required. Please sign in with GitHub above.</div>`;
     el("github-token-modal").hidden = false;
@@ -992,7 +1038,8 @@ document.addEventListener("DOMContentLoaded", () => {
       el("github-token-modal").hidden = true;
       if (tokenErr) tokenErr.hidden = true;
       const username = result.user && result.user.username ? result.user.username : "connected";
-      setAuthStatus(`GitHub: @${username}`);
+      const user = result.user || { username };
+      setAuthStatus(`GitHub: @${username}`, user);
       showToast(`Connected successfully as @${username}`);
       showResult(`GitHub connected successfully via OAuth as @${username}`);
       await loadIssues();
@@ -1034,7 +1081,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const result = await window.skillIssuesDesktop.loginWithToken(token);
       el("github-token-modal").hidden = true;
       if (tokenErr) tokenErr.hidden = true;
-      setAuthStatus(`GitHub: @${result.user.username}`);
+      setAuthStatus(`GitHub: @${result.user.username}`, result.user);
       showToast(`Connected successfully as @${result.user.username}`);
       showResult(`GitHub connected successfully as @${result.user.username}`);
       await loadIssues();
@@ -1055,7 +1102,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       showRunnerProgress(true);
       await window.skillIssuesDesktop.loginDemo();
-      setAuthStatus("Demo profile");
+      setAuthStatus("Demo profile", { username: "demo-developer" });
       await loadIssues();
     } catch (error) {
       showResult(error.message, true);
@@ -1064,9 +1111,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
   el("logout")?.addEventListener("click", async () => {
-    await window.skillIssuesDesktop.logout();
-    setAuthStatus("Signed out");
-    showToast("Signed out successfully");
+    try {
+      showRunnerProgress(true);
+      await window.skillIssuesDesktop.logout();
+      setAuthStatus("Signed out", null);
+      showToast("Signed out successfully");
+      resetStartupState();
+      await loadIssues();
+    } catch (error) {
+      showToast(error.message, true);
+    } finally {
+      showRunnerProgress(false);
+    }
   });
   el("branch-button")?.addEventListener("click", async () => {
     if (!destination)

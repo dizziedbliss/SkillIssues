@@ -639,6 +639,19 @@ function App() {
             SkillIssues<span>You Have the Skills. We Have the Issues.</span>
           </div>
         </div>
+        {profile && (
+          <div className="web-header-actions">
+            <span className="web-header-user">@{profile.username}</span>
+            <button
+              type="button"
+              className="web-header-logout"
+              onClick={() => void handleLogout()}
+            >
+              <LogOut size={14} />
+              <span>Log out</span>
+            </button>
+          </div>
+        )}
       </header>
 
       <form
