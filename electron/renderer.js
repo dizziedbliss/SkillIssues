@@ -973,6 +973,42 @@ document.addEventListener("DOMContentLoaded", () => {
   el("github-login")?.addEventListener("click", () => {
     el("github-token-modal").hidden = false;
   });
+  el("oauth-login-btn")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const btn = el("oauth-login-btn");
+    const origHtml = btn.innerHTML;
+    const tokenErr = el("token-error");
+    if (tokenErr) tokenErr.hidden = true;
+
+    try {
+      btn.disabled = true;
+      btn.textContent = "Connecting to GitHub...";
+      showRunnerProgress(true);
+      const result = await window.skillIssuesDesktop.loginWithGitHub();
+      if (!result.authenticated) {
+        throw new Error(result.message || "GitHub authentication was not completed.");
+      }
+      el("github-token-modal").hidden = true;
+      if (tokenErr) tokenErr.hidden = true;
+      const username = result.user && result.user.username ? result.user.username : "connected";
+      setAuthStatus(`GitHub: @${username}`);
+      showToast(`Connected successfully as @${username}`);
+      showResult(`GitHub connected successfully via OAuth as @${username}`);
+      await loadIssues();
+    } catch (error) {
+      if (tokenErr) {
+        tokenErr.textContent = error.message;
+        tokenErr.hidden = false;
+      }
+      showToast(error.message, true);
+      showResult(error.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+      showRunnerProgress(false);
+    }
+  });
   el("submit-token-login")?.addEventListener("click", async (e) => {
     e.preventDefault();
     e.stopPropagation();

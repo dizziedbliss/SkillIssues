@@ -26,6 +26,54 @@ const MAX_OUTPUT_BYTES = 1024 * 1024;
 const API_URL = process.env.SKILLISSUES_API_URL || "http://localhost:8000";
 let apiSessionToken = "";
 
+function getSessionFilePath() {
+  try {
+    return path.join(app.getPath("userData"), "session.json");
+  } catch {
+    return null;
+  }
+}
+
+function loadSavedSession() {
+  const sessionFile = getSessionFilePath();
+  if (!sessionFile) return;
+  try {
+    if (fs.existsSync(sessionFile)) {
+      const data = JSON.parse(fs.readFileSync(sessionFile, "utf8"));
+      if (data && typeof data.token === "string" && data.token.trim()) {
+        apiSessionToken = data.token.trim();
+      }
+    }
+  } catch (err) {
+    logRuntimeError("loadSavedSession", err);
+  }
+}
+
+function saveSession(token) {
+  apiSessionToken = token || "";
+  const sessionFile = getSessionFilePath();
+  if (!sessionFile) return;
+  try {
+    fs.mkdirSync(path.dirname(sessionFile), { recursive: true });
+    fs.writeFileSync(sessionFile, JSON.stringify({ token: apiSessionToken }), "utf8");
+  } catch (err) {
+    logRuntimeError("saveSession", err);
+  }
+}
+
+function clearSavedSession() {
+  apiSessionToken = "";
+  const sessionFile = getSessionFilePath();
+  if (!sessionFile) return;
+  try {
+    if (fs.existsSync(sessionFile)) {
+      fs.unlinkSync(sessionFile);
+    }
+  } catch (err) {
+    logRuntimeError("clearSavedSession", err);
+  }
+}
+
 // Enforce single-instance lock to prevent concurrent conflicting processes
 if (!app.requestSingleInstanceLock()) {
   process.exit(0);
@@ -335,57 +383,124 @@ ipcMain.handle("api:request", async (_, pathname, options = {}) => {
 // ==============================================================================
 
 ipcMain.handle("auth:github", async () => {
-  const loginResponse = await fetch(`${API_URL}/auth/github`, {
-    headers: { Accept: "application/json" },
-  });
-  const login = await loginResponse.json();
-  if (!login.authorize_url) {
+  try {
+    const loginResponse = await fetch(`${API_URL}/auth/github`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!loginResponse.ok) {
+      throw new Error(`API returned HTTP ${loginResponse.status}`);
+    }
+    const login = await loginResponse.json();
+    if (!login.authorize_url) {
+      return {
+        authenticated: false,
+        message: login.message || login.error || "GitHub OAuth is not configured on the API server.",
+      };
+    }
+    const authWindow = new BrowserWindow({
+      width: 560,
+      height: 760,
+      parent: BrowserWindow.getFocusedWindow() || undefined,
+      modal: true,
+      webPreferences: { contextIsolation: true, sandbox: true },
+    });
+    await authWindow.loadURL(login.authorize_url);
+
+    return new Promise((resolve) => {
+      let finished = false;
+
+      const complete = async (tokenFromNav) => {
+        if (finished) return;
+        finished = true;
+
+        if (tokenFromNav) {
+          saveSession(tokenFromNav);
+        }
+
+        if (!apiSessionToken) {
+          try {
+            const cookies = await authWindow.webContents.session.cookies.get({
+              name: "skillissues_session",
+            });
+            const sessionCookie = cookies[0];
+            if (sessionCookie && sessionCookie.value) {
+              saveSession(sessionCookie.value);
+            }
+          } catch {
+            // ignore cookie read error
+          }
+        }
+
+        if (!authWindow.isDestroyed()) authWindow.close();
+
+        if (!apiSessionToken) {
+          resolve({ authenticated: false, message: "Authentication was not completed." });
+          return;
+        }
+
+        try {
+          const user = await apiJson("/me");
+          resolve({ authenticated: true, user });
+        } catch {
+          resolve({ authenticated: true, user: { username: "connected" } });
+        }
+      };
+
+      const handleUrl = (targetUrl) => {
+        try {
+          const parsed = new URL(targetUrl);
+          const token = parsed.searchParams.get("token");
+          const error = parsed.searchParams.get("error");
+          const errorDesc = parsed.searchParams.get("error_description");
+
+          if (error) {
+            if (finished) return;
+            finished = true;
+            if (!authWindow.isDestroyed()) authWindow.close();
+            resolve({
+              authenticated: false,
+              message: errorDesc ? `${error}: ${errorDesc}` : error,
+            });
+            return;
+          }
+
+          if (token) {
+            void complete(token);
+            return;
+          }
+
+          if (
+            targetUrl.startsWith(process.env.FRONTEND_URL || "http://localhost:5173") ||
+            targetUrl.includes("/auth/github/callback")
+          ) {
+            setTimeout(() => void complete(), 600);
+          }
+        } catch {
+          // ignore invalid url
+        }
+      };
+
+      authWindow.webContents.on("will-redirect", (_event, url) => handleUrl(url));
+      authWindow.webContents.on("did-navigate", (_event, url) => handleUrl(url));
+      authWindow.on("closed", () => {
+        if (!finished) {
+          finished = true;
+          if (apiSessionToken) {
+            apiJson("/me")
+              .then((user) => resolve({ authenticated: true, user }))
+              .catch(() => resolve({ authenticated: true, user: { username: "connected" } }));
+          } else {
+            resolve({ authenticated: false, message: "Sign in window was closed." });
+          }
+        }
+      });
+    });
+  } catch (err) {
     return {
       authenticated: false,
-      message: login.message || "OAuth Client ID not configured.",
+      message: err instanceof Error ? err.message : "Failed to initiate GitHub authentication.",
     };
   }
-  const authWindow = new BrowserWindow({
-    width: 560,
-    height: 760,
-    parent: BrowserWindow.getFocusedWindow() || undefined,
-    modal: true,
-    webPreferences: { contextIsolation: true, sandbox: true },
-  });
-  await authWindow.loadURL(login.authorize_url);
-  return new Promise((resolve) => {
-    let finished = false;
-    const complete = async () => {
-      if (finished) return;
-      finished = true;
-      const cookies = await authWindow.webContents.session.cookies.get({
-        name: "skillissues_session",
-      });
-      const sessionCookie = cookies[0];
-      if (sessionCookie) apiSessionToken = sessionCookie.value;
-      if (!authWindow.isDestroyed()) authWindow.close();
-      resolve({ authenticated: Boolean(sessionCookie) });
-    };
-    authWindow.webContents.on("will-redirect", (_event, url) => {
-      if (
-        url.startsWith(process.env.FRONTEND_URL || "http://localhost:5173") ||
-        url.includes("/auth/github/callback")
-      ) {
-        setTimeout(() => void complete(), 600);
-      }
-    });
-    authWindow.webContents.on("did-navigate", (_event, url) => {
-      if (url.startsWith(process.env.FRONTEND_URL || "http://localhost:5173")) {
-        void complete();
-      }
-    });
-    authWindow.on("closed", () => {
-      if (!finished) {
-        finished = true;
-        resolve({ authenticated: Boolean(apiSessionToken) });
-      }
-    });
-  });
 });
 
 ipcMain.handle("auth:github-token", async (_, token) => {
@@ -397,13 +512,16 @@ ipcMain.handle("auth:github-token", async (_, token) => {
     headers: { "Content-Type": "application/json" },
   });
   if (data.session_token) {
-    apiSessionToken = data.session_token;
+    saveSession(data.session_token);
   }
   return { authenticated: true, user: data.user };
 });
 
 ipcMain.handle("auth:demo", async () => {
-  await apiJson("/auth/demo", { method: "POST" });
+  const data = await apiJson("/auth/demo", { method: "POST" });
+  if (data && data.session_token) {
+    saveSession(data.session_token);
+  }
   return { authenticated: true };
 });
 
@@ -415,7 +533,7 @@ ipcMain.handle("auth:logout", async () => {
   } catch {
     /* ignore logout network errors */
   } finally {
-    apiSessionToken = "";
+    clearSavedSession();
   }
   return { loggedOut: true };
 });
@@ -721,6 +839,7 @@ ipcMain.handle(
 // ==============================================================================
 
 app.whenReady().then(() => {
+  loadSavedSession();
   session.defaultSession.setPermissionRequestHandler(
     (_webContents, _permission, callback) => callback(false),
   );
