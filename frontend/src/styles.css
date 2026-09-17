@@ -1016,6 +1016,134 @@ body {
 }
 
 /* ---------------------------------------------------- */
+/* OAuth Button & Auth Enhancements                     */
+/* ---------------------------------------------------- */
+
+.oauth-github-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: #181717;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 13px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 12px rgba(24, 23, 23, 0.12);
+}
+
+.oauth-github-btn:hover:not(:disabled) {
+  background: #2b2828;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(24, 23, 23, 0.2);
+}
+
+.oauth-github-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.oauth-github-btn .github-icon {
+  flex-shrink: 0;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  margin: 22px 0 16px;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.auth-divider span {
+  padding: 0 14px;
+}
+
+.token-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--accent-blue);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.token-toggle-btn:hover {
+  background: var(--bg-pill-light);
+  color: var(--accent-blue-hover);
+  text-decoration: underline;
+}
+
+.login-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: -4px 0 0;
+  text-align: left;
+}
+
+.login-hint code {
+  background: var(--bg-app);
+  color: var(--accent-blue);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: "JetBrains Mono", monospace;
+}
+
+.auth-alert-box {
+  background: var(--status-rejected-bg);
+  border: 1px solid var(--status-rejected-border);
+  color: var(--status-rejected-text);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 18px;
+  text-align: left;
+  line-height: 1.45;
+}
+
+.logout-button {
+  margin-top: 20px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.logout-button:hover {
+  background: var(--status-rejected-bg);
+  border-color: var(--status-rejected-border);
+  color: var(--status-rejected-text);
+}
+
+/* ---------------------------------------------------- */
 /* Responsive Rules                                     */
 /* ---------------------------------------------------- */
 
