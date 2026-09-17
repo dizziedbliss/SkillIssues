@@ -16,6 +16,7 @@ import (
 
 	"github.com/dizziedbliss/skillissues/internal/auth"
 	"github.com/dizziedbliss/skillissues/internal/cache"
+	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/google/uuid"
 )
 
@@ -81,12 +82,15 @@ func Logger(next http.Handler) http.Handler {
 
 		next.ServeHTTP(rw, r)
 
+		duration := time.Since(start)
+		metrics.Default.RecordHTTPRequest(r.Method, r.URL.Path, rw.status, duration)
+
 		slog.InfoContext(r.Context(), "request",
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", rw.status,
 			"bytes", rw.size,
-			"latency_ms", time.Since(start).Milliseconds(),
+			"latency_ms", duration.Milliseconds(),
 			"request_id", GetRequestID(r.Context()),
 			"remote_addr", r.RemoteAddr,
 		)

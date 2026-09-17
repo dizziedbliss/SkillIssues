@@ -28,6 +28,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/dizziedbliss/skillissues/internal/issue"
+	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
 	"github.com/dizziedbliss/skillissues/internal/profile"
 )
@@ -151,9 +152,10 @@ func buildRouter(
 		ghClient:   ghClient,
 	}
 
-	// ----- Health -----
+	// ----- Health & Metrics -----
 	mux.HandleFunc("GET /health", h.health)
 	mux.HandleFunc("GET /health/detail", h.healthDetail)
+	mux.Handle("GET /metrics", metrics.Default.Handler())
 
 	// ----- Auth -----
 	mux.HandleFunc("GET /auth/session", h.getSession)

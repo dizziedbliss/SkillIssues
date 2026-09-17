@@ -35,9 +35,8 @@ services:
       retries: 10
 
   # --------------------------------------------------------------------------
-  # Go API — new primary backend (Phase 1: auth + proxy to Python)
-  # Set PYTHON_API_URL to point at the legacy Python api service during migration.
-  # Once all routes are ported, the Python api service is removed.
+  # Go API — authoritative primary backend (Phase 7: Full Cutover)
+  # Pure Go implementation of all 28 API routes, auth, progression, and issues.
   # --------------------------------------------------------------------------
   go-api:
     build:
@@ -51,19 +50,16 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8001/auth/github/callback}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8000/auth/github/callback}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-dev_local_webhook_secret}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-dev_local_admin_sync_token}
-      PYTHON_API_URL: http://api:8000  # proxy target during migration
-      PORT: 8001
+      PORT: 8000
     ports:
-      - "8001:8001"
+      - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      api:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "/healthcheck"]
@@ -71,69 +67,6 @@ services:
       timeout: 3s
       retries: 10
       start_period: 3s
-
-  # --------------------------------------------------------------------------
-  # Python API — legacy backend (maintained during Go migration)
-  # Will be decommissioned once all routes are ported to Go.
-  # --------------------------------------------------------------------------
-  api:
-    build: ./services/api
-    environment:
-      DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
-      FRONTEND_URL: http://localhost:5173
-      DEMO_MODE: ${DEMO_MODE:-true}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8000/auth/github/callback}
-      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
-      ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-}
-      RECOMMENDATION_URL: http://recommendation:8000
-      CONTRIBUTION_URL: http://contribution:8000
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./database:/database:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 3s
-      timeout: 5s
-      retries: 10
-      start_period: 2s
-
-  # --------------------------------------------------------------------------
-  # Python ingestion — repository metadata import + GitHub issue sync
-  # (Migrating to Go syncd in Phase 4; Kaggle ETL moves to python/ in Phase 6)
-  # --------------------------------------------------------------------------
-  ingestion:
-    build: ./services/ingestion
-    environment:
-      DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
-      REPOSITORY_METADATA_PATH: /repo/repo_metadata.json
-      MAX_REPOSITORIES: ${MAX_REPOSITORIES:-0}
-      MIN_STARS: ${MIN_STARS:-50}
-      SAMPLE_SEED: ${SAMPLE_SEED:-skillissues-demo}
-      RESET_CATALOG: ${RESET_CATALOG:-false}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      KAGGLE_USERNAME: ${KAGGLE_USERNAME:-}
-      KAGGLE_KEY: ${KAGGLE_KEY:-}
-      SYNC_ISSUES: ${SYNC_ISSUES:-false}
-      SYNC_REPOSITORIES: 10
-      INGESTION_PORT: 8000
-    volumes:
-      - ./repo:/repo
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 3s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
 
   # --------------------------------------------------------------------------
   # Go syncd — Sync Coordinator & GitHub GraphQL ingestion engine (Phase 4)
@@ -167,14 +100,13 @@ services:
 
   # --------------------------------------------------------------------------
   # Go worker — priority issue catalog refresh daemon (Phase 4)
-  # Replaces legacy Python services/worker.
   # --------------------------------------------------------------------------
   worker:
     build:
       context: ./go
       dockerfile: cmd/worker/Dockerfile
     environment:
-      API_URL: http://go-api:8001
+      API_URL: http://go-api:8000
       SYNCD_URL: http://syncd:8002
       SYNC_INTERVAL_SECONDS: 900
     depends_on:
@@ -190,7 +122,7 @@ services:
     ports:
       - "5173:5173"
     depends_on:
-      api:
+      go-api:
         condition: service_healthy
 
 volumes:
