@@ -400,14 +400,30 @@ ipcMain.handle("auth:github", async () => {
     const authWindow = new BrowserWindow({
       width: 560,
       height: 760,
-      parent: BrowserWindow.getFocusedWindow() || undefined,
+      parent: mainWindow || BrowserWindow.getFocusedWindow() || undefined,
       modal: true,
+      autoHideMenuBar: true,
       webPreferences: { contextIsolation: true, sandbox: true },
     });
     await authWindow.loadURL(login.authorize_url);
 
     return new Promise((resolve) => {
       let finished = false;
+
+      const closeAuthWindow = () => {
+        try {
+          if (!authWindow.isDestroyed()) {
+            authWindow.removeAllListeners("closed");
+            authWindow.destroy();
+          }
+        } catch {
+          // ignore destroy errors
+        }
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      };
 
       const complete = async (tokenFromNav) => {
         if (finished) return;
@@ -420,18 +436,31 @@ ipcMain.handle("auth:github", async () => {
         if (!apiSessionToken) {
           try {
             const cookies = await authWindow.webContents.session.cookies.get({
+              url: API_URL,
               name: "skillissues_session",
             });
-            const sessionCookie = cookies[0];
-            if (sessionCookie && sessionCookie.value) {
-              saveSession(sessionCookie.value);
+            if (cookies && cookies[0] && cookies[0].value) {
+              saveSession(cookies[0].value);
             }
           } catch {
             // ignore cookie read error
           }
         }
 
-        if (!authWindow.isDestroyed()) authWindow.close();
+        if (!apiSessionToken) {
+          try {
+            const cookies = await authWindow.webContents.session.cookies.get({
+              name: "skillissues_session",
+            });
+            if (cookies && cookies[0] && cookies[0].value) {
+              saveSession(cookies[0].value);
+            }
+          } catch {
+            // ignore cookie read error
+          }
+        }
+
+        closeAuthWindow();
 
         if (!apiSessionToken) {
           resolve({ authenticated: false, message: "Authentication was not completed." });
@@ -446,7 +475,8 @@ ipcMain.handle("auth:github", async () => {
         }
       };
 
-      const handleUrl = (targetUrl) => {
+      const handleUrl = (targetUrl, event) => {
+        if (!targetUrl || finished) return;
         try {
           const parsed = new URL(targetUrl);
           const token = parsed.searchParams.get("token");
@@ -454,9 +484,11 @@ ipcMain.handle("auth:github", async () => {
           const errorDesc = parsed.searchParams.get("error_description");
 
           if (error) {
-            if (finished) return;
+            if (event && typeof event.preventDefault === "function") {
+              event.preventDefault();
+            }
             finished = true;
-            if (!authWindow.isDestroyed()) authWindow.close();
+            closeAuthWindow();
             resolve({
               authenticated: false,
               message: errorDesc ? `${error}: ${errorDesc}` : error,
@@ -465,26 +497,37 @@ ipcMain.handle("auth:github", async () => {
           }
 
           if (token) {
+            if (event && typeof event.preventDefault === "function") {
+              event.preventDefault();
+            }
             void complete(token);
             return;
           }
 
-          if (
-            targetUrl.startsWith(process.env.FRONTEND_URL || "http://localhost:5173") ||
-            targetUrl.includes("/auth/github/callback")
-          ) {
-            setTimeout(() => void complete(), 600);
+          const frontendBase = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
+          if (targetUrl.startsWith(frontendBase)) {
+            if (event && typeof event.preventDefault === "function") {
+              event.preventDefault();
+            }
+            void complete();
           }
         } catch {
           // ignore invalid url
         }
       };
 
-      authWindow.webContents.on("will-redirect", (_event, url) => handleUrl(url));
-      authWindow.webContents.on("did-navigate", (_event, url) => handleUrl(url));
+      const onNav = (event, url) => handleUrl(url, event);
+      authWindow.webContents.on("will-redirect", onNav);
+      authWindow.webContents.on("will-navigate", onNav);
+      authWindow.webContents.on("did-redirect-navigation", onNav);
+      authWindow.webContents.on("did-navigate", onNav);
+
       authWindow.on("closed", () => {
         if (!finished) {
           finished = true;
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.focus();
+          }
           if (apiSessionToken) {
             apiJson("/me")
               .then((user) => resolve({ authenticated: true, user }))
