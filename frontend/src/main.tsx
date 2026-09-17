@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   Bookmark,
   ExternalLink,
+  LogOut,
   MessageCircle,
   Pencil,
   Search,
@@ -89,18 +90,30 @@ const languageLogoBase =
   "https://raw.githubusercontent.com/abranhe/programming-languages-logos/master/src";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = localStorage.getItem("skillissues_token");
   const response = await fetch(`${API}${path}`, {
     ...init,
     credentials: "include",
     headers: {
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   });
-  if (!response.ok)
-    throw new Error(
-      response.status === 401 ? "Authentication required" : "Request failed",
-    );
+  if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem("skillissues_token");
+      throw new Error("Authentication required");
+    }
+    let errorMsg = "Request failed";
+    try {
+      const payload = await response.json();
+      errorMsg = payload.error || payload.detail || errorMsg;
+    } catch {
+      // ignore
+    }
+    throw new Error(errorMsg);
+  }
   return response.json();
 }
 
@@ -218,22 +231,66 @@ function IssueCard({
   );
 }
 
-function TokenLoginForm({ onLogin }: { onLogin: () => void }) {
+function LoginForm({
+  onLogin,
+  initialError,
+}: {
+  onLogin: () => void;
+  initialError?: string;
+}) {
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
+  const [oauthLoading, setOAuthLoading] = useState(false);
+  const [showTokenLogin, setShowTokenLogin] = useState(false);
+  const [err, setErr] = useState(initialError || "");
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleOAuthLogin() {
+    setOAuthLoading(true);
+    setErr("");
+    try {
+      const data = await request<{
+        enabled: boolean;
+        authorize_url: string;
+        redirect_uri?: string;
+        error?: string;
+      }>("/auth/github");
+
+      if (!data.enabled || !data.authorize_url) {
+        setErr(
+          data.error ||
+            "GitHub OAuth is not enabled on this server. Check GITHUB_CLIENT_ID or use Personal Access Token below."
+        );
+        setOAuthLoading(false);
+        setShowTokenLogin(true);
+        return;
+      }
+
+      window.location.href = data.authorize_url;
+    } catch (caught) {
+      setErr(
+        caught instanceof Error ? caught.message : "Failed to initiate GitHub OAuth"
+      );
+      setOAuthLoading(false);
+    }
+  }
+
+  async function handleTokenSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!token.trim())
       return setErr("Please enter a GitHub Personal Access Token.");
     setLoading(true);
     setErr("");
     try {
-      await request("/auth/github/token", {
-        method: "POST",
-        body: JSON.stringify({ token: token.trim() }),
-      });
+      const resp = await request<{ authenticated: boolean; session_token?: string }>(
+        "/auth/github/token",
+        {
+          method: "POST",
+          body: JSON.stringify({ token: token.trim() }),
+        }
+      );
+      if (resp.session_token) {
+        localStorage.setItem("skillissues_token", resp.session_token);
+      }
       onLogin();
     } catch (caught) {
       setErr(caught instanceof Error ? caught.message : "Invalid GitHub Token");
@@ -251,24 +308,63 @@ function TokenLoginForm({ onLogin }: { onLogin: () => void }) {
             SkillIssues<span>You Have the Skills. We Have the Issues.</span>
           </div>
         </div>
-        <h1 className="login-title">Connect your account</h1>
+        <h1 className="login-title">Sign in to SkillIssues</h1>
         <p className="login-desc">
-          Enter your GitHub Personal Access Token (PAT) with <code>repo</code>{" "}
-          scope to sync challenges, fork repos, and track contributions directly.
+          Connect with your GitHub account to get personalized issue recommendations,
+          track XP progression, and verify merged pull requests.
         </p>
-        <form onSubmit={(e) => void handleSubmit(e)} className="login-form">
-          <input
-            type="password"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="ghp_xxxxxxxxxxxxxxxxxxxx..."
-            className="login-input"
-          />
-          {err && <p className="login-error">{err}</p>}
-          <button type="submit" className="search-submit login-btn" disabled={loading}>
-            {loading ? "Connecting..." : "Connect with Token"}
+
+        {err && (
+          <div className="auth-alert-box">
+            <span>{err}</span>
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="oauth-github-btn"
+          onClick={() => void handleOAuthLogin()}
+          disabled={oauthLoading}
+        >
+          <svg className="github-icon" height="20" width="20" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+          </svg>
+          <span>{oauthLoading ? "Connecting to GitHub..." : "Continue with GitHub"}</span>
+        </button>
+
+        <div className="auth-divider">
+          <span>or sign in with token</span>
+        </div>
+
+        {!showTokenLogin ? (
+          <button
+            type="button"
+            className="token-toggle-btn"
+            onClick={() => setShowTokenLogin(true)}
+          >
+            Use Personal Access Token (PAT) instead →
           </button>
-        </form>
+        ) : (
+          <form onSubmit={(e) => void handleTokenSubmit(e)} className="login-form">
+            <input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="ghp_xxxxxxxxxxxxxxxxxxxx..."
+              className="login-input"
+            />
+            <p className="login-hint">
+              Requires <code>read:user</code> and <code>repo</code> permissions.
+            </p>
+            <button
+              type="submit"
+              className="search-submit login-btn"
+              disabled={loading}
+            >
+              {loading ? "Verifying Token..." : "Sign in with Token"}
+            </button>
+          </form>
+        )}
       </div>
     </main>
   );
@@ -285,6 +381,7 @@ function App() {
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [loginRequired, setLoginRequired] = useState(false);
+  const [oauthError, setOAuthError] = useState("");
   const [editing, setEditing] = useState(false);
   const [bio, setBio] = useState("");
   const [languages, setLanguages] = useState("");
@@ -332,8 +429,41 @@ function App() {
   }
 
   useEffect(() => {
+    // Check URL parameters for OAuth redirect results
+    const params = new URLSearchParams(window.location.search);
+    const tokenParam = params.get("token");
+    const errorParam = params.get("error");
+    const errorDesc = params.get("error_description");
+
+    if (tokenParam) {
+      localStorage.setItem("skillissues_token", tokenParam);
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setLoginRequired(false);
+      setOAuthError("");
+      void refresh();
+      return;
+    }
+
+    if (errorParam) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setLoginRequired(true);
+      setOAuthError(errorDesc ? `${errorParam}: ${errorDesc}` : errorParam);
+      return;
+    }
+
     void refresh();
   }, []);
+
+  async function handleLogout() {
+    try {
+      await request("/auth/logout", { method: "POST" });
+    } catch {
+      // ignore
+    }
+    localStorage.removeItem("skillissues_token");
+    setProfile(null);
+    setLoginRequired(true);
+  }
 
   async function toggleSave(issue: Issue) {
     const isSaved = savedIssues.some((item) => item.id === issue.id);
@@ -386,9 +516,11 @@ function App() {
 
   if (loginRequired)
     return (
-      <TokenLoginForm
+      <LoginForm
+        initialError={oauthError}
         onLogin={() => {
           setLoginRequired(false);
+          setOAuthError("");
           void refresh();
         }}
       />
@@ -703,6 +835,16 @@ function App() {
               />
             </div>
           </div>
+
+          <button
+            type="button"
+            className="logout-button"
+            onClick={() => void handleLogout()}
+            title="Sign out of SkillIssues"
+          >
+            <LogOut size={14} />
+            <span>Sign out</span>
+          </button>
         </aside>
       </section>
 

@@ -45,7 +45,7 @@ services:
     environment:
       DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
       REDIS_URL: redis://redis:6379/0
-      FRONTEND_URL: http://localhost:5173
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       DEMO_MODE: ${DEMO_MODE:-true}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}

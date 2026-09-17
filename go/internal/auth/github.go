@@ -84,7 +84,7 @@ func (g *GitHubOAuth) BeginOAuth(ctx context.Context, redirectURI string) (strin
 	params := url.Values{
 		"client_id":             {g.cfg.ClientID},
 		"redirect_uri":          {redirectURI},
-		"scope":                 {"user:email,repo"},
+		"scope":                 {"read:user user:email repo"},
 		"state":                 {state},
 		"code_challenge":        {codeChallenge},
 		"code_challenge_method": {"S256"},
@@ -155,14 +155,18 @@ func (g *GitHubOAuth) exchangeCode(ctx context.Context, code, codeVerifier, redi
 	defer resp.Body.Close()
 
 	var result struct {
-		AccessToken string `json:"access_token"`
-		Error       string `json:"error"`
+		AccessToken      string `json:"access_token"`
+		Error            string `json:"error"`
+		ErrorDescription string `json:"error_description"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", err
 	}
 	if result.Error != "" {
-		return "", fmt.Errorf("github: %s", result.Error)
+		if result.ErrorDescription != "" {
+			return "", fmt.Errorf("github oauth: %s (%s)", result.Error, result.ErrorDescription)
+		}
+		return "", fmt.Errorf("github oauth: %s", result.Error)
 	}
 	return result.AccessToken, nil
 }

@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -209,13 +210,20 @@ func (h *handlers) authGitHubBegin(w http.ResponseWriter, r *http.Request) {
 			"enabled":       false,
 			"authorize_url": "",
 			"redirect_uri":  h.cfg.GitHubRedirectURI,
+			"error":         "GITHUB_CLIENT_ID is not configured",
 		})
 		return
 	}
 
 	authorizeURL, _, err := h.ghOAuth.BeginOAuth(r.Context(), h.cfg.GitHubRedirectURI)
 	if err != nil {
-		middleware.RespondError(w, http.StatusInternalServerError, "failed to begin OAuth flow")
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to begin OAuth flow: "+err.Error())
+		return
+	}
+
+	// If browser directly navigated or explicitly requested redirect
+	if r.URL.Query().Get("redirect") == "true" || strings.Contains(r.Header.Get("Accept"), "text/html") {
+		http.Redirect(w, r, authorizeURL, http.StatusFound)
 		return
 	}
 
@@ -231,32 +239,64 @@ func (h *handlers) authGitHubCallback(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	state := r.URL.Query().Get("state")
 	errParam := r.URL.Query().Get("error")
+	errDesc := r.URL.Query().Get("error_description")
+
+	frontendURL := h.cfg.FrontendURL
+	if frontendURL == "" {
+		frontendURL = "http://localhost:5173"
+	}
+
+	redirectWithError := func(code string, detail string) {
+		sep := "?"
+		if strings.Contains(frontendURL, "?") {
+			sep = "&"
+		}
+		target := fmt.Sprintf("%s%serror=%s", frontendURL, sep, url.QueryEscape(code))
+		if detail != "" {
+			target += fmt.Sprintf("&error_description=%s", url.QueryEscape(detail))
+		}
+		http.Redirect(w, r, target, http.StatusFound)
+	}
 
 	if errParam != "" {
-		http.Redirect(w, r, h.cfg.FrontendURL+"?error="+url.QueryEscape(errParam), http.StatusFound)
+		redirectWithError(errParam, errDesc)
+		return
+	}
+
+	if code == "" || state == "" {
+		redirectWithError("missing_code_or_state", "Authorization code or state parameter missing from callback")
 		return
 	}
 
 	ghToken, ghUser, err := h.ghOAuth.ExchangeOAuthCode(r.Context(), code, state)
 	if err != nil {
-		http.Redirect(w, r, h.cfg.FrontendURL+"?error=oauth_failed", http.StatusFound)
+		slog.Error("failed to exchange oauth code", "error", err)
+		redirectWithError("oauth_failed", err.Error())
 		return
 	}
 
 	userID, err := h.authSvc.UpsertUser(r.Context(), ghUser.GitHubID, ghUser.Username, ghUser.AvatarURL, ghToken)
 	if err != nil {
-		http.Redirect(w, r, h.cfg.FrontendURL+"?error=user_creation_failed", http.StatusFound)
+		slog.Error("failed to upsert user after oauth", "error", err)
+		redirectWithError("user_creation_failed", err.Error())
 		return
 	}
 
 	rawToken, err := h.authSvc.CreateSession(r.Context(), userID, "github_oauth")
 	if err != nil {
-		http.Redirect(w, r, h.cfg.FrontendURL+"?error=session_failed", http.StatusFound)
+		slog.Error("failed to create session after oauth", "error", err)
+		redirectWithError("session_failed", err.Error())
 		return
 	}
 
 	h.setSessionCookie(w, rawToken)
-	http.Redirect(w, r, h.cfg.FrontendURL, http.StatusFound)
+
+	// Redirect to frontend with token in query param for robust multi-origin support
+	sep := "?"
+	if strings.Contains(frontendURL, "?") {
+		sep = "&"
+	}
+	http.Redirect(w, r, fmt.Sprintf("%s%stoken=%s", frontendURL, sep, url.QueryEscape(rawToken)), http.StatusFound)
 }
 
 // ---------------------------------------------------------------------------
@@ -966,22 +1006,35 @@ func (h *handlers) proxyToPython(w http.ResponseWriter, r *http.Request, path st
 // ---------------------------------------------------------------------------
 
 func (h *handlers) setSessionCookie(w http.ResponseWriter, rawToken string) {
+	isSecure := strings.HasPrefix(h.cfg.FrontendURL, "https://")
+	sameSite := http.SameSiteLaxMode
+	if isSecure {
+		sameSite = http.SameSiteNoneMode
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     "skillissues_session",
 		Value:    rawToken,
 		MaxAge:   int(auth.SessionDuration.Seconds()),
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
+		Secure:   isSecure,
+		SameSite: sameSite,
 		Path:     "/",
 	})
 }
 
 func (h *handlers) clearSessionCookie(w http.ResponseWriter) {
+	isSecure := strings.HasPrefix(h.cfg.FrontendURL, "https://")
+	sameSite := http.SameSiteLaxMode
+	if isSecure {
+		sameSite = http.SameSiteNoneMode
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     "skillissues_session",
 		Value:    "",
 		MaxAge:   -1,
 		HttpOnly: true,
+		Secure:   isSecure,
+		SameSite: sameSite,
 		Path:     "/",
 	})
 }
