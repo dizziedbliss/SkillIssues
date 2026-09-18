@@ -73,22 +73,49 @@ body {
 }
 
 /* ---------------------------------------------------- */
-/* Shell & Topbar Layout (Wide, Spacious, Generous Top) */
+/* Borderless Window & Drag Region                      */
 /* ---------------------------------------------------- */
+
+.window-drag-region {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 140px;
+  height: 42px;
+  -webkit-app-region: drag;
+  z-index: 1000;
+}
 
 .home-shell {
   max-width: 1440px;
   margin: 0 auto;
   min-height: 100vh;
-  padding: 52px 64px 96px;
+  padding: 16px 56px 80px;
 }
 
 .topbar {
-  height: 72px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 36px;
+  margin-bottom: 28px;
+  -webkit-app-region: drag;
+  padding-right: 140px;
+}
+
+.topbar button,
+.topbar a,
+.topbar input,
+.topbar .brand-logo,
+.topbar .wordmark,
+.topbar .wordmark-text,
+.topbar .auth-actions {
+  -webkit-app-region: no-drag;
+}
+
+.workspace-drawer,
+.drawer-card {
+  -webkit-app-region: no-drag;
 }
 
 .wordmark {

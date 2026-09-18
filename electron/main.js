@@ -6,13 +6,16 @@
  * and authenticated API communications.
  */
 
-const { app, BrowserWindow, ipcMain, shell, session, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, session, dialog, Menu } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 
 const execFileAsync = promisify(execFile);
+
+// Completely disable the native application menu bar (File, Edit, View, Window, Help)
+Menu.setApplicationMenu(null);
 
 // ==============================================================================
 // Configuration & Security Constants
@@ -401,13 +404,20 @@ function sendDeepLinkToWindow(url) {
  */
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 760,
-    minWidth: 860,
+    width: 1160,
+    height: 780,
+    minWidth: 880,
     minHeight: 640,
     show: false,
     icon: path.join(__dirname, "icon.png"),
-    backgroundColor: "#f7f2fd",
+    backgroundColor: "#f7f6fb",
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: "#f7f6fb",
+      symbolColor: "#241442",
+      height: 42,
+    },
+    autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
       sandbox: true,
@@ -416,6 +426,8 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
     },
   });
+
+  mainWindow.setMenuBarVisibility(false);
 
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
@@ -438,6 +450,26 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, "renderer.html"));
   return mainWindow;
 }
+
+// Window control IPC handlers
+ipcMain.handle("window:minimize", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize();
+});
+ipcMain.handle("window:maximize", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+  }
+});
+ipcMain.handle("window:close", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+});
+ipcMain.handle("window:is-maximized", () => {
+  return mainWindow && !mainWindow.isDestroyed() ? mainWindow.isMaximized() : false;
+});
 
 // ==============================================================================
 // IPC Handlers: Workspace Inspection & Resolution
