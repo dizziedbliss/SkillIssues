@@ -18,11 +18,11 @@ jobs:
           cache-dependency-path: go/go.sum
       - name: Go vet
         run: |
-          cd go
+          cd backend
           go vet ./...
       - name: Go test (unit, no integration)
         run: |
-          cd go
+          cd backend
           go test -v -short ./...
 
   lint-and-syntax:
@@ -39,7 +39,7 @@ jobs:
           node-version: '22'
       - name: Install and Check Frontend
         run: |
-          cd frontend
+          cd web
           npm ci
           npx tsc --noEmit
       - name: Install and Check Electron
