@@ -69,14 +69,15 @@ SkillIssues/
 ├── desktop/                     # Desktop companion application (Electron)
 │   ├── main.js                  # Frameless window, Git engine, IPC handlers
 │   ├── preload.js               # Context-isolated secure bridge
-│   ├── renderer.html            # Native desktop markup
-│   ├── renderer.js              # UI controller, categorized search, pagination
-│   └── renderer.css             # Himalayas/lavender frameless styling
+│   ├── index.html               # Native desktop markup
+│   ├── app.js                   # UI controller, categorized search, pagination
+│   └── app.css                  # Himalayas/lavender frameless styling
 ├── web/                         # Web application (React 18 + Vite + TypeScript)
 │   ├── src/
-│   │   ├── LandingView.tsx      # Promotional 3D pipeline flowchart & hero
-│   │   ├── main.tsx             # App root, catalog feed, modal & routing
-│   │   └── styles.css           # Design system (lavender/deep purple theme)
+│   │   ├── LandingPage.tsx      # Promotional 3D pipeline flowchart & hero
+│   │   ├── App.tsx              # Catalog feed, navigation & modals
+│   │   ├── main.tsx             # Application bootstrap entry
+│   │   └── index.css            # Design system (lavender/deep purple theme)
 │   ├── vite.config.ts           # Vite bundler configuration
 │   └── Dockerfile               # Production container definition
 ├── database/                    # Database baseline schemas & migrations

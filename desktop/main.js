@@ -447,7 +447,7 @@ function createWindow() {
     if (!url.startsWith("file://")) event.preventDefault();
   });
 
-  mainWindow.loadFile(path.join(__dirname, "renderer.html"));
+  mainWindow.loadFile(path.join(__dirname, "index.html"));
   return mainWindow;
 }
 
