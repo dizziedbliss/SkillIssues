@@ -187,7 +187,7 @@ SkillIssues utilizes a high-throughput microservices architecture orchestrated v
 - **Multi-Submission Support**: Allows re-attempting or submitting multiple distinct pull requests for the same challenge.
 
 ### 5. Interactive 3D Web Dashboard & Landing Page
-- **Promotional 3D Pipeline Flowchart (`frontend/src/LandingView.tsx`)**:
+- **Promotional 3D Pipeline Flowchart (`web/src/LandingPage.tsx`)**:
   - CSS 3D perspective viewport (`perspective: 1000px`) with interactive mouse tilt and parallax cursor tracking.
   - 4 pipeline stages: **Issue Mining** ➔ **Personalized Match** ➔ **Fork & Code** ➔ **Verify & Level Up**.
   - Interactive step inspector card allowing users to preview live mock code, matching tags, terminal clone output, and XP award cards.
@@ -247,12 +247,12 @@ SkillIssues/
 │   ├── internal/
 │   │   ├── auth/                # OAuth, PAT, Session & Account Linking
 │   │   ├── cache/               # Redis caching layer
-│   │   ├── config/              # Environment config loader
+│   │   ├── config/              # Environment config loader (env.go)
 │   │   ├── contribution/        # PR verification engine
 │   │   ├── db/                  # pgxpool PostgreSQL adapter
 │   │   ├── github/              # GitHub REST/GraphQL client
-│   │   ├── issue/               # Multi-category partitioned search
-│   │   ├── metrics/             # Prometheus metrics collectors
+│   │   ├── issue/               # Multi-category partitioned search (search.go)
+│   │   ├── metrics/             # Prometheus metrics collectors (prometheus.go)
 │   │   ├── middleware/          # Rate limiting, CORS, request logging
 │   │   ├── profile/             # Developer profiles & preferences
 │   │   ├── progression/         # XP, level, and badge calculation
@@ -262,14 +262,15 @@ SkillIssues/
 ├── desktop/                     # Desktop companion application (Electron)
 │   ├── main.js                  # Frameless window, Git engine, IPC handlers
 │   ├── preload.js               # Context-isolated secure bridge
-│   ├── renderer.html            # Native desktop markup
-│   ├── renderer.js              # UI controller, categorized search, pagination
-│   └── renderer.css             # Himalayas/lavender frameless styling
+│   ├── index.html               # Native desktop markup
+│   ├── app.js                   # UI controller, categorized search, pagination
+│   └── app.css                  # Himalayas/lavender frameless styling
 ├── web/                         # Web dashboard application (React 18 + Vite)
 │   ├── src/
-│   │   ├── LandingView.tsx      # Promotional 3D pipeline flowchart & hero
-│   │   ├── main.tsx             # App root, catalog feed, modal & routing
-│   │   └── styles.css           # Design system (lavender/deep purple theme)
+│   │   ├── LandingPage.tsx      # Promotional 3D pipeline flowchart & hero
+│   │   ├── App.tsx              # Catalog feed, navigation & modals
+│   │   ├── main.tsx             # Application bootstrap entry
+│   │   └── index.css            # Design system (lavender/deep purple theme)
 │   ├── vite.config.ts           # Vite bundler configuration
 │   └── Dockerfile               # Node 22 Alpine production container
 ├── data/                        # Datasets & offline catalog archives
@@ -277,7 +278,8 @@ SkillIssues/
 │   ├── api/                     # Go API Gateway deployment & service
 │   ├── syncd/                   # Ingestion daemon deployment & service
 │   ├── worker/                  # Catalog worker deployment
-│   ├── frontend/                # Web UI deployment & service
+│   ├── web/                     # Web UI deployment & service
+│   ├── kaggle_etl/              # Kaggle ETL CronJob manifest
 │   ├── ingress.yaml             # Ingress rules with TLS routing
 │   └── configmap.yaml           # Cluster configuration
 ```

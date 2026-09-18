@@ -17,14 +17,14 @@ import {
   BookOpen,
 } from "lucide-react";
 
-interface LandingViewProps {
+interface LandingPageProps {
   onExplore: () => void;
   onSignIn: () => void;
   isAuthenticated: boolean;
   username?: string;
 }
 
-export const LandingView: React.FC<LandingViewProps> = ({
+export const LandingPage: React.FC<LandingPageProps> = ({
   onExplore,
   onSignIn,
   isAuthenticated,

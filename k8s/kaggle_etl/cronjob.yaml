@@ -19,13 +19,13 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: kaggle-etl
-              image: python:3.12-slim
+              image: skillissues-kaggle-etl:latest
               command:
-                - /bin/sh
-                - -c
-                - |
-                  pip install --no-cache-dir -r /app/python/ingestion/requirements.txt
-                  python -m python.ingestion.cli --kaggle
+                - /kaggle_etl
+                - --dataset
+                - /data/kaggle_github_issues.json
+                - --batch-size
+                - "500"
               envFrom:
                 - configMapRef:
                     name: skillissues-config

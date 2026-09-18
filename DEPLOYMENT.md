@@ -80,7 +80,7 @@ kubectl apply -f k8s/secrets.yaml
 kubectl apply -f k8s/api/
 kubectl apply -f k8s/syncd/
 kubectl apply -f k8s/worker/
-kubectl apply -f k8s/frontend/
+kubectl apply -f k8s/web/
 kubectl apply -f k8s/ingress.yaml
 ```
 

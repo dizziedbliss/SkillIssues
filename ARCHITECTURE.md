@@ -232,7 +232,7 @@ Levels are determined by cumulative verified XP earned through merged pull reque
   - Difficulty sub-tabs and paginated feed controls.
 
 ### 6.2 Web Dashboard (React 18 + Vite + TypeScript)
-- **Promotional 3D Pipeline Flowchart (`LandingView.tsx`)**:
+- **Promotional 3D Pipeline Flowchart (`LandingPage.tsx`)**:
   - Interactive CSS 3D perspective viewport (`perspective: 1000px`) with smooth cursor tilt tracking (`rotateX` / `rotateY`).
   - 4 interconnected pipeline nodes with interactive step inspector showing live code schema, matching tags, terminal clone output, and XP reward previews.
 - **Intelligent View Routing**:
