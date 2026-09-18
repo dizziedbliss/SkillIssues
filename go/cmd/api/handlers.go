@@ -378,17 +378,42 @@ func (h *handlers) getGitToken(w http.ResponseWriter, r *http.Request) {
 		token = h.cfg.GitHubToken
 	}
 
-	middleware.RespondJSON(w, http.StatusOK, map[string]string{"token": token})
+	middleware.RespondJSON(w, http.StatusOK, map[string]string{
+		"token":          token,
+		"fallback_token": h.cfg.GitHubToken,
+	})
 }
 
 // ---------------------------------------------------------------------------
 // Issues, saved, recommendations, profile, contributions, webhook, admin
 // All proxied to Python API during Phase 1 migration.
 // Full Go implementations land in Phases 2–4.
-// ---------------------------------------------------------------------------
-
 func (h *handlers) syncIssues(w http.ResponseWriter, r *http.Request) {
-	h.proxyToPython(w, r, "/issues/sync")
+	syncdURL := h.cfg.SyncdURL
+	if syncdURL == "" {
+		syncdURL = "http://syncd:8002"
+	}
+	targetURL := syncdURL + "/sync/issues"
+	repoQuery := r.URL.Query().Get("repo_id")
+	if repoQuery != "" {
+		targetURL = fmt.Sprintf("%s/sync/priority/%s", syncdURL, repoQuery)
+	}
+
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, targetURL, nil)
+	if err != nil {
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to create sync request")
+		return
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		middleware.RespondError(w, http.StatusBadGateway, "syncd service unavailable")
+		return
+	}
+	defer resp.Body.Close()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
 }
 
 func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {

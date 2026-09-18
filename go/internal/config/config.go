@@ -43,6 +43,7 @@ type Config struct {
 	PriorityWorkerCount int // Priority sync goroutines (default: 2)
 	OnDemandWorkerCount int // On-demand goroutines (default: 8)
 	SyncIntervalSecs    int // Seconds between routine sync ticks (default: 900)
+	SyncdURL            string // URL to Go syncd service (default: http://syncd:8002)
 
 	// Compatibility: external service URLs retained during Python→Go migration
 	// These will be removed once all services are ported to Go.
@@ -69,6 +70,7 @@ func Load() (*Config, error) {
 		PriorityWorkerCount: intEnv("PRIORITY_WORKER_COUNT", 2),
 		OnDemandWorkerCount: intEnv("ON_DEMAND_WORKER_COUNT", 8),
 		SyncIntervalSecs:    intEnv("SYNC_INTERVAL_SECONDS", 900),
+		SyncdURL:            strEnv("SYNCD_URL", "http://syncd:8002"),
 		MaxRepositories:     intEnv("MAX_REPOSITORIES", 500),
 		MinStars:            intEnv("MIN_STARS", 50),
 		RecommendationURL:   strEnv("RECOMMENDATION_URL", "http://recommendation:8000"),
