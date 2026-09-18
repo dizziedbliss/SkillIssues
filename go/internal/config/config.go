@@ -24,9 +24,6 @@ type Config struct {
 	// CORS / Frontend
 	FrontendURL string
 
-	// Demo mode: disables webhook HMAC checks and enables /auth/demo endpoint
-	DemoMode bool
-
 	// GitHub integration
 	GitHubToken         string // Server-side PAT for catalog ingestion and fallback operations
 	GitHubWebhookSecret string // HMAC secret for verifying GitHub webhook payloads
@@ -45,10 +42,9 @@ type Config struct {
 	SyncIntervalSecs    int // Seconds between routine sync ticks (default: 900)
 	SyncdURL            string // URL to Go syncd service (default: http://syncd:8002)
 
-	// Compatibility: external service URLs retained during Python→Go migration
-	// These will be removed once all services are ported to Go.
-	RecommendationURL string
-	ContributionURL   string
+	// Rate Limiting (Requests per hour)
+	UnauthRateLimit int // GitHub-style unauthenticated hourly limit (default: 60)
+	AuthRateLimit   int // Authenticated user hourly limit (default: 1000)
 
 	// Kaggle ETL (used by Python ingestion pipeline only)
 	KaggleUsername     string
@@ -62,7 +58,6 @@ type Config struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		Port:                intEnv("PORT", 8000),
-		DemoMode:            boolEnv("DEMO_MODE", false),
 		GitHubGraphQLURL:    strEnv("GITHUB_GRAPHQL_URL", "https://api.github.com/graphql"),
 		FrontendURL:         strEnv("FRONTEND_URL", "http://localhost:5173"),
 		GitHubRedirectURI:   strEnv("GITHUB_REDIRECT_URI", "http://localhost:8000/auth/github/callback"),
@@ -73,8 +68,8 @@ func Load() (*Config, error) {
 		SyncdURL:            strEnv("SYNCD_URL", "http://syncd:8002"),
 		MaxRepositories:     intEnv("MAX_REPOSITORIES", 500),
 		MinStars:            intEnv("MIN_STARS", 50),
-		RecommendationURL:   strEnv("RECOMMENDATION_URL", "http://recommendation:8000"),
-		ContributionURL:     strEnv("CONTRIBUTION_URL", "http://contribution:8000"),
+		UnauthRateLimit:     intEnv("UNAUTH_RATE_LIMIT", 60),
+		AuthRateLimit:       intEnv("AUTH_RATE_LIMIT", 1000),
 		KaggleUsername:      strEnv("KAGGLE_USERNAME", ""),
 		KaggleKey:           strEnv("KAGGLE_KEY", ""),
 	}
@@ -96,7 +91,7 @@ func Load() (*Config, error) {
 	cfg.AdminSyncToken = strEnv("ADMIN_SYNC_TOKEN", "dev_local_admin_sync_token")
 
 	// In strict production mode, verify they are explicitly configured
-	if !cfg.DemoMode && os.Getenv("ENV") == "production" {
+	if os.Getenv("ENV") == "production" {
 		if cfg.GitHubWebhookSecret == "dev_local_webhook_secret" {
 			missing = append(missing, "GITHUB_WEBHOOK_SECRET")
 		}

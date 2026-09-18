@@ -81,134 +81,157 @@
           </div>
         </div>
         <aside class="profile-rail">
-          <img id="profile-avatar" class="avatar" alt="Profile avatar" />
-          <h2 id="profile-name">Profile</h2>
-          <p id="profile-handle" class="handle"></p>
-          <p id="profile-quote" class="quote">Build your next contribution.</p>
-          <div class="level-card">
-            <div class="level-header">
-              <span id="profile-level-badge">Level 1</span
-              ><span id="profile-xp-text">0 / 300 XP</span>
+          <!-- Logged Out View (Guest Mode) -->
+          <div id="profile-logged-out">
+            <div class="guest-avatar-icon">
+              <svg height="44" width="44" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
             </div>
-            <div class="xp-bar-track">
-              <div
-                id="profile-xp-bar"
-                class="xp-bar-fill"
-                style="width: 0%"
-              ></div>
+            <h2>Welcome Developer</h2>
+            <p class="handle">Guest Mode</p>
+            <p class="quote" style="margin-top: 10px; line-height: 1.5;">
+              Sign in with GitHub to get personalized challenge recommendations, track XP, earn badges, and submit pull requests.
+            </p>
+            <button id="sidebar-login-btn" class="primary" style="width: 100%; margin-top: 18px;">
+              Sign in with GitHub <span>↗</span>
+            </button>
+            <div style="margin-top: 14px; font-size: 11px; color: var(--text-muted); text-align: center;">
+              Unauthenticated rate limit: 60 requests/hr
             </div>
           </div>
-          <section style="margin-top: 18px">
-            <label>Badges</label>
-            <div id="profile-badges" class="badges-row">
-              <span class="badge-item locked" title="First Blood - Merge 1st PR"
-                ><svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <circle cx="12" cy="12" r="6" />
-                  <circle cx="12" cy="12" r="2" /></svg
-              ></span>
-              <span
-                class="badge-item locked"
-                title="Bug Wrangler - Merge 3+ PRs"
-                ><svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="m8 2 1.88 1.88" />
-                  <path d="M14.12 3.88 16 2" />
-                  <path d="M9 7.13v-1a3 3 0 1 1 6 0v1" />
-                  <path
-                    d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6Z"
-                  />
-                  <path d="M12 20v-9" />
-                  <path d="M6.53 9C4.6 9.8 3 11.4 3 14" />
-                  <path d="M6 17c-2 1.5-3 3.5-3 5" />
-                  <path d="M17.47 9c1.93.8 3.53 2.4 3.53 5" />
-                  <path d="M18 17c2 1.5 3 3.5 3 5" /></svg
-              ></span>
-              <span class="badge-item locked" title="Polyglot - 2+ Languages"
-                ><svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="m16 18 6-6-6-6" />
-                  <path d="m8 6-6 6 6 6" /></svg
-              ></span>
-              <span class="badge-item locked" title="World Traveller - 2+ Repos"
-                ><svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <path
-                    d="m14.83 9.17-2.36 5.66-5.66 2.36 2.36-5.66 5.66-2.36z"
-                  /></svg
-              ></span>
-              <span class="badge-item locked" title="Touch Grass - Merge 5+ PRs"
-                ><svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.4 19 2c1 2 2 4.1 2 7 0 6-4.5 11-10 11Z"
-                  />
-                  <path
-                    d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"
-                  /></svg
-              ></span>
+
+          <!-- Logged In View (Profile Details) -->
+          <div id="profile-logged-in" hidden>
+            <img id="profile-avatar" class="avatar" alt="Profile avatar" />
+            <h2 id="profile-name">Profile</h2>
+            <p id="profile-handle" class="handle"></p>
+            <p id="profile-quote" class="quote">Build your next contribution.</p>
+            <div class="level-card">
+              <div class="level-header">
+                <span id="profile-level-badge">Level 1</span
+                ><span id="profile-xp-text">0 / 300 XP</span>
+              </div>
+              <div class="xp-bar-track">
+                <div
+                  id="profile-xp-bar"
+                  class="xp-bar-fill"
+                  style="width: 0%"
+                ></div>
+              </div>
             </div>
-          </section>
-          <section style="margin-top: 18px">
-            <label
-              >Preferences
-              <button
-                id="edit-preferences"
-                class="edit"
-                title="Edit preferred languages and frameworks"
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
+            <section style="margin-top: 18px">
+              <label>Badges</label>
+              <div id="profile-badges" class="badges-row">
+                <span class="badge-item locked" title="First Blood - Merge 1st PR"
+                  ><svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <circle cx="12" cy="12" r="6" />
+                    <circle cx="12" cy="12" r="2" /></svg
+                ></span>
+                <span
+                  class="badge-item locked"
+                  title="Bug Wrangler - Merge 3+ PRs"
+                  ><svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="m8 2 1.88 1.88" />
+                    <path d="M14.12 3.88 16 2" />
+                    <path d="M9 7.13v-1a3 3 0 1 1 6 0v1" />
+                    <path
+                      d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6Z"
+                    />
+                    <path d="M12 20v-9" />
+                    <path d="M6.53 9C4.6 9.8 3 11.4 3 14" />
+                    <path d="M6 17c-2 1.5-3 3.5-3 5" />
+                    <path d="M17.47 9c1.93.8 3.53 2.4 3.53 5" />
+                    <path d="M18 17c2 1.5 3 3.5 3 5" /></svg
+                ></span>
+                <span class="badge-item locked" title="Polyglot - 2+ Languages"
+                  ><svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="m16 18 6-6-6-6" />
+                    <path d="m8 6-6 6 6 6" /></svg
+                ></span>
+                <span class="badge-item locked" title="World Traveller - 2+ Repos"
+                  ><svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <path
+                      d="m14.83 9.17-2.36 5.66-5.66 2.36 2.36-5.66 5.66-2.36z"
+                    /></svg
+                ></span>
+                <span class="badge-item locked" title="Touch Grass - Merge 5+ PRs"
+                  ><svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.4 19 2c1 2 2 4.1 2 7 0 6-4.5 11-10 11Z"
+                    />
+                    <path
+                      d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"
+                    /></svg
+                ></span>
+              </div>
+            </section>
+            <section style="margin-top: 18px">
+              <label
+                >Preferences
+                <button
+                  id="edit-preferences"
+                  class="edit"
+                  title="Edit preferred languages and frameworks"
                 >
-                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                  <path d="m15 5 4 4" />
-                </svg></button
-            ></label>
-            <div id="profile-languages" class="chips"></div>
-          </section>
-          <section style="margin-top: 18px">
-            <label>Verified challenges</label>
-            <div id="profile-completed" class="chips"><span>0</span></div>
-          </section>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                    <path d="m15 5 4 4" />
+                  </svg></button
+              ></label>
+              <div id="profile-languages" class="chips"></div>
+            </section>
+            <section style="margin-top: 18px">
+              <label>Verified challenges</label>
+              <div id="profile-completed" class="chips"><span>0</span></div>
+            </section>
+          </div>
         </aside>
       </section>
       <!-- WORKSPACE DRAWER -->

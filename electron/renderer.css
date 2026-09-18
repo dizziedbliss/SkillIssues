@@ -575,6 +575,20 @@ a.save-icon-btn:hover {
   margin: 0 auto 16px;
 }
 
+.guest-avatar-icon {
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  border: 3px solid #ddd6fe;
+  background: var(--bg-app);
+  color: var(--accent-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  box-shadow: 0 4px 14px rgba(36, 20, 66, 0.08);
+}
+
 .profile-rail h2 {
   text-align: center;
   font-size: 22px;

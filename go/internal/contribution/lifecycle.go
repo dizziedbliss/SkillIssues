@@ -96,7 +96,11 @@ func (s *Service) StartContribution(ctx context.Context, userID, issueID int) (*
 	err := s.db.QueryRow(ctx,
 		`INSERT INTO contributions (user_id, issue_id, state)
 		 VALUES ($1, $2, 'STARTED')
-		 ON CONFLICT (user_id, issue_id) DO UPDATE SET updated_at = now()
+		 ON CONFLICT (user_id, issue_id) DO UPDATE SET
+		     state = 'STARTED',
+		     pr_url = NULL,
+		     pr_number = NULL,
+		     updated_at = now()
 		 RETURNING id, user_id, issue_id, pr_url, pr_number, state, xp_awarded, created_at, updated_at, merged_at`,
 		[]any{userID, issueID},
 		func(row pgx.Row) error {
@@ -243,8 +247,8 @@ func (s *Service) AttachPR(ctx context.Context, userID, contribID int, prURL str
 		token = fallbackToken
 	}
 
-	// Verify PR exists on GitHub via GraphQL (bypassed for alex-dev in demo mode)
-	if username != "alex-dev" && token != "" && s.ghClient != nil {
+	// Verify PR exists on GitHub via GraphQL
+	if token != "" && s.ghClient != nil {
 		prInfo, err := s.ghClient.GetPullRequest(ctx, token, owner, repo, prNumber)
 		if err != nil {
 			return nil, fmt.Errorf("github PR validation failed: %w", err)

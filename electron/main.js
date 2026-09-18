@@ -616,14 +616,6 @@ ipcMain.handle("auth:github-token", async (_, token) => {
   return { authenticated: true, user: data.user };
 });
 
-ipcMain.handle("auth:demo", async () => {
-  const data = await apiJson("/auth/demo", { method: "POST" });
-  if (data && data.session_token) {
-    saveSession(data.session_token);
-  }
-  return { authenticated: true };
-});
-
 ipcMain.handle("auth:logout", async () => {
   try {
     await apiJson("/auth/purge", { method: "POST" });

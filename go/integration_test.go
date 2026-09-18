@@ -13,6 +13,9 @@ import (
 const baseURL = "http://localhost:8000"
 
 func TestE2EAPIContracts(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
 	jar, _ := cookiejar.New(nil)
 	client := &http.Client{
 		Jar:     jar,

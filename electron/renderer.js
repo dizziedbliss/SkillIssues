@@ -57,6 +57,9 @@ function switchDrawerTab(tabName) {
   const issuePage = el("drawer-page-issue");
   const wsPage = el("drawer-page-workspace");
 
+  const drawerCard = document.querySelector(".drawer-card");
+  if (drawerCard) drawerCard.scrollTop = 0;
+
   if (tabName === "workspace") {
     if (wsTab) wsTab.classList.add("active");
     if (issueTab) issueTab.classList.remove("active");
@@ -96,13 +99,18 @@ function updateAuthUI(user) {
   const loginBtn = el("github-login");
   const logoutBtn = el("logout");
   const authStatus = el("auth-status");
+  const profileLoggedOut = el("profile-logged-out");
+  const profileLoggedIn = el("profile-logged-in");
+
   if (user) {
     if (loginBtn) loginBtn.hidden = true;
     if (logoutBtn) logoutBtn.hidden = false;
     if (authStatus) {
-      authStatus.hidden = true;
+      authStatus.hidden = false;
       authStatus.textContent = `@${user.username || "connected"}`;
     }
+    if (profileLoggedOut) profileLoggedOut.hidden = true;
+    if (profileLoggedIn) profileLoggedIn.hidden = false;
   } else {
     if (loginBtn) loginBtn.hidden = false;
     if (logoutBtn) logoutBtn.hidden = true;
@@ -110,6 +118,8 @@ function updateAuthUI(user) {
       authStatus.hidden = true;
       authStatus.textContent = "Not connected";
     }
+    if (profileLoggedOut) profileLoggedOut.hidden = false;
+    if (profileLoggedIn) profileLoggedIn.hidden = true;
   }
 }
 
@@ -290,8 +300,7 @@ async function loadIssues(query = "") {
   } catch (error) {
     updateAuthUI(null);
     el("issues").innerHTML =
-      `<div class="loading">Authentication required. Please sign in with GitHub above.</div>`;
-    el("github-token-modal").hidden = false;
+      `<div class="loading">Failed to load challenges. Please check connection or sign in.</div>`;
   }
 }
 
@@ -568,6 +577,11 @@ function renderSubmissions() {
 async function toggleSave(issue) {
   if (!issue) return;
   try {
+    const session = await api("/auth/session").catch(() => null);
+    if (!session || !session.authenticated) {
+      el("github-token-modal").hidden = false;
+      return;
+    }
     if (saved(issue)) await api(`/saved/${issue.id}`, { method: "DELETE" });
     else
       await api("/saved", {
@@ -681,6 +695,16 @@ function selectIssue(issue) {
   el("workspace").hidden = false;
   switchDrawerTab("issue");
 
+  // Reset scroll on drawer and subcontainers so opening an issue always starts at top
+  const drawerCard = document.querySelector(".drawer-card");
+  if (drawerCard) drawerCard.scrollTop = 0;
+  const drawerBody = el("body");
+  if (drawerBody) drawerBody.scrollTop = 0;
+  const drawerPageIssue = el("drawer-page-issue");
+  if (drawerPageIssue) drawerPageIssue.scrollTop = 0;
+  const drawerPageWs = el("drawer-page-workspace");
+  if (drawerPageWs) drawerPageWs.scrollTop = 0;
+
   el("difficulty").textContent = issue.difficulty || "BEGINNER";
   el("difficulty").className =
     `difficulty ${(issue.difficulty || "").toLowerCase()}`;
@@ -728,6 +752,21 @@ function selectIssue(issue) {
 }
 async function startChallenge() {
   if (!selected) return;
+
+  // Prompt sign in if unauthenticated
+  try {
+    const session = await api("/auth/session").catch(() => null);
+    if (!session || !session.authenticated) {
+      el("github-token-modal").hidden = false;
+      showResult("Please connect your GitHub account to solve challenges.", true);
+      return;
+    }
+  } catch {
+    el("github-token-modal").hidden = false;
+    showResult("Please connect your GitHub account to solve challenges.", true);
+    return;
+  }
+
   el("start-challenge").disabled = true;
   el("start-challenge").textContent = "Forking & Cloning...";
   showRunnerProgress(true);
@@ -1233,30 +1272,17 @@ document.addEventListener("DOMContentLoaded", () => {
       showRunnerProgress(false);
     }
   });
-  el("demo-login")?.addEventListener("click", async () => {
-    try {
-      showRunnerProgress(true);
-      await window.skillIssuesDesktop.loginDemo();
-      setAuthStatus("Demo profile", { username: "demo-developer" });
-      await loadIssues();
-    } catch (error) {
-      showResult(error.message, true);
-    } finally {
-      showRunnerProgress(false);
-    }
+  el("sidebar-login-btn")?.addEventListener("click", () => {
+    el("github-token-modal").hidden = false;
   });
   el("logout")?.addEventListener("click", async () => {
     try {
       showRunnerProgress(true);
       await window.skillIssuesDesktop.logout();
-      setAuthStatus("Signed out", null);
-      showToast("Signed out successfully");
-      resetStartupState();
-      await loadIssues();
     } catch (error) {
-      showToast(error.message, true);
+      console.error("Logout error:", error);
     } finally {
-      showRunnerProgress(false);
+      window.location.reload();
     }
   });
   el("branch-button")?.addEventListener("click", async () => {
