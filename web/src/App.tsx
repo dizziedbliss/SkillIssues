@@ -792,60 +792,62 @@ export function App() {
 
   return (
     <main className="web-home">
-      <header className="web-header">
-        <div
-          className="wordmark"
-          style={{ cursor: "pointer" }}
-          onClick={() => setView("Overview")}
-          title="SkillIssues Overview"
-        >
-          <img src="/logo.png" alt="SkillIssues Logo" className="brand-logo" />
-          <div className="wordmark-text">
-            SkillIssues<span>You Have the Skills. We Have the Issues.</span>
-          </div>
-        </div>
-        <nav className="web-header-nav">
-          <button
-            type="button"
-            className={`nav-link-btn ${view === "Overview" ? "active" : ""}`}
+      {view !== "Overview" && (
+        <header className="web-header">
+          <div
+            className="wordmark"
+            style={{ cursor: "pointer" }}
             onClick={() => setView("Overview")}
+            title="SkillIssues Overview"
           >
-            Overview
-          </button>
-          <button
-            type="button"
-            className={`nav-link-btn ${view !== "Overview" ? "active" : ""}`}
-            onClick={() => setView("SkillIssues")}
-          >
-            Challenges
-          </button>
-        </nav>
-        <div className="web-header-actions">
-          {profile ? (
-            <>
-              <span className="web-header-user">@{profile.username}</span>
-              <button
-                type="button"
-                className="web-header-logout"
-                onClick={() => void handleLogout()}
-                title="Sign out"
-              >
-                <LogOut size={14} />
-                <span>Log out</span>
-              </button>
-            </>
-          ) : (
+            <img src="/logo.png" alt="SkillIssues Logo" className="brand-logo" />
+            <div className="wordmark-text">
+              SkillIssues<span>You Have the Skills. We Have the Issues.</span>
+            </div>
+          </div>
+          <nav className="web-header-nav">
             <button
               type="button"
-              className="search-submit"
-              style={{ padding: "8px 18px", fontSize: 13 }}
-              onClick={() => setShowLoginModal(true)}
+              className={`nav-link-btn ${view === "Overview" ? "active" : ""}`}
+              onClick={() => setView("Overview")}
             >
-              Sign in with GitHub
+              Overview
             </button>
-          )}
-        </div>
-      </header>
+            <button
+              type="button"
+              className={`nav-link-btn ${view !== "Overview" ? "active" : ""}`}
+              onClick={() => setView("SkillIssues")}
+            >
+              Challenges
+            </button>
+          </nav>
+          <div className="web-header-actions">
+            {profile ? (
+              <>
+                <span className="web-header-user">@{profile.username}</span>
+                <button
+                  type="button"
+                  className="web-header-logout"
+                  onClick={() => void handleLogout()}
+                  title="Sign out"
+                >
+                  <LogOut size={14} />
+                  <span>Log out</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="search-submit"
+                style={{ padding: "8px 18px", fontSize: 13 }}
+                onClick={() => setShowLoginModal(true)}
+              >
+                Sign in with GitHub
+              </button>
+            )}
+          </div>
+        </header>
+      )}
 
       {view === "Overview" ? (
         <LandingPage
