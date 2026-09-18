@@ -107,3 +107,40 @@ func (c *Client) CreatePullRequest(ctx context.Context, token, owner, name, titl
 	respBody, _ := io.ReadAll(resp.Body)
 	return nil, fmt.Errorf("github create pr: HTTP %d: %s", resp.StatusCode, string(respBody))
 }
+
+// GetDefaultBranch retrieves the default branch name of a GitHub repository (e.g. 'main', 'master', 'develop').
+func (c *Client) GetDefaultBranch(ctx context.Context, token, owner, name string) (string, error) {
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, name)
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return "main", err
+	}
+
+	token = strings.Trim(strings.TrimSpace(token), "\"' \t\r\n")
+	if token != "" {
+		authHeader := token
+		if !strings.HasPrefix(token, "Bearer ") && !strings.HasPrefix(token, "token ") {
+			authHeader = "Bearer " + token
+		}
+		req.Header.Set("Authorization", authHeader)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "SkillIssues-Go/2.0")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "main", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		var repo struct {
+			DefaultBranch string `json:"default_branch"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&repo); err == nil && strings.TrimSpace(repo.DefaultBranch) != "" {
+			return strings.TrimSpace(repo.DefaultBranch), nil
+		}
+	}
+	return "main", nil
+}
+

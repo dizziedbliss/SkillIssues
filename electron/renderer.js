@@ -51,12 +51,46 @@ function daysAgo(value) {
   const months = Math.floor(days / 30);
   return `${months}mo ago`;
 }
+function switchDrawerTab(tabName) {
+  const issueTab = el("drawer-tab-issue");
+  const wsTab = el("drawer-tab-workspace");
+  const issuePage = el("drawer-page-issue");
+  const wsPage = el("drawer-page-workspace");
+
+  if (tabName === "workspace") {
+    if (wsTab) wsTab.classList.add("active");
+    if (issueTab) issueTab.classList.remove("active");
+    if (wsPage) wsPage.hidden = false;
+    if (issuePage) issuePage.hidden = true;
+    updateWorkspaceParentUI();
+  } else {
+    if (issueTab) issueTab.classList.add("active");
+    if (wsTab) wsTab.classList.remove("active");
+    if (issuePage) issuePage.hidden = false;
+    if (wsPage) wsPage.hidden = true;
+  }
+}
+
+async function updateWorkspaceParentUI() {
+  try {
+    if (window.skillIssuesDesktop && window.skillIssuesDesktop.getWorkspaceParent) {
+      const res = await window.skillIssuesDesktop.getWorkspaceParent();
+      const pathEl = el("workspace-parent-path");
+      if (pathEl) {
+        pathEl.textContent = res?.path || "Not configured (will ask on first clone)";
+        pathEl.title = res?.path || "";
+      }
+    }
+  } catch {}
+}
+
 function resetStartupState() {
-  el("workspace").hidden = true;
-  el("clone-handoff").hidden = true;
-  el("git-actions").hidden = true;
-  el("start-challenge").hidden = false;
-  el("destination").textContent = "Documents/SkillIssues";
+  if (el("workspace")) el("workspace").hidden = true;
+  if (el("git-actions")) el("git-actions").hidden = true;
+  if (el("start-challenge")) el("start-challenge").hidden = false;
+  if (el("destination")) el("destination").textContent = "Choose or clone a repository first...";
+  switchDrawerTab("issue");
+  updateWorkspaceParentUI();
 }
 function updateAuthUI(user) {
   const loginBtn = el("github-login");
@@ -449,9 +483,9 @@ function renderWorking() {
             comments: 0,
           };
           selectIssue(selected);
+          switchDrawerTab("workspace");
           el("branch").value = `skillissues/issue-${item.number || item.id}`;
           el("start-challenge").hidden = true;
-          el("clone-handoff").hidden = false;
           el("git-actions").hidden = false;
           el("push-button").disabled = false;
           openPushModal(selected);
@@ -645,6 +679,8 @@ function selectIssue(issue) {
   if (!issue) return;
   selected = issue;
   el("workspace").hidden = false;
+  switchDrawerTab("issue");
+
   el("difficulty").textContent = issue.difficulty || "BEGINNER";
   el("difficulty").className =
     `difficulty ${(issue.difficulty || "").toLowerCase()}`;
@@ -656,6 +692,10 @@ function selectIssue(issue) {
   el("skills").innerHTML = (issue.required_skills || [])
     .map((skill) => `<span class="tag">${escapeHtml(skill)}</span>`)
     .join("");
+
+  if (el("workspace-repo-badge")) el("workspace-repo-badge").textContent = issue.repository;
+  if (el("workspace-repo-title")) el("workspace-repo-title").textContent = `#${issue.number} ${issue.title}`;
+
   el("branch").value = `skillissues/issue-#${issue.number || issue.id}`;
   const existingWorking = working.find(
     (item) => item.issue_id === issue.id || item.id === issue.id,
@@ -668,22 +708,22 @@ function selectIssue(issue) {
         destination = resolved.path;
         el("destination").textContent = destination;
         el("start-challenge").hidden = true;
-        el("clone-handoff").hidden = false;
         el("git-actions").hidden = false;
         el("push-button").disabled = false;
         el("result").hidden = true;
       })
       .catch(() => {
         el("start-challenge").hidden = false;
-        el("clone-handoff").hidden = true;
+        el("git-actions").hidden = true;
         el("result").hidden = true;
       });
   } else {
     el("start-challenge").hidden = false;
     el("start-challenge").innerHTML =
       "Solve issue (Fork & Clone) <span>↗</span>";
-    el("clone-handoff").hidden = true;
+    el("git-actions").hidden = true;
     el("result").hidden = true;
+    el("destination").textContent = "Choose or clone a repository first...";
   }
 }
 async function startChallenge() {
@@ -712,15 +752,25 @@ async function startChallenge() {
     const status =
       await window.skillIssuesDesktop.inspectWorkspace(destination);
     el("start-challenge").hidden = true;
-    el("clone-handoff").hidden = false;
     el("git-actions").hidden = false;
     el("push-button").disabled = false;
+    
+    // Switch to Workspace & Logs tab and smoothly scroll into view
+    switchDrawerTab("workspace");
     showResult(
-      `Workspace Ready!\n\nForked & Cloned to ${destination}\nActive Branch: ${branchName}\n\nGit Status:\n${status.status || "Clean working tree"}`,
+      `Workspace Ready!\n\nForked & Cloned to:\n${destination}\n\nActive Branch: ${branchName}\n\nGit Status:\n${status.status || "Clean working tree"}`,
     );
+    setTimeout(() => {
+      el("git-actions")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
+
     await loadIssues();
   } catch (error) {
+    switchDrawerTab("workspace");
     showResult(error.message, true);
+    setTimeout(() => {
+      el("result")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
   } finally {
     el("start-challenge").disabled = false;
     el("start-challenge").innerHTML =
@@ -738,18 +788,27 @@ async function cloneRepository() {
       selected.repository_url,
     );
     destination = result.path;
+    el("destination").textContent = destination;
     const status = await window.skillIssuesDesktop.inspectWorkspace(
       result.path,
     );
     el("git-actions").hidden = false;
+    switchDrawerTab("workspace");
     showResult(
-      `Cloned to ${result.path}\n\nGit state\n${status.status || "Clean working tree"}\n\nCommand log\n${result.path}/.skillissues/commands.log`,
+      `Cloned to ${result.path}\n\nGit state:\n${status.status || "Clean working tree"}\n\nCommand log:\n${result.path}/.skillissues/commands.log`,
     );
+    setTimeout(() => {
+      el("git-actions")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
   } catch (error) {
+    switchDrawerTab("workspace");
     showResult(error.message, true);
+    setTimeout(() => {
+      el("result")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
   } finally {
     el("clone").disabled = false;
-    el("clone").innerHTML = "Re-clone repository <span>↗</span>";
+    el("clone").innerHTML = "Re-clone <span>↗</span>";
     showRunnerProgress(false);
   }
 }
@@ -785,8 +844,9 @@ function showResult(message, error = false) {
   const result = el("result");
   if (result) {
     result.hidden = false;
-    result.className = `result${error ? " error" : ""}`;
+    result.className = `result logs-terminal${error ? " error" : ""}`;
     result.textContent = message;
+    result.scrollTop = result.scrollHeight;
   }
 }
 function escapeHtml(value) {
@@ -1007,31 +1067,98 @@ document.addEventListener("DOMContentLoaded", () => {
     e.stopPropagation();
     el("push-modal").hidden = true;
   });
+  // Drawer Navigation Tabs
+  el("drawer-tab-issue")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    switchDrawerTab("issue");
+  });
+  el("drawer-tab-workspace")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    switchDrawerTab("workspace");
+  });
+
+  // Change Workspace Parent Folder
+  el("change-workspace-parent")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const res = await window.skillIssuesDesktop.chooseWorkspaceParent();
+      if (res && res.path && !res.cancelled) {
+        const pathEl = el("workspace-parent-path");
+        if (pathEl) {
+          pathEl.textContent = res.path;
+          pathEl.title = res.path;
+        }
+        showResult(`Workspace root folder updated to:\n${res.path}`);
+      }
+    } catch (err) {
+      showResult(err.message, true);
+    }
+  });
+
+  // Clear Terminal Logs
+  el("clear-logs")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const res = el("result");
+    if (res) {
+      res.textContent = "";
+      res.hidden = true;
+    }
+  });
+
+  // Cancel Pending Browser OAuth
+  const cancelOAuthFlow = async () => {
+    try {
+      await window.skillIssuesDesktop.cancelGitHubLogin();
+    } catch {}
+    if (el("oauth-waiting-view")) el("oauth-waiting-view").hidden = true;
+    if (el("oauth-default-view")) el("oauth-default-view").hidden = false;
+  };
+
+  el("cancel-oauth-btn")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    void cancelOAuthFlow();
+  });
+
   el("confirm-push-pr")?.addEventListener("click", confirmPushPR);
   el("start-challenge")?.addEventListener("click", startChallenge);
   el("clone")?.addEventListener("click", cloneRepository);
   el("submit-pr")?.addEventListener("click", () => openPushModal());
+
+  const dismissTokenModal = () => {
+    el("github-token-modal").hidden = true;
+    void cancelOAuthFlow();
+  };
+
   el("close-token-modal")?.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    el("github-token-modal").hidden = true;
+    dismissTokenModal();
   });
   el("github-login")?.addEventListener("click", () => {
     el("github-token-modal").hidden = false;
+    if (el("oauth-waiting-view")) el("oauth-waiting-view").hidden = true;
+    if (el("oauth-default-view")) el("oauth-default-view").hidden = false;
   });
   el("oauth-login-btn")?.addEventListener("click", async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const btn = el("oauth-login-btn");
-    const origHtml = btn.innerHTML;
     const tokenErr = el("token-error");
     if (tokenErr) tokenErr.hidden = true;
 
+    // Switch modal into waiting state with spinner
+    if (el("oauth-default-view")) el("oauth-default-view").hidden = true;
+    if (el("oauth-waiting-view")) el("oauth-waiting-view").hidden = false;
+
     try {
-      btn.disabled = true;
-      btn.textContent = "Connecting to GitHub...";
       showRunnerProgress(true);
       const result = await window.skillIssuesDesktop.loginWithGitHub();
+      if (result.cancelled) {
+        // User cancelled via cancel button or window close
+        return;
+      }
       if (!result.authenticated) {
         throw new Error(result.message || "GitHub authentication was not completed.");
       }
@@ -1051,8 +1178,8 @@ document.addEventListener("DOMContentLoaded", () => {
       showToast(error.message, true);
       showResult(error.message, true);
     } finally {
-      btn.disabled = false;
-      btn.innerHTML = origHtml;
+      if (el("oauth-waiting-view")) el("oauth-waiting-view").hidden = true;
+      if (el("oauth-default-view")) el("oauth-default-view").hidden = false;
       showRunnerProgress(false);
     }
   });
@@ -1070,6 +1197,14 @@ document.addEventListener("DOMContentLoaded", () => {
         tokenErr.hidden = false;
       }
       return showToast("Please enter a GitHub Personal Access Token.", true);
+    }
+
+    if (!token.startsWith("ghp_")) {
+      if (tokenErr) {
+        tokenErr.textContent = "Only GitHub Classic Personal Access Tokens (starting with 'ghp_') or OAuth are supported.";
+        tokenErr.hidden = false;
+      }
+      return showToast("Only GitHub Classic Personal Access Tokens (starting with 'ghp_') or OAuth are supported.", true);
     }
 
     const btn = el("submit-token-login");
@@ -1227,7 +1362,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const modalEl = el(modalId);
     if (modalEl) {
       modalEl.addEventListener("click", (e) => {
-        if (e.target === modalEl) modalEl.hidden = true;
+        if (e.target === modalEl) {
+          if (modalId === "github-token-modal") dismissTokenModal();
+          else modalEl.hidden = true;
+        }
       });
     }
   });

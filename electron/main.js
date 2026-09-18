@@ -6,7 +6,7 @@
  * and authenticated API communications.
  */
 
-const { app, BrowserWindow, ipcMain, shell, session } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, session, dialog } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const { execFile } = require("node:child_process");
@@ -72,6 +72,70 @@ function clearSavedSession() {
   } catch (err) {
     logRuntimeError("clearSavedSession", err);
   }
+}
+
+function getSettingsFilePath() {
+  try {
+    return path.join(app.getPath("userData"), "settings.json");
+  } catch {
+    return null;
+  }
+}
+
+function loadSettings() {
+  const p = getSettingsFilePath();
+  if (!p) return {};
+  try {
+    if (fs.existsSync(p)) {
+      return JSON.parse(fs.readFileSync(p, "utf8")) || {};
+    }
+  } catch (err) {
+    logRuntimeError("loadSettings", err);
+  }
+  return {};
+}
+
+function saveSettings(settings) {
+  const p = getSettingsFilePath();
+  if (!p) return;
+  try {
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify(settings, null, 2), "utf8");
+  } catch (err) {
+    logRuntimeError("saveSettings", err);
+  }
+}
+
+function getWorkspaceParent() {
+  const settings = loadSettings();
+  if (settings.workspaceParent && typeof settings.workspaceParent === "string") {
+    const parent = path.resolve(settings.workspaceParent);
+    if (fs.existsSync(parent)) {
+      return parent;
+    }
+  }
+  return null;
+}
+
+function setWorkspaceParent(dirPath) {
+  const resolved = path.resolve(dirPath);
+  fs.mkdirSync(resolved, { recursive: true });
+  const settings = loadSettings();
+  settings.workspaceParent = resolved;
+  saveSettings(settings);
+  return resolved;
+}
+
+async function promptUserForWorkspaceParent(window = mainWindow) {
+  const result = await dialog.showOpenDialog(window || undefined, {
+    title: "Select Local Folder for SkillIssues Challenges",
+    buttonLabel: "Select Folder",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+    return null;
+  }
+  return setWorkspaceParent(result.filePaths[0]);
 }
 
 // Enforce single-instance lock to prevent concurrent conflicting processes
@@ -202,6 +266,8 @@ function validBranchName(branch) {
  * @returns {string} Absolute path to workspace root
  */
 function workspaceRoot() {
+  const parent = getWorkspaceParent();
+  if (parent) return parent;
   const root = path.join(app.getPath("documents"), "SkillIssues");
   fs.mkdirSync(root, { recursive: true });
   return root;
@@ -315,6 +381,13 @@ if (process.defaultApp) {
 
 function sendDeepLinkToWindow(url) {
   if (!url || typeof url !== "string") return;
+  try {
+    const parsed = new URL(url);
+    const token = parsed.searchParams.get("token");
+    if (token) {
+      ipcMain.emit("auth:deeplink-token", null, token);
+    }
+  } catch {}
   if (mainWindow && mainWindow.webContents) {
     mainWindow.webContents.send("open-deeplink", url);
   } else {
@@ -414,9 +487,19 @@ ipcMain.handle("api:request", async (_, pathname, options = {}) => {
 // IPC Handlers: Authentication
 // ==============================================================================
 
+let activeOAuthAbort = null;
+
+ipcMain.handle("auth:cancel-github", async () => {
+  if (activeOAuthAbort) {
+    activeOAuthAbort();
+    activeOAuthAbort = null;
+  }
+  return { cancelled: true };
+});
+
 ipcMain.handle("auth:github", async () => {
   try {
-    const loginResponse = await fetch(`${API_URL}/auth/github`, {
+    const loginResponse = await fetch(`${API_URL}/auth/github?source=desktop`, {
       headers: { Accept: "application/json" },
     });
     if (!loginResponse.ok) {
@@ -426,77 +509,34 @@ ipcMain.handle("auth:github", async () => {
     if (!login.authorize_url) {
       return {
         authenticated: false,
-        message: login.message || login.error || "GitHub OAuth is not configured on the API server.",
+        message:
+          login.message ||
+          login.error ||
+          "GitHub OAuth is not configured on the API server.",
       };
     }
-    const authWindow = new BrowserWindow({
-      width: 560,
-      height: 760,
-      parent: mainWindow || BrowserWindow.getFocusedWindow() || undefined,
-      modal: true,
-      autoHideMenuBar: true,
-      webPreferences: { contextIsolation: true, sandbox: true },
-    });
-    await authWindow.loadURL(login.authorize_url);
+
+    // Open user's default system browser (Chrome, Edge, Safari, Firefox)
+    await shell.openExternal(login.authorize_url);
 
     return new Promise((resolve) => {
-      let finished = false;
+      let isSettled = false;
+      let pollTimer = null;
 
-      const closeAuthWindow = () => {
-        try {
-          if (!authWindow.isDestroyed()) {
-            authWindow.removeAllListeners("closed");
-            authWindow.destroy();
-          }
-        } catch {
-          // ignore destroy errors
+      const finish = async (token) => {
+        if (isSettled) return;
+        isSettled = true;
+        if (pollTimer) clearInterval(pollTimer);
+        activeOAuthAbort = null;
+
+        if (token) {
+          saveSession(token);
         }
+
         if (mainWindow && !mainWindow.isDestroyed()) {
+          if (mainWindow.isMinimized()) mainWindow.restore();
           mainWindow.show();
           mainWindow.focus();
-        }
-      };
-
-      const complete = async (tokenFromNav) => {
-        if (finished) return;
-        finished = true;
-
-        if (tokenFromNav) {
-          saveSession(tokenFromNav);
-        }
-
-        if (!apiSessionToken) {
-          try {
-            const cookies = await authWindow.webContents.session.cookies.get({
-              url: API_URL,
-              name: "skillissues_session",
-            });
-            if (cookies && cookies[0] && cookies[0].value) {
-              saveSession(cookies[0].value);
-            }
-          } catch {
-            // ignore cookie read error
-          }
-        }
-
-        if (!apiSessionToken) {
-          try {
-            const cookies = await authWindow.webContents.session.cookies.get({
-              name: "skillissues_session",
-            });
-            if (cookies && cookies[0] && cookies[0].value) {
-              saveSession(cookies[0].value);
-            }
-          } catch {
-            // ignore cookie read error
-          }
-        }
-
-        closeAuthWindow();
-
-        if (!apiSessionToken) {
-          resolve({ authenticated: false, message: "Authentication was not completed." });
-          return;
         }
 
         try {
@@ -507,73 +547,57 @@ ipcMain.handle("auth:github", async () => {
         }
       };
 
-      const handleUrl = (targetUrl, event) => {
-        if (!targetUrl || finished) return;
-        try {
-          const parsed = new URL(targetUrl);
-          const token = parsed.searchParams.get("token");
-          const error = parsed.searchParams.get("error");
-          const errorDesc = parsed.searchParams.get("error_description");
-
-          if (error) {
-            if (event && typeof event.preventDefault === "function") {
-              event.preventDefault();
-            }
-            finished = true;
-            closeAuthWindow();
-            resolve({
-              authenticated: false,
-              message: errorDesc ? `${error}: ${errorDesc}` : error,
-            });
-            return;
-          }
-
-          if (token) {
-            if (event && typeof event.preventDefault === "function") {
-              event.preventDefault();
-            }
-            void complete(token);
-            return;
-          }
-
-          const frontendBase = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
-          if (targetUrl.startsWith(frontendBase)) {
-            if (event && typeof event.preventDefault === "function") {
-              event.preventDefault();
-            }
-            void complete();
-          }
-        } catch {
-          // ignore invalid url
-        }
+      activeOAuthAbort = () => {
+        if (isSettled) return;
+        isSettled = true;
+        if (pollTimer) clearInterval(pollTimer);
+        resolve({ authenticated: false, cancelled: true });
       };
 
-      const onNav = (event, url) => handleUrl(url, event);
-      authWindow.webContents.on("will-redirect", onNav);
-      authWindow.webContents.on("will-navigate", onNav);
-      authWindow.webContents.on("did-redirect-navigation", onNav);
-      authWindow.webContents.on("did-navigate", onNav);
+      // Poll ticket every 1500ms
+      if (login.ticket) {
+        const startTime = Date.now();
+        pollTimer = setInterval(async () => {
+          if (isSettled) return;
+          if (Date.now() - startTime > 180000) {
+            if (pollTimer) clearInterval(pollTimer);
+            if (!isSettled) {
+              isSettled = true;
+              resolve({
+                authenticated: false,
+                message: "Authorization timed out. Please try again.",
+              });
+            }
+            return;
+          }
+          try {
+            const pollRes = await fetch(
+              `${API_URL}/auth/github/poll?ticket=${encodeURIComponent(login.ticket)}`,
+            );
+            if (pollRes.ok) {
+              const pollData = await pollRes.json();
+              if (pollData && pollData.authenticated && pollData.session_token) {
+                void finish(pollData.session_token);
+              }
+            }
+          } catch {
+            /* ignore network polling errors */
+          }
+        }, 1500);
+      }
 
-      authWindow.on("closed", () => {
-        if (!finished) {
-          finished = true;
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.focus();
-          }
-          if (apiSessionToken) {
-            apiJson("/me")
-              .then((user) => resolve({ authenticated: true, user }))
-              .catch(() => resolve({ authenticated: true, user: { username: "connected" } }));
-          } else {
-            resolve({ authenticated: false, message: "Sign in window was closed." });
-          }
-        }
+      // Also listen for deep-link tokens forwarded from second-instance or open-url
+      ipcMain.once("auth:deeplink-token", (_, tok) => {
+        if (tok) void finish(tok);
       });
     });
   } catch (err) {
     return {
       authenticated: false,
-      message: err instanceof Error ? err.message : "Failed to initiate GitHub authentication.",
+      message:
+        err instanceof Error
+          ? err.message
+          : "Failed to initiate GitHub authentication.",
     };
   }
 });
@@ -617,6 +641,16 @@ ipcMain.handle("auth:logout", async () => {
 // IPC Handlers: Repository Cloning & Workspace Launchers
 // ==============================================================================
 
+ipcMain.handle("workspace:get-parent", async () => {
+  return { path: getWorkspaceParent() };
+});
+
+ipcMain.handle("workspace:choose-parent", async () => {
+  const chosen = await promptUserForWorkspaceParent(mainWindow);
+  if (!chosen) return { cancelled: true, path: getWorkspaceParent() };
+  return { path: chosen, changed: true };
+});
+
 ipcMain.handle("workspace:clone", async (_, repositoryUrl) => {
   const match =
     typeof repositoryUrl === "string" &&
@@ -624,7 +658,14 @@ ipcMain.handle("workspace:clone", async (_, repositoryUrl) => {
   if (!match) {
     throw new Error("Only public GitHub repository URLs are supported.");
   }
-  const destination = workspaceRoot();
+
+  let destination = getWorkspaceParent();
+  if (!destination) {
+    destination = await promptUserForWorkspaceParent(mainWindow);
+    if (!destination) {
+      throw new Error("Workspace folder selection was cancelled.");
+    }
+  }
   let cloneUrl = repositoryUrl;
   let isFork = false;
   try {

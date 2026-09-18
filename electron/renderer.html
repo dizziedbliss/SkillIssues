@@ -211,30 +211,55 @@
           </section>
         </aside>
       </section>
-      <!-- ISSUE DETAILS stays separate from the fixed Documents/SkillIssues clone handoff. -->
+      <!-- WORKSPACE DRAWER -->
       <div id="workspace" class="workspace-drawer" hidden>
         <div class="drawer-card">
-          <button id="close-workspace" class="close">×</button
-          ><span id="difficulty" class="difficulty"></span>
-          <h2 id="title"></h2>
-          <p id="repository"></p>
-          <a id="github" target="_blank" rel="noreferrer">Open issue ↗</a>
-          <div id="body" class="drawer-body markdown-body"></div>
-          <div id="skills" class="drawer-skills"></div>
-          <button id="start-challenge" class="primary">
-            Solve issue (Fork & Clone) <span>↗</span>
-          </button>
-          <div id="clone-handoff" hidden>
-            <div class="destination">
-              <label>LOCAL WORKSPACE</label>
-              <div id="destination" class="workspace-path">
-                Documents/SkillIssues
+          <button id="close-workspace" class="close">×</button>
+          
+          <!-- Drawer Navigation Tabs -->
+          <div class="drawer-nav">
+            <button id="drawer-tab-issue" class="drawer-tab active">📋 Issue Details</button>
+            <button id="drawer-tab-workspace" class="drawer-tab">💻 Workspace & Logs</button>
+          </div>
+
+          <!-- Tab Page 1: Issue Details -->
+          <div id="drawer-page-issue" class="drawer-page">
+            <span id="difficulty" class="difficulty"></span>
+            <h2 id="title"></h2>
+            <p id="repository"></p>
+            <a id="github" target="_blank" rel="noreferrer">Open issue ↗</a>
+            <div id="body" class="drawer-body markdown-body"></div>
+            <div id="skills" class="drawer-skills"></div>
+            <button id="start-challenge" class="primary" style="margin-top: 18px;">
+              Solve issue (Fork & Clone) <span>↗</span>
+            </button>
+          </div>
+
+          <!-- Tab Page 2: Local Workspace & Terminal Logs -->
+          <div id="drawer-page-workspace" class="drawer-page" hidden>
+            <div class="workspace-header-meta">
+              <span id="workspace-repo-badge" class="difficulty">Repository</span>
+              <h2 id="workspace-repo-title" style="margin-top: 6px;">Workspace</h2>
+            </div>
+
+            <!-- User Workspace Root Selector -->
+            <div class="destination" style="margin-top: 16px;">
+              <label>WORKSPACE ROOT FOLDER (Parent directory for all challenges)</label>
+              <div class="workspace-parent-row">
+                <div id="workspace-parent-path" class="workspace-path">Not configured</div>
+                <button id="change-workspace-parent" class="secondary change-btn">📁 Change Folder</button>
               </div>
             </div>
-            <button id="clone" class="primary">
-              Re-clone repository <span>↗</span>
-            </button>
-            <div id="git-actions" hidden>
+
+            <!-- Specific Local Clone Destination -->
+            <div class="destination">
+              <label>CHALLENGE CLONE DESTINATION</label>
+              <div id="destination" class="workspace-path">
+                Choose or clone a repository first...
+              </div>
+            </div>
+
+            <div id="git-actions">
               <div class="git-actions-section" style="margin-top: 14px">
                 <label>WORKING BRANCH</label>
                 <div class="git-branch-row">
@@ -256,18 +281,30 @@
                     Open in VS Code ↗
                   </button>
                   <button id="open-workspace" class="secondary">
-                    Show folder ↗
+                    Show in Explorer ↗
                   </button>
                   <button id="push-button" class="primary">
                     Push & Submit PR ↗
                   </button>
+                  <button id="clone" class="secondary">
+                    Re-clone ↗
+                  </button>
                 </div>
               </div>
             </div>
+
+            <!-- Terminal & Logs -->
+            <div class="logs-section">
+              <div class="logs-header-row">
+                <label>WORKSPACE & GIT TERMINAL LOGS</label>
+                <button id="clear-logs" class="subtle-link">Clear Log</button>
+              </div>
+              <div id="result" class="result logs-terminal"></div>
+            </div>
           </div>
-          <div id="result" class="result" hidden></div>
         </div>
       </div>
+
       <!-- PREFERENCES EDIT MODAL -->
       <div id="preferences-modal" class="workspace-drawer" hidden>
         <div class="drawer-card pref-card">
@@ -290,6 +327,7 @@
           </button>
         </div>
       </div>
+
       <!-- PUSH & SUBMIT PR CONFIRMATION MODAL -->
       <div id="push-modal" class="workspace-drawer" hidden>
         <div class="drawer-card push-card">
@@ -329,6 +367,7 @@
           </button>
         </div>
       </div>
+
       <!-- GITHUB CONNECT MODAL -->
       <div id="github-token-modal" class="workspace-drawer" hidden>
         <div class="drawer-card push-card">
@@ -338,35 +377,54 @@
             Connect your GitHub account to get personalized challenge recommendations,
             track XP, and verify merged pull requests.
           </p>
-          <button id="oauth-login-btn" class="primary pref-save" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 14px; padding: 12px; font-weight: 600;">
-            <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-            </svg>
-            <span>Continue with GitHub (OAuth)</span>
-          </button>
-          <div style="display: flex; align-items: center; text-align: center; margin: 10px 0 14px; color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
-            <div style="flex: 1; border-bottom: 1px solid var(--border-default);"></div>
-            <span style="padding: 0 10px;">or connect with token</span>
-            <div style="flex: 1; border-bottom: 1px solid var(--border-default);"></div>
+
+          <!-- OAuth Default View -->
+          <div id="oauth-default-view">
+            <button id="oauth-login-btn" class="primary pref-save" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 14px; padding: 12px; font-weight: 600;">
+              <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              <span>Continue with GitHub (Browser OAuth)</span>
+            </button>
+            <div style="display: flex; align-items: center; text-align: center; margin: 10px 0 14px; color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
+              <div style="flex: 1; border-bottom: 1px solid var(--border-default);"></div>
+              <span style="padding: 0 10px;">or connect with classic token</span>
+              <div style="flex: 1; border-bottom: 1px solid var(--border-default);"></div>
+            </div>
+            <div class="destination">
+              <label>GITHUB CLASSIC PERSONAL ACCESS TOKEN (PAT)</label
+              ><input
+                id="github-pat-input"
+                class="workspace-path"
+                type="password"
+                placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              />
+              <p style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">
+                Must be a GitHub Classic Token (starts with <code>ghp_</code>) with <code>repo</code> and <code>read:user</code> scopes.
+              </p>
+            </div>
+            <div
+              id="token-error"
+              class="result error"
+              style="margin-top: 10px; width: 100%"
+              hidden
+            ></div>
+            <div style="display: flex; gap: 10px; margin-top: 12px">
+              <button id="submit-token-login" class="secondary" style="width: 100%;">
+                Connect with Classic Token <span>✓</span>
+              </button>
+            </div>
           </div>
-          <div class="destination">
-            <label>GITHUB PERSONAL ACCESS TOKEN (PAT)</label
-            ><input
-              id="github-pat-input"
-              class="workspace-path"
-              type="password"
-              placeholder="ghp_... or github_pat_..."
-            />
-          </div>
-          <div
-            id="token-error"
-            class="result error"
-            style="margin-top: 10px; width: 100%"
-            hidden
-          ></div>
-          <div style="display: flex; gap: 10px; margin-top: 12px">
-            <button id="submit-token-login" class="secondary" style="width: 100%;">
-              Connect with Token <span>✓</span>
+
+          <!-- OAuth Waiting State View -->
+          <div id="oauth-waiting-view" hidden style="text-align: center; padding: 24px 0 12px;">
+            <div class="oauth-spinner"></div>
+            <h3 style="font-size: 18px; margin: 0 0 8px;">Waiting for GitHub Authorization</h3>
+            <p style="font-size: 13.5px; color: var(--text-dim); max-width: 380px; margin: 0 auto 24px; line-height: 1.5;">
+              We opened GitHub in your default web browser. Once you authorize SkillIssues, this window will update and sign you in automatically.
+            </p>
+            <button id="cancel-oauth-btn" class="secondary" style="padding: 10px 28px;">
+              Cancel Authorization
             </button>
           </div>
         </div>
