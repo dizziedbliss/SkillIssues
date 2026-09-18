@@ -163,6 +163,7 @@ func buildRouter(
 	mux.HandleFunc("GET /auth/github", h.authGitHubBegin)
 	mux.HandleFunc("POST /auth/github", h.authGitHubBegin) // both GET and POST per spec
 	mux.HandleFunc("GET /auth/github/callback", h.authGitHubCallback)
+	mux.HandleFunc("GET /auth/github/poll", h.authGitHubPoll)
 	mux.HandleFunc("POST /auth/logout", h.authLogout)
 	mux.HandleFunc("POST /auth/purge", h.authPurge)
 	if cfg.DemoMode {

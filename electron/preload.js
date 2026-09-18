@@ -25,6 +25,24 @@ contextBridge.exposeInMainWorld("skillIssuesDesktop", {
   loginWithGitHub: () => ipcRenderer.invoke("auth:github"),
 
   /**
+   * Cancel pending browser-based GitHub OAuth flow.
+   * @returns {Promise<{cancelled: boolean}>}
+   */
+  cancelGitHubLogin: () => ipcRenderer.invoke("auth:cancel-github"),
+
+  /**
+   * Get the currently saved user workspace parent directory path.
+   * @returns {Promise<{path: string|null}>}
+   */
+  getWorkspaceParent: () => ipcRenderer.invoke("workspace:get-parent"),
+
+  /**
+   * Open the native directory chooser to select and save a custom workspace parent folder.
+   * @returns {Promise<{path?: string, changed?: boolean, cancelled?: boolean}>}
+   */
+  chooseWorkspaceParent: () => ipcRenderer.invoke("workspace:choose-parent"),
+
+  /**
    * Authenticate directly with a GitHub Personal Access Token (PAT).
    * @param {string} token - GitHub PAT with repo scope
    * @returns {Promise<any>} Authenticated user profile payload

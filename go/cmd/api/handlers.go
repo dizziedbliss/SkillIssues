@@ -19,6 +19,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/auth"
@@ -37,15 +38,17 @@ import (
 
 // handlers bundles all service dependencies for the handler functions.
 type handlers struct {
-	cfg        *config.Config
-	db         *db.Pool
-	cache      *cache.Client
-	authSvc    *auth.Service
-	ghOAuth    *auth.GitHubOAuth
-	profileSvc *profile.Service
-	issueSvc   *issue.Service
-	contribSvc *contribution.Service
-	ghClient   *github.Client
+	cfg            *config.Config
+	db             *db.Pool
+	cache          *cache.Client
+	authSvc        *auth.Service
+	ghOAuth        *auth.GitHubOAuth
+	profileSvc     *profile.Service
+	issueSvc       *issue.Service
+	contribSvc     *contribution.Service
+	ghClient       *github.Client
+	desktopTickets sync.Map // ticket -> session data
+	stateTickets   sync.Map // state -> ticket
 }
 
 // ---------------------------------------------------------------------------
@@ -159,23 +162,30 @@ func (h *handlers) authPurge(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 
 // authGitHubToken handles POST /auth/github/token (PAT login)
+// authGitHubToken handles POST /auth/github/token (Classic PAT login only)
 // Body: {"token": "ghp_..."}
 func (h *handlers) authGitHubToken(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Token string `json:"token"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || len(body.Token) < 5 {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "token is required (min 5 characters)")
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || len(strings.TrimSpace(body.Token)) < 5 {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "token is required")
 		return
 	}
 
-	ghUser, err := h.ghOAuth.ValidatePAT(r.Context(), body.Token)
+	cleanTok := strings.TrimSpace(body.Token)
+	if !strings.HasPrefix(cleanTok, "ghp_") {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "Only GitHub Classic Personal Access Tokens (starting with 'ghp_') or OAuth are supported.")
+		return
+	}
+
+	ghUser, err := h.ghOAuth.ValidatePAT(r.Context(), cleanTok)
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnauthorized, "invalid GitHub token")
+		middleware.RespondError(w, http.StatusUnauthorized, "Invalid GitHub token: please ensure it has 'repo' and 'read:user' scopes.")
 		return
 	}
 
-	userID, err := h.authSvc.UpsertUser(r.Context(), ghUser.GitHubID, ghUser.Username, ghUser.AvatarURL, body.Token)
+	userID, err := h.authSvc.UpsertUser(r.Context(), ghUser.GitHubID, ghUser.Username, ghUser.AvatarURL, cleanTok)
 	if err != nil {
 		middleware.RespondError(w, http.StatusInternalServerError, "failed to create user record")
 		return
@@ -215,10 +225,17 @@ func (h *handlers) authGitHubBegin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorizeURL, _, err := h.ghOAuth.BeginOAuth(r.Context(), h.cfg.GitHubRedirectURI)
+	authorizeURL, state, err := h.ghOAuth.BeginOAuth(r.Context(), h.cfg.GitHubRedirectURI)
 	if err != nil {
 		middleware.RespondError(w, http.StatusInternalServerError, "failed to begin OAuth flow: "+err.Error())
 		return
+	}
+
+	isDesktop := r.URL.Query().Get("source") == "desktop"
+	var ticket string
+	if isDesktop {
+		ticket = uuid.NewString()
+		h.stateTickets.Store(state, ticket)
 	}
 
 	// If browser directly navigated or explicitly requested redirect
@@ -227,11 +244,15 @@ func (h *handlers) authGitHubBegin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	middleware.RespondJSON(w, http.StatusOK, map[string]any{
+	resp := map[string]any{
 		"enabled":       true,
 		"authorize_url": authorizeURL,
 		"redirect_uri":  h.cfg.GitHubRedirectURI,
-	})
+	}
+	if ticket != "" {
+		resp["ticket"] = ticket
+	}
+	middleware.RespondJSON(w, http.StatusOK, resp)
 }
 
 // authGitHubCallback handles GET /auth/github/callback
@@ -246,7 +267,18 @@ func (h *handlers) authGitHubCallback(w http.ResponseWriter, r *http.Request) {
 		frontendURL = "http://localhost:5173"
 	}
 
+	var ticket string
+	if stateVal, ok := h.stateTickets.LoadAndDelete(state); ok {
+		ticket = stateVal.(string)
+	}
+
 	redirectWithError := func(code string, detail string) {
+		if ticket != "" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprintf(w, `<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0d1117;color:#f85149;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><div style="text-align:center;"><h2>Authentication Failed</h2><p>%s: %s</p><p>You can close this window and try again.</p></div></body></html>`, code, detail)
+			return
+		}
 		sep := "?"
 		if strings.Contains(frontendURL, "?") {
 			sep = "&"
@@ -291,12 +323,79 @@ func (h *handlers) authGitHubCallback(w http.ResponseWriter, r *http.Request) {
 
 	h.setSessionCookie(w, rawToken)
 
-	// Redirect to frontend with token in query param for robust multi-origin support
+	// If this flow originated from Electron Desktop, record ticket & present auto-redirect landing page
+	if ticket != "" {
+		h.desktopTickets.Store(ticket, map[string]any{
+			"session_token": rawToken,
+			"user": map[string]any{
+				"id":         userID,
+				"username":   ghUser.Username,
+				"avatar_url": ghUser.AvatarURL,
+			},
+		})
+
+		deepLink := fmt.Sprintf("skillissues://auth?token=%s&ticket=%s", url.QueryEscape(rawToken), url.QueryEscape(ticket))
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkillIssues Desktop — Authorized</title>
+  <meta http-equiv="refresh" content="0;url=%s" />
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0b0f19; color: #e6edf3; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    .card { background: #161b26; border: 1px solid #30363d; border-radius: 14px; padding: 44px; text-align: center; max-width: 460px; box-shadow: 0 12px 36px rgba(0,0,0,0.5); }
+    .icon { font-size: 40px; margin-bottom: 12px; }
+    h1 { font-size: 22px; color: #58a6ff; margin: 0 0 12px; font-weight: 700; }
+    p { font-size: 14.5px; color: #8b949e; line-height: 1.5; margin: 0 0 24px; }
+    a.btn { display: inline-block; background: #238636; color: white; text-decoration: none; padding: 12px 26px; border-radius: 8px; font-weight: 600; font-size: 14px; transition: background 0.2s; }
+    a.btn:hover { background: #2ea043; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">✨</div>
+    <h1>Authorization Successful!</h1>
+    <p>You have connected your GitHub account. Redirecting you back to SkillIssues Desktop...</p>
+    <a class="btn" href="%s">Open SkillIssues Desktop</a>
+  </div>
+  <script>
+    setTimeout(function() { window.location.href = %q; }, 100);
+  </script>
+</body>
+</html>`, deepLink, deepLink, deepLink)
+		return
+	}
+
+	// Web flow: Redirect to frontend with token in query param
 	sep := "?"
 	if strings.Contains(frontendURL, "?") {
 		sep = "&"
 	}
 	http.Redirect(w, r, fmt.Sprintf("%s%stoken=%s", frontendURL, sep, url.QueryEscape(rawToken)), http.StatusFound)
+}
+
+// authGitHubPoll handles GET /auth/github/poll?ticket=...
+// Used by Electron desktop to verify when browser-based OAuth authorization completes.
+func (h *handlers) authGitHubPoll(w http.ResponseWriter, r *http.Request) {
+	ticket := r.URL.Query().Get("ticket")
+	if ticket == "" {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "ticket is required")
+		return
+	}
+	val, ok := h.desktopTickets.Load(ticket)
+	if !ok {
+		middleware.RespondJSON(w, http.StatusOK, map[string]any{"authenticated": false})
+		return
+	}
+	data := val.(map[string]any)
+	middleware.RespondJSON(w, http.StatusOK, map[string]any{
+		"authenticated": true,
+		"session_token": data["session_token"],
+		"user":          data["user"],
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -798,6 +897,7 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 	}
 	var body struct {
 		Branch string `json:"branch"`
+		Base   string `json:"base"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Branch == "" {
 		middleware.RespondError(w, http.StatusUnprocessableEntity, "branch name is required")
@@ -842,6 +942,16 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 		prBody = fmt.Sprintf("SkillIssues contribution for issue #%d", issueNum)
 	}
 
+	// Dynamically determine target repository default branch (e.g. 'main', 'master', 'develop')
+	baseBranch := strings.TrimSpace(body.Base)
+	if baseBranch == "" {
+		if defBranch, err := h.ghClient.GetDefaultBranch(r.Context(), token, owner, name); err == nil && defBranch != "" {
+			baseBranch = defBranch
+		} else {
+			baseBranch = "main"
+		}
+	}
+
 	var prURL string
 	var prNum int
 	var pullRequest map[string]any
@@ -851,17 +961,17 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 		if username != "" {
 			head = fmt.Sprintf("%s:%s", username, body.Branch)
 		}
-		res, err := h.ghClient.CreatePullRequest(r.Context(), token, owner, name, prTitle, head, "main", prBody)
+		res, err := h.ghClient.CreatePullRequest(r.Context(), token, owner, name, prTitle, head, baseBranch, prBody)
 		if err == nil {
 			prURL = res.HTMLURL
 			prNum = res.Number
-			pullRequest = map[string]any{"html_url": prURL, "number": prNum}
+			pullRequest = map[string]any{"html_url": prURL, "number": prNum, "base": baseBranch}
 		}
 	}
 
 	if prURL == "" {
 		if username != "" {
-			prURL = fmt.Sprintf("https://github.com/%s/%s/compare/main...%s:%s?expand=1", owner, name, username, body.Branch)
+			prURL = fmt.Sprintf("https://github.com/%s/%s/compare/%s...%s:%s?expand=1", owner, name, baseBranch, username, body.Branch)
 		} else {
 			prURL = fmt.Sprintf("https://github.com/%s/%s", owner, name)
 		}
@@ -869,6 +979,7 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 		pullRequest = map[string]any{
 			"html_url":       prURL,
 			"number":         prNum,
+			"base":           baseBranch,
 			"manual_compare": true,
 		}
 	}
