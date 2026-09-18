@@ -40,7 +40,7 @@ services:
   # --------------------------------------------------------------------------
   go-api:
     build:
-      context: ./go
+      context: ./backend
       dockerfile: cmd/api/Dockerfile
     environment:
       DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
@@ -75,7 +75,7 @@ services:
   # --------------------------------------------------------------------------
   syncd:
     build:
-      context: ./go
+      context: ./backend
       dockerfile: cmd/syncd/Dockerfile
     environment:
       DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
@@ -105,7 +105,7 @@ services:
   # --------------------------------------------------------------------------
   worker:
     build:
-      context: ./go
+      context: ./backend
       dockerfile: cmd/worker/Dockerfile
     environment:
       API_URL: http://go-api:8000
@@ -118,7 +118,7 @@ services:
         condition: service_healthy
 
   frontend:
-    build: ./frontend
+    build: ./web
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
     ports:

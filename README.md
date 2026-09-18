@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="frontend/public/logo.png" alt="SkillIssues Logo" width="120" style="border-radius: 24px; box-shadow: 0 8px 24px rgba(36, 20, 66, 0.15);" />
+<img src="web/public/logo.png" alt="SkillIssues Logo" width="120" style="border-radius: 24px; box-shadow: 0 8px 24px rgba(36, 20, 66, 0.15);" />
 
 ### *You Have the Skills. We Have the Issues.*
 
@@ -234,9 +234,10 @@ SkillIssues/
 ├── .github/                     # CI/CD workflows (lint, test, build, release)
 ├── compose.yaml                 # Core development Docker Compose definition
 ├── docker-compose.prod.yml      # Production stack with Nginx SSL reverse proxy
-├── database/                    # PostgreSQL schema definition
-│   └── schema.sql               # Authoritative base schema
-├── go/                          # Pure Go microservices & business logic
+├── database/                    # PostgreSQL schema definition & migrations
+│   ├── schema.sql               # Authoritative base schema
+│   └── migrations/              # Database migration files (001 - 006)
+├── backend/                     # Pure Go microservices & business logic
 │   ├── cmd/
 │   │   ├── api/                 # Primary API Gateway (Port 8000)
 │   │   ├── syncd/               # GitHub GraphQL Sync Coordinator (Port 8002)
@@ -257,21 +258,21 @@ SkillIssues/
 │   │   ├── progression/         # XP, level, and badge calculation
 │   │   ├── recommendation/      # Deterministic issue matcher
 │   │   └── sync/                # Sync algorithms & worker pools
-│   ├── migrations/              # Database migration files (001 - 006)
 │   └── integration_test.go      # Go integration & API tests
-├── electron/                    # Desktop companion application
+├── desktop/                     # Desktop companion application (Electron)
 │   ├── main.js                  # Frameless window, Git engine, IPC handlers
 │   ├── preload.js               # Context-isolated secure bridge
 │   ├── renderer.html            # Native desktop markup
 │   ├── renderer.js              # UI controller, categorized search, pagination
 │   └── renderer.css             # Himalayas/lavender frameless styling
-├── frontend/                    # Web application
+├── web/                         # Web dashboard application (React 18 + Vite)
 │   ├── src/
 │   │   ├── LandingView.tsx      # Promotional 3D pipeline flowchart & hero
 │   │   ├── main.tsx             # App root, catalog feed, modal & routing
 │   │   └── styles.css           # Design system (lavender/deep purple theme)
 │   ├── vite.config.ts           # Vite bundler configuration
 │   └── Dockerfile               # Node 22 Alpine production container
+├── data/                        # Datasets & offline catalog archives
 ├── k8s/                         # Kubernetes deployment manifests
 │   ├── api/                     # Go API Gateway deployment & service
 │   ├── syncd/                   # Ingestion daemon deployment & service
@@ -279,7 +280,6 @@ SkillIssues/
 │   ├── frontend/                # Web UI deployment & service
 │   ├── ingress.yaml             # Ingress rules with TLS routing
 │   └── configmap.yaml           # Cluster configuration
-└── tests/                       # Test suites
 ```
 
 ---

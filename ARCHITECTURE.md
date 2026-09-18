@@ -117,7 +117,7 @@ sequenceDiagram
 
 ## 3. Microservice Specifications
 
-### 3.1 Go API Gateway (`go/cmd/api/`)
+### 3.1 Go API Gateway (`backend/cmd/api/`)
 - **Port**: `8000`
 - **Runtime**: Distroless non-root container (`gcr.io/distroless/static-debian12:nonroot`)
 - **Core Responsibilities**:
@@ -129,7 +129,7 @@ sequenceDiagram
   - Verifies GitHub PR merge states and computes XP/level/badge progression.
   - Exposes Prometheus telemetry on `/metrics` and health readiness on `/health`.
 
-### 3.2 Go Sync Coordinator (`go/cmd/syncd/`)
+### 3.2 Go Sync Coordinator (`backend/cmd/syncd/`)
 - **Port**: `8002`
 - **Core Responsibilities**:
   - Communicates with GitHub's GraphQL API to discover and qualify open-source issues.
@@ -137,12 +137,12 @@ sequenceDiagram
   - Parses issue text, extracts technology tags and required skills, and computes deterministic difficulty scores.
   - Maintains distributed sync locks in Redis to prevent concurrent ingestion races.
 
-### 3.3 Go Priority Worker Daemon (`go/cmd/worker/`)
+### 3.3 Go Priority Worker Daemon (`backend/cmd/worker/`)
 - **Core Responsibilities**:
   - Periodically triggers priority catalog refreshes for actively worked challenges and tracked repositories.
   - Monitors `syncd` health and triggers automated ingestion cycles.
 
-### 3.4 Standalone Offline Kaggle ETL CLI (`go/cmd/kaggle_etl/`)
+### 3.4 Standalone Offline Kaggle ETL CLI (`backend/cmd/kaggle_etl/`)
 - **Core Responsibilities**:
   - Standalone binary for bulk importing large offline GitHub dataset archives (e.g. from Kaggle) into PostgreSQL.
   - Performs deduplication, metadata sanitization, and difficulty assignment offline without hitting GitHub API rate limits.
@@ -151,7 +151,7 @@ sequenceDiagram
 
 ## 4. Database Schema & Data Models
 
-PostgreSQL 16 serves as the persistent relational database, managed via incremental SQL migrations (`go/migrations/`):
+PostgreSQL 16 serves as the persistent relational database, managed via incremental SQL migrations (`database/migrations/`):
 
 ### Schema Migration History
 - `001_initial_schema`: Core entity definitions:
