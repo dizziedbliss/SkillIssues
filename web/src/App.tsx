@@ -792,7 +792,7 @@ export function App() {
 
   return (
     <main className="web-home">
-      <header className="web-header">
+      {view !== "Overview" && <header className="web-header">
         <div
           className="wordmark"
           style={{ cursor: "pointer" }}
@@ -845,9 +845,9 @@ export function App() {
             </button>
           )}
         </div>
-      </header>
-
-      {view === "Overview" ? (
+  </header>}
+  
+  {view === "Overview" ? (
         <LandingPage
           onExplore={() => setView("SkillIssues")}
           onSignIn={() => setShowLoginModal(true)}
