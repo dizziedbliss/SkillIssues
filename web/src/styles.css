@@ -1,0 +1,75 @@
+/* ==========================================================================
+   SkillIssues Design System: Lavender & Plum Theme
+   Defined in src/styles.css
+   ========================================================================== */
+
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700;800;900&display=swap");
+
+:root {
+  /* Fonts */
+  --font-sans: "Noto Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Core Colors */
+  --color-bg: #f8f5fe;                  /* oklch(0.975 0.012 303) - Page background (whitish lavender) */
+  --color-foreground: #30183b;          /* oklch(0.26 0.07 314) - Body text (deep plum) */
+  --color-primary: #8241bf;             /* oklch(0.52 0.19 304) - Buttons, links, accents (purple) */
+  --color-primary-hover: #7328ae;       /* oklch(0.46 0.2 305) - Darker purple */
+  --color-primary-foreground: #fcfbff;  /* oklch(0.99 0.005 303) - Text on purple buttons */
+  --color-surface: #fefdff;             /* oklch(0.995 0.004 303) - Cards/panels, near-white */
+  --color-card: #fdfbff;                /* oklch(0.99 0.008 303) - Issue card background */
+  --color-secondary: #e4dcf9;           /* oklch(0.91 0.04 297) - Secondary buttons (light lavender) */
+  --color-muted: #ede9f6;               /* oklch(0.94 0.018 300) - Tag chips background */
+  --color-muted-foreground: #726581;    /* oklch(0.53 0.045 306) - Secondary/muted text */
+  --color-accent: #eae2ff;              /* oklch(0.93 0.045 297) - Hover highlights */
+  --color-border: #dbd4e7;              /* oklch(0.88 0.028 302) - Default borders */
+  --color-border-strong: #beb0d5;       /* oklch(0.78 0.055 302) - Emphasized borders */
+  --color-ring: #9258cf;                /* oklch(0.58 0.18 304) - Focus outlines */
+  --color-code-bg: #1b1026;             /* oklch(0.2 0.045 307) - Dark terminal section */
+  --color-code-text: #eae4fa;           /* oklch(0.93 0.03 297) - Light text on dark */
+  --color-success: #009259;             /* oklch(0.58 0.14 158) - Green (BEGINNER, checkmarks) */
+  --color-warning: #d38900;             /* oklch(0.69 0.15 72) - Amber (ADVANCED) */
+  --color-info: #277bc6;                /* oklch(0.57 0.14 250) - Blue (INTERMEDIATE) */
+
+  /* Legacy variable aliases for deep compatibility across views */
+  --bg-app: var(--color-bg);
+  --bg-surface: var(--color-surface);
+  --bg-card: var(--color-card);
+  --bg-subtle: var(--color-muted);
+  --bg-pill: var(--color-secondary);
+  --border-default: var(--color-border);
+  --border-card: var(--color-border);
+  --border-accent: var(--color-primary);
+  --text-primary: var(--color-foreground);
+  --text-muted: var(--color-muted-foreground);
+  --accent-blue: var(--color-primary);
+  --accent-blue-hover: var(--color-primary-hover);
+
+  /* Radius */
+  --radius-base: 0.5rem;
+  --radius-sm: calc(0.5rem - 2px);      /* 6px */
+  --radius-lg: calc(0.5rem + 2px);      /* 10px */
+
+  /* Shadows */
+  --shadow-soft: 0 4px 18px rgba(48, 24, 59, 0.07);
+  --shadow-card: 0 18px 50px rgba(130, 65, 191, 0.11);
+  --shadow-button-glow: 0 8px 24px rgba(130, 65, 191, 0.24);
+
+  /* Signature touches */
+  --pattern-grid: rgba(130, 65, 191, 0.05);
+  --hero-halo: radial-gradient(circle at 50% 18%, rgba(130, 65, 191, 0.12), transparent 70%);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  color: var(--color-foreground);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code, kbd, samp, pre {
+  font-family: var(--font-mono);
+}

@@ -1,6 +1,9 @@
 name: skillissues
 
 services:
+  # --------------------------------------------------------------------------
+  # PostgreSQL — authoritative persistent data store
+  # --------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
     environment:
@@ -17,94 +20,111 @@ services:
       timeout: 5s
       retries: 10
 
-  api:
-    build: ./services/api
+  # --------------------------------------------------------------------------
+  # Redis — session cache, rate limiting, distributed locks, hot-path cache
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --save "" --appendonly no  # in-memory only for dev
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # --------------------------------------------------------------------------
+  # Go API — authoritative primary backend (Phase 7: Full Cutover)
+  # Pure Go implementation of all 28 API routes, auth, progression, and issues.
+  # --------------------------------------------------------------------------
+  go-api:
+    build:
+      context: ./backend
+      dockerfile: cmd/api/Dockerfile
     environment:
       DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
-      FRONTEND_URL: http://localhost:5173
-      DEMO_MODE: ${DEMO_MODE:-true}
+      REDIS_URL: redis://redis:6379/0
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8000/auth/github/callback}
-      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
-      ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-}
-      RECOMMENDATION_URL: http://recommendation:8000
-      CONTRIBUTION_URL: http://contribution:8000
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-dev_local_webhook_secret}
+      ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-dev_local_admin_sync_token}
+      SYNCD_URL: http://syncd:8002
+      UNAUTH_RATE_LIMIT: ${UNAUTH_RATE_LIMIT:-180}
+      AUTH_RATE_LIMIT: ${AUTH_RATE_LIMIT:-1000}
+      PORT: 8000
     ports:
       - "8000:8000"
-    volumes:
-      - ./database:/database:ro
     depends_on:
       postgres:
         condition: service_healthy
-      recommendation:
-        condition: service_started
-      contribution:
-        condition: service_started
+      redis:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 3s
-      timeout: 5s
+      test: ["CMD", "/healthcheck"]
+      interval: 5s
+      timeout: 3s
       retries: 10
-      start_period: 2s
+      start_period: 3s
 
-  ingestion:
-    build: ./services/ingestion
+  # --------------------------------------------------------------------------
+  # Go syncd — Sync Coordinator & GitHub GraphQL ingestion engine (Phase 4)
+  # --------------------------------------------------------------------------
+  syncd:
+    build:
+      context: ./backend
+      dockerfile: cmd/syncd/Dockerfile
     environment:
       DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
-      REPOSITORY_METADATA_PATH: /repo/repo_metadata.json
-      MAX_REPOSITORIES: ${MAX_REPOSITORIES:-500}
-      MIN_STARS: 50
-      SAMPLE_SEED: ${SAMPLE_SEED:-skillissues-demo}
-      RESET_CATALOG: ${RESET_CATALOG:-false}
+      REDIS_URL: redis://redis:6379/0
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      SYNC_ISSUES: ${SYNC_ISSUES:-false}
-      SYNC_REPOSITORIES: 10
-      INGESTION_PORT: 8000
-    volumes:
-      - ./repo:/repo:ro
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-dev_local_webhook_secret}
+      ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-dev_local_admin_sync_token}
+      SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-900}
+      SYNCD_PORT: 8002
+      PORT: 8002
+    ports:
+      - "8002:8002"
     depends_on:
-      api:
+      postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 3s
-      timeout: 5s
+      test: ["CMD", "/healthcheck"]
+      interval: 5s
+      timeout: 3s
       retries: 10
-      start_period: 15s
+      start_period: 3s
 
-  recommendation:
-    build: ./services/recommendation
-    environment:
-      API_URL: http://api:8000
-
-  contribution:
-    build: ./services/contribution
-    environment:
-      API_URL: http://api:8000
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-
+  # --------------------------------------------------------------------------
+  # Go worker — priority issue catalog refresh daemon (Phase 4)
+  # --------------------------------------------------------------------------
   worker:
-    build: ./services/worker
+    build:
+      context: ./backend
+      dockerfile: cmd/worker/Dockerfile
     environment:
-      API_URL: http://api:8000
-      INGESTION_URL: http://ingestion:8000
+      API_URL: http://go-api:8000
+      SYNCD_URL: http://syncd:8002
       SYNC_INTERVAL_SECONDS: 900
     depends_on:
-      api:
+      go-api:
         condition: service_healthy
-      ingestion:
+      syncd:
         condition: service_healthy
 
   frontend:
-    build: ./frontend
+    build: ./web
     environment:
-      VITE_API_URL: http://localhost:8000
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
     ports:
       - "5173:5173"
     depends_on:
-      api:
+      go-api:
         condition: service_healthy
 
 volumes:

@@ -1,111 +1,236 @@
 # Contributing to SkillIssues
 
-Thank you for your interest in contributing to **SkillIssues**! We welcome contributions from developers of all skill levels—whether you are fixing a bug, adding new features, improving documentation, or creating new challenge catalog connectors.
+> **First off: thank you for being here.** Whether you found a typo in the docs, a nasty race condition in the sync worker, or you just want to make the desktop app feel 10% less cursed — we are thrilled to have your help.
+
+SkillIssues is built for developers of all stripes: folks taking their very first steps into open-source, full-stack builders, and grizzled veterans who remember compiling kernels while drinking black coffee. Nobody loads a 20,000-line codebase into their head on day one. Ask questions, have fun, and let us build something awesome together.
 
 ---
 
-## 🛠️ Getting Started
+## 📑 Table of Contents
 
-### 1. Prerequisites
-Before contributing, ensure you have the following installed locally:
-- **Git**
-- **Docker Desktop** (with Docker Compose enabled)
-- **Node.js** (v20+) & **npm**
-- **Python 3.12+**
-
-### 2. Fork & Clone
-1. Fork the repository on GitHub: `https://github.com/dizziedbliss/SkillIssues`
-2. Clone your fork locally:
-   ```bash
-   git clone https://github.com/<your-username>/SkillIssues.git
-   cd SkillIssues
-   ```
-
----
-
-## 🏗️ Repository Layout
-
-- `electron/` — Electron desktop app source code (`main.js`, `preload.js`, `renderer.js`, `renderer.html`, `renderer.css`).
-- `frontend/` — React + TypeScript + Vite web dashboard (`src/main.tsx`, `src/styles.css`).
-- `services/api/` — FastAPI control plane service (`app/main.py`).
-- `services/ingestion/` — Data ingestion & qualification pipeline (`app.py`).
-- `services/recommendation/` — Issue recommendation calculation service (`app.py`).
-- `services/contribution/` — Contribution state & PR validator (`app.py`).
-- `services/worker/` — Priority refresh worker service (`worker.py`).
-- `database/` — PostgreSQL schema migrations (`schema.sql`) and seed data (`seed/seed.sql`).
-
-For a detailed system design and microservice breakdown, refer to [ARCHITECTURE.md](ARCHITECTURE.md).
+- [The Short Version](#the-short-version)
+- [🛠️ What You Will Need](#️-what-you-will-need)
+- [📁 What Lives Where](#-what-lives-where)
+- [💻 Running Locally](#-running-locally)
+  - [Option 1: The "I Just Want It to Run" Docker Way (Recommended)](#option-1-the-i-just-want-it-to-run-docker-way-recommended)
+  - [Option 2: The Fast-Reload Hybrid Way (Go / React Developers)](#option-2-the-fast-reload-hybrid-way-go--react-developers)
+  - [Firing Up the Desktop App (Electron)](#firing-up-the-desktop-app-electron)
+- [🧪 Running Checks & Tests](#-running-checks--tests)
+- [🌿 Branching & Commits](#-branching--commits)
+- [🚀 Submitting Your Pull Request](#-submitting-your-pull-request)
+- [📐 Code Guidelines (Without the Bureaucracy)](#-code-guidelines-without-the-bureaucracy)
+  - [Go Backend](#go-backend)
+  - [React & TypeScript](#react--typescript)
+  - [Electron Desktop](#electron-desktop)
+  - [Database & Migrations](#database--migrations)
+- [📜 Code of Conduct](#-code-of-conduct)
 
 ---
 
-## 💻 Local Development Workflow
+## The Short Version
 
-### 1. Start Microservices
-Start the core backend stack with Docker Compose:
+1. Fork the repo and create a feature branch off `main` (or `refactor`).
+2. Run tests and make sure your code builds cleanly.
+3. Open a PR with a clear description of what you did and why.
+4. Don't worry about being perfect — we review with empathy and high fives.
+
+---
+
+## 🛠️ What You Will Need
+
+Before you start wrestling with code, make sure you have:
+
+- [Git](https://git-scm.com/) (v2.30+)
+- [Go](https://go.dev/) (v1.23+)
+- [Node.js](https://nodejs.org/) (v20+ LTS) & `npm`
+- [Docker Desktop](https://www.docker.com/) (v24+ with Docker Compose)
+- A GitHub account and a [Personal Access Token (PAT)](https://github.com/settings/tokens) with `read:user` and `repo` scopes (needed if you want to test authenticated flows or PR verification).
+
+---
+
+## 📁 What Lives Where
+
+```text
+SkillIssues/
+├── backend/          # Pure Go microservices (API gateway, syncd, worker, ETL)
+│   ├── cmd/          # Entrypoints: /api, /syncd, /worker, /kaggle_etl, /healthcheck
+│   └── internal/     # Core domain packages: auth, db, issue search, progression, etc.
+├── web/              # React 18 + Vite + TypeScript dashboard
+│   └── src/          # Components, styles, 3D landing hero, and catalog views
+├── desktop/          # Electron companion app (native frameless window + Git engine)
+├── database/         # PostgreSQL schema and numbered migrations (001 -> 006)
+├── data/             # Datasets & offline metadata archives
+├── k8s/              # Production Kubernetes manifests (api, syncd, worker, web)
+├── compose.yaml      # Docker Compose stack for local development
+├── ARCHITECTURE.md   # System deep-dive and component diagrams
+└── CONTRIBUTING.md   # You are here!
+```
+
+---
+
+## 💻 Running Locally
+
+### Option 1: The "I Just Want It to Run" Docker Way (Recommended)
+
+If you don't feel like setting up local Go compilers or configuring PostgreSQL services on your host machine:
+
 ```bash
+# 1. Clone your fork
+git clone https://github.com/<your-username>/SkillIssues.git
+cd SkillIssues
+
+# 2. Grab the environment template
+cp .env.example .env
+
+# 3. Spin up the whole universe
 docker compose up -d --build
 ```
 
-Verify service health at:
-- Web App: `http://localhost:5173`
-- API Health: `http://localhost:8000/health`
-- API Docs: `http://localhost:8000/docs`
-
-### 2. Launch the Desktop Client
-In a separate terminal window:
+Give it a moment, then check:
 ```bash
-cd electron
+docker compose ps
+```
+
+Everything will be live at:
+- 🌐 **Web Dashboard**: [http://localhost:5173](http://localhost:5173)
+- 🔌 **API Gateway**: [http://localhost:8000](http://localhost:8000)
+- 📊 **Prometheus Metrics**: [http://localhost:8000/metrics](http://localhost:8000/metrics)
+- 🔄 **Sync Coordinator**: [http://localhost:8002](http://localhost:8002)
+
+To tail service logs in real time:
+```bash
+docker compose logs -f go-api syncd
+```
+
+---
+
+### Option 2: The Fast-Reload Hybrid Way (Go / React Developers)
+
+If you are actively hacking on backend Go logic or tweaking frontend React UI and want instantaneous hot-reloads:
+
+#### 1. Start the databases in Docker:
+```bash
+docker compose up -d postgres redis
+```
+
+#### 2. Run the Go API Gateway natively:
+```bash
+cd backend
+export DATABASE_URL="postgresql://skillissues:skillissues@localhost:5432/skillissues"
+export REDIS_URL="redis://localhost:6379/0"
+export FRONTEND_URL="http://localhost:5173"
+export GITHUB_TOKEN="ghp_your_token_here"
+export PORT=8000
+go run ./cmd/api
+```
+
+#### 3. Run the Web frontend natively:
+```bash
+cd web
+npm install
+npm run dev
+```
+
+---
+
+### Firing Up the Desktop App (Electron)
+
+The desktop app talks to your running API Gateway on `http://localhost:8000`:
+
+```bash
+cd desktop
 npm install
 npm start
 ```
 
-### 3. Syntax Verification & Formatting
-Before committing any changes, run syntax checks and Prettier formatting:
+---
+
+## 🧪 Running Checks & Tests
+
+Before pushing changes, run these quick sanity checks so CI doesn't yell at you:
+
+### Backend (Go)
 ```bash
-# Node syntax check for Electron scripts
-node -c electron/main.js && node -c electron/preload.js && node -c electron/renderer.js
+cd backend
+go test -v ./...
+go fmt ./...
+go vet ./...
+```
 
-# Python syntax compilation
-python -m py_compile services/api/app/main.py services/recommendation/app.py services/contribution/app.py services/worker/worker.py services/ingestion/app.py
+### Web App (React / TypeScript)
+```bash
+cd web
+npm run build
+```
 
-# Format JS/TS/CSS/HTML code
-npx prettier --write "electron/**/*.{js,css,html}" "frontend/src/**/*.{ts,tsx,css}"
+### Desktop App (Electron)
+```bash
+cd desktop
+npm run check
 ```
 
 ---
 
-## 🌿 Branching & Pull Requests
+## 🌿 Branching & Commits
 
-### Branch Naming Conventions
-Use clear, descriptive branch names prefixed by feature, fix, or issue number:
-- `feature/issue-recommendation-scoring`
-- `fix/git-runner-progress`
-- `docs/architecture-guide`
-- `skillissues/issue-<number>` *(Note: use hyphens instead of `#` to ensure git CLI compatibility)*
+### Branch Names
+Keep them simple and descriptive:
+- `feat/add-author-filter`
+- `fix/desktop-clone-buffer`
+- `docs/clarify-env-vars`
+- `refactor/clean-search-query`
 
-### Submitting a Pull Request
-1. Commit your changes with clear, descriptive commit messages following Conventional Commits:
-   ```bash
-   git commit -m "feat(electron): add runner progress indicator for git operations"
-   ```
-2. Push your feature branch to your GitHub fork:
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-3. Open a Pull Request against the main branch on `SkillIssues`.
-4. Ensure all automated syntax checks pass.
+### Commit Messages
+We like [Conventional Commits](https://www.conventionalcommits.org/) because they make the release history easy to read:
+- `feat(search): add category accordion counts`
+- `fix(electron): handle dynamic default branch checkout`
+- `docs: update quickstart instructions`
+- `perf(syncd): optimize worker queue drainage`
 
 ---
 
-## 📋 Code & Design Guidelines
+## 🚀 Submitting Your Pull Request
 
-- **Preserve API Contracts**: Ensure all method signatures and JSON endpoint schemas remain backwards-compatible.
-- **Error Handling**: Provide clear, user-friendly error messages in response payloads and avoid swallowing runtime exceptions silently.
-- **Design System Consistency**:
-  - Web and Desktop apps follow the soothing **Himalayas light theme** with clean whitish-lavender accents (`#f8f7fc`, `#7c5ce5`, `#6344d4`).
-  - Keep feedback clear and non-intrusive.
-  - Maintain spacious, readable typography (Noto Sans wordmarks, clean sans-serif text) with comfortable card padding and soft ambient shadows.
-- **Security Boundaries**:
-  - Never expose backend secrets or raw GitHub tokens to the Electron renderer window.
-  - Confine all local Git operations to the designated `Documents/SkillIssues` workspace directory.
-  - Validate branch names and paths strictly to avoid command injection.
+1. **Keep it focused**: One PR per logical concern. It is ten times easier to review two 100-line PRs than one 2,000-line mystery box.
+2. **Push to your fork**:
+   ```bash
+   git push origin feat/your-feature-name
+   ```
+3. **Open the PR**: Pick our `main` (or active development) branch.
+4. **Tell us what you built**:
+   - What changed?
+   - Why did you choose this approach?
+   - How did you test it? (Terminal output or screenshots are awesome).
+5. **Review time**: We review with respect and constructive suggestions. If we ask questions, it's not a critique of you as a human — we're just making sure the code works reliably in production.
+
+---
+
+## 📐 Code Guidelines (Without the Bureaucracy)
+
+### Go Backend
+- **Keep it idiomatic**: If Go has a natural way to do something, prefer it.
+- **Handle your errors**: Check `if err != nil` and return descriptive context (`fmt.Errorf("reading issue %d: %w", id, err)`).
+- **Pass contexts**: Always pass `ctx context.Context` into database queries, Redis calls, and outgoing HTTP calls.
+- **Pooled connections**: Use the shared `*pgxpool.Pool` — don't invent your own connections.
+
+### React & TypeScript
+- **TypeScript matters**: Avoid `any` when possible. Declare clean interfaces for API payloads.
+- **Stay on theme**: We use a signature whitish-lavender and deep violet palette (`#f7f6fb`, `#1e1338`, `#241442`, `#7c3aed`). Let's keep it visually cohesive!
+- **Accessibility & feel**: Modals should close on `Esc` or outside clicks, and inputs should have helpful placeholders.
+
+### Electron Desktop
+- **Safety first**: Keep `contextIsolation: true` in preload. Never expose dangerous Node modules directly to the browser window.
+- **Never block the UI**: Stream Git operations asynchronously so the window never stutters or freezes during large repository clones.
+
+### Database & Migrations
+- **Never rewrite history**: Existing migrations in `database/migrations/` are frozen in time.
+- **Always pair migrations**: When adding new schema changes, add both `<num>_<name>.up.sql` and `<num>_<name>.down.sql`.
+- **Be idempotent**: Use `IF NOT EXISTS` where appropriate.
+
+---
+
+## 📜 Code of Conduct
+
+We are committed to making SkillIssues a welcoming, safe, and friendly space for everyone. Please read our [Code of Conduct](CODE_OF_CONDUCT.md).
+
+Be kind, assume good intent, and let's build something helpful!

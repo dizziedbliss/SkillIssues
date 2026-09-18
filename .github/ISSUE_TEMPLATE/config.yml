@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 💬 Discussions & Questions
+    url: https://github.com/dizziedbliss/SkillIssues/discussions
+    about: Ask questions, chat with contributors, or debate architecture without pressure.
+  - name: 📖 Contributing Guide
+    url: https://github.com/dizziedbliss/SkillIssues/blob/refactor/CONTRIBUTING.md
+    about: Check out our local development setup and guidelines before diving in.

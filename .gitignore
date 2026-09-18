@@ -1,13 +1,27 @@
-__pycache__/
-*.py[cod]
 *.tsbuildinfo
 .env
 node_modules/
 dist/
-.venv/
 .vscode/
 .DS_Store
-repo/
+data/
 prompt.txt
 *.log
 .skillissues/
+
+# Go build artifacts
+backend/bin/
+backend/*.exe
+# Go test cache (regenerated automatically)
+backend/testdata/
+# Compiled binary outputs in cmd directories
+backend/cmd/api/api
+backend/cmd/api/api.exe
+backend/cmd/syncd/syncd
+backend/cmd/syncd/syncd.exe
+backend/cmd/worker/worker
+backend/cmd/worker/worker.exe
+backend/cmd/kaggle_etl/kaggle_etl
+backend/cmd/kaggle_etl/kaggle_etl.exe
+backend/cmd/healthcheck/healthcheck
+backend/cmd/healthcheck/healthcheck.exe

@@ -16,104 +16,103 @@ services:
       timeout: 5s
       retries: 10
 
-  api:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --save 60 1 --appendonly yes
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  go-api:
     build:
-      context: ./services/api
+      context: ./backend
+      dockerfile: cmd/api/Dockerfile
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD:-skillissues_prod_secure_pw}@postgres:5432/${POSTGRES_DB:-skillissues}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      REDIS_URL: redis://redis:6379/0
+      FRONTEND_URL: ${FRONTEND_URL:-https://skillissues.com}
       DEMO_MODE: ${DEMO_MODE:-false}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8000/auth/github/callback}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-https://api.skillissues.com/auth/github/callback}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-}
-      RECOMMENDATION_URL: http://recommendation:8000
-      CONTRIBUTION_URL: http://contribution:8000
+      PORT: 8000
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
-      recommendation:
-        condition: service_started
-      contribution:
-        condition: service_started
+      redis:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "/healthcheck"]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 10
       start_period: 3s
 
-  ingestion:
+  syncd:
     build:
-      context: ./services/ingestion
+      context: ./backend
+      dockerfile: cmd/syncd/Dockerfile
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD:-skillissues_prod_secure_pw}@postgres:5432/${POSTGRES_DB:-skillissues}
-      REPOSITORY_METADATA_PATH: /repo/repo_metadata.json
-      MAX_REPOSITORIES: ${MAX_REPOSITORIES:-500}
-      MIN_STARS: ${MIN_STARS:-50}
-      SAMPLE_SEED: ${SAMPLE_SEED:-skillissues-prod}
-      RESET_CATALOG: ${RESET_CATALOG:-false}
+      REDIS_URL: redis://redis:6379/0
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      SYNC_ISSUES: ${SYNC_ISSUES:-true}
-      SYNC_REPOSITORIES: 25
-      INGESTION_PORT: 8000
-    volumes:
-      - ./repo:/repo:ro
+      DEMO_MODE: ${DEMO_MODE:-false}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-}
+      SYNCD_PORT: 8002
+      PORT: 8002
     depends_on:
-      api:
+      postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "/healthcheck"]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 10
-      start_period: 15s
-
-  recommendation:
-    build:
-      context: ./services/recommendation
-    restart: unless-stopped
-    environment:
-      API_URL: http://api:8000
-
-  contribution:
-    build:
-      context: ./services/contribution
-    restart: unless-stopped
-    environment:
-      API_URL: http://api:8000
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      start_period: 3s
 
   worker:
     build:
-      context: ./services/worker
+      context: ./backend
+      dockerfile: cmd/worker/Dockerfile
     restart: unless-stopped
     environment:
-      API_URL: http://api:8000
-      INGESTION_URL: http://ingestion:8000
+      API_URL: http://go-api:8000
+      SYNCD_URL: http://syncd:8002
       SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-900}
     depends_on:
-      api:
+      go-api:
         condition: service_healthy
-      ingestion:
+      syncd:
         condition: service_healthy
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile.prod
+      context: ./web
+      dockerfile: Dockerfile
     restart: unless-stopped
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-https://api.skillissues.com}
     ports:
       - "80:80"
     depends_on:
-      api:
+      go-api:
         condition: service_healthy
 
 volumes:
   postgres_prod_data:
+  redis_prod_data:

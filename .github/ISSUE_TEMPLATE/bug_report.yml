@@ -1,0 +1,85 @@
+name: 🐛 Bug report
+description: Something broken or behaving suspiciously? Help us squash it.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this! Every bug squashed leaves the catalog a little less cursed.
+        *Reminder: Please do not paste GitHub tokens, client secrets, or private keys anywhere in this issue!*
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear, concise description of what went sideways.
+      placeholder: "I tried to clone a repository through the desktop client, and instead of cloning it stared back at me with an error..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: How do we trigger the behavior?
+      placeholder: |
+        1. Open the desktop app (or web dashboard)
+        2. Click on '...'
+        3. Search for '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen instead?
+      placeholder: "It should have cleanly cloned the repo and opened VS Code without freezing."
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs-screenshots
+    attributes:
+      label: Logs, terminal output, or screenshots
+      description: Paste relevant logs or drag-and-drop screenshots here. Double check that no tokens or secrets are visible!
+      placeholder: "Paste console / docker compose / electron logs here..."
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area of the project
+      description: Where is the bug occurring?
+      options:
+        - Desktop App (Electron)
+        - Web App (React / Vite)
+        - Backend API (Go / Chi)
+        - Sync Coordinator (syncd / worker)
+        - Database / Migrations
+        - Docker Compose / Kubernetes
+        - Documentation
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment details
+      description: OS version, Docker version, Node/Go version, browser, etc.
+      placeholder: |
+        - OS: Windows 11 / macOS Sonoma / Ubuntu 24.04
+        - Node.js: v20.x
+        - Go: 1.23
+        - Docker: 24.x
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: safety-check
+    attributes:
+      label: Secret-safety checklist
+      options:
+        - label: I verified that no personal access tokens, client secrets, or sensitive private keys are included in this issue.
+          required: true
