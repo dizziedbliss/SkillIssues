@@ -308,7 +308,7 @@ func (h *handlers) authGitHubCallback(w http.ResponseWriter, r *http.Request) {
       padding: 44px 36px;
       text-align: center;
       max-width: 440px;
-      width: 100%;
+      width: 100%%;
       box-shadow: 0 20px 40px -12px rgba(36, 20, 66, 0.08), 0 2px 6px rgba(36, 20, 66, 0.04);
     }
     .badge-icon {
@@ -340,7 +340,7 @@ func (h *handlers) authGitHubCallback(w http.ResponseWriter, r *http.Request) {
       font-weight: 600;
       margin-bottom: 20px;
       word-break: break-word;
-      max-width: 100%;
+      max-width: 100%%;
     }
     p {
       font-size: 14px;
@@ -463,7 +463,7 @@ func (h *handlers) authGitHubCallback(w http.ResponseWriter, r *http.Request) {
       padding: 44px 36px;
       text-align: center;
       max-width: 440px;
-      width: 100%;
+      width: 100%%;
       box-shadow: 0 20px 40px -12px rgba(36, 20, 66, 0.08), 0 2px 6px rgba(36, 20, 66, 0.04);
     }
     .badge-icon {
