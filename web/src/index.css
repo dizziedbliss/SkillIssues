@@ -2660,50 +2660,167 @@ body {
   border-color: var(--border-card-hover);
 }
 
+/* ==========================================================================
+   Contribute Quest / SkillIssues Landing Page Styles
+   ========================================================================== */
+
+.paper-grid {
+  background-image: 
+    linear-gradient(to right, rgba(124, 58, 237, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(124, 58, 237, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.hero-halo {
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.12) 0%, rgba(124, 58, 237, 0.03) 45%, transparent 70%);
+  filter: blur(40px);
+}
+
+@keyframes float-soft {
+  0%, 100% {
+    transform: translateY(0) rotate(-0.5deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(0.5deg);
+  }
+}
+
+.float-soft {
+  animation: float-soft 6s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.pulse-dot {
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+@keyframes workspace-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.workspace-step {
+  animation: workspace-enter 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.shadow-card {
+  box-shadow: 0 10px 30px -5px rgba(36, 20, 66, 0.09), 0 4px 12px -2px rgba(36, 20, 66, 0.04);
+}
+
+.shadow-soft {
+  box-shadow: 0 4px 18px rgba(36, 20, 66, 0.06);
+}
+
+.shadow-button {
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25);
+}
+
+/* Landing Page Buttons */
+.cq-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid transparent;
+  text-decoration: none;
+  line-height: 1.4;
+}
+
+.cq-btn:hover {
+  transform: translateY(-1.5px);
+}
+
+.cq-btn:active {
+  transform: translateY(0);
+}
+
+.cq-btn-primary {
+  background: var(--accent-blue);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(124, 58, 237, 0.3);
+}
+
+.cq-btn-primary:hover {
+  background: var(--accent-blue-hover);
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.4);
+}
+
+.cq-btn-secondary {
+  background: #ffffff;
+  color: var(--text-primary);
+  border-color: var(--border-default);
+  box-shadow: var(--shadow-xs);
+}
+
+.cq-btn-secondary:hover {
+  background: var(--bg-pill-light);
+  border-color: var(--border-card-hover);
+}
+
+.cq-btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.cq-btn-ghost:hover {
+  color: var(--text-primary);
+  background: var(--bg-subtle);
+}
+
+.cq-btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
 /* Responsive Rules for Landing Page */
 @media (max-width: 1024px) {
-  .flowchart-nodes-row {
-    flex-direction: column;
-    gap: 16px;
+  .cq-hero-grid {
+    grid-template-columns: 1fr !important;
+    gap: 40px !important;
   }
-  .flow-node-card {
-    max-width: 100%;
-    width: 100%;
-    min-height: auto;
-  }
-  .flow-connector {
-    transform: rotate(90deg);
-    margin: 6px 0;
-  }
-  .step-inspector-card {
-    grid-template-columns: 1fr;
-  }
-  .values-grid {
-    grid-template-columns: 1fr;
+  .cq-steps-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 16px !important;
   }
 }
 
 @media (max-width: 768px) {
-  .landing-title {
-    font-size: 38px;
+  .cq-hero-title {
+    font-size: 38px !important;
+    line-height: 1.15 !important;
   }
-  .landing-subtitle {
-    font-size: 16px;
+  .cq-steps-grid {
+    grid-template-columns: 1fr !important;
   }
-  .landing-highlights-strip {
-    flex-direction: column;
-    gap: 18px;
+  .cq-desktop-grid {
+    grid-template-columns: 1fr !important;
   }
-  .highlight-divider {
-    display: none;
-  }
-  .landing-footer {
-    flex-direction: column;
-    gap: 16px;
-    text-align: center;
-  }
-  .footer-tagline {
-    display: none;
+  .cq-progression-grid {
+    grid-template-columns: 1fr !important;
   }
 }
+
 

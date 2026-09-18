@@ -1,20 +1,18 @@
-import React, { useState, useRef, MouseEvent } from "react";
+import React, { useState } from "react";
 import {
-  Sparkles,
-  GitFork,
-  Trophy,
-  ShieldCheck,
-  Layers,
   ArrowRight,
-  Code2,
-  Laptop,
-  CheckCircle2,
-  Flame,
-  Award,
-  Compass,
   ChevronRight,
   ExternalLink,
-  BookOpen,
+  Check,
+  Compass,
+  Sliders,
+  GitPullRequest,
+  Terminal,
+  GitBranch,
+  FolderGit2,
+  Sparkles,
+  Menu,
+  X,
 } from "lucide-react";
 
 interface LandingPageProps {
@@ -24,493 +22,703 @@ interface LandingPageProps {
   username?: string;
 }
 
+interface IssueItem {
+  repo: string;
+  title: string;
+  tags: string[];
+  level: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+  xp: string;
+  tone: "success" | "info" | "warning";
+}
+
+const sampleIssues: IssueItem[] = [
+  {
+    repo: "vitejs/vite",
+    title: "Improve error output for unresolved imports",
+    tags: ["TypeScript", "Tooling"],
+    level: "INTERMEDIATE",
+    xp: "140 XP",
+    tone: "info",
+  },
+  {
+    repo: "python/cpython",
+    title: "Clarify pathlib behaviour in the documentation",
+    tags: ["Python", "Documentation"],
+    level: "BEGINNER",
+    xp: "75 XP",
+    tone: "success",
+  },
+  {
+    repo: "rust-lang/cargo",
+    title: "Improve feedback for missing package metadata",
+    tags: ["Rust", "CLI"],
+    level: "ADVANCED",
+    xp: "250 XP",
+    tone: "warning",
+  },
+];
+
+const difficultyOptions = ["Beginner", "Intermediate", "Advanced"] as const;
+
+const steps = [
+  "GitHub issues arrive",
+  "syncd checks them",
+  "Issues are scored",
+  "You filter the list",
+  "Pick an issue",
+  "Open a pull request",
+];
+
 export const LandingPage: React.FC<LandingPageProps> = ({
   onExplore,
   onSignIn,
   isAuthenticated,
   username,
 }) => {
-  const [activeStep, setActiveStep] = useState<number>(1);
-  const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [isHovering3D, setIsHovering3D] = useState<boolean>(false);
-  const flowchartRef = useRef<HTMLDivElement>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string>("Beginner");
 
-  const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
-    if (!flowchartRef.current) return;
-    const rect = flowchartRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width - 0.5;
-    const y = (e.clientY - rect.top) / rect.height - 0.5;
-    setMousePos({ x, y });
+  const filteredIssues = sampleIssues.filter((issue) => {
+    if (!selectedDifficulty) return true;
+    return issue.level.toLowerCase() === selectedDifficulty.toLowerCase();
+  });
+
+  const displayedIssues = filteredIssues.length > 0 ? filteredIssues : sampleIssues;
+
+  const scrollToSection = (id: string) => {
+    setMobileMenuOpen(false);
+    const elem = document.getElementById(id);
+    if (elem) {
+      elem.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
-  const steps = [
-    {
-      step: 1,
-      tag: "STEP 01",
-      title: "Discover & Classify",
-      shortDesc: "Real-time GitHub Ingestion & Scoring",
-      icon: <Compass className="flow-icon" size={24} />,
-      detail:
-        "SkillIssues continuously synchronizes issues across 100+ vetted open-source repositories via GitHub GraphQL. Every issue is heuristically scored into Beginner, Intermediate, or Advanced based on required skills, codebase complexity, and community activity.",
-      badge: "Real-Time Scoring",
-      visualType: "code",
-      preview: {
-        label: "difficulty: BEGINNER",
-        score: "Score: 2.5",
-        repo: "golang/go",
-        issueNum: "#64821",
-        title: "x/tools/refactor: inline parameterless calls",
-      },
-    },
-    {
-      step: 2,
-      tag: "STEP 02",
-      title: "Smart Skill Match",
-      shortDesc: "Personalized to Your Stack",
-      icon: <Code2 className="flow-icon" size={24} />,
-      detail:
-        "No more digging through endless GitHub search filters. SkillIssues ranks issues specifically matched to your favorite languages, technologies, and current progression level so you are never overwhelmed.",
-      badge: "Stack Alignment",
-      visualType: "match",
-      preview: {
-        matches: ["Go", "TypeScript", "Python", "Rust"],
-        userLevel: "Level 3 Developer",
-        recommendation: "98% Match for your profile",
-      },
-    },
-    {
-      step: 3,
-      tag: "STEP 03",
-      title: "1-Click Workspace",
-      shortDesc: "Fork, Branch & VS Code",
-      icon: <GitFork className="flow-icon" size={24} />,
-      detail:
-        "The SkillIssues desktop app automates the entire setup lifecycle: it forks the repository to your GitHub profile, clones it to your chosen directory, checks out a clean branch, and launches VS Code in a single click.",
-      badge: "Zero Configuration",
-      visualType: "terminal",
-      preview: {
-        command: "skillissues fork & clone",
-        branch: "branch: skillissues/issue-#64821",
-        action: "Launching VS Code workspace...",
-      },
-    },
-    {
-      step: 4,
-      tag: "STEP 04",
-      title: "Verify & Level Up",
-      shortDesc: "Merged PRs = XP & Badges",
-      icon: <Trophy className="flow-icon" size={24} />,
-      detail:
-        "Push your changes and submit a pull request. When your PR is merged into the upstream repository, SkillIssues verifies the commit on GitHub and automatically awards you XP, leveling up your profile and unlocking badges!",
-      badge: "Gamified Proof of Work",
-      visualType: "xp",
-      preview: {
-        xp: "+140 XP EARNED",
-        levelUp: "LEVEL 4 REACHED 🎉",
-        badgeName: "Bug Wrangler",
-        status: "ACCEPTED & VERIFIED",
-      },
-    },
-  ];
-
-  const currentStepData = steps.find((s) => s.step === activeStep) || steps[0];
-
   return (
-    <div className="landing-container">
-      {/* Ambient background glow effects */}
-      <div className="landing-ambient-glow glow-top" />
-      <div className="landing-ambient-glow glow-bottom" />
-
-      {/* Hero Section */}
-      <section className="landing-hero">
-        <div className="landing-badge">
-          <Sparkles size={14} className="badge-sparkle" />
-          <span>Gamified Open Source Contribution Platform</span>
-        </div>
-
-        <h1 className="landing-title">
-          You Have the <span className="text-gradient">Skills</span>.
-          <br />
-          We Have the <span className="text-purple">Issues</span>.
-        </h1>
-
-        <p className="landing-subtitle">
-          SkillIssues turns open-source contributions into a rewarding progression RPG.
-          Discover curated challenges scored by difficulty, launch workspaces in one click,
-          and earn verified XP and badges when your Pull Requests get merged.
-        </p>
-
-        <div className="landing-cta-group">
-          <button
-            type="button"
-            className="landing-btn-primary"
-            onClick={onExplore}
+    <div id="top" className="min-h-screen bg-[#f7f6fb] text-[#1e1338] paper-grid font-sans selection:bg-[#7c3aed]/20 selection:text-[#1e1338]">
+      {/* Sticky Header Navigation */}
+      <header className="sticky top-0 z-50 border-b border-[#e5e0f2]/80 bg-[#f7f6fb]/90 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 lg:px-8">
+          {/* Brand Wordmark */}
+          <a
+            href="#top"
+            onClick={(e) => {
+              e.preventDefault();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="flex items-center gap-2.5 font-bold text-[#1e1338] no-underline transition-opacity hover:opacity-90"
+            aria-label="SkillIssues home"
           >
-            <span>Explore Challenges</span>
-            <ArrowRight size={16} />
-          </button>
+            <span className="grid size-8 place-items-center rounded-md bg-[#7c3aed] text-white shadow-button">
+              <Sparkles size={18} />
+            </span>
+            <span className="text-lg font-bold tracking-tight">SkillIssues</span>
+          </a>
 
-          {!isAuthenticated ? (
+          {/* Desktop Navigation Links */}
+          <nav className="hidden items-center gap-7 md:flex" aria-label="Primary navigation">
             <button
               type="button"
-              className="landing-btn-secondary"
-              onClick={onSignIn}
+              className="text-sm font-medium text-[#6b5f88] hover:text-[#1e1338] transition-colors cursor-pointer bg-transparent border-none p-0"
+              onClick={() => scrollToSection("how-it-works")}
             >
-              <Flame size={16} className="btn-icon-flame" />
-              <span>Sign In with GitHub</span>
+              How it works
             </button>
-          ) : (
             <button
               type="button"
-              className="landing-btn-secondary"
+              className="text-sm font-medium text-[#6b5f88] hover:text-[#1e1338] transition-colors cursor-pointer bg-transparent border-none p-0"
+              onClick={() => scrollToSection("desktop")}
+            >
+              Desktop app
+            </button>
+            <button
+              type="button"
+              className="text-sm font-medium text-[#6b5f88] hover:text-[#1e1338] transition-colors cursor-pointer bg-transparent border-none p-0"
+              onClick={() => scrollToSection("progression")}
+            >
+              Progression
+            </button>
+            <a
+              className="text-sm font-medium text-[#6b5f88] hover:text-[#1e1338] transition-colors no-underline"
+              href="https://github.com/dizziedbliss/SkillIssues/tree/refactor"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Source
+            </a>
+            <button
+              type="button"
+              className="cq-btn cq-btn-ghost text-sm py-2 px-3.5"
               onClick={onExplore}
             >
-              <Award size={16} className="btn-icon-flame" />
-              <span>Continue as @{username}</span>
+              Browse issues
             </button>
-          )}
-
-          <a
-            href="#how-it-works"
-            className="landing-btn-ghost"
-          >
-            <BookOpen size={16} />
-            <span>How It Works</span>
-          </a>
-        </div>
-
-        {/* Highlight Stats Strip */}
-        <div className="landing-highlights-strip">
-          <div className="highlight-item">
-            <div className="highlight-number">100+</div>
-            <div className="highlight-label">Curated Repositories</div>
-          </div>
-          <div className="highlight-divider" />
-          <div className="highlight-item">
-            <div className="highlight-number">3 Tiers</div>
-            <div className="highlight-label">Beginner · Intermediate · Advanced</div>
-          </div>
-          <div className="highlight-divider" />
-          <div className="highlight-item">
-            <div className="highlight-number">1-Click</div>
-            <div className="highlight-label">Fork, Clone & VS Code Launch</div>
-          </div>
-          <div className="highlight-divider" />
-          <div className="highlight-item">
-            <div className="highlight-number">RPG System</div>
-            <div className="highlight-label">XP, Levels & Collectible Badges</div>
-          </div>
-        </div>
-      </section>
-
-      {/* 3D Flowchart & Pipeline Section */}
-      <section id="how-it-works" className="landing-flow-section">
-        <div className="section-header">
-          <div className="section-pill">
-            <Layers size={13} />
-            <span>Lifecycle Pipeline</span>
-          </div>
-          <h2 className="section-title">How SkillIssues Works</h2>
-          <p className="section-desc">
-            An end-to-end automated pipeline connecting developers to real open-source impact.
-            Hover over the 3D pipeline to tilt and inspect the stages.
-          </p>
-        </div>
-
-        {/* Interactive 3D Canvas Stage */}
-        <div
-          ref={flowchartRef}
-          className="flowchart-3d-stage"
-          onMouseMove={handleMouseMove}
-          onMouseEnter={() => setIsHovering3D(true)}
-          onMouseLeave={() => {
-            setIsHovering3D(false);
-            setMousePos({ x: 0, y: 0 });
-          }}
-        >
-          <div
-            className="flowchart-3d-container"
-            style={{
-              transform: isHovering3D
-                ? `perspective(1100px) rotateX(${mousePos.y * -14}deg) rotateY(${mousePos.x * 16}deg)`
-                : "perspective(1100px) rotateX(4deg) rotateY(0deg)",
-              transition: isHovering3D ? "transform 0.1s ease-out" : "transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
-            }}
-          >
-            {/* Ambient Plane Grid */}
-            <div className="flowchart-grid-plane" />
-
-            {/* 4 Stepped 3D Nodes */}
-            <div className="flowchart-nodes-row">
-              {steps.map((s, idx) => {
-                const isActive = activeStep === s.step;
-                return (
-                  <React.Fragment key={s.step}>
-                    <div
-                      className={`flow-node-card ${isActive ? "active" : ""}`}
-                      onClick={() => setActiveStep(s.step)}
-                      onMouseEnter={() => setActiveStep(s.step)}
-                    >
-                      <div className="node-glow-ring" />
-                      <div className="node-step-tag">{s.tag}</div>
-                      <div className="node-icon-wrapper">{s.icon}</div>
-                      <h3 className="node-title">{s.title}</h3>
-                      <p className="node-short-desc">{s.shortDesc}</p>
-                      <div className="node-status-indicator">
-                        <span className="pulse-dot" />
-                        <span>{s.badge}</span>
-                      </div>
-                    </div>
-
-                    {/* Connecting 3D Arrow Connector */}
-                    {idx < steps.length - 1 && (
-                      <div className="flow-connector">
-                        <div className="connector-line">
-                          <div className="connector-energy-pulse" />
-                        </div>
-                        <div className="connector-arrow">
-                          <ChevronRight size={16} />
-                        </div>
-                      </div>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Detailed Inspector Card for Selected Step */}
-        <div className="step-inspector-card">
-          <div className="inspector-left">
-            <div className="inspector-tag-row">
-              <span className="inspector-tag">{currentStepData.tag}</span>
-              <span className="inspector-badge">{currentStepData.badge}</span>
-            </div>
-            <h3 className="inspector-title">{currentStepData.title}</h3>
-            <p className="inspector-detail">{currentStepData.detail}</p>
-            <div className="inspector-actions">
+            {isAuthenticated ? (
               <button
                 type="button"
-                className="inspector-action-btn"
+                className="cq-btn cq-btn-secondary text-sm py-2 px-4 font-semibold"
                 onClick={onExplore}
               >
-                <span>Try this step in App</span>
-                <ExternalLink size={14} />
+                Continue as @{username || "user"}
               </button>
-            </div>
-          </div>
-
-          <div className="inspector-right">
-            <div className="inspector-preview-box">
-              <div className="preview-top-bar">
-                <div className="preview-dots">
-                  <span className="dot dot-red" />
-                  <span className="dot dot-yellow" />
-                  <span className="dot dot-green" />
-                </div>
-                <span className="preview-filename">
-                  {currentStepData.visualType === "code"
-                    ? "issue_metadata.json"
-                    : currentStepData.visualType === "terminal"
-                    ? "bash ~ desktop-runner"
-                    : currentStepData.visualType === "match"
-                    ? "skill_matcher.engine"
-                    : "verification_receipt.json"}
-                </span>
-              </div>
-
-              <div className="preview-content">
-                {currentStepData.visualType === "code" && (
-                  <div className="preview-code-view">
-                    <div className="code-line">
-                      <span className="code-key">repository:</span>{" "}
-                      <span className="code-str">"{currentStepData.preview.repo}"</span>
-                    </div>
-                    <div className="code-line">
-                      <span className="code-key">issue:</span>{" "}
-                      <span className="code-num">{currentStepData.preview.issueNum}</span>
-                    </div>
-                    <div className="code-line">
-                      <span className="code-key">title:</span>{" "}
-                      <span className="code-val">"{currentStepData.preview.title}"</span>
-                    </div>
-                    <div className="code-line">
-                      <span className="code-key">difficulty:</span>{" "}
-                      <span className="code-pill beginner">{currentStepData.preview.label}</span>
-                    </div>
-                  </div>
-                )}
-
-                {currentStepData.visualType === "match" && (
-                  <div className="preview-match-view">
-                    <div className="match-status-row">
-                      <ShieldCheck size={18} className="text-purple" />
-                      <span>{currentStepData.preview.recommendation}</span>
-                    </div>
-                    <div className="match-chips-list">
-                      {currentStepData.preview.matches?.map((m) => (
-                        <span key={m} className="match-chip">
-                          {m}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="match-level-badge">
-                      {currentStepData.preview.userLevel}
-                    </div>
-                  </div>
-                )}
-
-                {currentStepData.visualType === "terminal" && (
-                  <div className="preview-terminal-view">
-                    <div className="terminal-line">
-                      <span className="prompt">$</span> {currentStepData.preview.command}
-                    </div>
-                    <div className="terminal-line success">
-                      <CheckCircle2 size={12} /> Forked to @your-handle/repo
-                    </div>
-                    <div className="terminal-line success">
-                      <CheckCircle2 size={12} /> Cloned to ~/SkillIssues/workspaces
-                    </div>
-                    <div className="terminal-line highlight">
-                      {currentStepData.preview.branch}
-                    </div>
-                    <div className="terminal-line pulse">
-                      {currentStepData.preview.action}
-                    </div>
-                  </div>
-                )}
-
-                {currentStepData.visualType === "xp" && (
-                  <div className="preview-xp-view">
-                    <div className="xp-card-badge">{currentStepData.preview.status}</div>
-                    <div className="xp-score-text">{currentStepData.preview.xp}</div>
-                    <div className="xp-level-text">{currentStepData.preview.levelUp}</div>
-                    <div className="xp-badge-item">
-                      <Trophy size={16} />
-                      <span>Unlocked: {currentStepData.preview.badgeName}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Goal & Value Proposition Section */}
-      <section className="landing-values-section">
-        <div className="section-header">
-          <div className="section-pill">
-            <Award size={13} />
-            <span>Why SkillIssues</span>
-          </div>
-          <h2 className="section-title">Designed for Real Developer Growth</h2>
-          <p className="section-desc">
-            No mock exercises, no simulated quizzes. Build your public GitHub profile with genuine open source contributions.
-          </p>
-        </div>
-
-        <div className="values-grid">
-          <div className="value-card">
-            <div className="value-icon-box purple">
-              <Compass size={24} />
-            </div>
-            <h3>Never Wonder "Where Do I Start?"</h3>
-            <p>
-              Finding the right issue on GitHub is exhausting. SkillIssues categorizes real issues across 20+ languages by cognitive complexity, label patterns, and codebase size.
-            </p>
-            <ul className="value-bullet-list">
-              <li>Verified Beginner, Intermediate, and Advanced tiers</li>
-              <li>Filter by language, technology, and star count</li>
-              <li>Multi-category search matching Repos, Languages, and Titles</li>
-            </ul>
-          </div>
-
-          <div className="value-card highlight-card">
-            <div className="value-icon-box dark">
-              <Trophy size={24} />
-            </div>
-            <h3>Gamified Developer Progression</h3>
-            <p>
-              Every merged contribution earns XP proportional to difficulty. Advance from Level 1 Novice to Level 50 Principal Contributor and showcase your achievements.
-            </p>
-            <ul className="value-bullet-list">
-              <li>Earn +75 XP for Beginner, +140 XP for Intermediate, +250 XP for Advanced</li>
-              <li>Unlock collectible badges like "First Blood", "Bug Wrangler", and "Polyglot"</li>
-              <li>Dynamic progress bars that update immediately upon PR merge</li>
-            </ul>
-          </div>
-
-          <div className="value-card">
-            <div className="value-icon-box blue">
-              <Laptop size={24} />
-            </div>
-            <h3>Frictionless Desktop Integration</h3>
-            <p>
-              Pair the web platform with our lightweight frameless desktop client. Manage forks, workspace paths, and branch pushes with zero terminal friction.
-            </p>
-            <ul className="value-bullet-list">
-              <li>One-click VS Code launcher for cloned workspaces</li>
-              <li>Custom workspace root folder configuration</li>
-              <li>Push branches & launch comparison Pull Requests automatically</li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* Final Action Banner */}
-      <section className="landing-banner-section">
-        <div className="banner-card">
-          <div className="banner-content">
-            <h2 className="banner-title">Ready to tackle your next issue?</h2>
-            <p className="banner-text">
-              Jump into the challenge feed, pick a language you love, and submit your first PR today.
-            </p>
-            <div className="banner-btn-row">
+            ) : (
               <button
                 type="button"
-                className="landing-btn-primary"
+                className="cq-btn cq-btn-secondary text-sm py-2 px-4"
+                onClick={onSignIn}
+              >
+                <svg className="size-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                </svg>
+                <span>Sign in with GitHub</span>
+              </button>
+            )}
+          </nav>
+
+          {/* Mobile Menu Button */}
+          <button
+            type="button"
+            className="grid size-10 place-items-center rounded-md border border-[#e5e0f2] bg-white text-[#1e1338] md:hidden cursor-pointer"
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
+
+        {/* Mobile Dropdown Menu */}
+        {mobileMenuOpen && (
+          <nav className="border-t border-[#e5e0f2] bg-white px-5 py-4 md:hidden shadow-soft">
+            <div className="mx-auto grid max-w-7xl gap-1">
+              <button
+                type="button"
+                className="w-full text-left rounded-md px-3 py-2.5 text-sm font-medium hover:bg-[#ede9f6] text-[#1e1338] bg-transparent border-none cursor-pointer"
+                onClick={() => scrollToSection("how-it-works")}
+              >
+                How it works
+              </button>
+              <button
+                type="button"
+                className="w-full text-left rounded-md px-3 py-2.5 text-sm font-medium hover:bg-[#ede9f6] text-[#1e1338] bg-transparent border-none cursor-pointer"
+                onClick={() => scrollToSection("desktop")}
+              >
+                Desktop app
+              </button>
+              <button
+                type="button"
+                className="w-full text-left rounded-md px-3 py-2.5 text-sm font-medium hover:bg-[#ede9f6] text-[#1e1338] bg-transparent border-none cursor-pointer"
+                onClick={() => scrollToSection("progression")}
+              >
+                Progression
+              </button>
+              <a
+                className="rounded-md px-3 py-2.5 text-sm font-medium hover:bg-[#ede9f6] text-[#1e1338] no-underline"
+                href="https://github.com/dizziedbliss/SkillIssues/tree/refactor"
+                target="_blank"
+                rel="noreferrer"
+              >
+                GitHub Source
+              </a>
+              <button
+                type="button"
+                className="cq-btn cq-btn-primary mt-2 w-full justify-center"
                 onClick={onExplore}
               >
-                <span>Visit Challenge Catalog</span>
-                <ArrowRight size={16} />
+                Browse issues
               </button>
-
               {!isAuthenticated && (
                 <button
                   type="button"
-                  className="landing-btn-secondary"
+                  className="cq-btn cq-btn-secondary mt-1 w-full justify-center"
                   onClick={onSignIn}
                 >
-                  <span>Sign In & Contribute</span>
+                  Sign in with GitHub
                 </button>
               )}
+            </div>
+          </nav>
+        )}
+      </header>
+
+      {/* Hero Section */}
+      <section className="relative mx-auto grid max-w-7xl items-center gap-14 px-5 py-16 lg:grid-cols-[0.88fr_1.12fr] lg:px-8 lg:py-28 cq-hero-grid">
+        {/* Ambient Halo Glow */}
+        <div className="pointer-events-none absolute left-1/4 top-12 -z-0 size-[32rem] -translate-x-1/2 rounded-full hero-halo" />
+
+        {/* Left Column: Hero Text */}
+        <div className="relative z-10">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#7c3aed]/25 bg-white/90 px-3.5 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-[#7c3aed] shadow-soft">
+            <span className="size-1.5 rounded-full bg-[#7c3aed] pulse-dot" />
+            <span>Open-source issue discovery</span>
+          </div>
+
+          <h1 className="cq-hero-title max-w-2xl text-4xl font-extrabold leading-[1.08] text-[#1e1338] sm:text-6xl lg:text-[68px] tracking-tight">
+            Find an issue <br />
+            <span className="text-[#7c3aed]">you want to work on.</span>
+          </h1>
+
+          <p className="mt-6 max-w-xl text-base leading-7 text-[#6b5f88] sm:text-lg">
+            SkillIssues collects real open-source issues in one place, then lets you browse them by difficulty and choose what looks interesting.
+          </p>
+
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button
+              type="button"
+              className="cq-btn cq-btn-primary group text-base py-3 px-6 shadow-button cursor-pointer"
+              onClick={onExplore}
+            >
+              <span>Browse the issue pile</span>
+              <ArrowRight size={17} className="transition-transform duration-200 group-hover:translate-x-1" />
+            </button>
+
+            {isAuthenticated ? (
+              <button
+                type="button"
+                className="cq-btn cq-btn-secondary text-base py-3 px-6 cursor-pointer"
+                onClick={onExplore}
+              >
+                <span>Continue as @{username || "contributor"}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="cq-btn cq-btn-secondary text-base py-3 px-6 cursor-pointer"
+                onClick={onSignIn}
+              >
+                <svg className="size-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                </svg>
+                <span>Sign in with GitHub</span>
+              </button>
+            )}
+          </div>
+
+          <p className="mt-4 font-mono text-xs text-[#6b5f88]">
+            Real repositories. Real issues. Your call.
+          </p>
+        </div>
+
+        {/* Right Column: Interactive Hero Issue Browser */}
+        <div
+          id="issues"
+          className="relative z-10 float-soft scroll-mt-24 rounded-xl border border-[#cfc6ea] bg-white/95 p-4 sm:p-6 shadow-card"
+        >
+          {/* Browser Header */}
+          <div className="mb-4 flex items-center justify-between gap-3 border-b border-[#e5e0f2] pb-4">
+            <div>
+              <p className="font-mono text-[10px] font-semibold uppercase tracking-wider text-[#7c3aed]">
+                Example issue browser
+              </p>
+              <p className="mt-0.5 text-sm font-bold text-[#1e1338]">
+                Choose a difficulty
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-[#f59e0b]" />
+              <span className="size-2 rounded-full bg-[#10b981]" />
+            </div>
+          </div>
+
+          {/* Difficulty Filter Chips */}
+          <div className="mb-4 flex gap-2 overflow-x-auto pb-1" aria-label="Difficulty filters">
+            {difficultyOptions.map((opt) => {
+              const active = selectedDifficulty === opt;
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setSelectedDifficulty(opt)}
+                  className={`h-8 shrink-0 rounded-md px-3 font-mono text-[11px] font-semibold uppercase transition-all cursor-pointer ${
+                    active
+                      ? "bg-[#7c3aed] text-white shadow-button border border-transparent"
+                      : "bg-[#f3effc] text-[#6b5f88] hover:bg-[#ede9f6] hover:text-[#1e1338] border border-[#e5e0f2]"
+                  }`}
+                >
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Issue Cards */}
+          <div className="space-y-3">
+            {displayedIssues.map((issue, idx) => (
+              <article
+                key={issue.repo}
+                onClick={onExplore}
+                style={{ animationDelay: `${idx * 100}ms` }}
+                className="group cursor-pointer rounded-lg border border-[#e5e0f2] bg-white p-4 transition-all hover:-translate-y-1 hover:border-[#7c3aed]/40 hover:shadow-soft"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="mb-1.5 flex items-center gap-2 font-mono text-[11px] text-[#6b5f88]">
+                      <span className="grid size-5 place-items-center rounded bg-[#ede9f6] font-bold text-[#241442]">
+                        {idx + 1}
+                      </span>
+                      <span className="font-semibold text-[#1e1338]">{issue.repo}</span>
+                    </p>
+                    <h3 className="text-sm font-semibold leading-snug text-[#1e1338] group-hover:text-[#7c3aed] transition-colors sm:text-base">
+                      {issue.title}
+                    </h3>
+                  </div>
+                  <ChevronRight
+                    size={18}
+                    className="shrink-0 text-[#6b5f88] transition-transform group-hover:translate-x-1 group-hover:text-[#7c3aed]"
+                  />
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {issue.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded bg-[#f3effc] px-2 py-0.5 font-mono text-[10px] text-[#6b5f88]"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                  <span
+                    className={`ml-auto font-mono text-[10px] font-bold ${
+                      issue.tone === "success"
+                        ? "text-[#047857]"
+                        : issue.tone === "warning"
+                        ? "text-[#b45309]"
+                        : "text-[#1d4ed8]"
+                    }`}
+                  >
+                    {issue.level}
+                  </span>
+                  <span className="rounded bg-[#ede9f6] px-2 py-0.5 font-mono text-[10px] font-semibold text-[#241442]">
+                    {issue.xp}
+                  </span>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          {/* Browser Footer Counter */}
+          <div className="mt-4 flex items-center justify-between font-mono text-[11px] text-[#6b5f88]">
+            <span className="flex items-center gap-1.5">
+              <Check size={13} className="text-[#7c3aed]" />
+              <span>{selectedDifficulty} selected</span>
+            </span>
+            <span>3,284 issues, slightly less overwhelming</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Short Explainer Section: Less scrolling. More signal. */}
+      <section id="signal" className="border-y border-[#e5e0f2] bg-white py-20 lg:py-28">
+        <div className="mx-auto max-w-7xl px-5 lg:px-8">
+          <div className="grid gap-10 lg:grid-cols-[0.75fr_1.25fr]">
+            <div>
+              <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#7c3aed]">
+                Why SkillIssues
+              </p>
+              <h2 className="mt-3 text-3xl font-extrabold text-[#1e1338] sm:text-4xl lg:text-5xl tracking-tight leading-tight">
+                A shorter way <br />
+                to the issue list.
+              </h2>
+              <p className="mt-5 max-w-md text-base leading-7 text-[#6b5f88]">
+                GitHub has plenty of work available. SkillIssues brings selected issues together and gives you a simpler way to compare them before committing your afternoon.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[
+                {
+                  icon: <Compass size={22} className="text-[#7c3aed]" />,
+                  step: "01",
+                  title: "Browse",
+                  desc: "See selected issues from real open-source repositories in one place.",
+                },
+                {
+                  icon: <Sliders size={22} className="text-[#7c3aed]" />,
+                  step: "02",
+                  title: "Filter",
+                  desc: "Narrow the list to beginner, intermediate, or advanced work.",
+                },
+                {
+                  icon: <GitPullRequest size={22} className="text-[#7c3aed]" />,
+                  step: "03",
+                  title: "Work",
+                  desc: "Open an issue, prepare the repository, and send your pull request.",
+                },
+              ].map((item) => (
+                <article
+                  key={item.title}
+                  className="rounded-lg border-t-2 border-[#7c3aed] border-x border-b border-[#e5e0f2] bg-[#f7f6fb] p-6 shadow-soft transition-transform hover:-translate-y-1"
+                >
+                  <div className="flex items-center justify-between">
+                    {item.icon}
+                    <span className="font-mono text-xs font-semibold text-[#6b5f88]">{item.step}</span>
+                  </div>
+                  <h3 className="mt-8 text-xl font-bold text-[#1e1338]">{item.title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-[#6b5f88]">{item.desc}</p>
+                </article>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* Landing Footer */}
-      <footer className="landing-footer">
-        <div className="footer-brand">
-          <img src="/logo.png" alt="SkillIssues" className="footer-logo" />
-          <span className="footer-title">SkillIssues</span>
-          <span className="footer-tagline">— You Have the Skills. We Have the Issues.</span>
+      {/* How It Works Section: Pick an issue. Work in the repo. */}
+      <section id="how-it-works" className="mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28">
+        <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#7c3aed]">
+          How it works
+        </p>
+        <div className="mt-3 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <h2 className="max-w-2xl text-3xl font-extrabold text-[#1e1338] sm:text-4xl lg:text-5xl tracking-tight">
+            Pick an issue. Work in the repo.
+          </h2>
+          <p className="max-w-sm text-sm leading-6 text-[#6b5f88]">
+            SkillIssues helps with discovery and setup. The contribution still happens in the actual project.
+          </p>
         </div>
-        <div className="footer-links">
-          <button type="button" onClick={onExplore}>Catalog</button>
-          {!isAuthenticated ? (
-            <button type="button" onClick={onSignIn}>Sign In</button>
-          ) : (
-            <span>Connected as @{username}</span>
-          )}
+
+        {/* 6 Step Interactive Horizontal Flow */}
+        <div className="mt-14 grid gap-0 md:grid-cols-6 cq-steps-grid">
+          {steps.map((text, idx) => (
+            <div
+              key={text}
+              className="group relative border-l border-[#e5e0f2] py-5 pl-5 md:border-l-0 md:border-t md:px-3 md:pt-6"
+            >
+              <span className="absolute -left-2 top-6 grid size-4 place-items-center rounded-full border border-[#7c3aed] bg-[#f7f6fb] font-mono text-[8px] font-bold text-[#7c3aed] md:-top-2 md:left-3">
+                {idx + 1}
+              </span>
+              <p className="font-mono text-[10px] uppercase font-semibold text-[#6b5f88]">
+                step {String(idx + 1).padStart(2, "0")}
+              </p>
+              <p className="mt-2 text-sm font-bold text-[#1e1338] leading-snug">
+                {text}
+              </p>
+              {idx < steps.length - 1 && (
+                <ChevronRight
+                  size={16}
+                  className="absolute right-0 top-6 hidden text-[#cfc6ea] md:block"
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Desktop App Section: The repository, ready locally. */}
+      <section id="desktop" className="border-y border-[#e5e0f2] bg-white py-20 lg:py-28">
+        <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 lg:grid-cols-2 lg:px-8 cq-desktop-grid">
+          <div>
+            <div className="mb-5 inline-flex items-center gap-2 rounded border border-[#e5e0f2] bg-[#f7f6fb] px-3 py-1.5 font-mono text-[11px] font-semibold uppercase text-[#6b5f88]">
+              <Terminal size={14} className="text-[#7c3aed]" />
+              <span>Desktop app</span>
+            </div>
+
+            <h2 className="text-3xl font-extrabold text-[#1e1338] sm:text-4xl lg:text-5xl tracking-tight leading-tight">
+              The repository, <br />
+              ready locally.
+            </h2>
+
+            <p className="mt-5 max-w-lg text-base leading-7 text-[#6b5f88]">
+              The desktop app uses the same SkillIssues interface. It can fork and clone the repository, set up remotes and a branch, open VS Code, then keep track of the pull request.
+            </p>
+
+            <button
+              type="button"
+              className="cq-btn cq-btn-secondary mt-8 cursor-pointer"
+              onClick={() => scrollToSection("workspace")}
+            >
+              <span>See the workspace flow</span>
+              <ArrowRight size={16} />
+            </button>
+          </div>
+
+          {/* Desktop App Mock Window */}
+          <div
+            id="workspace"
+            className="overflow-hidden rounded-xl border border-[#cfc6ea] bg-[#f7f6fb] shadow-card"
+          >
+            {/* Window Titlebar */}
+            <div className="flex items-center justify-between border-b border-[#e5e0f2] bg-white px-4 py-3">
+              <div className="flex items-center gap-2.5">
+                <span className="grid size-7 place-items-center rounded bg-[#7c3aed] text-white">
+                  <Sparkles size={14} />
+                </span>
+                <span className="text-sm font-bold text-[#1e1338]">SkillIssues</span>
+              </div>
+              <span className="rounded bg-[#f3effc] px-2 py-0.5 font-mono text-[10px] font-semibold text-[#6b5f88]">
+                DESKTOP
+              </span>
+            </div>
+
+            {/* Window Body */}
+            <div className="grid min-h-[320px] grid-cols-[5rem_1fr] sm:grid-cols-[9.5rem_1fr]">
+              {/* Sidebar */}
+              <aside className="border-r border-[#e5e0f2] bg-[#f3effc]/50 p-3">
+                <p className="hidden font-mono text-[9px] font-semibold uppercase tracking-wider text-[#6b5f88] sm:block">
+                  Workspace
+                </p>
+                <div className="mt-3 space-y-1">
+                  {[
+                    { icon: <FolderGit2 size={14} />, label: "Repository", active: true },
+                    { icon: <GitBranch size={14} />, label: "Branch", active: false },
+                    { icon: <GitPullRequest size={14} />, label: "Pull request", active: false },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className={`flex items-center gap-2 rounded px-2.5 py-2 text-xs font-medium ${
+                        item.active
+                          ? "bg-white text-[#1e1338] shadow-soft font-semibold"
+                          : "text-[#6b5f88]"
+                      }`}
+                    >
+                      {item.icon}
+                      <span className="hidden sm:inline">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </aside>
+
+              {/* Main Panel */}
+              <div className="p-4 sm:p-6 bg-white">
+                <p className="font-mono text-[11px] font-semibold text-[#6b5f88]">
+                  vitejs/vite · #64821
+                </p>
+                <h3 className="mt-1 text-base font-bold text-[#1e1338] sm:text-lg">
+                  Improve error output for unresolved imports
+                </h3>
+
+                <div className="mt-5 space-y-2">
+                  {[
+                    "Fork repository",
+                    "Clone locally",
+                    "Configure remotes",
+                    "Create branch",
+                    "Open in VS Code",
+                  ].map((stepText, idx) => (
+                    <div
+                      key={stepText}
+                      className="workspace-step flex items-center gap-3 rounded-md border border-[#e5e0f2] bg-[#f7f6fb] px-3.5 py-2.5 text-xs sm:text-sm font-medium text-[#1e1338]"
+                      style={{ animationDelay: `${idx * 120}ms` }}
+                    >
+                      <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#ecfdf5] text-[#047857]">
+                        <Check size={12} />
+                      </span>
+                      <span>{stepText}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 flex items-center justify-between rounded-md border border-[#7c3aed]/25 bg-[#ede9f6]/60 px-3.5 py-2.5">
+                  <span className="text-xs font-semibold text-[#1e1338]">Pull request tracking</span>
+                  <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold text-[#7c3aed]">
+                    <span className="size-1.5 rounded-full bg-[#7c3aed] pulse-dot" />
+                    ACTIVE
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Verified Progression Section: Keep a record of shipped work. */}
+      <section id="progression" className="mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28">
+        <div className="grid items-center gap-12 lg:grid-cols-[1fr_1.1fr] cq-progression-grid">
+          <div>
+            <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#7c3aed]">
+              Verified progression
+            </p>
+            <h2 className="mt-3 max-w-xl text-3xl font-extrabold text-[#1e1338] sm:text-4xl lg:text-5xl tracking-tight leading-tight">
+              Keep a record of shipped work.
+            </h2>
+            <p className="mt-5 max-w-xl text-base leading-7 text-[#6b5f88]">
+              SkillIssues checks pull requests through GitHub and records XP only after the contribution is verified.
+            </p>
+            <p className="mt-5 inline-block border-l-2 border-[#7c3aed] pl-4 font-mono text-xs font-semibold text-[#6b5f88]">
+              Verified pull requests only. No XP for saying "I'll start tomorrow."
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[
+              { level: "BEGINNER", xp: "75 XP", bar: "bg-[#10b981]" },
+              { level: "INTERMEDIATE", xp: "140 XP", bar: "bg-[#3b82f6]" },
+              { level: "ADVANCED", xp: "250 XP", bar: "bg-[#f59e0b]" },
+            ].map((tier) => (
+              <div
+                key={tier.level}
+                className="rounded-lg border border-[#e5e0f2] bg-white p-6 shadow-soft"
+              >
+                <span className={`mb-6 block h-1 w-12 rounded-full ${tier.bar}`} />
+                <p className="font-mono text-[11px] font-semibold text-[#6b5f88]">
+                  {tier.level}
+                </p>
+                <p className="mt-2 text-2xl font-extrabold text-[#1e1338]">
+                  {tier.xp}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Final Call to Action Banner: See what needs doing. */}
+      <section className="border-t border-[#e5e0f2] bg-[#7c3aed] text-white">
+        <div className="mx-auto max-w-5xl px-5 py-20 text-center lg:px-8 lg:py-28">
+          <p className="font-mono text-xs uppercase tracking-wider text-white/70">
+            Open-source issue discovery
+          </p>
+          <h2 className="mx-auto mt-4 max-w-3xl text-3xl font-extrabold sm:text-5xl lg:text-6xl tracking-tight">
+            See what needs doing.
+          </h2>
+          <p className="mx-auto mt-5 max-w-xl text-base text-white/80 sm:text-lg">
+            Browse real issues, choose a difficulty, and open the repository when you are ready.
+          </p>
+
+          <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
+            <button
+              type="button"
+              className="cq-btn bg-white text-[#7c3aed] hover:bg-[#f3effc] text-base py-3 px-7 shadow-button cursor-pointer"
+              onClick={onExplore}
+            >
+              <span>Explore SkillIssues</span>
+              <ArrowRight size={17} />
+            </button>
+
+            <a
+              className="cq-btn border border-white/30 text-white hover:bg-white/10 text-base py-3 px-7 no-underline"
+              href="https://github.com/dizziedbliss/SkillIssues/tree/refactor"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <svg className="size-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+              </svg>
+              <span>View the project on GitHub</span>
+              <ExternalLink size={14} className="opacity-70" />
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-[#160e29] text-[#ede9f6]/70 py-10">
+        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+          <div className="flex items-center gap-2.5 font-bold text-white">
+            <span className="grid size-7 place-items-center rounded bg-[#7c3aed] text-white">
+              <Sparkles size={15} />
+            </span>
+            <span className="text-base tracking-tight">SkillIssues</span>
+          </div>
+
+          <p className="font-mono text-xs text-[#ede9f6]/60">
+            Built for real repositories and real pull requests.
+          </p>
+
           <a
-            href="https://github.com/dizziedbliss/SkillIssues"
+            className="text-sm font-medium text-[#ede9f6]/80 hover:text-white transition-colors no-underline"
+            href="https://github.com/dizziedbliss/SkillIssues/tree/refactor"
             target="_blank"
             rel="noreferrer"
           >
-            GitHub Repository ↗
+            Open source on GitHub
           </a>
         </div>
       </footer>
