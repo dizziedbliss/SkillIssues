@@ -68,7 +68,7 @@ func Load() (*Config, error) {
 		SyncdURL:            strEnv("SYNCD_URL", "http://syncd:8002"),
 		MaxRepositories:     intEnv("MAX_REPOSITORIES", 500),
 		MinStars:            intEnv("MIN_STARS", 50),
-		UnauthRateLimit:     intEnv("UNAUTH_RATE_LIMIT", 60),
+		UnauthRateLimit:     intEnv("UNAUTH_RATE_LIMIT", 180),
 		AuthRateLimit:       intEnv("AUTH_RATE_LIMIT", 1000),
 		KaggleUsername:      strEnv("KAGGLE_USERNAME", ""),
 		KaggleKey:           strEnv("KAGGLE_KEY", ""),

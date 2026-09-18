@@ -40,6 +40,7 @@ type Issue = {
   url: string;
   updated_at?: string;
   author?: string;
+  match_category?: string;
 };
 
 type Profile = {
@@ -194,6 +195,9 @@ function IssueCard({
       <div className="issue-card-repo">{issue.repository}</div>
       <div className="issue-card-bottom">
         <div className="pill-group-left">
+          {issue.match_category && (
+            <span className="pill match">Matched in {issue.match_category}</span>
+          )}
           <span className="pill purple">{author}</span>
           <span className="pill purple">{daysAgo(issue.updated_at)}</span>
           <span className="pill purple">
@@ -233,9 +237,11 @@ function IssueCard({
 
 function LoginForm({
   onLogin,
+  onClose,
   initialError,
 }: {
   onLogin: () => void;
+  onClose?: () => void;
   initialError?: string;
 }) {
   const [token, setToken] = useState("");
@@ -302,6 +308,16 @@ function LoginForm({
   return (
     <main className="center login-screen">
       <div className="login-card">
+        {onClose && (
+          <button
+            type="button"
+            className="login-modal-close"
+            onClick={onClose}
+            title="Close login modal"
+          >
+            <X size={18} />
+          </button>
+        )}
         <div className="wordmark">
           <img src="/logo.png" alt="SkillIssues Logo" className="brand-logo" />
           <div className="wordmark-text">
@@ -377,56 +393,131 @@ function App() {
   const [working, setWorking] = useState<Contribution[]>([]);
   const [submissions, setSubmissions] = useState<Contribution[]>([]);
   const [view, setView] = useState<View>("SkillIssues");
+  const [difficultyFilter, setDifficultyFilter] = useState<"ALL" | "BEGINNER" | "INTERMEDIATE" | "ADVANCED">("ALL");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [selected, setSelected] = useState<Issue | null>(null);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
-  const [loginRequired, setLoginRequired] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const [oauthError, setOAuthError] = useState("");
   const [editing, setEditing] = useState(false);
   const [bio, setBio] = useState("");
-  const [languages, setLanguages] = useState("");
+  const [selectedLangs, setSelectedLangs] = useState<string[]>([]);
   const [targetLevel, setTargetLevel] = useState("INTERMEDIATE");
+  const [availableOptions, setAvailableOptions] = useState<string[]>([]);
+  const [prefSearch, setPrefSearch] = useState("");
 
-  async function refresh() {
+  async function loadUser(): Promise<Profile | null> {
+    const token = localStorage.getItem("skillissues_token");
+    if (!token) {
+      setProfile(null);
+      setSavedIssues([]);
+      setWorking([]);
+      setSubmissions([]);
+      return null;
+    }
     try {
-      const [user, personalized, saved, current, submitted] = await Promise.all(
-        [
-          request<Profile>("/me"),
-          request<Issue[]>("/recommendations?limit=20"),
-          request<Issue[]>("/saved"),
-          request<Contribution[]>("/working"),
-          request<Contribution[]>("/contributions"),
-        ],
-      );
+      const [user, saved, current, submitted] = await Promise.all([
+        request<Profile>("/me"),
+        request<Issue[]>("/saved").catch(() => []),
+        request<Contribution[]>("/working").catch(() => []),
+        request<Contribution[]>("/contributions").catch(() => []),
+      ]);
       setProfile(user);
       setBio(user.bio || "");
-      setLanguages(user.preferred_languages.join(", "));
-      setTargetLevel(user.target_level);
-      setIssues(personalized);
-      setSavedIssues(saved);
-      setWorking(current);
-      setSubmissions(submitted.filter((item) => item.state !== "STARTED"));
-    } catch (caught) {
-      if (
-        caught instanceof Error &&
-        caught.message === "Authentication required"
-      )
-        setLoginRequired(true);
-      else setError("Start the API with docker compose up --build.");
+      setSelectedLangs(user.preferred_languages || []);
+      setTargetLevel(user.target_level || "INTERMEDIATE");
+      setSavedIssues(saved || []);
+      setWorking(current || []);
+      setSubmissions((submitted || []).filter((item) => item.state !== "STARTED"));
+      return user;
+    } catch {
+      localStorage.removeItem("skillissues_token");
+      setProfile(null);
+      setSavedIssues([]);
+      setWorking([]);
+      setSubmissions([]);
+      return null;
     }
   }
 
-  async function search() {
+  async function loadIssues(pageNum = page, diff = difficultyFilter, searchKeyword = query) {
     try {
-      setIssues(
-        await request<Issue[]>(
-          `/issues?limit=20&search=${encodeURIComponent(query)}`,
-        ),
-      );
+      let url = `/issues?limit=20&page=${pageNum}`;
+      if (diff !== "ALL") {
+        url += `&difficulty=${diff}`;
+      }
+      if (searchKeyword.trim()) {
+        url += `&search=${encodeURIComponent(searchKeyword.trim())}`;
+      }
+      const data = await request<Issue[]>(url);
+      setIssues(data || []);
+      setHasMore((data || []).length === 20);
     } catch {
-      setError("Search failed.");
+      setIssues([]);
+      setHasMore(false);
     }
   }
+
+  async function refresh() {
+    await loadUser();
+    await loadIssues(page, difficultyFilter, query);
+  }
+
+  async function handleSearch(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    setPage(1);
+    await loadIssues(1, difficultyFilter, query);
+  }
+
+  function handleDifficultyChange(diff: "ALL" | "BEGINNER" | "INTERMEDIATE" | "ADVANCED") {
+    setDifficultyFilter(diff);
+    setPage(1);
+    void loadIssues(1, diff, query);
+  }
+
+  function handlePageChange(newPage: number) {
+    if (newPage < 1) return;
+    setPage(newPage);
+    void loadIssues(newPage, difficultyFilter, query);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  useEffect(() => {
+    if (editing && availableOptions.length === 0) {
+      request<{ options: string[] }>("/preferences/options")
+        .then((res) => {
+          if (res && Array.isArray(res.options)) {
+            setAvailableOptions(res.options);
+          }
+        })
+        .catch(() => {
+          setAvailableOptions([
+            "Python", "TypeScript", "JavaScript", "Go", "Rust", "C++",
+            "Java", "Ruby", "PHP", "C", "C#", "Swift", "Kotlin", "HTML", "CSS"
+          ]);
+        });
+    }
+  }, [editing, availableOptions.length]);
+
+  useEffect(() => {
+    if (selected) {
+      document.body.style.overflow = "hidden";
+      const onKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "Escape") {
+          setSelected(null);
+        }
+      };
+      window.addEventListener("keydown", onKeyDown);
+      return () => {
+        document.body.style.overflow = "";
+        window.removeEventListener("keydown", onKeyDown);
+      };
+    } else {
+      document.body.style.overflow = "";
+    }
+  }, [selected]);
 
   useEffect(() => {
     // Check URL parameters for OAuth redirect results
@@ -438,7 +529,7 @@ function App() {
     if (tokenParam) {
       localStorage.setItem("skillissues_token", tokenParam);
       window.history.replaceState({}, document.title, window.location.pathname);
-      setLoginRequired(false);
+      setShowLoginModal(false);
       setOAuthError("");
       void refresh();
       return;
@@ -446,7 +537,7 @@ function App() {
 
     if (errorParam) {
       window.history.replaceState({}, document.title, window.location.pathname);
-      setLoginRequired(true);
+      setShowLoginModal(true);
       setOAuthError(errorDesc ? `${errorParam}: ${errorDesc}` : errorParam);
       return;
     }
@@ -462,10 +553,18 @@ function App() {
     }
     localStorage.removeItem("skillissues_token");
     setProfile(null);
-    setLoginRequired(true);
+    setSavedIssues([]);
+    setWorking([]);
+    setSubmissions([]);
+    setEditing(false);
+    void loadIssues(page, difficultyFilter, query);
   }
 
   async function toggleSave(issue: Issue) {
+    if (!profile) {
+      setShowLoginModal(true);
+      return;
+    }
     const isSaved = savedIssues.some((item) => item.id === issue.id);
     if (isSaved) {
       await request(`/saved/${issue.id}`, { method: "DELETE" });
@@ -491,14 +590,12 @@ function App() {
           experience_level: "BEGINNER",
           target_level: targetLevel,
           interests: profile.interests,
-          preferred_languages: languages
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean),
+          preferred_languages: selectedLangs,
         }),
       });
       setProfile(updated);
       setEditing(false);
+      void loadIssues(page, difficultyFilter, query);
     } catch {
       setError("Profile could not be saved.");
     }
@@ -514,24 +611,6 @@ function App() {
       </main>
     );
 
-  if (loginRequired)
-    return (
-      <LoginForm
-        initialError={oauthError}
-        onLogin={() => {
-          setLoginRequired(false);
-          setOAuthError("");
-          void refresh();
-        }}
-      />
-    );
-
-  if (!profile)
-    return (
-      <main className="center">
-        <p className="loading-text">Loading your challenges...</p>
-      </main>
-    );
 
   function renderMarkdown(md: string) {
     if (!md || !md.trim())
@@ -639,33 +718,42 @@ function App() {
             SkillIssues<span>You Have the Skills. We Have the Issues.</span>
           </div>
         </div>
-        {profile && (
-          <div className="web-header-actions">
-            <span className="web-header-user">@{profile.username}</span>
+        <div className="web-header-actions">
+          {profile ? (
+            <>
+              <span className="web-header-user">@{profile.username}</span>
+              <button
+                type="button"
+                className="web-header-logout"
+                onClick={() => void handleLogout()}
+                title="Sign out"
+              >
+                <LogOut size={14} />
+                <span>Log out</span>
+              </button>
+            </>
+          ) : (
             <button
               type="button"
-              className="web-header-logout"
-              onClick={() => void handleLogout()}
+              className="search-submit"
+              style={{ padding: "8px 18px", fontSize: 13 }}
+              onClick={() => setShowLoginModal(true)}
             >
-              <LogOut size={14} />
-              <span>Log out</span>
+              Sign in with GitHub
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </header>
 
       <form
         className="web-search"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void search();
-        }}
+        onSubmit={(event) => void handleSearch(event)}
       >
         <Search size={16} className="search-icon" />
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search issues by keyword, technology, or repository..."
+          placeholder="Search issues by language, repo, author, title, or description..."
         />
         {query && (
           <button
@@ -673,13 +761,14 @@ function App() {
             className="clear-button"
             onClick={() => {
               setQuery("");
-              void refresh();
+              setPage(1);
+              void loadIssues(1, difficultyFilter, "");
             }}
           >
             clear
           </button>
         )}
-        <button className="search-submit">Search</button>
+        <button type="submit" className="search-submit">Search</button>
       </form>
 
       <section className="web-grid">
@@ -707,6 +796,20 @@ function App() {
             )}
           </nav>
 
+          {view === "SkillIssues" && (
+            <div className="difficulty-tabs">
+              {(["ALL", "BEGINNER", "INTERMEDIATE", "ADVANCED"] as const).map((diff) => (
+                <button
+                  key={diff}
+                  className={`difficulty-tab ${difficultyFilter === diff ? "active" : ""} ${diff.toLowerCase()}`}
+                  onClick={() => handleDifficultyChange(diff)}
+                >
+                  {diff === "ALL" ? "All Difficulties" : diff.charAt(0) + diff.slice(1).toLowerCase()}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="feed-title">
             <h1>{view}</h1>
             <span>
@@ -725,146 +828,291 @@ function App() {
           ) : view === "Submissions" ? (
             <SubmissionList items={submissions} />
           ) : (
-            <div className="issue-feed">
-              {displayed.length ? (
-                displayed.map((issue) => (
-                  <IssueCard
-                    key={issue.id}
-                    issue={issue}
-                    saved={savedIssues.some((item) => item.id === issue.id)}
-                    onSelect={() => setSelected(issue)}
-                    onToggleSave={() => void toggleSave(issue)}
-                  />
-                ))
-              ) : (
-                <div className="empty-feed">
-                  <p>Nothing found here yet.</p>
+            <>
+              <div className="issue-feed">
+                {displayed.length ? (
+                  displayed.map((issue) => (
+                    <IssueCard
+                      key={issue.id}
+                      issue={issue}
+                      saved={savedIssues.some((item) => item.id === issue.id)}
+                      onSelect={() => setSelected(issue)}
+                      onToggleSave={() => void toggleSave(issue)}
+                    />
+                  ))
+                ) : (
+                  <div className="empty-feed">
+                    <p>Nothing found here yet.</p>
+                  </div>
+                )}
+              </div>
+
+              {view === "SkillIssues" && (
+                <div className="pagination">
+                  <button
+                    type="button"
+                    className="pagination-btn"
+                    disabled={page <= 1}
+                    onClick={() => handlePageChange(page - 1)}
+                  >
+                    ← Previous
+                  </button>
+                  <span className="pagination-info">Page {page}</span>
+                  <button
+                    type="button"
+                    className="pagination-btn"
+                    disabled={!hasMore}
+                    onClick={() => handlePageChange(page + 1)}
+                  >
+                    Next →
+                  </button>
                 </div>
               )}
-            </div>
+            </>
           )}
         </div>
 
         <aside className="web-profile">
-          <img className="avatar" src={profile.avatar_url} alt={`${profile.username} profile`} />
-          <h2>{profile.name || profile.username}</h2>
-          <p className="profile-handle">@{profile.username}</p>
-          <p className="profile-quote">
-            {profile.bio || "Build your next open-source contribution."}
-          </p>
+          {profile ? (
+            <>
+              <img className="avatar" src={profile.avatar_url} alt={`${profile.username} profile`} />
+              <h2>{profile.name || profile.username}</h2>
+              <p className="profile-handle">@{profile.username}</p>
+              <p className="profile-quote">
+                {profile.bio || "Build your next open-source contribution."}
+              </p>
 
-          <section className="profile-section">
-            <label>
-              Preferences{" "}
+              <section className="profile-section">
+                <label>
+                  Preferences{" "}
+                  <button
+                    className="edit-button"
+                    title="Edit profile preferences"
+                    onClick={() => setEditing(!editing)}
+                  >
+                    <Pencil size={12} />
+                  </button>
+                </label>
+                <div className="profile-chips">
+                  {profile.preferred_languages.map((item) => (
+                    <span key={item}>
+                      <LanguageMark name={item} />
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </section>
+
+              {editing && (
+                <div className="profile-editor">
+                  <label className="editor-label">Bio</label>
+                  <textarea
+                    value={bio}
+                    onChange={(event) => setBio(event.target.value)}
+                    placeholder="Short bio..."
+                  />
+
+                  <label className="editor-label">Preferred Languages & Frameworks</label>
+                  {selectedLangs.length > 0 && (
+                    <div className="profile-chips" style={{ marginBottom: 6 }}>
+                      {selectedLangs.map((lang) => (
+                        <span
+                          key={lang}
+                          style={{ cursor: "pointer" }}
+                          title="Click to remove"
+                          onClick={() =>
+                            setSelectedLangs(
+                              selectedLangs.filter(
+                                (l) => l.toLowerCase() !== lang.toLowerCase(),
+                              ),
+                            )
+                          }
+                        >
+                          <LanguageMark name={lang} />
+                          {lang} ×
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    type="text"
+                    className="pref-search-input"
+                    placeholder="Search technologies to select..."
+                    value={prefSearch}
+                    onChange={(e) => setPrefSearch(e.target.value)}
+                  />
+                  <div className="pref-chips-container">
+                    {availableOptions
+                      .filter((opt) =>
+                        opt.toLowerCase().includes(prefSearch.toLowerCase()),
+                      )
+                      .map((opt) => {
+                        const isSelected = selectedLangs.some(
+                          (l) => l.toLowerCase() === opt.toLowerCase(),
+                        );
+                        return (
+                          <div
+                            key={opt}
+                            className={`pref-chip ${isSelected ? "selected" : ""}`}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedLangs(
+                                  selectedLangs.filter(
+                                    (l) => l.toLowerCase() !== opt.toLowerCase(),
+                                  ),
+                                );
+                              } else {
+                                setSelectedLangs([...selectedLangs, opt]);
+                              }
+                            }}
+                          >
+                            {opt} {isSelected ? "✓" : "+"}
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                  <label className="editor-label" style={{ marginTop: 12 }}>
+                    Target Level
+                  </label>
+                  <select
+                    value={targetLevel}
+                    onChange={(event) => setTargetLevel(event.target.value)}
+                  >
+                    <option>BEGINNER</option>
+                    <option>INTERMEDIATE</option>
+                    <option>ADVANCED</option>
+                  </select>
+
+                  <div className="editor-actions">
+                    <button
+                      type="button"
+                      className="cancel-btn"
+                      onClick={() => setEditing(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="search-submit"
+                      onClick={() => void saveProfile()}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <section className="profile-section">
+                <label>Contribution Badges</label>
+                <div className="profile-chips">
+                  <span>{profile.completed_count} verified</span>
+                  {profile.badge_details && profile.badge_details.length > 0
+                    ? profile.badge_details.map((b) => (
+                        <span key={b.name} title={b.name}>
+                          {b.icon} {b.name}
+                        </span>
+                      ))
+                    : (profile.badges || []).map((b) => (
+                        <span key={b} title={b}>
+                          {b}
+                        </span>
+                      ))}
+                </div>
+              </section>
+
+              <div className="profile-level">
+                <div className="profile-level-header">
+                  <span>Level {profile.level || 1}</span>
+                  <span>{profile.total_xp || 0} XP</span>
+                </div>
+                <div className="profile-level-bar">
+                  <div
+                    className="profile-level-fill"
+                    style={{
+                      width: `${profile.progress_percent ?? profile.progress_score ?? 0}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
               <button
-                className="edit-button"
-                title="Edit profile"
-                onClick={() => setEditing(!editing)}
+                type="button"
+                className="logout-button"
+                onClick={() => void handleLogout()}
+                title="Sign out of SkillIssues"
               >
-                <Pencil size={12} />
+                <LogOut size={14} />
+                <span>Sign out</span>
               </button>
-            </label>
-            <div className="profile-chips">
-              {profile.preferred_languages.map((item) => (
-                <span key={item}>
-                  <LanguageMark name={item} />
-                  {item}
-                </span>
-              ))}
-            </div>
-          </section>
+            </>
+          ) : (
+            <div className="guest-sidebar-card">
+              <div className="guest-avatar-icon">
+                <svg
+                  width="36"
+                  height="36"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </div>
+              <h2 style={{ textAlign: "center", marginBottom: 4 }}>Guest Developer</h2>
+              <p className="profile-handle" style={{ textAlign: "center", marginBottom: 12 }}>
+                @unauthenticated
+              </p>
+              <p className="profile-quote" style={{ textAlign: "center" }}>
+                Browse open-source issues, filter by difficulty, and explore repositories.
+              </p>
 
-          {editing && (
-            <div className="profile-editor">
-              <label className="editor-label">Bio</label>
-              <textarea
-                value={bio}
-                onChange={(event) => setBio(event.target.value)}
-                placeholder="Short bio..."
-              />
-              <label className="editor-label">Preferred Languages</label>
-              <input
-                value={languages}
-                onChange={(event) => setLanguages(event.target.value)}
-                placeholder="TypeScript, Python..."
-              />
-              <label className="editor-label">Target Level</label>
-              <select
-                value={targetLevel}
-                onChange={(event) => setTargetLevel(event.target.value)}
-              >
-                <option>BEGINNER</option>
-                <option>INTERMEDIATE</option>
-                <option>ADVANCED</option>
-              </select>
-              <div className="editor-actions">
+              <div className="guest-card-box">
+                <h4>Sign in with GitHub</h4>
+                <p>
+                  Connect your account to save challenges, receive tailored recommendations, track XP progression, and submit pull requests.
+                </p>
                 <button
                   type="button"
-                  className="cancel-btn"
-                  onClick={() => setEditing(false)}
+                  className="guest-sign-in-btn"
+                  onClick={() => setShowLoginModal(true)}
                 >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="search-submit"
-                  onClick={() => void saveProfile()}
-                >
-                  Save
+                  <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+                  </svg>
+                  <span>Sign in with GitHub</span>
                 </button>
               </div>
             </div>
           )}
-
-          <section className="profile-section">
-            <label>Contribution Badges</label>
-            <div className="profile-chips">
-              <span>{profile.completed_count} verified</span>
-              {profile.badge_details && profile.badge_details.length > 0
-                ? profile.badge_details.map((b) => (
-                    <span key={b.name} title={b.name}>
-                      {b.icon} {b.name}
-                    </span>
-                  ))
-                : (profile.badges || []).map((b) => (
-                    <span key={b} title={b}>
-                      {b}
-                    </span>
-                  ))}
-            </div>
-          </section>
-
-          <div className="profile-level">
-            <div className="profile-level-header">
-              <span>Level {profile.level || 1}</span>
-              <span>{profile.total_xp || 0} XP</span>
-            </div>
-            <div className="profile-level-bar">
-              <div
-                className="profile-level-fill"
-                style={{
-                  width: `${profile.progress_percent ?? profile.progress_score ?? 0}%`,
-                }}
-              />
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className="logout-button"
-            onClick={() => void handleLogout()}
-            title="Sign out of SkillIssues"
-          >
-            <LogOut size={14} />
-            <span>Sign out</span>
-          </button>
         </aside>
       </section>
 
       {selected && (
-        <div className="web-modal" role="dialog" aria-modal="true">
+        <div
+          className="web-modal"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelected(null);
+          }}
+        >
+          <button
+            type="button"
+            className="web-modal-floating-back"
+            onClick={() => setSelected(null)}
+            title="Close issue and go back (or press Esc)"
+          >
+            <ArrowLeft size={14} /> Back to issues <kbd>Esc</kbd>
+          </button>
+
           <article className="web-modal-card issue-detail">
             <button
+              type="button"
               className="modal-close"
               onClick={() => setSelected(null)}
               title="Close issue"
@@ -873,7 +1121,11 @@ function App() {
             </button>
 
             <div className="modal-header-nav">
-              <button className="back-link" onClick={() => setSelected(null)}>
+              <button
+                type="button"
+                className="back-link"
+                onClick={() => setSelected(null)}
+              >
                 <ArrowLeft size={14} /> Back to issues
               </button>
               <span className={`difficulty ${selected.difficulty.toLowerCase()}`}>
@@ -917,10 +1169,16 @@ function App() {
             </div>
 
             <div className="modal-actions">
-              <a href={selected.url} target="_blank" rel="noreferrer" className="github-link">
+              <a
+                href={selected.url}
+                target="_blank"
+                rel="noreferrer"
+                className="github-link"
+              >
                 Open issue on GitHub <ExternalLink size={13} />
               </a>
               <button
+                type="button"
                 className="desktop-app-button"
                 onClick={() => {
                   window.location.href = `skillissues://issue?id=${selected.id}`;
@@ -931,6 +1189,27 @@ function App() {
               </button>
             </div>
           </article>
+        </div>
+      )}
+
+      {showLoginModal && (
+        <div
+          className="login-modal-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowLoginModal(false);
+          }}
+        >
+          <div className="login-modal-wrapper">
+            <LoginForm
+              initialError={oauthError}
+              onClose={() => setShowLoginModal(false)}
+              onLogin={() => {
+                setShowLoginModal(false);
+                setOAuthError("");
+                void refresh();
+              }}
+            />
+          </div>
         </div>
       )}
     </main>

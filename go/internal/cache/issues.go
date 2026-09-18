@@ -42,8 +42,8 @@ func (c *Client) InvalidateHotIssues(ctx context.Context) {
 }
 
 // CacheSearchKey creates a deterministic key for an issue search query.
-func CacheSearchKey(difficulty, language, query string, limit int) string {
-	raw := fmt.Sprintf("d:%s|l:%s|q:%s|lim:%d", difficulty, language, query, limit)
+func CacheSearchKey(difficulty, language, query string, limit, page int) string {
+	raw := fmt.Sprintf("d:%s|l:%s|q:%s|lim:%d|p:%d", difficulty, language, query, limit, page)
 	hash := sha256.Sum256([]byte(raw))
 	return searchKeyPrefix + hex.EncodeToString(hash[:8])
 }

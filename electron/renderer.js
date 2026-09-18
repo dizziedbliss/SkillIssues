@@ -103,23 +103,25 @@ function updateAuthUI(user) {
   const profileLoggedIn = el("profile-logged-in");
 
   if (user) {
-    if (loginBtn) loginBtn.hidden = true;
-    if (logoutBtn) logoutBtn.hidden = false;
+    if (loginBtn) { loginBtn.hidden = true; loginBtn.style.display = "none"; }
+    if (logoutBtn) { logoutBtn.hidden = false; logoutBtn.style.display = "inline-flex"; }
     if (authStatus) {
       authStatus.hidden = false;
+      authStatus.style.display = "inline";
       authStatus.textContent = `@${user.username || "connected"}`;
     }
-    if (profileLoggedOut) profileLoggedOut.hidden = true;
-    if (profileLoggedIn) profileLoggedIn.hidden = false;
+    if (profileLoggedOut) { profileLoggedOut.hidden = true; profileLoggedOut.style.display = "none"; }
+    if (profileLoggedIn) { profileLoggedIn.hidden = false; profileLoggedIn.style.display = "block"; }
   } else {
-    if (loginBtn) loginBtn.hidden = false;
-    if (logoutBtn) logoutBtn.hidden = true;
+    if (loginBtn) { loginBtn.hidden = false; loginBtn.style.display = "inline-flex"; }
+    if (logoutBtn) { logoutBtn.hidden = true; logoutBtn.style.display = "none"; }
     if (authStatus) {
       authStatus.hidden = true;
+      authStatus.style.display = "none";
       authStatus.textContent = "Not connected";
     }
-    if (profileLoggedOut) profileLoggedOut.hidden = false;
-    if (profileLoggedIn) profileLoggedIn.hidden = true;
+    if (profileLoggedOut) { profileLoggedOut.hidden = false; profileLoggedOut.style.display = "block"; }
+    if (profileLoggedIn) { profileLoggedIn.hidden = true; profileLoggedIn.style.display = "none"; }
   }
 }
 

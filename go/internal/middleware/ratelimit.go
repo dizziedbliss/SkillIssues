@@ -18,7 +18,7 @@ import (
 func RateLimiter(c *cache.Client, unauthLimit, authLimit int64, unauthWindow, authWindow time.Duration, keyPrefix string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if c == nil || r.URL.Path == "/health" || r.URL.Path == "/health/detail" || r.URL.Path == "/metrics" {
+			if c == nil || r.URL.Path == "/health" || r.URL.Path == "/health/detail" || r.URL.Path == "/metrics" || strings.HasPrefix(r.URL.Path, "/auth/") {
 				next.ServeHTTP(w, r)
 				return
 			}
