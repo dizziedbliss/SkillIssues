@@ -44,7 +44,7 @@ jobs:
           npx tsc --noEmit
       - name: Install and Check Electron
         run: |
-          cd electron
+          cd desktop
           npm ci
           npm run check
 
