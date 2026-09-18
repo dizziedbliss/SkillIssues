@@ -495,14 +495,21 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 			limit = l
 		}
 	}
+	page := 1
+	if pStr := q.Get("page"); pStr != "" {
+		if p, err := strconv.Atoi(pStr); err == nil && p > 0 {
+			page = p
+		}
+	}
 	f := issue.Filters{
 		Difficulty: q.Get("difficulty"),
 		Language:   q.Get("language"),
 		Search:     q.Get("search"),
 		Limit:      limit,
+		Page:       page,
 	}
 
-	isDefaultHot := f.Difficulty == "" && f.Language == "" && f.Search == "" && f.Limit == 50
+	isDefaultHot := f.Difficulty == "" && f.Language == "" && f.Search == "" && f.Limit == 50 && f.Page == 1
 	userID := middleware.GetUserID(r.Context())
 
 	// Fast path: cached hot issues for unauthenticated or default views
@@ -517,7 +524,7 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 
 	searchKey := ""
 	if !isDefaultHot && userID == 0 && h.cache != nil {
-		searchKey = cache.CacheSearchKey(f.Difficulty, f.Language, f.Search, f.Limit)
+		searchKey = cache.CacheSearchKey(f.Difficulty, f.Language, f.Search, f.Limit, f.Page)
 		if cached := h.cache.GetCachedSearch(r.Context(), searchKey); cached != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)

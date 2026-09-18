@@ -53,7 +53,7 @@ services:
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-dev_local_webhook_secret}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-dev_local_admin_sync_token}
       SYNCD_URL: http://syncd:8002
-      UNAUTH_RATE_LIMIT: ${UNAUTH_RATE_LIMIT:-60}
+      UNAUTH_RATE_LIMIT: ${UNAUTH_RATE_LIMIT:-180}
       AUTH_RATE_LIMIT: ${AUTH_RATE_LIMIT:-1000}
       PORT: 8000
     ports:

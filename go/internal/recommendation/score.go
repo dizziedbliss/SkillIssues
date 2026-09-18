@@ -63,7 +63,7 @@ func ScoreCandidates(u *profile.FullProfile, candidates []issue.Issue, limit int
 		var filtered []issue.Issue
 		for _, item := range candidates {
 			repoLower := strings.ToLower(item.Repository)
-			isUserRepo := repoLower == "dizziedbliss/listtty" || (userNameLower != "" && strings.HasPrefix(repoLower, userNameLower+"/"))
+			isUserRepo := userNameLower != "" && strings.HasPrefix(repoLower, userNameLower+"/")
 
 			matchesLang := item.Language != "" && preferredSet[strings.ToLower(item.Language)]
 			matchesTech := false

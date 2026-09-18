@@ -34,9 +34,10 @@ type Issue struct {
 	Stars                 int      `json:"stars"`
 	License               string   `json:"license"`
 
-	// Enriched fields added by recommendation scoring
+	// Enriched fields added by recommendation scoring or search ranking
 	RecommendationScore int      `json:"recommendation_score,omitempty"`
 	WhyRecommended      []string `json:"why_recommended,omitempty"`
+	MatchCategory       string   `json:"match_category,omitempty"`
 }
 
 // Filters for issue catalog queries.
@@ -45,6 +46,7 @@ type Filters struct {
 	Language   string
 	Search     string
 	Limit      int
+	Page       int
 }
 
 // Service manages issue queries and bookmarks.
@@ -95,9 +97,15 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 		limit = 50
 	}
 
+	page := f.Page
+	if page <= 0 {
+		page = 1
+	}
+	offset := (page - 1) * limit
+
 	var sb strings.Builder
 	sb.WriteString(baseIssueSelect)
-	sb.WriteString(" WHERE i.state = 'OPEN' AND (i.has_difficulty_label = true OR r.full_name = 'dizziedbliss/listtty')")
+	sb.WriteString(" WHERE i.state = 'OPEN'")
 
 	var args []any
 	argIdx := 1
@@ -119,12 +127,45 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 		sb.WriteString(fmt.Sprintf(` AND (
 			i.title ILIKE $%d OR i.body ILIKE $%d OR r.full_name ILIKE $%d OR r.language ILIKE $%d
 			OR $%d = ANY(i.technologies) OR $%d = ANY(i.learning_tags) OR $%d = ANY(i.required_skills)
-		)`, argIdx, argIdx+1, argIdx+2, argIdx+3, argIdx+4, argIdx+5, argIdx+6))
-		args = append(args, term, term, term, term, f.Search, f.Search, f.Search)
-		argIdx += 7
+			OR i.author ILIKE $%d
+		)`, argIdx, argIdx+1, argIdx+2, argIdx+3, argIdx+4, argIdx+5, argIdx+6, argIdx+7))
+		args = append(args, term, term, term, term, f.Search, f.Search, f.Search, term)
+		argIdx += 8
+
+		// Priority 1: Languages, 2: Repo names, 3: Username / author, 4: Issue title, 5: Issue description
+		sb.WriteString(fmt.Sprintf(` ORDER BY
+			CASE
+				WHEN lower(r.language) = lower($%d) OR lower(r.language) ILIKE $%d THEN 1
+				WHEN lower(r.full_name) ILIKE $%d THEN 2
+				WHEN lower(COALESCE(i.author, split_part(r.full_name, '/', 1))) ILIKE $%d THEN 3
+				WHEN lower(i.title) ILIKE $%d THEN 4
+				WHEN lower(i.body) ILIKE $%d THEN 5
+				ELSE 6
+			END ASC,
+			i.difficulty_score ASC,
+			i.updated_at DESC`,
+			argIdx, argIdx+1, argIdx+2, argIdx+3, argIdx+4, argIdx+5))
+		args = append(args, f.Search, term, term, term, term, term)
+		argIdx += 6
+	} else if len(prefLangs) > 0 {
+		var normLangs []string
+		for _, l := range prefLangs {
+			if tl := strings.TrimSpace(l); tl != "" {
+				normLangs = append(normLangs, strings.ToLower(tl))
+			}
+		}
+		sb.WriteString(fmt.Sprintf(` ORDER BY
+			CASE WHEN lower(r.language) = ANY($%d) THEN 0 ELSE 1 END ASC,
+			i.difficulty_score ASC,
+			i.updated_at DESC`, argIdx))
+		args = append(args, normLangs)
+		argIdx++
+	} else {
+		sb.WriteString(" ORDER BY i.difficulty_score ASC, i.updated_at DESC")
 	}
 
-	sb.WriteString(" ORDER BY i.difficulty_score, i.updated_at DESC")
+	sb.WriteString(fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx, argIdx+1))
+	args = append(args, limit, offset)
 
 	var all []Issue
 	err := s.db.QueryRows(ctx, sb.String(), args, func(rows pgx.Rows) error {
@@ -132,69 +173,27 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 		if err != nil {
 			return err
 		}
+
+		if f.Search != "" {
+			sLower := strings.ToLower(f.Search)
+			if strings.EqualFold(it.Language, f.Search) || strings.Contains(strings.ToLower(it.Language), sLower) {
+				it.MatchCategory = "Language"
+			} else if strings.Contains(strings.ToLower(it.Repository), sLower) {
+				it.MatchCategory = "Repository"
+			} else if strings.Contains(strings.ToLower(it.Author), sLower) {
+				it.MatchCategory = "Author"
+			} else if strings.Contains(strings.ToLower(it.Title), sLower) {
+				it.MatchCategory = "Title"
+			} else if strings.Contains(strings.ToLower(it.Body), sLower) {
+				it.MatchCategory = "Description"
+			}
+		}
+
 		all = append(all, it)
 		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("issue: search issues: %w", err)
-	}
-
-	// If preferred languages are specified and not an explicit keyword search,
-	// prioritize preferred language matching (mirroring Python logic)
-	if len(prefLangs) > 0 && f.Search == "" {
-		prefSet := make(map[string]bool)
-		for _, l := range prefLangs {
-			prefSet[strings.ToLower(strings.TrimSpace(l))] = true
-		}
-		userLower := strings.ToLower(userName)
-
-		var filtered []Issue
-		for _, item := range all {
-			repoLower := strings.ToLower(item.Repository)
-			isUserRepo := repoLower == "dizziedbliss/listtty" || (userLower != "" && strings.HasPrefix(repoLower, userLower+"/"))
-
-			itemLang := strings.ToLower(item.Language)
-			matchesPref := prefSet[itemLang]
-			if !matchesPref {
-				for _, t := range item.Technologies {
-					if prefSet[strings.ToLower(t)] {
-						matchesPref = true
-						break
-					}
-				}
-			}
-			if !matchesPref {
-				for _, s := range item.RequiredSkills {
-					if prefSet[strings.ToLower(s)] {
-						matchesPref = true
-						break
-					}
-				}
-			}
-			if !matchesPref {
-				for _, tag := range item.LearningTags {
-					if prefSet[strings.ToLower(tag)] {
-						matchesPref = true
-						break
-					}
-				}
-			}
-
-			if isUserRepo || matchesPref {
-				filtered = append(filtered, item)
-			}
-		}
-
-		if len(filtered) > limit {
-			return filtered[:limit], nil
-		}
-		if len(filtered) > 0 {
-			return filtered, nil
-		}
-	}
-
-	if len(all) > limit {
-		return all[:limit], nil
 	}
 	return all, nil
 }
@@ -273,7 +272,7 @@ func (s *Service) UnsaveIssue(ctx context.Context, userID, issueID int) error {
 // GetRecommendationCandidates fetches all open qualified issues for recommendation scoring.
 func (s *Service) GetRecommendationCandidates(ctx context.Context) ([]Issue, error) {
 	query := baseIssueSelect + `
-		WHERE i.state = 'OPEN' AND (i.has_difficulty_label = true OR r.full_name = 'dizziedbliss/listtty')
+		WHERE i.state = 'OPEN'
 		ORDER BY i.difficulty_score, i.updated_at DESC
 	`
 	var candidates []Issue

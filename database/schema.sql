@@ -137,9 +137,12 @@ CREATE TABLE IF NOT EXISTS contributions (
   xp_awarded  BOOLEAN     NOT NULL DEFAULT false,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  merged_at   TIMESTAMPTZ,
-  UNIQUE(user_id, issue_id)
+  merged_at   TIMESTAMPTZ
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_contributions_user_issue_active
+  ON contributions (user_id, issue_id)
+  WHERE state = 'STARTED';
 
 -- Immutable audit log: every contribution state transition recorded
 CREATE TABLE IF NOT EXISTS contribution_audit_log (
