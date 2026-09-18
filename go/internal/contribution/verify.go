@@ -111,7 +111,7 @@ func (s *Service) VerifyContribution(ctx context.Context, userID, contribID int,
 	var prState string
 	var prAuthor string
 
-	if username != "alex-dev" && s.ghClient != nil && token != "" {
+	if s.ghClient != nil && token != "" {
 		prInfo, err := s.ghClient.GetPullRequest(ctx, token, owner, repo, number)
 		if err != nil {
 			return nil, fmt.Errorf("github PR lookup failed: %w", err)
@@ -119,15 +119,10 @@ func (s *Service) VerifyContribution(ctx context.Context, userID, contribID int,
 		merged = prInfo.Merged
 		prState = strings.ToLower(prInfo.State)
 		prAuthor = prInfo.AuthorLogin
-	} else if username == "alex-dev" {
-		// In demo mode without external token, allow mock merge verification
-		merged = true
-		prState = "merged"
-		prAuthor = "alex-dev"
 	}
 
 	// Anti-exploit check: PR author match (case-insensitive)
-	if username != "alex-dev" && !strings.EqualFold(prAuthor, username) {
+	if !strings.EqualFold(prAuthor, username) {
 		return &VerifyResult{
 			Verified: false,
 			Message:  fmt.Sprintf("PR author (@%s) does not match your GitHub login (@%s).", prAuthor, username),

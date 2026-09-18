@@ -46,7 +46,6 @@ services:
       DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
       REDIS_URL: redis://redis:6379/0
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
-      DEMO_MODE: ${DEMO_MODE:-true}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
@@ -54,6 +53,8 @@ services:
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-dev_local_webhook_secret}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-dev_local_admin_sync_token}
       SYNCD_URL: http://syncd:8002
+      UNAUTH_RATE_LIMIT: ${UNAUTH_RATE_LIMIT:-60}
+      AUTH_RATE_LIMIT: ${AUTH_RATE_LIMIT:-1000}
       PORT: 8000
     ports:
       - "8000:8000"
@@ -80,7 +81,6 @@ services:
       DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
       REDIS_URL: redis://redis:6379/0
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      DEMO_MODE: ${DEMO_MODE:-true}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-dev_local_webhook_secret}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-dev_local_admin_sync_token}
       SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-60}
@@ -120,7 +120,7 @@ services:
   frontend:
     build: ./frontend
     environment:
-      VITE_API_URL: http://localhost:8000
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
     ports:
       - "5173:5173"
     depends_on:

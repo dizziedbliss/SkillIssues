@@ -50,12 +50,6 @@ contextBridge.exposeInMainWorld("skillIssuesDesktop", {
   loginWithToken: (token) => ipcRenderer.invoke("auth:github-token", token),
 
   /**
-   * Sign in using demo development credentials (when DEMO_MODE is enabled on API).
-   * @returns {Promise<any>} Demo user profile payload
-   */
-  loginDemo: () => ipcRenderer.invoke("auth:demo"),
-
-  /**
    * Invalidate the current session and clear local session state.
    * @returns {Promise<void>}
    */

@@ -146,13 +146,7 @@ func (h *handlers) authPurge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = h.authSvc.DeleteAllSessions(r.Context(), userID)
-	// Also delete the user record unless it's the demo user
-	var githubID string
-	_ = h.db.QueryRow(r.Context(), `SELECT github_id FROM users WHERE id = $1`, []any{userID},
-		func(row pgx.Row) error { return row.Scan(&githubID) })
-	if githubID != "demo-1" {
-		_ = h.db.Exec(r.Context(), `DELETE FROM users WHERE id = $1`, userID)
-	}
+	_ = h.db.Exec(r.Context(), `DELETE FROM users WHERE id = $1`, userID)
 	h.clearSessionCookie(w)
 	middleware.RespondJSON(w, http.StatusOK, map[string]bool{"purged": true})
 }
@@ -396,28 +390,6 @@ func (h *handlers) authGitHubPoll(w http.ResponseWriter, r *http.Request) {
 		"session_token": data["session_token"],
 		"user":          data["user"],
 	})
-}
-
-// ---------------------------------------------------------------------------
-// Auth: Demo mode
-// ---------------------------------------------------------------------------
-
-// authDemo handles POST /auth/demo (only registered when DemoMode=true)
-func (h *handlers) authDemo(w http.ResponseWriter, r *http.Request) {
-	userID, err := h.authSvc.UpsertUser(r.Context(), "demo-1", "alex-dev", "https://github.com/identicons/alex-dev.png", "")
-	if err != nil {
-		middleware.RespondError(w, http.StatusInternalServerError, "demo login failed")
-		return
-	}
-	rawToken, err := h.authSvc.CreateSession(r.Context(), userID, "demo")
-	if err != nil {
-		middleware.RespondError(w, http.StatusInternalServerError, "session creation failed")
-		return
-	}
-	h.setSessionCookie(w, rawToken)
-
-	user, _ := h.getUserBasic(r.Context(), userID)
-	middleware.RespondJSON(w, http.StatusOK, map[string]any{"user": user})
 }
 
 // forkRepository handles POST /github/forks
@@ -1049,7 +1021,7 @@ func (h *handlers) webhookGitHub(w http.ResponseWriter, r *http.Request) {
 			middleware.RespondError(w, http.StatusUnauthorized, "invalid webhook signature")
 			return
 		}
-	} else if !h.cfg.DemoMode {
+	} else {
 		middleware.RespondError(w, http.StatusServiceUnavailable, "webhook verification is not configured")
 		return
 	}

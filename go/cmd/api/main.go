@@ -50,8 +50,9 @@ func main() {
 
 	slog.Info("SkillIssues API starting",
 		"port", cfg.Port,
-		"demo_mode", cfg.DemoMode,
 		"frontend_url", cfg.FrontendURL,
+		"unauth_rate_limit", cfg.UnauthRateLimit,
+		"auth_rate_limit", cfg.AuthRateLimit,
 	)
 
 	// 2. Connect to PostgreSQL
@@ -166,9 +167,6 @@ func buildRouter(
 	mux.HandleFunc("GET /auth/github/poll", h.authGitHubPoll)
 	mux.HandleFunc("POST /auth/logout", h.authLogout)
 	mux.HandleFunc("POST /auth/purge", h.authPurge)
-	if cfg.DemoMode {
-		mux.HandleFunc("POST /auth/demo", h.authDemo)
-	}
 
 	// ----- GitHub integration -----
 	mux.Handle("POST /github/forks", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.forkRepository)))
@@ -212,11 +210,12 @@ func buildRouter(
 	mux.Handle("POST /admin/sync/repository/{id}",
 		requireAdmin(cfg.AdminSyncToken, http.HandlerFunc(h.adminSyncRepository)))
 
-	// Apply global middleware: RequestID → Logger → CORS → RateLimiter → mux
+	// Apply global middleware: RequestID → Logger → CORS → OptionalAuth → RateLimiter → mux
 	var handler http.Handler = mux
 	if cacheClient != nil {
-		handler = middleware.RateLimiter(cacheClient, 120, time.Minute, "global")(handler)
+		handler = middleware.RateLimiter(cacheClient, int64(cfg.UnauthRateLimit), int64(cfg.AuthRateLimit), time.Hour, time.Hour, "global")(handler)
 	}
+	handler = middleware.OptionalAuth(authSvc, cacheClient)(handler)
 	handler = middleware.CORS(cfg.FrontendURL)(handler)
 	handler = middleware.Logger(handler)
 	handler = middleware.RequestID(handler)
