@@ -540,7 +540,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="l-container l-desktop-grid">
           <div>
             <div className="l-release-badge">
-              <span>v1.0.0 Stable Release</span>
+              <span>v2.0.0 Stable Release</span>
             </div>
 
             <h2 className="l-section-title">
@@ -556,7 +556,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="l-desktop-downloads">
               <div className="l-desktop-dl-grid">
                 <a
-                  href="https://github.com/dizziedbliss/SkillIssues/releases/download/v1.0.0/SkillIssues-Setup-1.0.0.exe"
+                  href="https://github.com/dizziedbliss/SkillIssues/releases/download/v2.0.0/SkillIssues-Setup-2.0.0.exe"
                   className="l-btn l-btn-primary"
                   title="Download SkillIssues for Windows (.exe)"
                 >
@@ -565,7 +565,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </a>
 
                 <a
-                  href="https://github.com/dizziedbliss/SkillIssues/releases/download/v1.0.0/SkillIssues-1.0.0.dmg"
+                  href="https://github.com/dizziedbliss/SkillIssues/releases/download/v2.0.0/SkillIssues-2.0.0.dmg"
                   className="l-btn l-btn-secondary"
                   title="Download SkillIssues for macOS (.dmg)"
                 >
@@ -574,7 +574,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </a>
 
                 <a
-                  href="https://github.com/dizziedbliss/SkillIssues/releases/download/v1.0.0/SkillIssues-1.0.0.AppImage"
+                  href="https://github.com/dizziedbliss/SkillIssues/releases/download/v2.0.0/SkillIssues-2.0.0.AppImage"
                   className="l-btn l-btn-secondary"
                   title="Download SkillIssues for Linux (.AppImage)"
                 >
@@ -584,12 +584,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               <a
-                href="https://github.com/dizziedbliss/SkillIssues/releases/tag/v1.0.0"
+                href="https://github.com/dizziedbliss/SkillIssues/releases/tag/v2.0.0"
                 target="_blank"
                 rel="noreferrer"
                 className="l-desktop-release-link"
               >
-                <span>View v1.0.0 release notes and SHA256 checksums on GitHub</span>
+                <span>View v2.0.0 release notes and SHA256 checksums on GitHub</span>
                 <ExternalLink size={13} />
               </a>
             </div>
@@ -603,7 +603,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <img src="/logo.png" alt="SkillIssues" className="l-window-brand-logo" />
                 <span>SkillIssues Desktop Companion</span>
               </div>
-              <span className="l-window-tag">DESKTOP v1.0.0</span>
+              <span className="l-window-tag">DESKTOP v2.0.0</span>
             </div>
 
             {/* Window Content */}
