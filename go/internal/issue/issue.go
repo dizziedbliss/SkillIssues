@@ -87,6 +87,21 @@ func scanIssue(rows pgx.Rows) (Issue, error) {
 	return it, err
 }
 
+func scanIssueWithCategory(rows pgx.Rows) (Issue, error) {
+	var it Issue
+	err := rows.Scan(
+		&it.ID, &it.GitHubID, &it.Number, &it.Title, &it.Body,
+		&it.URL, &it.State, &it.UpdatedAt,
+		&it.DifficultyScore, &it.Difficulty,
+		&it.RequiredSkills, &it.Technologies, &it.LearningTags,
+		&it.Comments, &it.Author,
+		&it.Repository, &it.RepositoryURL, &it.RepositoryDescription,
+		&it.Language, &it.Stars, &it.License,
+		&it.MatchCategory,
+	)
+	return it, err
+}
+
 // SearchIssues queries the catalog with optional filters and user language preferences.
 func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []string, userName string) ([]Issue, error) {
 	limit := f.Limit
@@ -103,12 +118,132 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 	}
 	offset := (page - 1) * limit
 
+	var args []any
+	argIdx := 1
+
+	if f.Search != "" {
+		term := "%" + f.Search + "%"
+		sRaw := f.Search
+
+		var diffClause string
+		if f.Difficulty != "" {
+			diffClause = fmt.Sprintf(" AND i.difficulty = $%d", argIdx)
+			args = append(args, strings.ToUpper(f.Difficulty))
+			argIdx++
+		}
+
+		var langClause string
+		if f.Language != "" {
+			langClause = fmt.Sprintf(" AND lower(r.language) = lower($%d)", argIdx)
+			args = append(args, f.Language)
+			argIdx++
+		}
+
+		tIdx := argIdx
+		sIdx := argIdx + 1
+		args = append(args, term, sRaw)
+		argIdx += 2
+
+		searchQuery := fmt.Sprintf(`
+			WITH ranked_matches AS (
+				SELECT i.id, COALESCE(i.github_id, 0) AS github_id, i.number, i.title, COALESCE(i.body, '') AS body,
+				       i.url AS issue_url, i.state, i.updated_at::text AS updated_at_text,
+				       i.difficulty_score, i.difficulty,
+				       COALESCE(i.required_skills, '{}') AS req_skills,
+				       COALESCE(i.technologies, '{}') AS techs,
+				       COALESCE(i.learning_tags, '{}') AS tags,
+				       i.comments, COALESCE(i.author, split_part(r.full_name, '/', 1)) AS author_name,
+				       r.full_name, r.url AS repo_url, COALESCE(r.description, '') AS repo_desc,
+				       COALESCE(r.language, '') AS repo_lang, r.stars, COALESCE(r.license, '') AS repo_license,
+				       CASE
+				           WHEN lower(r.full_name) ILIKE $%d THEN 'Repository'
+				           WHEN lower(i.title) ILIKE $%d THEN 'Title'
+				           WHEN lower(COALESCE(r.language, '')) = lower($%d)
+				                OR lower(COALESCE(r.language, '')) ILIKE $%d
+				                OR $%d = ANY(i.technologies)
+				                OR $%d = ANY(i.learning_tags)
+				                OR $%d = ANY(i.required_skills) THEN 'Language'
+				           WHEN lower(COALESCE(i.author, split_part(r.full_name, '/', 1))) ILIKE $%d THEN 'Author'
+				           ELSE 'Description'
+				       END AS match_cat,
+				       ROW_NUMBER() OVER (
+				           PARTITION BY CASE
+				               WHEN lower(r.full_name) ILIKE $%d THEN 'Repository'
+				               WHEN lower(i.title) ILIKE $%d THEN 'Title'
+				               WHEN lower(COALESCE(r.language, '')) = lower($%d)
+				                    OR lower(COALESCE(r.language, '')) ILIKE $%d
+				                    OR $%d = ANY(i.technologies)
+				                    OR $%d = ANY(i.learning_tags)
+				                    OR $%d = ANY(i.required_skills) THEN 'Language'
+				               WHEN lower(COALESCE(i.author, split_part(r.full_name, '/', 1))) ILIKE $%d THEN 'Author'
+				               ELSE 'Description'
+				           END
+				           ORDER BY
+				               CASE
+				                   WHEN lower(split_part(r.full_name, '/', 2)) = lower($%d) THEN 1
+				                   WHEN lower(split_part(r.full_name, '/', 2)) ILIKE $%d || '-%%'
+				                        OR lower(split_part(r.full_name, '/', 2)) ILIKE $%d || '_%%'
+				                        OR lower(split_part(r.full_name, '/', 2)) ILIKE '%%-' || $%d THEN 2
+				                   WHEN lower(split_part(r.full_name, '/', 2)) ILIKE $%d || '%%' THEN 3
+				                   ELSE 4
+				               END ASC,
+				               r.stars DESC,
+				               i.difficulty_score ASC,
+				               i.updated_at DESC
+				       ) as cat_rank
+				FROM issues i
+				JOIN repositories r ON r.id = i.repository_id
+				WHERE i.state = 'OPEN' AND (
+				    i.title ILIKE $%d OR i.body ILIKE $%d OR r.full_name ILIKE $%d OR r.language ILIKE $%d
+				    OR $%d = ANY(i.technologies) OR $%d = ANY(i.learning_tags) OR $%d = ANY(i.required_skills)
+				    OR i.author ILIKE $%d
+				) %s %s
+			)
+			SELECT id, github_id, number, title, body, issue_url, state, updated_at_text,
+			       difficulty_score, difficulty, req_skills, techs, tags,
+			       comments, author_name, full_name, repo_url, repo_desc, repo_lang, stars, repo_license,
+			       match_cat
+			FROM ranked_matches
+			WHERE cat_rank <= 25
+			ORDER BY
+			    cat_rank ASC,
+			    CASE match_cat
+			        WHEN 'Repository' THEN 1
+			        WHEN 'Title' THEN 2
+			        WHEN 'Language' THEN 3
+			        WHEN 'Author' THEN 4
+			        ELSE 5
+			    END ASC
+			LIMIT $%d OFFSET $%d
+		`,
+			tIdx, tIdx, sIdx, tIdx, sIdx, sIdx, sIdx, tIdx,
+			tIdx, tIdx, sIdx, tIdx, sIdx, sIdx, sIdx, tIdx,
+			sIdx, sIdx, sIdx, sIdx, sIdx,
+			tIdx, tIdx, tIdx, tIdx, sIdx, sIdx, sIdx, tIdx,
+			diffClause, langClause,
+			argIdx, argIdx+1)
+
+		args = append(args, limit, offset)
+
+		var all []Issue
+		err := s.db.QueryRows(ctx, searchQuery, args, func(rows pgx.Rows) error {
+			it, err := scanIssueWithCategory(rows)
+			if err != nil {
+				return err
+			}
+			all = append(all, it)
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("issue: search issues: %w", err)
+		}
+		return all, nil
+	}
+
+	// Normal browsing query without search
 	var sb strings.Builder
 	sb.WriteString(baseIssueSelect)
 	sb.WriteString(" WHERE i.state = 'OPEN'")
-
-	var args []any
-	argIdx := 1
 
 	if f.Difficulty != "" {
 		sb.WriteString(fmt.Sprintf(" AND i.difficulty = $%d", argIdx))
@@ -122,32 +257,7 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 		argIdx++
 	}
 
-	if f.Search != "" {
-		term := "%" + f.Search + "%"
-		sb.WriteString(fmt.Sprintf(` AND (
-			i.title ILIKE $%d OR i.body ILIKE $%d OR r.full_name ILIKE $%d OR r.language ILIKE $%d
-			OR $%d = ANY(i.technologies) OR $%d = ANY(i.learning_tags) OR $%d = ANY(i.required_skills)
-			OR i.author ILIKE $%d
-		)`, argIdx, argIdx+1, argIdx+2, argIdx+3, argIdx+4, argIdx+5, argIdx+6, argIdx+7))
-		args = append(args, term, term, term, term, f.Search, f.Search, f.Search, term)
-		argIdx += 8
-
-		// Priority 1: Languages, 2: Repo names, 3: Username / author, 4: Issue title, 5: Issue description
-		sb.WriteString(fmt.Sprintf(` ORDER BY
-			CASE
-				WHEN lower(r.language) = lower($%d) OR lower(r.language) ILIKE $%d THEN 1
-				WHEN lower(r.full_name) ILIKE $%d THEN 2
-				WHEN lower(COALESCE(i.author, split_part(r.full_name, '/', 1))) ILIKE $%d THEN 3
-				WHEN lower(i.title) ILIKE $%d THEN 4
-				WHEN lower(i.body) ILIKE $%d THEN 5
-				ELSE 6
-			END ASC,
-			i.difficulty_score ASC,
-			i.updated_at DESC`,
-			argIdx, argIdx+1, argIdx+2, argIdx+3, argIdx+4, argIdx+5))
-		args = append(args, f.Search, term, term, term, term, term)
-		argIdx += 6
-	} else if len(prefLangs) > 0 {
+	if len(prefLangs) > 0 {
 		var normLangs []string
 		for _, l := range prefLangs {
 			if tl := strings.TrimSpace(l); tl != "" {
@@ -173,27 +283,11 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 		if err != nil {
 			return err
 		}
-
-		if f.Search != "" {
-			sLower := strings.ToLower(f.Search)
-			if strings.EqualFold(it.Language, f.Search) || strings.Contains(strings.ToLower(it.Language), sLower) {
-				it.MatchCategory = "Language"
-			} else if strings.Contains(strings.ToLower(it.Repository), sLower) {
-				it.MatchCategory = "Repository"
-			} else if strings.Contains(strings.ToLower(it.Author), sLower) {
-				it.MatchCategory = "Author"
-			} else if strings.Contains(strings.ToLower(it.Title), sLower) {
-				it.MatchCategory = "Title"
-			} else if strings.Contains(strings.ToLower(it.Body), sLower) {
-				it.MatchCategory = "Description"
-			}
-		}
-
 		all = append(all, it)
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("issue: search issues: %w", err)
+		return nil, fmt.Errorf("issue: query issues: %w", err)
 	}
 	return all, nil
 }
