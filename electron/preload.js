@@ -56,6 +56,14 @@ contextBridge.exposeInMainWorld("skillIssuesDesktop", {
   logout: () => ipcRenderer.invoke("auth:logout"),
 
   /**
+   * Window controls for custom actions if needed.
+   */
+  minimizeWindow: () => ipcRenderer.invoke("window:minimize"),
+  maximizeWindow: () => ipcRenderer.invoke("window:maximize"),
+  closeWindow: () => ipcRenderer.invoke("window:close"),
+  isWindowMaximized: () => ipcRenderer.invoke("window:is-maximized"),
+
+  /**
    * Inspect a local repository workspace's current Git status (branch, dirty status).
    * @param {string} workspace - Absolute path to local repository directory
    * @returns {Promise<{exists: boolean, branch: string, status: string, isClean: boolean}>}
