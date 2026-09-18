@@ -28,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import "./styles.css";
+import { LandingView } from "./LandingView";
 
 // ==============================================================================
 // Type Definitions
@@ -55,7 +56,8 @@ type Profile = {
   name?: string;
   avatar_url: string;
   bio: string;
-  target_level: string;
+  experience_level?: string;
+  target_level?: string;
   interests: string[];
   preferred_languages: string[];
   demonstrated_skills: string[];
@@ -82,7 +84,7 @@ type Contribution = {
   issue_url: string;
 };
 
-type View = "SkillIssues" | "Saved" | "Working" | "Submissions";
+type View = "Overview" | "SkillIssues" | "Saved" | "Working" | "Submissions";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -399,7 +401,9 @@ function App() {
   const [savedIssues, setSavedIssues] = useState<Issue[]>([]);
   const [working, setWorking] = useState<Contribution[]>([]);
   const [submissions, setSubmissions] = useState<Contribution[]>([]);
-  const [view, setView] = useState<View>("SkillIssues");
+  const [view, setView] = useState<View>(() =>
+    localStorage.getItem("skillissues_token") ? "SkillIssues" : "Overview"
+  );
   const [difficultyFilter, setDifficultyFilter] = useState<"ALL" | "BEGINNER" | "INTERMEDIATE" | "ADVANCED">("ALL");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -789,12 +793,33 @@ function App() {
   return (
     <main className="web-home">
       <header className="web-header">
-        <div className="wordmark">
+        <div
+          className="wordmark"
+          style={{ cursor: "pointer" }}
+          onClick={() => setView("Overview")}
+          title="SkillIssues Overview"
+        >
           <img src="/logo.png" alt="SkillIssues Logo" className="brand-logo" />
           <div className="wordmark-text">
             SkillIssues<span>You Have the Skills. We Have the Issues.</span>
           </div>
         </div>
+        <nav className="web-header-nav">
+          <button
+            type="button"
+            className={`nav-link-btn ${view === "Overview" ? "active" : ""}`}
+            onClick={() => setView("Overview")}
+          >
+            Overview
+          </button>
+          <button
+            type="button"
+            className={`nav-link-btn ${view !== "Overview" ? "active" : ""}`}
+            onClick={() => setView("SkillIssues")}
+          >
+            Challenges
+          </button>
+        </nav>
         <div className="web-header-actions">
           {profile ? (
             <>
@@ -822,10 +847,19 @@ function App() {
         </div>
       </header>
 
-      <form
-        className="web-search"
-        onSubmit={(event) => void handleSearch(event)}
-      >
+      {view === "Overview" ? (
+        <LandingView
+          onExplore={() => setView("SkillIssues")}
+          onSignIn={() => setShowLoginModal(true)}
+          isAuthenticated={Boolean(profile)}
+          username={profile?.username}
+        />
+      ) : (
+        <>
+          <form
+            className="web-search"
+            onSubmit={(event) => void handleSearch(event)}
+          >
         <Search size={16} className="search-icon" />
         <input
           value={query}
@@ -1277,6 +1311,8 @@ function App() {
           )}
         </aside>
       </section>
+        </>
+      )}
 
       {selected && (
         <div
