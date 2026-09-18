@@ -1,0 +1,57 @@
+name: ✨ Feature request
+description: Have an idea to make issue discovery or workspace setup even better?
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Got an idea that would make sorting the issue chaos smoother, faster, or more fun? Let us know!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What is currently frustrating, awkward, or missing?
+      placeholder: "Right now when I try to find issues in X ecosystem, it's tricky because..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: How would you like this to work?
+      placeholder: "It would be awesome if we could filter by..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Did you think of other ways to solve this or workarounds you're using today?
+      placeholder: "I considered doing Y, but Z seems cleaner because..."
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area of the project
+      description: Which component would this feature touch?
+      options:
+        - Desktop App (Electron)
+        - Web Dashboard (React / Vite)
+        - Backend API (Go)
+        - Search & Recommendation Engine
+        - Ingestion & Sync (syncd / worker / ETL)
+        - Gamification / Badges / XP
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Willing to help?
+      options:
+        - label: I would be interested in opening a PR or helping implement this feature!

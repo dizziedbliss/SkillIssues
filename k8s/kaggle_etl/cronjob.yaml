@@ -23,7 +23,7 @@ spec:
               command:
                 - /kaggle_etl
                 - --dataset
-                - /data/kaggle_github_issues.json
+                - /data/repo_metadata.json
                 - --batch-size
                 - "500"
               envFrom:
