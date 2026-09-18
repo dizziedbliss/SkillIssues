@@ -29,11 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.0] - 2026-09-18
+## [2.0.0] - 2026-09-18
 
 ### 🚀 Production Release: Full Go Architecture & Lavender Developer Experience
 
-The 1.0.0 release represents a comprehensive rewrite and unification of SkillIssues into a high-performance open-source issue discovery platform and desktop contribution engine.
+The 2.0.0 release represents a comprehensive rewrite and unification of SkillIssues into a high-performance open-source issue discovery platform and desktop contribution engine.
 
 ### Added
 
