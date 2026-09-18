@@ -21,8 +21,8 @@ const execFileAsync = promisify(execFile);
 const GITHUB_REPOSITORY_URL =
   /^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/;
 const SAFE_EXTERNAL_URL = /^https:\/\/(?:github\.com|www\.github\.com)(?:\/|$)/;
-const COMMAND_TIMEOUT_MS = 120000;
-const MAX_OUTPUT_BYTES = 1024 * 1024;
+const COMMAND_TIMEOUT_MS = 300000;
+const MAX_OUTPUT_BYTES = 20 * 1024 * 1024;
 const API_URL = process.env.SKILLISSUES_API_URL || "http://localhost:8000";
 let apiSessionToken = "";
 
@@ -100,9 +100,12 @@ function logRuntimeError(scope, error) {
  * @returns {string} Human-friendly error description
  */
 function friendlyGitError(error) {
-  const raw = error.stderr?.trim() || "";
-  if (/403|permission to .* denied|unable to access/i.test(raw)) {
-    return "GitHub rejected the push. You cannot push directly to the upstream repository. Fork it on GitHub, update origin to your fork, then push again.";
+  const raw = error.stderr?.trim() || error.message || "";
+  if (/permission to .* denied/i.test(raw)) {
+    return `GitHub rejected the push (Permission denied). Your token lacks write access to this repository. If this is an upstream repository, fork it first; if it is your own repository, ensure your GitHub Personal Access Token has 'repo' scope (Contents: Read and write). (${raw})`;
+  }
+  if (/403|unable to access/i.test(raw)) {
+    return `GitHub rejected the push (HTTP 403). Push access was denied by GitHub. Ensure your GitHub token has write access to repository Contents. (${raw})`;
   }
   if (/authentication failed|could not read Username/i.test(raw)) {
     return "GitHub authentication failed. Sign in to GitHub and configure Git credentials before pushing.";
@@ -218,7 +221,12 @@ function isWithinRoot(candidate) {
   } catch {
     resolved = path.resolve(candidate);
   }
-  return resolved === root || resolved.startsWith(`${root}${path.sep}`);
+  const normRoot = process.platform === "win32" ? root.toLowerCase() : root;
+  const normResolved = process.platform === "win32" ? resolved.toLowerCase() : resolved;
+  return (
+    normResolved === normRoot ||
+    normResolved.startsWith(`${normRoot}${path.sep}`)
+  );
 }
 
 /**
@@ -234,6 +242,26 @@ function isSafeWorkspace(workspace) {
     fs.existsSync(resolved) &&
     fs.lstatSync(resolved).isDirectory()
   );
+}
+
+/**
+ * Safely remove a directory recursively on Windows/POSIX without crashing or unhandled EBUSY/EPERM errors.
+ * @param {string} targetDir - Directory path to remove
+ */
+function safeCleanWorkspace(targetDir) {
+  if (!targetDir) return;
+  try {
+    if (fs.existsSync(targetDir)) {
+      fs.rmSync(targetDir, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 300,
+      });
+    }
+  } catch (err) {
+    logRuntimeError("safeCleanWorkspace", err);
+  }
 }
 
 /**
@@ -618,8 +646,11 @@ ipcMain.handle("workspace:clone", async (_, repositoryUrl) => {
   const repositoryName = match[2];
   const target = path.join(path.resolve(destination), repositoryName);
   if (!isWithinRoot(target)) throw new Error("Invalid repository destination.");
+
+  // If local workspace already exists and is a valid Git repository, reuse it
   if (fs.existsSync(target)) {
-    if (isSafeWorkspace(target)) {
+    const gitDir = path.join(target, ".git");
+    if (fs.existsSync(gitDir) && isSafeWorkspace(target)) {
       if (isFork) {
         try {
           await runGit(
@@ -636,44 +667,106 @@ ipcMain.handle("workspace:clone", async (_, repositoryUrl) => {
         output: `Using local clone at ${target} (origin -> ${cloneUrl})`,
         reused: true,
       };
+    } else {
+      // Incomplete or non-git directory from previous failure: clean it safely
+      safeCleanWorkspace(target);
     }
-    throw new Error(
-      "A non-Git folder already exists at the repository destination. Remove it or choose a different repository.",
-    );
   }
-  try {
-    const result = await execFileAsync(
-      "git",
-      ["clone", "--", cloneUrl, target],
-      {
-        timeout: COMMAND_TIMEOUT_MS,
-        maxBuffer: MAX_OUTPUT_BYTES,
-        windowsHide: true,
-      },
-    );
-    recordCommand(target, `git clone "${cloneUrl}"`, result.stdout.trim());
-    if (isFork) {
+
+  // Use shallow clone (--depth 1) and suppress verbose stderr progress to prevent buffer overflows
+  const cloneArgs = ["clone", "--depth", "1", "--no-progress", "--"];
+  const cloneOptions = {
+    timeout: 300000,
+    maxBuffer: 50 * 1024 * 1024,
+    windowsHide: true,
+  };
+
+  let cloneSuccess = false;
+  let lastError = null;
+
+  // If it's a fork, try cloning the fork repository first (with retries for GitHub provisioning delay)
+  if (isFork) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        await runGit(
-          target,
-          ["remote", "set-url", "origin", cloneUrl],
-          `git remote set-url origin "${cloneUrl}"`,
+        const result = await execFileAsync(
+          "git",
+          [...cloneArgs, cloneUrl, target],
+          cloneOptions,
         );
-      } catch {
-        /* ignore remote update error */
+        recordCommand(
+          target,
+          `git clone --depth 1 "${cloneUrl}"`,
+          result.stdout.trim(),
+        );
+        cloneSuccess = true;
+        break;
+      } catch (err) {
+        lastError = err;
+        safeCleanWorkspace(target);
+        const errMsg = (err.stderr || err.message || "").toLowerCase();
+        // If GitHub is still provisioning the fork (404/not found), wait 2s and retry
+        if (
+          (errMsg.includes("not found") || errMsg.includes("404")) &&
+          attempt < 3
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          continue;
+        }
+        break;
       }
     }
-    return { path: target, output: result.stdout.trim() };
-  } catch (error) {
-    if (fs.existsSync(target))
-      fs.rmSync(target, { recursive: true, force: true });
-    throw new Error(
-      error.stderr?.trim() ||
+  }
+
+  // Fallback: If fork clone failed or wasn't a fork, clone the upstream repository directly
+  if (!cloneSuccess) {
+    try {
+      const result = await execFileAsync(
+        "git",
+        [...cloneArgs, repositoryUrl, target],
+        cloneOptions,
+      );
+      recordCommand(
+        target,
+        `git clone --depth 1 "${repositoryUrl}"`,
+        result.stdout.trim(),
+      );
+      cloneSuccess = true;
+
+      // If this challenge was forked, re-point origin to fork URL and track upstream
+      if (isFork) {
+        try {
+          await runGit(
+            target,
+            ["remote", "set-url", "origin", cloneUrl],
+            `git remote set-url origin "${cloneUrl}"`,
+          );
+        } catch {
+          /* ignore remote error */
+        }
+        try {
+          await runGit(
+            target,
+            ["remote", "add", "upstream", repositoryUrl],
+            `git remote add upstream "${repositoryUrl}"`,
+          );
+        } catch {
+          /* ignore remote error */
+        }
+      }
+      return { path: target, output: result.stdout.trim() };
+    } catch (error) {
+      safeCleanWorkspace(target);
+      const message =
+        friendlyGitError(error) ||
+        error.stderr?.trim() ||
         (error.killed
           ? "Repository clone timed out."
-          : "Repository clone failed."),
-    );
+          : "Repository clone failed.");
+      throw new Error(message);
+    }
   }
+
+  return { path: target, output: "Repository cloned successfully." };
 });
 
 ipcMain.handle("workspace:open", async (_, workspace) => {
@@ -806,22 +899,39 @@ ipcMain.handle("workspace:push", async (_, workspace, branch) => {
     );
   }
   const credentials = await apiJson("/github/git-token");
-  const auth = Buffer.from(`x-access-token:${credentials.token}`).toString(
-    "base64",
-  );
-  return runGit(
-    workspace,
-    [
-      "-c",
-      `http.extraheader=AUTHORIZATION: basic ${auth}`,
-      "push",
-      "--set-upstream",
-      "origin",
-      branch,
-    ],
-    `git push --set-upstream origin "${branch}"`,
-  );
+  return gitPushWithCredentials(workspace, branch, credentials);
 });
+
+async function gitPushWithCredentials(workspace, branch, credentials) {
+  const pushWithToken = async (tok) => {
+    const auth = Buffer.from(`x-access-token:${tok}`).toString("base64");
+    return runGit(
+      workspace,
+      [
+        "-c",
+        `http.extraheader=AUTHORIZATION: basic ${auth}`,
+        "push",
+        "--set-upstream",
+        "origin",
+        branch,
+      ],
+      `git push --set-upstream origin "${branch}"`,
+    );
+  };
+
+  try {
+    return await pushWithToken(credentials.token);
+  } catch (err) {
+    if (
+      credentials.fallback_token &&
+      credentials.fallback_token !== credentials.token &&
+      /403|permission to .* denied|unable to access|Authentication failed/i.test(err.message)
+    ) {
+      return await pushWithToken(credentials.fallback_token);
+    }
+    throw err;
+  }
+}
 
 ipcMain.handle(
   "workspace:commit-and-push",
@@ -863,21 +973,7 @@ ipcMain.handle(
       );
     }
     const credentials = await apiJson("/github/git-token");
-    const auth = Buffer.from(`x-access-token:${credentials.token}`).toString(
-      "base64",
-    );
-    return runGit(
-      workspace,
-      [
-        "-c",
-        `http.extraheader=AUTHORIZATION: basic ${auth}`,
-        "push",
-        "--set-upstream",
-        "origin",
-        branch,
-      ],
-      `git push --set-upstream origin "${branch}"`,
-    );
+    return gitPushWithCredentials(workspace, branch, credentials);
   },
 );
 
