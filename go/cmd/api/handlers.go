@@ -270,7 +270,99 @@ func (h *handlers) authGitHubCallback(w http.ResponseWriter, r *http.Request) {
 		if ticket != "" {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(http.StatusUnauthorized)
-			fmt.Fprintf(w, `<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0d1117;color:#f85149;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><div style="text-align:center;"><h2>Authentication Failed</h2><p>%s: %s</p><p>You can close this window and try again.</p></div></body></html>`, code, detail)
+			fmt.Fprintf(w, `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkillIssues — Authentication Error</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-app: #f7f6fb;
+      --text-primary: #1e1338;
+      --text-muted: #6b5f88;
+      --border-card: #e5e0f2;
+      --accent-primary: #241442;
+      --accent-primary-hover: #371f63;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg-app);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 24px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid var(--border-card);
+      border-radius: 24px;
+      padding: 44px 36px;
+      text-align: center;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 20px 40px -12px rgba(36, 20, 66, 0.08), 0 2px 6px rgba(36, 20, 66, 0.04);
+    }
+    .badge-icon {
+      width: 60px;
+      height: 60px;
+      border-radius: 18px;
+      background: #fef2f2;
+      color: #dc2626;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+    }
+    h2 {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin: 0 0 12px;
+      letter-spacing: -0.02em;
+    }
+    .err-pill {
+      display: inline-block;
+      background: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      word-break: break-word;
+      max-width: 100%;
+    }
+    p {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge-icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+      </svg>
+    </div>
+    <h2>Authentication Failed</h2>
+    <div class="err-pill">%s: %s</div>
+    <p>You can close this tab and return to the application to try again.</p>
+  </div>
+</body>
+</html>`, code, detail)
 			return
 		}
 		sep := "?"
@@ -336,24 +428,99 @@ func (h *handlers) authGitHubCallback(w http.ResponseWriter, r *http.Request) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SkillIssues Desktop — Authorized</title>
+  <title>SkillIssues — Authorized</title>
   <meta http-equiv="refresh" content="0;url=%s" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans:wght@700;800&display=swap" rel="stylesheet">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0b0f19; color: #e6edf3; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-    .card { background: #161b26; border: 1px solid #30363d; border-radius: 14px; padding: 44px; text-align: center; max-width: 460px; box-shadow: 0 12px 36px rgba(0,0,0,0.5); }
-    .icon { font-size: 40px; margin-bottom: 12px; }
-    h1 { font-size: 22px; color: #58a6ff; margin: 0 0 12px; font-weight: 700; }
-    p { font-size: 14.5px; color: #8b949e; line-height: 1.5; margin: 0 0 24px; }
-    a.btn { display: inline-block; background: #238636; color: white; text-decoration: none; padding: 12px 26px; border-radius: 8px; font-weight: 600; font-size: 14px; transition: background 0.2s; }
-    a.btn:hover { background: #2ea043; }
+    :root {
+      --bg-app: #f7f6fb;
+      --text-primary: #1e1338;
+      --text-muted: #6b5f88;
+      --border-card: #e5e0f2;
+      --accent-primary: #241442;
+      --accent-primary-hover: #371f63;
+      --accent-blue: #7c3aed;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg-app);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 24px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid var(--border-card);
+      border-radius: 24px;
+      padding: 44px 36px;
+      text-align: center;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 20px 40px -12px rgba(36, 20, 66, 0.08), 0 2px 6px rgba(36, 20, 66, 0.04);
+    }
+    .badge-icon {
+      width: 60px;
+      height: 60px;
+      border-radius: 18px;
+      background: #ede9f6;
+      color: var(--accent-blue);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin: 0 0 10px;
+      letter-spacing: -0.02em;
+    }
+    p {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin: 0 0 28px;
+    }
+    a.btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: var(--accent-primary);
+      color: #ffffff;
+      text-decoration: none;
+      padding: 12px 28px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 14px;
+      box-shadow: 0 4px 14px rgba(36, 20, 66, 0.15);
+      transition: all 0.15s ease;
+    }
+    a.btn:hover {
+      background: var(--accent-primary-hover);
+      transform: translateY(-1px);
+    }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="icon">✨</div>
+    <div class="badge-icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 6 9 17l-5-5"/>
+      </svg>
+    </div>
     <h1>Authorization Successful!</h1>
     <p>You have connected your GitHub account. Redirecting you back to SkillIssues Desktop...</p>
-    <a class="btn" href="%s">Open SkillIssues Desktop</a>
+    <a class="btn" href="%s">Open SkillIssues Desktop <span>↗</span></a>
   </div>
   <script>
     setTimeout(function() { window.location.href = %q; }, 100);

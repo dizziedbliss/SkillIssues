@@ -71,6 +71,12 @@
               Submissions <b id="submission-count">0</b>
             </button>
           </nav>
+          <div id="difficulty-tabs" class="difficulty-tabs">
+            <button class="difficulty-tab active" data-diff="">All Difficulties</button>
+            <button class="difficulty-tab beginner" data-diff="BEGINNER">Beginner</button>
+            <button class="difficulty-tab intermediate" data-diff="INTERMEDIATE">Intermediate</button>
+            <button class="difficulty-tab advanced" data-diff="ADVANCED">Advanced</button>
+          </div>
           <div class="feed-heading">
             <h1>SkillIssues</h1>
             <span id="feed-subtitle"
@@ -79,6 +85,11 @@
           </div>
           <div id="issues" class="issues">
             <div class="loading">Loading challenges...</div>
+          </div>
+          <div id="pagination" class="pagination" hidden>
+            <button type="button" id="prev-page-btn" class="pagination-btn" disabled>← Previous</button>
+            <span id="pagination-info" class="pagination-info">Page 1</span>
+            <button type="button" id="next-page-btn" class="pagination-btn">Next →</button>
           </div>
         </div>
         <aside class="profile-rail">

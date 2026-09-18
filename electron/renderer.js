@@ -23,6 +23,11 @@ let submissions = [];           // Submitted and verified contributions
 let activeTab = "all";          // Current catalog filter tab: "all" | "recommended" | "saved"
 let difficultyFilter = "";      // Difficulty filter: "" | "BEGINNER" | "INTERMEDIATE" | "ADVANCED"
 let sortFilter = "recommended"; // Catalog sort mode: "recommended" | "stars" | "recent"
+let currentPage = 1;            // Current pagination page number
+let hasMorePages = false;       // Whether next page of issues is available
+let currentSearchQuery = "";    // Active search query
+let searchCategory = "ALL";     // Active search category filter ("ALL" | "repository" | "language" | "issue" | "author")
+let expandedCategories = {};    // Expanded category map for "show more"
 const el = (id) => document.getElementById(id);
 
 async function api(path, options = {}) {
@@ -145,6 +150,20 @@ const SVG_BOOKMARK =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>';
 const SVG_BOOKMARK_SAVED =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>';
+const SVG_ALL =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>';
+const SVG_FOLDER =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/><circle cx="12" cy="13" r="2"/><path d="M14 13h3"/><path d="M7 13h3"/></svg>';
+const SVG_CODE =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
+const SVG_DOC =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>';
+const SVG_USER =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+const SVG_CHEVRON_DOWN =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+const SVG_CHEVRON_UP =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>';
 
 const ALL_BADGES = [
   {
@@ -243,7 +262,73 @@ function showLevelUpToast(xpInfo) {
   updateProfileUI(xpInfo);
 }
 
-async function loadIssues(query = "") {
+function updatePaginationUI() {
+  const paginationEl = el("pagination");
+  const diffTabsEl = el("difficulty-tabs");
+
+  if (diffTabsEl) {
+    diffTabsEl.hidden = activeTab !== "all";
+  }
+
+  if (!paginationEl) return;
+  if (activeTab !== "all") {
+    paginationEl.hidden = true;
+    return;
+  }
+
+  paginationEl.hidden = false;
+  const prevBtn = el("prev-page-btn");
+  const nextBtn = el("next-page-btn");
+  const infoEl = el("pagination-info");
+
+  if (prevBtn) prevBtn.disabled = currentPage <= 1;
+  if (nextBtn) nextBtn.disabled = !hasMorePages;
+  if (infoEl) infoEl.textContent = `Page ${currentPage}`;
+}
+
+function renderIssueCardHtml(issue) {
+  return `<article class="issue-card" data-id="${issue.id}">
+    <h2 class="issue-card-title">${escapeHtml(issue.title)} #${issue.number || ""}</h2>
+    <div class="issue-card-repo">${escapeHtml(issue.repository)}</div>
+    <div class="issue-card-bottom">
+      <div class="pill-group-left">
+        ${issue.match_category ? `<span class="pill match">Matched in ${escapeHtml(issue.match_category)}</span>` : ""}
+        <span class="pill purple">${escapeHtml(issueAuthor(issue))}</span>
+        <span class="pill purple">${daysAgo(issue.updated_at)}</span>
+        <span class="pill purple">${SVG_COMMENT} ${issue.comments || 0}</span>
+      </div>
+      <div class="pill-group-middle">
+        <span class="pill light">${escapeHtml(issue.language || "Open source")}</span>
+        ${(issue.technologies || [])
+          .filter(
+            (tech) =>
+              !issue.language ||
+              tech.toLowerCase() !== issue.language.toLowerCase(),
+          )
+          .slice(0, 2)
+          .map(
+            (tech) =>
+              `<span class="pill light">${escapeHtml(tech)}</span>`,
+          )
+          .join("")}
+      </div>
+      <div class="pill-group-right">
+        <button class="view-issue-btn view-issue" data-id="${issue.id}">View Issue</button>
+        <button class="save-icon-btn save ${saved(issue) ? "saved" : ""}" data-save="${issue.id}" title="${saved(issue) ? "Remove saved issue" : "Save issue"}">
+          ${saved(issue) ? SVG_BOOKMARK_SAVED : SVG_BOOKMARK}
+        </button>
+      </div>
+    </div>
+  </article>`;
+}
+
+async function loadIssues(query = "", page = 1) {
+  currentSearchQuery = query;
+  currentPage = page;
+  const limit = query ? 50 : 20;
+  const diffParam = difficultyFilter ? `&difficulty=${encodeURIComponent(difficultyFilter)}` : "";
+  const pageParam = `&page=${page}&limit=${limit}`;
+
   el("issues").innerHTML = '<div class="loading">Loading challenges...</div>';
   try {
     let session = null;
@@ -255,13 +340,13 @@ async function loadIssues(query = "") {
 
     if (session && session.authenticated) {
       updateAuthUI(session.user || { username: "connected" });
+      const issuesUrl = query
+        ? `/issues?search=${encodeURIComponent(query)}${diffParam}${pageParam}`
+        : `/recommendations?${diffParam ? diffParam.slice(1) + "&" : ""}page=${page}&limit=${limit}`;
+
       const [recommendations, savedResult, workingResult, submissionResult] =
         await Promise.all([
-          api(
-            query
-              ? `/issues?limit=30&search=${encodeURIComponent(query)}`
-              : "/recommendations?limit=30",
-          ).catch(() => []),
+          api(issuesUrl).catch(() => []),
           api("/saved").catch(() => []),
           api("/working").catch(() => []),
           api("/contributions").catch(() => []),
@@ -280,16 +365,17 @@ async function loadIssues(query = "") {
       }
     } else {
       updateAuthUI(null);
-      const catalog = await api(
-        query
-          ? `/issues?limit=30&search=${encodeURIComponent(query)}`
-          : "/issues?limit=30",
-      ).catch(() => []);
+      const issuesUrl = query
+        ? `/issues?search=${encodeURIComponent(query)}${diffParam}${pageParam}`
+        : `/issues?${diffParam ? diffParam.slice(1) + "&" : ""}page=${page}&limit=${limit}`;
+      const catalog = await api(issuesUrl).catch(() => []);
       issues = Array.isArray(catalog) ? catalog : [];
       savedIssues = [];
       working = [];
       submissions = [];
     }
+
+    hasMorePages = (issues || []).length === limit;
 
     el("issue-count").textContent = String(issues.length).padStart(2, "0");
     el("saved-count").textContent = String(savedIssues.length).padStart(2, "0");
@@ -298,15 +384,18 @@ async function loadIssues(query = "") {
       2,
       "0",
     );
+    updatePaginationUI();
     renderIssues();
   } catch (error) {
     updateAuthUI(null);
     el("issues").innerHTML =
       `<div class="loading">Failed to load challenges. Please check connection or sign in.</div>`;
+    updatePaginationUI();
   }
 }
 
 function renderIssues() {
+  updatePaginationUI();
   if (activeTab === "working") {
     el("feed-subtitle").textContent = "Repositories you are actively solving";
     renderWorking();
@@ -323,45 +412,182 @@ function renderIssues() {
     activeTab === "saved"
       ? "Challenges to do later"
       : "Personalized for your current level and preferences";
-  el("issues").innerHTML = visible.length
-    ? visible
-        .map(
-          (issue) =>
-            `<article class="issue-card" data-id="${issue.id}">
-              <h2 class="issue-card-title">${escapeHtml(issue.title)} #${issue.number || ""}</h2>
-              <div class="issue-card-repo">${escapeHtml(issue.repository)}</div>
-              <div class="issue-card-bottom">
-                <div class="pill-group-left">
-                  <span class="pill purple">${escapeHtml(issueAuthor(issue))}</span>
-                  <span class="pill purple">${daysAgo(issue.updated_at)}</span>
-                  <span class="pill purple">${SVG_COMMENT} ${issue.comments || 0}</span>
+
+  const isSearchActive = Boolean(currentSearchQuery.trim()) && activeTab === "all";
+
+  if (isSearchActive) {
+    const repoMatches = [];
+    const langMatches = [];
+    const issueMatches = [];
+    const authorMatches = [];
+
+    for (const it of issues) {
+      const cat = (it.match_category || "").toLowerCase();
+      if (cat === "repository") {
+        repoMatches.push(it);
+      } else if (cat === "language") {
+        langMatches.push(it);
+      } else if (cat === "author") {
+        authorMatches.push(it);
+      } else {
+        issueMatches.push(it);
+      }
+    }
+
+    const groups = [];
+    if (repoMatches.length > 0) {
+      groups.push({
+        key: "repository",
+        title: "Repositories",
+        icon: SVG_FOLDER,
+        items: repoMatches,
+      });
+    }
+    if (langMatches.length > 0) {
+      groups.push({
+        key: "language",
+        title: "Languages & Frameworks",
+        icon: SVG_CODE,
+        items: langMatches,
+      });
+    }
+    if (issueMatches.length > 0) {
+      groups.push({
+        key: "issue",
+        title: "Issues",
+        icon: SVG_DOC,
+        items: issueMatches,
+      });
+    }
+    if (authorMatches.length > 0) {
+      groups.push({
+        key: "author",
+        title: "Authors & Organizations",
+        icon: SVG_USER,
+        items: authorMatches,
+      });
+    }
+
+    if (issues.length === 0) {
+      el("issues").innerHTML = `<div class="empty-feed"><p>No issues found matching "${escapeHtml(currentSearchQuery)}". Try searching for another language, repository, or topic.</p></div>`;
+    } else {
+      const activeGroups =
+        searchCategory === "ALL"
+          ? groups
+          : groups.filter((g) => g.key === searchCategory);
+
+      el("issues").innerHTML = `
+        <div class="search-results-container">
+          ${groups.length > 0 ? `
+            <div class="search-category-tabs">
+              <button
+                type="button"
+                class="search-category-tab ${searchCategory === "ALL" ? "active" : ""}"
+                data-cat="ALL"
+              >
+                ${SVG_ALL}
+                <span>All</span>
+                <span class="search-category-badge">${issues.length}</span>
+              </button>
+              ${groups
+                .map(
+                  (group) => `
+                <button
+                  type="button"
+                  class="search-category-tab ${searchCategory === group.key ? "active" : ""}"
+                  data-cat="${group.key}"
+                >
+                  ${group.icon}
+                  <span>${group.title}</span>
+                  <span class="search-category-badge">${group.items.length}</span>
+                </button>
+              `,
+                )
+                .join("")}
+            </div>
+          ` : ""}
+
+          ${activeGroups
+            .map((group) => {
+              const isExpanded =
+                Boolean(expandedCategories[group.key]) ||
+                searchCategory !== "ALL";
+              const visibleItems = isExpanded
+                ? group.items
+                : group.items.slice(0, 3);
+              const hasMoreInCategory = group.items.length > 3;
+
+              return `
+                <div class="search-category-section">
+                  <div class="search-category-header">
+                    <div class="search-category-title">
+                      <span class="category-header-icon">${group.icon}</span>
+                      <h3>${group.title}</h3>
+                      <span class="category-header-count">${group.items.length}</span>
+                    </div>
+                    ${hasMoreInCategory && searchCategory === "ALL" ? `
+                      <button
+                        type="button"
+                        class="category-expand-btn"
+                        data-toggle-cat="${group.key}"
+                      >
+                        ${isExpanded ? `Show fewer ${SVG_CHEVRON_UP}` : `Show all ${group.items.length} ${SVG_CHEVRON_DOWN}`}
+                      </button>
+                    ` : ""}
+                  </div>
+
+                  <div class="issue-feed">
+                    ${visibleItems.map(renderIssueCardHtml).join("")}
+                  </div>
+
+                  ${hasMoreInCategory && searchCategory === "ALL" ? `
+                    <div class="category-footer">
+                      <button
+                        type="button"
+                        class="category-toggle-more-btn"
+                        data-toggle-cat="${group.key}"
+                      >
+                        ${isExpanded ? `Show fewer results ${SVG_CHEVRON_UP}` : `Show ${group.items.length - 3} more in ${group.title} ${SVG_CHEVRON_DOWN}`}
+                      </button>
+                    </div>
+                  ` : ""}
                 </div>
-                <div class="pill-group-middle">
-                  <span class="pill light">${escapeHtml(issue.language || "Open source")}</span>
-                  ${(issue.technologies || [])
-                    .filter(
-                      (tech) =>
-                        !issue.language ||
-                        tech.toLowerCase() !== issue.language.toLowerCase(),
-                    )
-                    .slice(0, 2)
-                    .map(
-                      (tech) =>
-                        `<span class="pill light">${escapeHtml(tech)}</span>`,
-                    )
-                    .join("")}
-                </div>
-                <div class="pill-group-right">
-                  <button class="view-issue-btn view-issue" data-id="${issue.id}">View Issue</button>
-                  <button class="save-icon-btn save ${saved(issue) ? "saved" : ""}" data-save="${issue.id}" title="${saved(issue) ? "Remove saved issue" : "Save issue"}">
-                    ${saved(issue) ? SVG_BOOKMARK_SAVED : SVG_BOOKMARK}
-                  </button>
-                </div>
-              </div>
-            </article>`,
-        )
-        .join("")
-    : '<div class="loading">Nothing here yet.</div>';
+              `;
+            })
+            .join("")}
+        </div>
+      `;
+    }
+  } else {
+    el("issues").innerHTML = visible.length
+      ? visible.map(renderIssueCardHtml).join("")
+      : '<div class="loading">Nothing here yet.</div>';
+  }
+
+  // Category tab clicks
+  el("issues")
+    .querySelectorAll(".search-category-tab")
+    .forEach((btn) =>
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        searchCategory = btn.dataset.cat || "ALL";
+        renderIssues();
+      }),
+    );
+
+  // Show more / show fewer toggles
+  el("issues")
+    .querySelectorAll("[data-toggle-cat]")
+    .forEach((btn) =>
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const catKey = btn.dataset.toggleCat;
+        if (catKey) {
+          expandedCategories[catKey] = !expandedCategories[catKey];
+          renderIssues();
+        }
+      }),
+    );
 
   el("issues")
     .querySelectorAll(".issue-card")
@@ -590,7 +816,7 @@ async function toggleSave(issue) {
         method: "POST",
         body: JSON.stringify({ issue_id: issue.id }),
       });
-    await loadIssues();
+    await loadIssues(currentSearchQuery, currentPage);
   } catch (error) {
     showResult(error.message, true);
   }
@@ -1073,24 +1299,26 @@ async function confirmPushPR() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  el("search-button")?.addEventListener("click", () => {
+  const doSearch = () => {
+    const q = el("search") ? el("search").value.trim() : "";
+    currentPage = 1;
+    searchCategory = "ALL";
+    expandedCategories = {};
     showRunnerProgress(true);
-    loadIssues(el("search").value.trim()).finally(() =>
-      showRunnerProgress(false),
-    );
-  });
+    loadIssues(q, 1).finally(() => showRunnerProgress(false));
+  };
+
+  el("search-button")?.addEventListener("click", doSearch);
   el("search")?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      showRunnerProgress(true);
-      loadIssues(el("search").value.trim()).finally(() =>
-        showRunnerProgress(false),
-      );
-    }
+    if (event.key === "Enter") doSearch();
   });
   el("clear-search")?.addEventListener("click", () => {
-    el("search").value = "";
+    if (el("search")) el("search").value = "";
+    currentPage = 1;
+    searchCategory = "ALL";
+    expandedCategories = {};
     showRunnerProgress(true);
-    loadIssues().finally(() => showRunnerProgress(false));
+    loadIssues("", 1).finally(() => showRunnerProgress(false));
   });
 
   el("edit-preferences")?.addEventListener("click", openPreferencesModal);
@@ -1397,6 +1625,45 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
   });
+  // Difficulty sub-tabs
+  document.querySelectorAll(".difficulty-tab").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll(".difficulty-tab").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      difficultyFilter = btn.dataset.diff || "";
+      currentPage = 1;
+      showRunnerProgress(true);
+      loadIssues(currentSearchQuery, 1).finally(() => showRunnerProgress(false));
+    });
+  });
+
+  // Pagination navigation buttons
+  el("prev-page-btn")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (currentPage > 1) {
+      currentPage--;
+      showRunnerProgress(true);
+      loadIssues(currentSearchQuery, currentPage).finally(() => {
+        showRunnerProgress(false);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    }
+  });
+
+  el("next-page-btn")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (hasMorePages) {
+      currentPage++;
+      showRunnerProgress(true);
+      loadIssues(currentSearchQuery, currentPage).finally(() => {
+        showRunnerProgress(false);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    }
+  });
+
   document.querySelectorAll(".counts button").forEach((button) =>
     button.addEventListener("click", (e) => {
       e.preventDefault();
@@ -1407,6 +1674,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .forEach((item) => item.classList.remove("active"));
       targetBtn.classList.add("active");
       activeTab = targetBtn.dataset.tab;
+      updatePaginationUI();
       showToast(`Tab switched to ${targetBtn.textContent.trim()}`);
       renderIssues();
     }),
