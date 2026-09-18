@@ -30,7 +30,7 @@ services:
 
   go-api:
     build:
-      context: ./go
+      context: ./backend
       dockerfile: cmd/api/Dockerfile
     restart: unless-stopped
     environment:
@@ -61,7 +61,7 @@ services:
 
   syncd:
     build:
-      context: ./go
+      context: ./backend
       dockerfile: cmd/syncd/Dockerfile
     restart: unless-stopped
     environment:
@@ -87,7 +87,7 @@ services:
 
   worker:
     build:
-      context: ./go
+      context: ./backend
       dockerfile: cmd/worker/Dockerfile
     restart: unless-stopped
     environment:
@@ -102,7 +102,7 @@ services:
 
   frontend:
     build:
-      context: ./frontend
+      context: ./web
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:

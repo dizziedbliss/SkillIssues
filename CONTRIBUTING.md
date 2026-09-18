@@ -45,7 +45,7 @@ Ensure you have the following installed locally:
 
 ```text
 SkillIssues/
-├── go/                          # Pure Go microservices & business logic
+├── backend/                     # Pure Go microservices & business logic
 │   ├── cmd/
 │   │   ├── api/                 # Primary API Gateway (:8000)
 │   │   ├── syncd/               # Sync Coordinator & GitHub GraphQL engine (:8002)
@@ -65,23 +65,24 @@ SkillIssues/
 │   │   ├── progression/         # XP, level, and badge calculation
 │   │   ├── recommendation/      # Deterministic issue matcher
 │   │   └── sync/                # Sync algorithms & worker pools
-│   ├── migrations/              # Incremental database migrations (001 - 006)
 │   └── integration_test.go      # Go API & integration tests
-├── electron/                    # Desktop companion application
+├── desktop/                     # Desktop companion application (Electron)
 │   ├── main.js                  # Frameless window, Git engine, IPC handlers
 │   ├── preload.js               # Context-isolated secure bridge
 │   ├── renderer.html            # Native desktop markup
 │   ├── renderer.js              # UI controller, categorized search, pagination
 │   └── renderer.css             # Himalayas/lavender frameless styling
-├── frontend/                    # Web application (React 18 + Vite + TypeScript)
+├── web/                         # Web application (React 18 + Vite + TypeScript)
 │   ├── src/
 │   │   ├── LandingView.tsx      # Promotional 3D pipeline flowchart & hero
 │   │   ├── main.tsx             # App root, catalog feed, modal & routing
 │   │   └── styles.css           # Design system (lavender/deep purple theme)
 │   ├── vite.config.ts           # Vite bundler configuration
 │   └── Dockerfile               # Production container definition
-├── database/                    # Database baseline schemas
-│   └── schema.sql               # Authoritative PostgreSQL schema
+├── database/                    # Database baseline schemas & migrations
+│   ├── schema.sql               # Authoritative PostgreSQL schema
+│   └── migrations/              # Incremental database migrations (001 - 006)
+├── data/                        # Datasets & offline catalog archives
 ├── k8s/                         # Kubernetes deployment manifests
 ├── compose.yaml                 # Core development Docker Compose stack
 ├── docker-compose.prod.yml      # Production stack with Nginx proxy
@@ -136,7 +137,7 @@ docker compose up -d postgres redis
 #### 2. Run Go Services Locally
 In one terminal, launch the Go API Gateway:
 ```bash
-cd go
+cd backend
 export DATABASE_URL="postgresql://skillissues:skillissues@localhost:5432/skillissues"
 export REDIS_URL="redis://localhost:6379/0"
 export FRONTEND_URL="http://localhost:5173"
@@ -147,7 +148,7 @@ go run ./cmd/api
 
 In another terminal, optionally run `syncd`:
 ```bash
-cd go
+cd backend
 export DATABASE_URL="postgresql://skillissues:skillissues@localhost:5432/skillissues"
 export REDIS_URL="redis://localhost:6379/0"
 export GITHUB_TOKEN="ghp_your_token_here"
@@ -155,22 +156,22 @@ export PORT=8002
 go run ./cmd/syncd
 ```
 
-#### 3. Run Frontend Web App Locally
+#### 3. Run Web App Locally
 In a third terminal:
 ```bash
-cd frontend
+cd web
 npm install
 npm run dev
 ```
 
 ---
 
-### Running the Electron Desktop App
+### Running the Desktop App
 
 The Electron desktop client communicates with the running API Gateway (`http://localhost:8000`):
 
 ```bash
-cd electron
+cd desktop
 npm install
 npm start
 ```
@@ -184,13 +185,13 @@ Before submitting any pull request, make sure all test suites pass locally.
 ### Go Backend Tests
 Run the Go unit, integration, and contract tests:
 ```bash
-cd go
+cd backend
 go test -v ./...
 ```
 
 To format Go code according to Go standards:
 ```bash
-cd go
+cd backend
 go fmt ./...
 go vet ./...
 ```
@@ -198,14 +199,14 @@ go vet ./...
 ### Frontend Web Verification
 Ensure TypeScript compilation and Vite production bundle pass with zero errors:
 ```bash
-cd frontend
+cd web
 npm run build
 ```
 
-### Electron Desktop Verification
+### Desktop App Verification
 Verify Electron JavaScript syntax:
 ```bash
-cd electron
+cd desktop
 npm run check
 ```
 
@@ -280,7 +281,7 @@ git commit -m "feat(issue): add window CTE partitioned multi-category search"
 
 ### Database Migration Rules
 - **Never Modify Existing Migrations**: Once a migration has been committed, never edit it.
-- **Create Incremental Migrations**: Add new numbered migrations in `go/migrations/` with paired `<number>_<name>.up.sql` and `<number>_<name>.down.sql` files.
+- **Create Incremental Migrations**: Add new numbered migrations in `database/migrations/` with paired `<number>_<name>.up.sql` and `<number>_<name>.down.sql` files.
 - **Safe DDL**: Ensure migrations use `IF NOT EXISTS` or idempotent constraints where applicable.
 
 ---
