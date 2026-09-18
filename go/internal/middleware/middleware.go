@@ -215,15 +215,60 @@ func resolveSession(r *http.Request, authSvc *auth.Service, c *cache.Client) (in
 // CORS
 // ---------------------------------------------------------------------------
 
-// CORS sets the appropriate CORS headers for the given allowed origin.
-// Credentials are enabled to support cookie-based session authentication.
+// isAllowedOrigin checks if the incoming request origin matches allowed patterns.
+func isAllowedOrigin(origin, frontendURL string) bool {
+	if origin == "" {
+		return false
+	}
+	cleanOrigin := strings.TrimRight(strings.ToLower(strings.TrimSpace(origin)), "/")
+	cleanFrontend := strings.TrimRight(strings.ToLower(strings.TrimSpace(frontendURL)), "/")
+
+	// Check against configured frontendURL (supports comma-separated origins)
+	for _, allowed := range strings.Split(cleanFrontend, ",") {
+		cleanAllowed := strings.TrimRight(strings.ToLower(strings.TrimSpace(allowed)), "/")
+		if cleanAllowed != "" && cleanOrigin == cleanAllowed {
+			return true
+		}
+	}
+
+	// Localhost and loopback development origins (any port)
+	if strings.HasPrefix(cleanOrigin, "http://localhost:") ||
+		cleanOrigin == "http://localhost" ||
+		strings.HasPrefix(cleanOrigin, "http://127.0.0.1:") ||
+		cleanOrigin == "http://127.0.0.1" ||
+		strings.HasPrefix(cleanOrigin, "https://localhost:") ||
+		cleanOrigin == "https://localhost" {
+		return true
+	}
+
+	// Production and staging SkillIssues domains
+	if cleanOrigin == "https://skillissues.com" ||
+		cleanOrigin == "https://www.skillissues.com" ||
+		cleanOrigin == "https://app.skillissues.com" ||
+		strings.HasSuffix(cleanOrigin, ".skillissues.com") {
+		return true
+	}
+
+	return false
+}
+
+// CORS sets the appropriate CORS headers for the incoming request origin.
+// Credentials are enabled to support cookie-based and header session authentication.
 func CORS(frontendURL string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", frontendURL)
+			origin := r.Header.Get("Origin")
+			allowedOrigin := frontendURL
+			if isAllowedOrigin(origin, frontendURL) {
+				allowedOrigin = origin
+			}
+
+			w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
+			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Accept,Authorization,Content-Type,Content-Length,Origin,X-Requested-With")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+			w.Header().Set("Vary", "Origin")
 
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
