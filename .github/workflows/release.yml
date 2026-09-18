@@ -20,32 +20,32 @@ jobs:
           node-version: '22'
       - name: Install Dependencies
         run: |
-          cd electron
+          cd desktop
           npm ci
       - name: Package Windows Executable
         if: matrix.os == 'windows-latest'
         run: |
-          cd electron
+          cd desktop
           npm run dist:win
       - name: Package Linux AppImage
         if: matrix.os == 'ubuntu-latest'
         run: |
-          cd electron
+          cd desktop
           npm run dist:linux
       - name: Package macOS DMG
         if: matrix.os == 'macos-latest'
         run: |
-          cd electron
+          cd desktop
           npm run dist:mac
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: electron-${{ matrix.os }}
           path: |
-            electron/dist/*.exe
-            electron/dist/*.AppImage
-            electron/dist/*.dmg
-            electron/dist/*.zip
+            desktop/dist/*.exe
+            desktop/dist/*.AppImage
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
 
   create-release:
     name: Create GitHub Release
@@ -64,17 +64,6 @@ jobs:
         with:
           name: SkillIssues ${{ github.ref_name }}
           body: |
-            ## SkillIssues ${{ github.ref_name }} Release
-            
-            Welcome to the official production release of **SkillIssues** — the intelligent developer issue matching and desktop contribution engine.
-            
-            ### Highlights
-            - **AWS Dark Theme**: High-contrast, crystal-clear developer interface with Inter and JetBrains Mono typography.
-            - **Desktop App Suite**: Native workspace creation, automated branch handling, live Git progress tracker, and VS Code 1-click launcher.
-            - **Web-to-Desktop Deep Linking**: Browse issues on the web and immediately start solving them inside the desktop client via `skillissues://`.
-            - **1,690+ Curated Issues**: Pre-indexed catalog of real open-source issues with difficulty ratings and author metadata.
-            - **Enterprise Security**: Subprocess injection protections, strict workspace sandboxing, and token digests.
-            
             ### Download Desktop Client
             Download the installer for your operating system below!
           draft: false
