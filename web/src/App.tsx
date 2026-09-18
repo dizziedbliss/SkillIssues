@@ -808,14 +808,14 @@ export function App() {
           <nav className="web-header-nav">
             <button
               type="button"
-              className={`nav-link-btn ${view === "Overview" ? "active" : ""}`}
+              className="nav-link-btn"
               onClick={() => setView("Overview")}
             >
               Overview
             </button>
             <button
               type="button"
-              className={`nav-link-btn ${view !== "Overview" ? "active" : ""}`}
+              className={`nav-link-btn ${view === "SkillIssues" ? "active" : ""}`}
               onClick={() => setView("SkillIssues")}
             >
               Challenges
