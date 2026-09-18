@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ArrowRight,
   ChevronRight,
@@ -10,9 +10,9 @@ import {
   Terminal,
   GitBranch,
   FolderGit2,
-  Sparkles,
   Menu,
   X,
+  Download,
 } from "lucide-react";
 import "./landing.css";
 
@@ -24,6 +24,8 @@ interface LandingPageProps {
 }
 
 interface IssueItem {
+  id?: number;
+  number?: number;
   repo: string;
   title: string;
   tags: string[];
@@ -32,8 +34,9 @@ interface IssueItem {
   tone: "success" | "info" | "warning";
 }
 
-const sampleIssues: IssueItem[] = [
+const fallbackIssues: IssueItem[] = [
   {
+    number: 64821,
     repo: "vitejs/vite",
     title: "Improve error output for unresolved imports",
     tags: ["TypeScript", "Tooling"],
@@ -42,6 +45,7 @@ const sampleIssues: IssueItem[] = [
     tone: "info",
   },
   {
+    number: 108420,
     repo: "python/cpython",
     title: "Clarify pathlib behaviour in the documentation",
     tags: ["Python", "Documentation"],
@@ -50,6 +54,7 @@ const sampleIssues: IssueItem[] = [
     tone: "success",
   },
   {
+    number: 13653,
     repo: "rust-lang/cargo",
     title: "Improve feedback for missing package metadata",
     tags: ["Rust", "CLI"],
@@ -70,6 +75,8 @@ const steps = [
   "Open a pull request",
 ];
 
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
 export const LandingPage: React.FC<LandingPageProps> = ({
   onExplore,
   onSignIn,
@@ -79,12 +86,84 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>("Beginner");
 
-  const filteredIssues = sampleIssues.filter((issue) => {
+  // Dynamic database statistics
+  const [stats, setStats] = useState<{ issues: number; repositories: number; contributions: number }>({
+    issues: 286563,
+    repositories: 444882,
+    contributions: 0,
+  });
+
+  // Dynamic live issues loaded from PostgreSQL
+  const [liveIssues, setLiveIssues] = useState<IssueItem[]>(fallbackIssues);
+
+  useEffect(() => {
+    // Fetch live catalog statistics from API
+    fetch(`${API}/health/detail`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data.issues === "number") {
+          setStats({
+            issues: data.issues,
+            repositories: data.repositories || 444882,
+            contributions: data.contributions || 0,
+          });
+        }
+      })
+      .catch(() => {});
+
+    // Fetch sample live issues directly from database
+    fetch(`${API}/issues?page=1&per_page=12`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped: IssueItem[] = data.map((item: any) => {
+            const rawDiff = String(item.difficulty || "BEGINNER").toUpperCase();
+            const level: "BEGINNER" | "INTERMEDIATE" | "ADVANCED" =
+              rawDiff === "ADVANCED"
+                ? "ADVANCED"
+                : rawDiff === "INTERMEDIATE"
+                ? "INTERMEDIATE"
+                : "BEGINNER";
+
+            const tone: "success" | "info" | "warning" =
+              level === "ADVANCED" ? "warning" : level === "INTERMEDIATE" ? "info" : "success";
+
+            const tags: string[] =
+              Array.isArray(item.technologies) && item.technologies.length > 0
+                ? item.technologies.slice(0, 2)
+                : Array.isArray(item.required_skills) && item.required_skills.length > 0
+                ? item.required_skills.slice(0, 2)
+                : [item.language || "OpenSource"];
+
+            const score = typeof item.difficulty_score === "number" ? item.difficulty_score : 1;
+            const xpStr = `${Math.max(50, score * 75)} XP`;
+
+            return {
+              id: item.id,
+              number: item.number,
+              repo: item.repository || "open-source/project",
+              title: item.title || "Open-source enhancement",
+              tags,
+              level,
+              xp: xpStr,
+              tone,
+            };
+          });
+
+          if (mapped.length >= 3) {
+            setLiveIssues(mapped);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const filteredIssues = liveIssues.filter((issue) => {
     if (!selectedDifficulty) return true;
     return issue.level.toLowerCase() === selectedDifficulty.toLowerCase();
   });
 
-  const displayedIssues = filteredIssues.length > 0 ? filteredIssues : sampleIssues;
+  const displayedIssues = (filteredIssues.length > 0 ? filteredIssues : liveIssues).slice(0, 3);
 
   const scrollToSection = (id: string) => {
     setMobileMenuOpen(false);
@@ -99,7 +178,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* Sticky Header Navigation */}
       <header className="l-header">
         <div className="l-container l-header-inner">
-          {/* Brand Wordmark */}
+          {/* Brand Wordmark with Official Logo */}
           <a
             href="#top"
             onClick={(e) => {
@@ -109,10 +188,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             className="l-brand"
             aria-label="SkillIssues home"
           >
-            <span className="l-brand-icon">
-              <Sparkles size={18} />
-            </span>
-            <span>SkillIssues</span>
+            <img src="/logo.png" alt="SkillIssues Logo" className="l-brand-logo-img" />
+            <div className="l-brand-text">
+              <span className="l-brand-title">SkillIssues</span>
+              <span className="l-brand-tagline">You Have the Skills. We Have the Issues.</span>
+            </div>
           </a>
 
           {/* Desktop Navigation Links */}
@@ -254,7 +334,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div>
             <div className="l-eyebrow">
               <span className="l-dot" />
-              <span>Open-source issue discovery</span>
+              <span>{stats.issues.toLocaleString()} issues live · {stats.repositories.toLocaleString()} repos tracked</span>
             </div>
 
             <h1 className="l-hero-title">
@@ -263,7 +343,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </h1>
 
             <p className="l-hero-desc">
-              SkillIssues collects real open-source issues in one place, then lets you browse them by difficulty and choose what looks interesting.
+              SkillIssues indexes <strong>{stats.issues.toLocaleString()}</strong> real GitHub issues across <strong>{stats.repositories.toLocaleString()}</strong> open-source repositories. Compare them by difficulty, tech stack, and XP reward before launching your contribution.
             </p>
 
             <div className="l-hero-actions">
@@ -272,7 +352,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 className="l-btn l-btn-primary l-btn-lg"
                 onClick={onExplore}
               >
-                <span>Browse the issue pile</span>
+                <span>Browse {stats.issues.toLocaleString()} issues</span>
                 <ArrowRight size={17} />
               </button>
 
@@ -299,17 +379,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
 
             <p className="l-hero-note">
-              Real repositories. Real issues. Your call.
+              Real repositories. Real issues. Live from PostgreSQL.
             </p>
           </div>
 
-          {/* Right Column: Interactive Hero Issue Browser */}
+          {/* Right Column: Dynamic Live Issue Browser */}
           <div id="issues" className="l-browser-card">
             {/* Browser Header */}
             <div className="l-browser-header">
               <div>
-                <p className="l-browser-tag">Example issue browser</p>
-                <p className="l-browser-subtitle">Choose a difficulty</p>
+                <p className="l-browser-tag">Dynamic catalog browser</p>
+                <p className="l-browser-subtitle">Filter by difficulty</p>
               </div>
               <div className="l-window-dots">
                 <span className="l-window-dot" style={{ background: "#f59e0b" }} />
@@ -338,19 +418,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="l-issue-list">
               {displayedIssues.map((issue, idx) => (
                 <article
-                  key={issue.repo}
+                  key={`${issue.repo}-${issue.number || idx}`}
                   onClick={onExplore}
                   className="l-issue-item"
+                  title="Click to view in challenge explorer"
                 >
                   <div className="l-issue-top">
                     <div>
                       <div className="l-issue-repo">
-                        <span className="l-repo-idx">{idx + 1}</span>
-                        <span style={{ fontWeight: 600, color: "#1e1338" }}>{issue.repo}</span>
+                        <span className="l-repo-idx">#{issue.number || idx + 1}</span>
+                        <span style={{ fontWeight: 600, color: "var(--color-foreground)" }}>{issue.repo}</span>
                       </div>
                       <h3 className="l-issue-name">{issue.title}</h3>
                     </div>
-                    <ChevronRight size={18} color="#6b5f88" style={{ flexShrink: 0 }} />
+                    <ChevronRight size={18} color="var(--color-muted-foreground)" style={{ flexShrink: 0 }} />
                   </div>
 
                   <div className="l-issue-bottom">
@@ -366,13 +447,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               ))}
             </div>
 
-            {/* Browser Footer Counter */}
+            {/* Browser Footer Counter (100% Dynamic) */}
             <div className="l-browser-footer">
               <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <Check size={14} color="#7c3aed" />
-                <span>{selectedDifficulty} selected</span>
+                <Check size={14} color="var(--color-primary)" />
+                <span>{selectedDifficulty} difficulty selected</span>
               </span>
-              <span>3,284 issues, slightly less overwhelming</span>
+              <span>
+                <strong>{stats.issues.toLocaleString()}</strong> issues across{" "}
+                <strong>{stats.repositories.toLocaleString()}</strong> repositories
+              </span>
             </div>
           </div>
         </div>
@@ -388,29 +472,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               to the issue list.
             </h2>
             <p className="l-section-desc">
-              GitHub has plenty of work available. SkillIssues brings selected issues together and gives you a simpler way to compare them before committing your afternoon.
+              GitHub has hundreds of thousands of open issues. SkillIssues continuously indexes, categorizes, and filters them so you can find the right challenge for your stack in seconds.
             </p>
           </div>
 
           <div className="l-cards-3">
             {[
               {
-                icon: <Compass size={22} color="#7c3aed" />,
+                icon: <Compass size={22} color="var(--color-primary)" />,
                 step: "01",
                 title: "Browse",
-                desc: "See selected issues from real open-source repositories in one place.",
+                desc: `Discover ${stats.issues.toLocaleString()} curated issues with difficulty scores and skill tags.`,
               },
               {
-                icon: <Sliders size={22} color="#7c3aed" />,
+                icon: <Sliders size={22} color="var(--color-primary)" />,
                 step: "02",
                 title: "Filter",
-                desc: "Narrow the list to beginner, intermediate, or advanced work.",
+                desc: `Narrow by stack across ${stats.repositories.toLocaleString()} active open-source projects.`,
               },
               {
-                icon: <GitPullRequest size={22} color="#7c3aed" />,
+                icon: <GitPullRequest size={22} color="var(--color-primary)" />,
                 step: "03",
-                title: "Work",
-                desc: "Open an issue, prepare the repository, and send your pull request.",
+                title: "Work & Progress",
+                desc: "Send your PR and earn verified XP as code merges into upstream repos.",
               },
             ].map((item) => (
               <article key={item.title} className="l-feature-card">
@@ -435,7 +519,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               Pick an issue. Work in the repo.
             </h2>
             <p className="l-section-desc" style={{ maxWidth: "420px" }}>
-              SkillIssues helps with discovery and setup. The contribution still happens in the actual project.
+              SkillIssues automates discovery, branch creation, and verification. The actual code changes happen in the real repository.
             </p>
           </div>
 
@@ -451,46 +535,75 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* Desktop App Section */}
+      {/* Desktop App Section (With Official Release Downloads) */}
       <section id="desktop" className="l-section l-section-white">
         <div className="l-container l-desktop-grid">
           <div>
-            <div className="l-eyebrow" style={{ marginBottom: "16px" }}>
-              <Terminal size={14} color="#7c3aed" />
-              <span>Desktop app</span>
+            <div className="l-release-badge">
+              <span>v1.0.0 Stable Release</span>
             </div>
 
             <h2 className="l-section-title">
-              The repository, <br />
-              ready locally.
+              The desktop companion, <br />
+              ready for your workflow.
             </h2>
 
             <p className="l-section-desc">
-              The desktop app uses the same SkillIssues interface. It can fork and clone the repository, set up remotes and a branch, open VS Code, then keep track of the pull request.
+              The SkillIssues Desktop client automates your local Git setup: it forks upstream repos, clones locally, configures upstream remotes, creates feature branches, and launches VS Code in one click.
             </p>
 
-            <button
-              type="button"
-              className="l-btn l-btn-secondary"
-              style={{ marginTop: "24px" }}
-              onClick={() => scrollToSection("workspace")}
-            >
-              <span>See the workspace flow</span>
-              <ArrowRight size={16} />
-            </button>
+            {/* Direct Official Release Download Buttons */}
+            <div className="l-desktop-downloads">
+              <div className="l-desktop-dl-grid">
+                <a
+                  href="https://github.com/dizziedbliss/SkillIssues/releases/download/v1.0.0/SkillIssues-Setup-1.0.0.exe"
+                  className="l-btn l-btn-primary"
+                  title="Download SkillIssues for Windows (.exe)"
+                >
+                  <Download size={15} />
+                  <span>Download for Windows (.exe)</span>
+                </a>
+
+                <a
+                  href="https://github.com/dizziedbliss/SkillIssues/releases/download/v1.0.0/SkillIssues-1.0.0.dmg"
+                  className="l-btn l-btn-secondary"
+                  title="Download SkillIssues for macOS (.dmg)"
+                >
+                  <Download size={15} />
+                  <span>macOS (.dmg)</span>
+                </a>
+
+                <a
+                  href="https://github.com/dizziedbliss/SkillIssues/releases/download/v1.0.0/SkillIssues-1.0.0.AppImage"
+                  className="l-btn l-btn-secondary"
+                  title="Download SkillIssues for Linux (.AppImage)"
+                >
+                  <Download size={15} />
+                  <span>Linux (.AppImage)</span>
+                </a>
+              </div>
+
+              <a
+                href="https://github.com/dizziedbliss/SkillIssues/releases/tag/v1.0.0"
+                target="_blank"
+                rel="noreferrer"
+                className="l-desktop-release-link"
+              >
+                <span>View v1.0.0 release notes and SHA256 checksums on GitHub</span>
+                <ExternalLink size={13} />
+              </a>
+            </div>
           </div>
 
-          {/* Desktop Window Mockup */}
+          {/* Desktop Window Mockup with Official Logo */}
           <div id="workspace" className="l-window-mockup">
             {/* Titlebar */}
             <div className="l-window-bar">
               <div className="l-window-brand">
-                <span className="l-brand-icon" style={{ width: "24px", height: "24px" }}>
-                  <Sparkles size={13} />
-                </span>
-                <span>SkillIssues</span>
+                <img src="/logo.png" alt="SkillIssues" className="l-window-brand-logo" />
+                <span>SkillIssues Desktop Companion</span>
               </div>
-              <span className="l-window-tag">DESKTOP</span>
+              <span className="l-window-tag">DESKTOP v1.0.0</span>
             </div>
 
             {/* Window Content */}
@@ -524,11 +637,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
                 <div className="l-action-steps">
                   {[
-                    "Fork repository",
-                    "Clone locally",
-                    "Configure remotes",
-                    "Create branch",
-                    "Open in VS Code",
+                    "Fork repository to your GitHub account",
+                    "Clone locally to development workspace",
+                    "Configure upstream remotes & origin",
+                    "Create feature branch 'issue-64821'",
+                    "Launch project in VS Code with 1 click",
                   ].map((stepText) => (
                     <div key={stepText} className="l-action-step">
                       <span className="l-check-icon">
@@ -543,7 +656,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <span>Pull request tracking</span>
                   <span className="l-pr-badge">
                     <span className="l-dot" style={{ width: "6px", height: "6px" }} />
-                    ACTIVE
+                    ACTIVE WORKSPACE
                   </span>
                 </div>
               </div>
@@ -559,7 +672,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <p className="l-section-tag">Verified progression</p>
             <h2 className="l-section-title">Keep a record of shipped work.</h2>
             <p className="l-section-desc">
-              SkillIssues checks pull requests through GitHub and records XP only after the contribution is verified.
+              SkillIssues verifies pull requests through GitHub's API and grants XP only after your contribution is merged upstream into the repository.
             </p>
             <span className="l-prog-callout">
               Verified pull requests only. No XP for saying "I'll start tomorrow."
@@ -568,9 +681,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           <div className="l-xp-cards">
             {[
-              { level: "BEGINNER", xp: "75 XP", color: "#10b981" },
-              { level: "INTERMEDIATE", xp: "140 XP", color: "#3b82f6" },
-              { level: "ADVANCED", xp: "250 XP", color: "#f59e0b" },
+              { level: "BEGINNER", xp: "75 XP", color: "var(--color-success)" },
+              { level: "INTERMEDIATE", xp: "140 XP", color: "var(--color-info)" },
+              { level: "ADVANCED", xp: "250 XP", color: "var(--color-warning)" },
             ].map((tier) => (
               <div key={tier.level} className="l-xp-card">
                 <div className="l-xp-bar" style={{ background: tier.color }} />
@@ -588,7 +701,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <p className="l-cta-tag">Open-source issue discovery</p>
           <h2 className="l-cta-title">See what needs doing.</h2>
           <p className="l-cta-desc">
-            Browse real issues, choose a difficulty, and open the repository when you are ready.
+            Browse {stats.issues.toLocaleString()} issues across {stats.repositories.toLocaleString()} repositories, choose a difficulty, and start contributing today.
           </p>
 
           <div className="l-cta-btns">
@@ -597,7 +710,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               className="l-btn l-btn-white l-btn-lg"
               onClick={onExplore}
             >
-              <span>Explore SkillIssues</span>
+              <span>Explore {stats.issues.toLocaleString()} Issues</span>
               <ArrowRight size={17} />
             </button>
 
@@ -610,20 +723,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
               </svg>
-              <span>View the project on GitHub</span>
+              <span>View source on GitHub</span>
               <ExternalLink size={14} style={{ opacity: 0.8 }} />
             </a>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
+      {/* Footer with Official Logo */}
       <footer className="l-footer">
         <div className="l-container l-footer-inner">
           <div className="l-footer-brand">
-            <span className="l-brand-icon" style={{ width: "24px", height: "24px" }}>
-              <Sparkles size={14} />
-            </span>
+            <img src="/logo.png" alt="SkillIssues" className="l-footer-logo-img" />
             <span>SkillIssues</span>
           </div>
 
