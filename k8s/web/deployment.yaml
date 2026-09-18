@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skillissues-frontend
+  namespace: skillissues
+  labels:
+    app: skillissues-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: skillissues-frontend
+  template:
+    metadata:
+      labels:
+        app: skillissues-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: skillissues-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5173
+              name: http
+          env:
+            - name: VITE_API_URL
+              value: "https://api.skillissues.com"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5173
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5173
+            initialDelaySeconds: 10
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: skillissues-frontend
+  namespace: skillissues
+  labels:
+    app: skillissues-frontend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5173
+      targetPort: 5173
+      name: http
+  selector:
+    app: skillissues-frontend

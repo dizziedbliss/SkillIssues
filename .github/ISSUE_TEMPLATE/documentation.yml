@@ -1,0 +1,41 @@
+name: 📚 Documentation improvement
+description: Spot a typo, an outdated command, or an explanation that made you lose five minutes of your life?
+title: "[Docs]: "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Great docs make everyone's lives better. Thanks for helping us keep things accurate and clear!
+
+  - type: textarea
+    id: location
+    attributes:
+      label: Where is the confusing or missing documentation?
+      description: Provide the file path, section heading, or URL.
+      placeholder: "README.md under 'Start the stack', or CONTRIBUTING.md section 3..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What needs fixing?
+      description: What is inaccurate, ambiguous, or missing?
+      placeholder: "The command mentions X, but on Windows/Linux it actually requires Y..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested wording or solution
+      description: How could we phrase or structure it better?
+      placeholder: "Replace the command with '...' or add a note about..."
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Willing to open a PR?
+      options:
+        - label: I would love to submit a quick PR to fix this!
