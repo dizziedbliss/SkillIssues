@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS users (
   created_at          TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users (lower(username));
+
 -- Active user sessions — token is a SHA-256 hash of the raw bearer token
 CREATE TABLE IF NOT EXISTS auth_sessions (
   token      TEXT        PRIMARY KEY,

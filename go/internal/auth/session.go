@@ -193,21 +193,56 @@ func VerifyWebhookSignature(secret, body []byte, sigHeader string) bool {
 // Returns the database user ID.
 func (s *Service) UpsertUser(ctx context.Context, githubID, username, avatarURL, accessToken string) (int, error) {
 	var userID int
-	err := s.db.ExecReturning(ctx,
-		`INSERT INTO users (github_id, username, avatar_url, github_access_token)
-		 VALUES ($1, $2, $3, $4)
-		 ON CONFLICT (github_id) DO UPDATE
-		   SET username            = EXCLUDED.username,
-		       avatar_url          = EXCLUDED.avatar_url,
-		       github_access_token = EXCLUDED.github_access_token
-		 RETURNING id`,
-		[]any{githubID, username, avatarURL, accessToken},
+
+	// First, attempt to match an existing user record by GitHub ID or case-insensitive username
+	var existingID int
+	err := s.db.QueryRow(ctx,
+		`SELECT id FROM users 
+		 WHERE ($1 != '' AND github_id = $1) OR lower(username) = lower($2) 
+		 ORDER BY CASE WHEN github_id = $1 THEN 0 ELSE 1 END, id ASC 
+		 LIMIT 1`,
+		[]any{githubID, username},
 		func(row pgx.Row) error {
-			return row.Scan(&userID)
+			return row.Scan(&existingID)
 		},
 	)
-	if err != nil {
-		return 0, fmt.Errorf("auth: upsert user: %w", err)
+
+	if err == nil && existingID > 0 {
+		// Existing account found: merge and link GitHub ID, update token, avatar, and username
+		err = s.db.ExecReturning(ctx,
+			`UPDATE users 
+			 SET github_id           = COALESCE(NULLIF($1, ''), github_id),
+			     username            = $2,
+			     avatar_url          = COALESCE(NULLIF($3, ''), avatar_url),
+			     github_access_token = COALESCE(NULLIF($4, ''), github_access_token)
+			 WHERE id = $5
+			 RETURNING id`,
+			[]any{githubID, username, avatarURL, accessToken, existingID},
+			func(row pgx.Row) error {
+				return row.Scan(&userID)
+			},
+		)
+		if err != nil {
+			return 0, fmt.Errorf("auth: update linked user: %w", err)
+		}
+	} else {
+		// New account: insert new user
+		err = s.db.ExecReturning(ctx,
+			`INSERT INTO users (github_id, username, avatar_url, github_access_token)
+			 VALUES ($1, $2, $3, $4)
+			 ON CONFLICT (github_id) DO UPDATE
+			   SET username            = EXCLUDED.username,
+			       avatar_url          = EXCLUDED.avatar_url,
+			       github_access_token = EXCLUDED.github_access_token
+			 RETURNING id`,
+			[]any{githubID, username, avatarURL, accessToken},
+			func(row pgx.Row) error {
+				return row.Scan(&userID)
+			},
+		)
+		if err != nil {
+			return 0, fmt.Errorf("auth: insert user: %w", err)
+		}
 	}
 
 	// Ensure developer_profiles and developer_preferences rows exist (idempotent).
