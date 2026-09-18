@@ -13,11 +13,18 @@ import { StrictMode, useEffect, useState } from "react";
 import {
   ArrowLeft,
   Bookmark,
+  ChevronDown,
+  ChevronUp,
+  Code2,
   ExternalLink,
+  FileText,
+  FolderGit2,
+  Layers,
   LogOut,
   MessageCircle,
   Pencil,
   Search,
+  User as UserIcon,
   X,
 } from "lucide-react";
 import "./styles.css";
@@ -398,13 +405,14 @@ function App() {
   const [hasMore, setHasMore] = useState(false);
   const [selected, setSelected] = useState<Issue | null>(null);
   const [query, setQuery] = useState("");
+  const [searchCategory, setSearchCategory] = useState<string>("ALL");
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [oauthError, setOAuthError] = useState("");
   const [editing, setEditing] = useState(false);
   const [bio, setBio] = useState("");
   const [selectedLangs, setSelectedLangs] = useState<string[]>([]);
-  const [targetLevel, setTargetLevel] = useState("INTERMEDIATE");
   const [availableOptions, setAvailableOptions] = useState<string[]>([]);
   const [prefSearch, setPrefSearch] = useState("");
 
@@ -427,7 +435,6 @@ function App() {
       setProfile(user);
       setBio(user.bio || "");
       setSelectedLangs(user.preferred_languages || []);
-      setTargetLevel(user.target_level || "INTERMEDIATE");
       setSavedIssues(saved || []);
       setWorking(current || []);
       setSubmissions((submitted || []).filter((item) => item.state !== "STARTED"));
@@ -444,16 +451,18 @@ function App() {
 
   async function loadIssues(pageNum = page, diff = difficultyFilter, searchKeyword = query) {
     try {
-      let url = `/issues?limit=20&page=${pageNum}`;
+      const isSearch = Boolean(searchKeyword.trim());
+      const limit = isSearch ? 50 : 20;
+      let url = `/issues?limit=${limit}&page=${pageNum}`;
       if (diff !== "ALL") {
         url += `&difficulty=${diff}`;
       }
-      if (searchKeyword.trim()) {
+      if (isSearch) {
         url += `&search=${encodeURIComponent(searchKeyword.trim())}`;
       }
       const data = await request<Issue[]>(url);
       setIssues(data || []);
-      setHasMore((data || []).length === 20);
+      setHasMore((data || []).length === limit);
     } catch {
       setIssues([]);
       setHasMore(false);
@@ -468,6 +477,8 @@ function App() {
   async function handleSearch(e?: React.FormEvent) {
     if (e) e.preventDefault();
     setPage(1);
+    setSearchCategory("ALL");
+    setExpandedCategories({});
     await loadIssues(1, difficultyFilter, query);
   }
 
@@ -587,8 +598,8 @@ function App() {
         method: "PUT",
         body: JSON.stringify({
           bio,
-          experience_level: "BEGINNER",
-          target_level: targetLevel,
+          experience_level: profile.experience_level || "BEGINNER",
+          target_level: profile.target_level || "INTERMEDIATE",
           interests: profile.interests,
           preferred_languages: selectedLangs,
         }),
@@ -709,6 +720,72 @@ function App() {
   }
 
   const displayed = view === "Saved" ? savedIssues : issues;
+  const isSearchActive = Boolean(query.trim()) && view === "SkillIssues";
+
+  const searchCategoryGroups = (() => {
+    if (!isSearchActive) return [];
+
+    const repoMatches: Issue[] = [];
+    const langMatches: Issue[] = [];
+    const issueMatches: Issue[] = [];
+    const authorMatches: Issue[] = [];
+
+    for (const it of displayed) {
+      const cat = (it.match_category || "").toLowerCase();
+      if (cat === "repository") {
+        repoMatches.push(it);
+      } else if (cat === "language") {
+        langMatches.push(it);
+      } else if (cat === "author") {
+        authorMatches.push(it);
+      } else {
+        issueMatches.push(it);
+      }
+    }
+
+    const groups: {
+      key: string;
+      title: string;
+      icon: React.ReactNode;
+      items: Issue[];
+    }[] = [];
+
+    if (repoMatches.length > 0) {
+      groups.push({
+        key: "repository",
+        title: "Repositories",
+        icon: <FolderGit2 size={15} />,
+        items: repoMatches,
+      });
+    }
+    if (langMatches.length > 0) {
+      groups.push({
+        key: "language",
+        title: "Languages & Frameworks",
+        icon: <Code2 size={15} />,
+        items: langMatches,
+      });
+    }
+    if (issueMatches.length > 0) {
+      groups.push({
+        key: "issue",
+        title: "Issues",
+        icon: <FileText size={15} />,
+        items: issueMatches,
+      });
+    }
+    if (authorMatches.length > 0) {
+      groups.push({
+        key: "author",
+        title: "Authors & Organizations",
+        icon: <UserIcon size={15} />,
+        items: authorMatches,
+      });
+    }
+
+    return groups;
+  })();
+
   return (
     <main className="web-home">
       <header className="web-header">
@@ -762,6 +839,8 @@ function App() {
             onClick={() => {
               setQuery("");
               setPage(1);
+              setSearchCategory("ALL");
+              setExpandedCategories({});
               void loadIssues(1, difficultyFilter, "");
             }}
           >
@@ -814,7 +893,9 @@ function App() {
             <h1>{view}</h1>
             <span>
               {view === "SkillIssues"
-                ? "Personalized for your current level and preferences"
+                ? isSearchActive
+                  ? `Search results for "${query}"`
+                  : "Personalized for your current level and preferences"
                 : view === "Saved"
                   ? "Challenges saved for later"
                   : view === "Working"
@@ -829,23 +910,139 @@ function App() {
             <SubmissionList items={submissions} />
           ) : (
             <>
-              <div className="issue-feed">
-                {displayed.length ? (
-                  displayed.map((issue) => (
-                    <IssueCard
-                      key={issue.id}
-                      issue={issue}
-                      saved={savedIssues.some((item) => item.id === issue.id)}
-                      onSelect={() => setSelected(issue)}
-                      onToggleSave={() => void toggleSave(issue)}
-                    />
-                  ))
-                ) : (
-                  <div className="empty-feed">
-                    <p>Nothing found here yet.</p>
-                  </div>
-                )}
-              </div>
+              {isSearchActive ? (
+                <div className="search-results-container">
+                  {searchCategoryGroups.length > 0 && (
+                    <div className="search-category-tabs">
+                      <button
+                        type="button"
+                        className={`search-category-tab ${searchCategory === "ALL" ? "active" : ""}`}
+                        onClick={() => setSearchCategory("ALL")}
+                      >
+                        <Layers size={13} />
+                        <span>All</span>
+                        <span className="search-category-badge">{displayed.length}</span>
+                      </button>
+                      {searchCategoryGroups.map((group) => (
+                        <button
+                          key={group.key}
+                          type="button"
+                          className={`search-category-tab ${searchCategory === group.key ? "active" : ""}`}
+                          onClick={() => setSearchCategory(group.key)}
+                        >
+                          {group.icon}
+                          <span>{group.title}</span>
+                          <span className="search-category-badge">{group.items.length}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {displayed.length === 0 ? (
+                    <div className="empty-feed">
+                      <p>No issues found matching "{query}". Try searching for another language, repository, or topic.</p>
+                    </div>
+                  ) : (
+                    (searchCategory === "ALL"
+                      ? searchCategoryGroups
+                      : searchCategoryGroups.filter((g) => g.key === searchCategory)
+                    ).map((group) => {
+                      const isExpanded = Boolean(expandedCategories[group.key]) || searchCategory !== "ALL";
+                      const visibleItems = isExpanded ? group.items : group.items.slice(0, 3);
+                      const hasMoreInCategory = group.items.length > 3;
+
+                      return (
+                        <div key={group.key} className="search-category-section">
+                          <div className="search-category-header">
+                            <div className="search-category-title">
+                              <span className="category-header-icon">{group.icon}</span>
+                              <h3>{group.title}</h3>
+                              <span className="category-header-count">{group.items.length}</span>
+                            </div>
+                            {hasMoreInCategory && searchCategory === "ALL" && (
+                              <button
+                                type="button"
+                                className="category-expand-btn"
+                                onClick={() =>
+                                  setExpandedCategories((prev) => ({
+                                    ...prev,
+                                    [group.key]: !prev[group.key],
+                                  }))
+                                }
+                              >
+                                {isExpanded ? (
+                                  <>
+                                    Show fewer <ChevronUp size={13} />
+                                  </>
+                                ) : (
+                                  <>
+                                    Show all {group.items.length} <ChevronDown size={13} />
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="issue-feed">
+                            {visibleItems.map((issue) => (
+                              <IssueCard
+                                key={issue.id}
+                                issue={issue}
+                                saved={savedIssues.some((item) => item.id === issue.id)}
+                                onSelect={() => setSelected(issue)}
+                                onToggleSave={() => void toggleSave(issue)}
+                              />
+                            ))}
+                          </div>
+
+                          {hasMoreInCategory && searchCategory === "ALL" && (
+                            <div className="category-footer">
+                              <button
+                                type="button"
+                                className="category-toggle-more-btn"
+                                onClick={() =>
+                                  setExpandedCategories((prev) => ({
+                                    ...prev,
+                                    [group.key]: !prev[group.key],
+                                  }))
+                                }
+                              >
+                                {isExpanded ? (
+                                  <>
+                                    Show fewer results <ChevronUp size={14} />
+                                  </>
+                                ) : (
+                                  <>
+                                    Show {group.items.length - 3} more in {group.title} <ChevronDown size={14} />
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              ) : (
+                <div className="issue-feed">
+                  {displayed.length ? (
+                    displayed.map((issue) => (
+                      <IssueCard
+                        key={issue.id}
+                        issue={issue}
+                        saved={savedIssues.some((item) => item.id === issue.id)}
+                        onSelect={() => setSelected(issue)}
+                        onToggleSave={() => void toggleSave(issue)}
+                      />
+                    ))
+                  ) : (
+                    <div className="empty-feed">
+                      <p>Nothing found here yet.</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {view === "SkillIssues" && (
                 <div className="pagination">
@@ -972,17 +1169,6 @@ function App() {
                       })}
                   </div>
 
-                  <label className="editor-label" style={{ marginTop: 12 }}>
-                    Target Level
-                  </label>
-                  <select
-                    value={targetLevel}
-                    onChange={(event) => setTargetLevel(event.target.value)}
-                  >
-                    <option>BEGINNER</option>
-                    <option>INTERMEDIATE</option>
-                    <option>ADVANCED</option>
-                  </select>
 
                   <div className="editor-actions">
                     <button

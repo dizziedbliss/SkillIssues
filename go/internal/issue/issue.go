@@ -93,8 +93,8 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 	if limit <= 0 {
 		limit = 20
 	}
-	if limit > 50 {
-		limit = 50
+	if limit > 100 {
+		limit = 100
 	}
 
 	page := f.Page
