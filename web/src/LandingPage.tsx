@@ -1,5 +1,21 @@
-import React from "react";
-import { ArrowRight, Check, ExternalLink, Search, SlidersHorizontal, Sparkles } from "lucide-react";
+import React, { useState, useRef, MouseEvent } from "react";
+import {
+  Sparkles,
+  GitFork,
+  Trophy,
+  ShieldCheck,
+  Layers,
+  ArrowRight,
+  Code2,
+  Laptop,
+  CheckCircle2,
+  Flame,
+  Award,
+  Compass,
+  ChevronRight,
+  ExternalLink,
+  BookOpen,
+} from "lucide-react";
 
 interface LandingPageProps {
   onExplore: () => void;
@@ -8,52 +24,496 @@ interface LandingPageProps {
   username?: string;
 }
 
-const issueCards = [
-  { repo: "vitejs/vite", title: "Improve error output for unresolved imports", tags: ["TypeScript", "Tooling"], difficulty: "INTERMEDIATE", xp: "140 XP", tone: "warm" },
-  { repo: "python/cpython", title: "Clarify pathlib behaviour in the documentation", tags: ["Python", "Documentation"], difficulty: "BEGINNER", xp: "75 XP", tone: "cool" },
-  { repo: "rust-lang/cargo", title: "Improve feedback for missing package metadata", tags: ["Rust", "CLI"], difficulty: "ADVANCED", xp: "250 XP", tone: "plum" },
-];
+export const LandingPage: React.FC<LandingPageProps> = ({
+  onExplore,
+  onSignIn,
+  isAuthenticated,
+  username,
+}) => {
+  const [activeStep, setActiveStep] = useState<number>(1);
+  const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isHovering3D, setIsHovering3D] = useState<boolean>(false);
+  const flowchartRef = useRef<HTMLDivElement>(null);
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onExplore, onSignIn, isAuthenticated, username }) => (
-  <div className="landing-container editorial-landing">
-    <div className="landing-ambient-glow glow-top" />
-    <header className="landing-nav">
-      <a href="#top" className="landing-brand"><img src="/logo.png" alt="SkillIssues" /><span>SkillIssues</span></a>
-      <nav aria-label="Landing page navigation">
-        <a href="#how-it-works">How it works</a><a href="#desktop-app">Desktop app</a><a href="https://github.com/dizziedbliss/SkillIssues" target="_blank" rel="noreferrer">GitHub</a>
-      </nav>
-      <button type="button" className="nav-cta" onClick={isAuthenticated ? onExplore : onSignIn}>{isAuthenticated ? `Continue as @${username}` : "Sign in with GitHub"}</button>
-    </header>
+  const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
+    if (!flowchartRef.current) return;
+    const rect = flowchartRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    setMousePos({ x, y });
+  };
 
-    <main id="top">
-      <section className="editorial-hero">
-        <div className="hero-copy">
-          <div className="landing-badge"><Sparkles size={14} /><span>OPEN-SOURCE ISSUE DISCOVERY</span></div>
-          <h1>GitHub has the issues.<br />Find the ones <em>worth your time.</em></h1>
-          <p>SkillIssues curates real GitHub issues and helps you sort through the chaos by technology, difficulty, repository, and interest. Find something that fits your stack — or something just outside it.</p>
-          <div className="landing-cta-group"><button type="button" className="landing-btn-primary" onClick={onExplore}>Browse the issue pile <ArrowRight size={16} /></button>{!isAuthenticated && <button type="button" className="landing-btn-secondary" onClick={onSignIn}><Sparkles size={16} /> Sign in with GitHub</button>}{isAuthenticated && <button type="button" className="landing-btn-secondary" onClick={onExplore}>Continue as @{username}</button>}</div>
-          <span className="hero-note">No tutorials. No toy problems. Just real repositories and real issues.</span>
+  const steps = [
+    {
+      step: 1,
+      tag: "STEP 01",
+      title: "Discover & Classify",
+      shortDesc: "Real-time GitHub Ingestion & Scoring",
+      icon: <Compass className="flow-icon" size={24} />,
+      detail:
+        "SkillIssues continuously synchronizes issues across 100+ vetted open-source repositories via GitHub GraphQL. Every issue is heuristically scored into Beginner, Intermediate, or Advanced based on required skills, codebase complexity, and community activity.",
+      badge: "Real-Time Scoring",
+      visualType: "code",
+      preview: {
+        label: "difficulty: BEGINNER",
+        score: "Score: 2.5",
+        repo: "golang/go",
+        issueNum: "#64821",
+        title: "x/tools/refactor: inline parameterless calls",
+      },
+    },
+    {
+      step: 2,
+      tag: "STEP 02",
+      title: "Smart Skill Match",
+      shortDesc: "Personalized to Your Stack",
+      icon: <Code2 className="flow-icon" size={24} />,
+      detail:
+        "No more digging through endless GitHub search filters. SkillIssues ranks issues specifically matched to your favorite languages, technologies, and current progression level so you are never overwhelmed.",
+      badge: "Stack Alignment",
+      visualType: "match",
+      preview: {
+        matches: ["Go", "TypeScript", "Python", "Rust"],
+        userLevel: "Level 3 Developer",
+        recommendation: "98% Match for your profile",
+      },
+    },
+    {
+      step: 3,
+      tag: "STEP 03",
+      title: "1-Click Workspace",
+      shortDesc: "Fork, Branch & VS Code",
+      icon: <GitFork className="flow-icon" size={24} />,
+      detail:
+        "The SkillIssues desktop app automates the entire setup lifecycle: it forks the repository to your GitHub profile, clones it to your chosen directory, checks out a clean branch, and launches VS Code in a single click.",
+      badge: "Zero Configuration",
+      visualType: "terminal",
+      preview: {
+        command: "skillissues fork & clone",
+        branch: "branch: skillissues/issue-#64821",
+        action: "Launching VS Code workspace...",
+      },
+    },
+    {
+      step: 4,
+      tag: "STEP 04",
+      title: "Verify & Level Up",
+      shortDesc: "Merged PRs = XP & Badges",
+      icon: <Trophy className="flow-icon" size={24} />,
+      detail:
+        "Push your changes and submit a pull request. When your PR is merged into the upstream repository, SkillIssues verifies the commit on GitHub and automatically awards you XP, leveling up your profile and unlocking badges!",
+      badge: "Gamified Proof of Work",
+      visualType: "xp",
+      preview: {
+        xp: "+140 XP EARNED",
+        levelUp: "LEVEL 4 REACHED 🎉",
+        badgeName: "Bug Wrangler",
+        status: "ACCEPTED & VERIFIED",
+      },
+    },
+  ];
+
+  const currentStepData = steps.find((s) => s.step === activeStep) || steps[0];
+
+  return (
+    <div className="landing-container">
+      {/* Ambient background glow effects */}
+      <div className="landing-ambient-glow glow-top" />
+      <div className="landing-ambient-glow glow-bottom" />
+
+      {/* Hero Section */}
+      <section className="landing-hero">
+        <div className="landing-badge">
+          <Sparkles size={14} className="badge-sparkle" />
+          <span>Gamified Open Source Contribution Platform</span>
         </div>
-        <div className="issue-board" aria-label="Illustrative issue discovery board">
-          <div className="board-header"><div><span className="board-kicker">CURATED ISSUE PILE</span><strong>3,284 issues, slightly less overwhelming</strong></div><SlidersHorizontal size={18} /></div>
-          <div className="board-filters"><span className="active">Your stack</span><span>Beginner-friendly</span><span>Documentation</span><span>Frontend</span><span>Backend</span></div>
-          <div className="board-cards">{issueCards.map((issue) => <article className={`mini-issue ${issue.tone}`} key={issue.repo}><span className="issue-repo">{issue.repo}</span><h3>{issue.title}</h3><div className="mini-meta"><div>{issue.tags.map((tag) => <span className="issue-tag" key={tag}>{tag}</span>)}</div><span className={`difficulty-label ${issue.difficulty.toLowerCase()}`}>{issue.difficulty}</span><b>{issue.xp}</b></div></article>)}</div>
-          <div className="board-footer"><Search size={15} /> Sorting signal from noise</div>
+
+        <h1 className="landing-title">
+          You Have the <span className="text-gradient">Skills</span>.
+          <br />
+          We Have the <span className="text-purple">Issues</span>.
+        </h1>
+
+        <p className="landing-subtitle">
+          SkillIssues turns open-source contributions into a rewarding progression RPG.
+          Discover curated challenges scored by difficulty, launch workspaces in one click,
+          and earn verified XP and badges when your Pull Requests get merged.
+        </p>
+
+        <div className="landing-cta-group">
+          <button
+            type="button"
+            className="landing-btn-primary"
+            onClick={onExplore}
+          >
+            <span>Explore Challenges</span>
+            <ArrowRight size={16} />
+          </button>
+
+          {!isAuthenticated ? (
+            <button
+              type="button"
+              className="landing-btn-secondary"
+              onClick={onSignIn}
+            >
+              <Flame size={16} className="btn-icon-flame" />
+              <span>Sign In with GitHub</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="landing-btn-secondary"
+              onClick={onExplore}
+            >
+              <Award size={16} className="btn-icon-flame" />
+              <span>Continue as @{username}</span>
+            </button>
+          )}
+
+          <a
+            href="#how-it-works"
+            className="landing-btn-ghost"
+          >
+            <BookOpen size={16} />
+            <span>How It Works</span>
+          </a>
+        </div>
+
+        {/* Highlight Stats Strip */}
+        <div className="landing-highlights-strip">
+          <div className="highlight-item">
+            <div className="highlight-number">100+</div>
+            <div className="highlight-label">Curated Repositories</div>
+          </div>
+          <div className="highlight-divider" />
+          <div className="highlight-item">
+            <div className="highlight-number">3 Tiers</div>
+            <div className="highlight-label">Beginner · Intermediate · Advanced</div>
+          </div>
+          <div className="highlight-divider" />
+          <div className="highlight-item">
+            <div className="highlight-number">1-Click</div>
+            <div className="highlight-label">Fork, Clone & VS Code Launch</div>
+          </div>
+          <div className="highlight-divider" />
+          <div className="highlight-item">
+            <div className="highlight-number">RPG System</div>
+            <div className="highlight-label">XP, Levels & Collectible Badges</div>
+          </div>
         </div>
       </section>
 
-      <section className="editorial-section" id="how-it-works"><div className="section-intro"><span className="eyebrow">THE POINT</span><h2>Less scrolling. More signal.</h2><p>Open-source repositories are full of good work hiding behind noisy labels, unfamiliar codebases, and search results that do not know what you are looking for. SkillIssues adds useful structure so you can compare issues before committing your afternoon.</p></div><div className="feature-grid">{[{ icon: <Search />, title: "Curate", text: "Pull real issues from open-source repositories into one place." }, { icon: <SlidersHorizontal />, title: "Sort", text: "Filter by stack, difficulty, category, repository, and what you actually want to work on." }, { icon: <ArrowRight />, title: "Start", text: "When something looks promising, open the issue, inspect the context, and prepare a workspace." }].map((item) => <article className="feature-card" key={item.title}><div className="feature-icon">{item.icon}</div><h3>{item.title}</h3><p>{item.text}</p></article>)}</div></section>
+      {/* 3D Flowchart & Pipeline Section */}
+      <section id="how-it-works" className="landing-flow-section">
+        <div className="section-header">
+          <div className="section-pill">
+            <Layers size={13} />
+            <span>Lifecycle Pipeline</span>
+          </div>
+          <h2 className="section-title">How SkillIssues Works</h2>
+          <p className="section-desc">
+            An end-to-end automated pipeline connecting developers to real open-source impact.
+            Hover over the 3D pipeline to tilt and inspect the stages.
+          </p>
+        </div>
 
-      <section className="editorial-section flow-section"><div className="section-intro"><span className="eyebrow">THE FLOW</span><h2>From issue pile to interesting problem.</h2></div><div className="flow-list">{["Issues arrive from GitHub", "SkillIssues categorizes and scores them", "You filter and compare", "You pick one", "You work in the real repository", "Your pull request becomes part of your contribution history"].map((step, i) => <div className="flow-step" key={step}><span>0{i + 1}</span><strong>{step}</strong>{i < 5 && <ArrowRight size={16} />}</div>)}</div></section>
+        {/* Interactive 3D Canvas Stage */}
+        <div
+          ref={flowchartRef}
+          className="flowchart-3d-stage"
+          onMouseMove={handleMouseMove}
+          onMouseEnter={() => setIsHovering3D(true)}
+          onMouseLeave={() => {
+            setIsHovering3D(false);
+            setMousePos({ x: 0, y: 0 });
+          }}
+        >
+          <div
+            className="flowchart-3d-container"
+            style={{
+              transform: isHovering3D
+                ? `perspective(1100px) rotateX(${mousePos.y * -14}deg) rotateY(${mousePos.x * 16}deg)`
+                : "perspective(1100px) rotateX(4deg) rotateY(0deg)",
+              transition: isHovering3D ? "transform 0.1s ease-out" : "transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
+            }}
+          >
+            {/* Ambient Plane Grid */}
+            <div className="flowchart-grid-plane" />
 
-      <section className="desktop-feature" id="desktop-app"><div><span className="eyebrow">THE DESKTOP COMPANION</span><h2>Found one?<br /><em>Get moving.</em></h2><p>When an issue catches your eye, the desktop companion can help prepare the workspace: fork the repository, clone it locally, configure remotes, create a branch, and open it in VS Code.</p><button type="button" className="landing-btn-secondary" onClick={onExplore}>See the workspace flow <ExternalLink size={15} /></button></div><div className="terminal-card"><div className="terminal-top"><span /><span /><span /><b>skillissues / workspace</b></div><code><i>$ skillissues start issue #64821</i><span><Check /> repository forked</span><span><Check /> workspace cloned</span><span><Check /> upstream remote configured</span><span><Check /> branch created</span><strong>→ ready for your editor</strong></code></div></section>
+            {/* 4 Stepped 3D Nodes */}
+            <div className="flowchart-nodes-row">
+              {steps.map((s, idx) => {
+                const isActive = activeStep === s.step;
+                return (
+                  <React.Fragment key={s.step}>
+                    <div
+                      className={`flow-node-card ${isActive ? "active" : ""}`}
+                      onClick={() => setActiveStep(s.step)}
+                      onMouseEnter={() => setActiveStep(s.step)}
+                    >
+                      <div className="node-glow-ring" />
+                      <div className="node-step-tag">{s.tag}</div>
+                      <div className="node-icon-wrapper">{s.icon}</div>
+                      <h3 className="node-title">{s.title}</h3>
+                      <p className="node-short-desc">{s.shortDesc}</p>
+                      <div className="node-status-indicator">
+                        <span className="pulse-dot" />
+                        <span>{s.badge}</span>
+                      </div>
+                    </div>
 
-      <section className="progression-section"><div><span className="eyebrow">A LITTLE PROOF OF WORK</span><h2>Your work should not disappear into the contribution graph.</h2><p>SkillIssues tracks verified contributions and adds a little progression on top. Pull requests, not button clicks, drive the numbers.</p></div><div className="xp-list"><div><b>BEGINNER</b><strong>75 XP</strong></div><div><b>INTERMEDIATE</b><strong>140 XP</strong></div><div><b>ADVANCED</b><strong>250 XP</strong></div><small>No XP for saying “I&apos;ll start tomorrow.”</small></div></section>
+                    {/* Connecting 3D Arrow Connector */}
+                    {idx < steps.length - 1 && (
+                      <div className="flow-connector">
+                        <div className="connector-line">
+                          <div className="connector-energy-pulse" />
+                        </div>
+                        <div className="connector-arrow">
+                          <ChevronRight size={16} />
+                        </div>
+                      </div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
+        </div>
 
-      <section className="final-cta"><span className="eyebrow">YOUR NEXT CONTRIBUTION</span><h2>Somewhere in the issue pile is a problem with your name on it.</h2><p>Browse the catalog, find something interesting, and see where it takes you.</p><button type="button" className="landing-btn-primary" onClick={onExplore}>Explore SkillIssues <ArrowRight size={16} /></button></section>
-    </main>
-    <footer className="landing-footer"><span>SkillIssues — You Have the Skills. We Have the Issues.</span><a href="https://github.com/dizziedbliss/SkillIssues" target="_blank" rel="noreferrer">View the project on GitHub <ExternalLink size={14} /></a></footer>
-  </div>
-);
+        {/* Detailed Inspector Card for Selected Step */}
+        <div className="step-inspector-card">
+          <div className="inspector-left">
+            <div className="inspector-tag-row">
+              <span className="inspector-tag">{currentStepData.tag}</span>
+              <span className="inspector-badge">{currentStepData.badge}</span>
+            </div>
+            <h3 className="inspector-title">{currentStepData.title}</h3>
+            <p className="inspector-detail">{currentStepData.detail}</p>
+            <div className="inspector-actions">
+              <button
+                type="button"
+                className="inspector-action-btn"
+                onClick={onExplore}
+              >
+                <span>Try this step in App</span>
+                <ExternalLink size={14} />
+              </button>
+            </div>
+          </div>
 
-export default LandingPage;
+          <div className="inspector-right">
+            <div className="inspector-preview-box">
+              <div className="preview-top-bar">
+                <div className="preview-dots">
+                  <span className="dot dot-red" />
+                  <span className="dot dot-yellow" />
+                  <span className="dot dot-green" />
+                </div>
+                <span className="preview-filename">
+                  {currentStepData.visualType === "code"
+                    ? "issue_metadata.json"
+                    : currentStepData.visualType === "terminal"
+                    ? "bash ~ desktop-runner"
+                    : currentStepData.visualType === "match"
+                    ? "skill_matcher.engine"
+                    : "verification_receipt.json"}
+                </span>
+              </div>
+
+              <div className="preview-content">
+                {currentStepData.visualType === "code" && (
+                  <div className="preview-code-view">
+                    <div className="code-line">
+                      <span className="code-key">repository:</span>{" "}
+                      <span className="code-str">"{currentStepData.preview.repo}"</span>
+                    </div>
+                    <div className="code-line">
+                      <span className="code-key">issue:</span>{" "}
+                      <span className="code-num">{currentStepData.preview.issueNum}</span>
+                    </div>
+                    <div className="code-line">
+                      <span className="code-key">title:</span>{" "}
+                      <span className="code-val">"{currentStepData.preview.title}"</span>
+                    </div>
+                    <div className="code-line">
+                      <span className="code-key">difficulty:</span>{" "}
+                      <span className="code-pill beginner">{currentStepData.preview.label}</span>
+                    </div>
+                  </div>
+                )}
+
+                {currentStepData.visualType === "match" && (
+                  <div className="preview-match-view">
+                    <div className="match-status-row">
+                      <ShieldCheck size={18} className="text-purple" />
+                      <span>{currentStepData.preview.recommendation}</span>
+                    </div>
+                    <div className="match-chips-list">
+                      {currentStepData.preview.matches?.map((m) => (
+                        <span key={m} className="match-chip">
+                          {m}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="match-level-badge">
+                      {currentStepData.preview.userLevel}
+                    </div>
+                  </div>
+                )}
+
+                {currentStepData.visualType === "terminal" && (
+                  <div className="preview-terminal-view">
+                    <div className="terminal-line">
+                      <span className="prompt">$</span> {currentStepData.preview.command}
+                    </div>
+                    <div className="terminal-line success">
+                      <CheckCircle2 size={12} /> Forked to @your-handle/repo
+                    </div>
+                    <div className="terminal-line success">
+                      <CheckCircle2 size={12} /> Cloned to ~/SkillIssues/workspaces
+                    </div>
+                    <div className="terminal-line highlight">
+                      {currentStepData.preview.branch}
+                    </div>
+                    <div className="terminal-line pulse">
+                      {currentStepData.preview.action}
+                    </div>
+                  </div>
+                )}
+
+                {currentStepData.visualType === "xp" && (
+                  <div className="preview-xp-view">
+                    <div className="xp-card-badge">{currentStepData.preview.status}</div>
+                    <div className="xp-score-text">{currentStepData.preview.xp}</div>
+                    <div className="xp-level-text">{currentStepData.preview.levelUp}</div>
+                    <div className="xp-badge-item">
+                      <Trophy size={16} />
+                      <span>Unlocked: {currentStepData.preview.badgeName}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Goal & Value Proposition Section */}
+      <section className="landing-values-section">
+        <div className="section-header">
+          <div className="section-pill">
+            <Award size={13} />
+            <span>Why SkillIssues</span>
+          </div>
+          <h2 className="section-title">Designed for Real Developer Growth</h2>
+          <p className="section-desc">
+            No mock exercises, no simulated quizzes. Build your public GitHub profile with genuine open source contributions.
+          </p>
+        </div>
+
+        <div className="values-grid">
+          <div className="value-card">
+            <div className="value-icon-box purple">
+              <Compass size={24} />
+            </div>
+            <h3>Never Wonder "Where Do I Start?"</h3>
+            <p>
+              Finding the right issue on GitHub is exhausting. SkillIssues categorizes real issues across 20+ languages by cognitive complexity, label patterns, and codebase size.
+            </p>
+            <ul className="value-bullet-list">
+              <li>Verified Beginner, Intermediate, and Advanced tiers</li>
+              <li>Filter by language, technology, and star count</li>
+              <li>Multi-category search matching Repos, Languages, and Titles</li>
+            </ul>
+          </div>
+
+          <div className="value-card highlight-card">
+            <div className="value-icon-box dark">
+              <Trophy size={24} />
+            </div>
+            <h3>Gamified Developer Progression</h3>
+            <p>
+              Every merged contribution earns XP proportional to difficulty. Advance from Level 1 Novice to Level 50 Principal Contributor and showcase your achievements.
+            </p>
+            <ul className="value-bullet-list">
+              <li>Earn +75 XP for Beginner, +140 XP for Intermediate, +250 XP for Advanced</li>
+              <li>Unlock collectible badges like "First Blood", "Bug Wrangler", and "Polyglot"</li>
+              <li>Dynamic progress bars that update immediately upon PR merge</li>
+            </ul>
+          </div>
+
+          <div className="value-card">
+            <div className="value-icon-box blue">
+              <Laptop size={24} />
+            </div>
+            <h3>Frictionless Desktop Integration</h3>
+            <p>
+              Pair the web platform with our lightweight frameless desktop client. Manage forks, workspace paths, and branch pushes with zero terminal friction.
+            </p>
+            <ul className="value-bullet-list">
+              <li>One-click VS Code launcher for cloned workspaces</li>
+              <li>Custom workspace root folder configuration</li>
+              <li>Push branches & launch comparison Pull Requests automatically</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* Final Action Banner */}
+      <section className="landing-banner-section">
+        <div className="banner-card">
+          <div className="banner-content">
+            <h2 className="banner-title">Ready to tackle your next issue?</h2>
+            <p className="banner-text">
+              Jump into the challenge feed, pick a language you love, and submit your first PR today.
+            </p>
+            <div className="banner-btn-row">
+              <button
+                type="button"
+                className="landing-btn-primary"
+                onClick={onExplore}
+              >
+                <span>Visit Challenge Catalog</span>
+                <ArrowRight size={16} />
+              </button>
+
+              {!isAuthenticated && (
+                <button
+                  type="button"
+                  className="landing-btn-secondary"
+                  onClick={onSignIn}
+                >
+                  <span>Sign In & Contribute</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Landing Footer */}
+      <footer className="landing-footer">
+        <div className="footer-brand">
+          <img src="/logo.png" alt="SkillIssues" className="footer-logo" />
+          <span className="footer-title">SkillIssues</span>
+          <span className="footer-tagline">— You Have the Skills. We Have the Issues.</span>
+        </div>
+        <div className="footer-links">
+          <button type="button" onClick={onExplore}>Catalog</button>
+          {!isAuthenticated ? (
+            <button type="button" onClick={onSignIn}>Sign In</button>
+          ) : (
+            <span>Connected as @{username}</span>
+          )}
+          <a
+            href="https://github.com/dizziedbliss/SkillIssues"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub Repository ↗
+          </a>
+        </div>
+      </footer>
+    </div>
+  );
+};
