@@ -43,7 +43,7 @@ body:
         - Web Dashboard (React / Vite)
         - Backend API (Go)
         - Search & Recommendation Engine
-        - Ingestion & Sync (syncd / worker / ETL)
+        - Ingestion & Sync (ingestd)
         - Gamification / Badges / XP
         - Other
     validations:

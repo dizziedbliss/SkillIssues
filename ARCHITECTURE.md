@@ -31,7 +31,7 @@ flowchart TB
     end
 
     subgraph Ingestion["The Crawlers & Ingestion Engine"]
-        Syncd["Go syncd Daemon (:8002)\n• GitHub GraphQL Sync\n• Rate-Limit Awareness\n• Difficulty Scoring Heuristics"]
+        Syncd["Go ingestd Daemon (:8002)\n• GitHub GraphQL Sync\n• Rate-Limit Awareness\n• Difficulty Scoring Heuristics"]
         Worker["Go worker Daemon\n• Priority Catalog Refresher"]
         Kaggle["Kaggle ETL CLI\n• Bulk Offline Dataset Importer"]
     end
@@ -126,17 +126,16 @@ sequenceDiagram
 - **Why Go?**: Sub-millisecond response times, minimal memory footprint, and bulletproof concurrency using Go 1.23 standard idioms and Chi.
 - **Distroless Runtime**: Packaged in Google's static Distroless container image without shells or package managers.
 
-### 3.2 Go Sync Coordinator (`backend/cmd/syncd/`)
+### 3.2 Go Ingestion Engine (`backend/cmd/ingestd/`)
 - **Listening on**: `:8002`
 - **What it does**: Crawls GitHub's GraphQL API to discover active, open issues across top open-source repositories.
 - **Good citizen behavior**: Respects GitHub secondary rate limits with exponential backoff and worker pools.
 - **Heuristic extraction**: Parses descriptions, pulls out relevant technology tags, strips bot noise, and computes difficulty vectors.
 
-### 3.3 Go Worker Daemon (`backend/cmd/worker/`)
-- **What it does**: A lightweight background daemon that keeps high-priority repositories and active challenges fresh.
-
-### 3.4 Kaggle ETL CLI (`backend/cmd/kaggle_etl/`)
-- **What it does**: Standalone command-line pipeline designed to bulk-ingest offline dataset archives directly into PostgreSQL in batches with deduplication.
+### 3.3 Migration Runner (`backend/cmd/migrate/`)
+- **What it does**: Applies the embedded goose schema migrations and exits. Docker Compose
+  runs it to completion before `go-api` and `ingestd` start, so a fresh environment needs no
+  manual SQL.
 
 ---
 

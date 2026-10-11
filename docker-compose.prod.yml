@@ -8,6 +8,17 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-skillissues}
       POSTGRES_USER: ${POSTGRES_USER:-skillissues}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-skillissues_prod_secure_pw}
+    # Tuned for the 4GB / 2 vCPU target; override via POSTGRES_* if the host differs.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-1GB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-2GB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-16MB}
+      - -c
+      - max_connections=${PG_MAX_CONNECTIONS:-40}
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
     healthcheck:
@@ -16,17 +27,40 @@ services:
       timeout: 5s
       retries: 10
 
+  # Redis holds rate-limit counters and cached responses only. Sessions resolve
+  # from Postgres, so an empty Redis costs latency rather than correctness —
+  # hence no persistence and no volume, and a hard memory cap so cached data
+  # can never evict the rate-limit counters it shares the instance with.
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --save 60 1 --appendonly yes
-    volumes:
-      - redis_prod_data:/data
+    command:
+      - redis-server
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-256mb}
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - ""
+      - --appendonly
+      - "no"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Schema migrations run to completion before any service starts.
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: cmd/migrate/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD:-skillissues_prod_secure_pw}@postgres:5432/${POSTGRES_DB:-skillissues}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
 
   go-api:
     build:
@@ -37,13 +71,16 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD:-skillissues_prod_secure_pw}@postgres:5432/${POSTGRES_DB:-skillissues}
       REDIS_URL: redis://redis:6379/0
       FRONTEND_URL: ${FRONTEND_URL:-https://skillissues.com}
-      DEMO_MODE: ${DEMO_MODE:-false}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-https://api.skillissues.com/auth/github/callback}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-}
+      SYNCD_URL: http://ingestd:8002
+      UNAUTH_RATE_LIMIT: ${UNAUTH_RATE_LIMIT:-180}
+      AUTH_RATE_LIMIT: ${AUTH_RATE_LIMIT:-1000}
+      ENV: production
       PORT: 8000
     ports:
       - "8000:8000"
@@ -52,6 +89,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/healthcheck"]
       interval: 5s
@@ -59,25 +98,28 @@ services:
       retries: 10
       start_period: 3s
 
-  syncd:
+  ingestd:
     build:
       context: ./backend
-      dockerfile: cmd/syncd/Dockerfile
+      dockerfile: cmd/ingestd/Dockerfile
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD:-skillissues_prod_secure_pw}@postgres:5432/${POSTGRES_DB:-skillissues}
       REDIS_URL: redis://redis:6379/0
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      DEMO_MODE: ${DEMO_MODE:-false}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-}
+      SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-900}
       SYNCD_PORT: 8002
+      ENV: production
       PORT: 8002
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/healthcheck"]
       interval: 5s
@@ -85,25 +127,10 @@ services:
       retries: 10
       start_period: 3s
 
-  worker:
-    build:
-      context: ./backend
-      dockerfile: cmd/worker/Dockerfile
-    restart: unless-stopped
-    environment:
-      API_URL: http://go-api:8000
-      SYNCD_URL: http://syncd:8002
-      SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-900}
-    depends_on:
-      go-api:
-        condition: service_healthy
-      syncd:
-        condition: service_healthy
-
   frontend:
     build:
       context: ./web
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prod
     restart: unless-stopped
     environment:
       VITE_API_URL: ${VITE_API_URL:-https://api.skillissues.com}
@@ -115,4 +142,3 @@ services:
 
 volumes:
   postgres_prod_data:
-  redis_prod_data:

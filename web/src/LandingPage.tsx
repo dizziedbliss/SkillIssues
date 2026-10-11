@@ -68,7 +68,7 @@ const difficultyOptions = ["Beginner", "Intermediate", "Advanced"] as const;
 
 const steps = [
   "GitHub issues arrive",
-  "syncd checks them",
+  "ingestd checks them",
   "Issues are scored",
   "You filter the list",
   "Pick an issue",

@@ -9,11 +9,11 @@ This guide details deploying **SkillIssues** in production using Docker Compose,
 The production architecture consists of:
 - **`nginx` / Reverse Proxy (Port 80/443)**: TLS termination, static asset compression, and rate-buffered reverse proxying to `:8000` and `:5173`.
 - **`go-api` (Port 8000)**: Pure Go API Gateway running on Google Distroless Debian 12 non-root container.
-- **`syncd` (Port 8002)**: Go GitHub GraphQL Sync Coordinator with distributed worker pools.
-- **`worker`**: Background priority catalog refresher.
+- **`ingestd` (Port 8002)**: Go GitHub GraphQL ingestion engine. Owns its own sync schedule.
+- **`migrate`**: One-shot schema migration job; `go-api` and `ingestd` wait for it to succeed.
 - **`postgres` (Port 5432)**: PostgreSQL 16 relational database with persistent storage.
-- **`redis` (Port 6379)**: In-memory session store, distributed locks, and sliding-window rate limiting.
-- **`frontend` (Port 5173)**: React 18 + Vite production build served through static Web server.
+- **`redis` (Port 6379)**: Rate-limit counters and response cache. Capped and non-persistent; sessions resolve from PostgreSQL so an empty Redis costs latency, not correctness.
+- **`frontend` (Port 80)**: React 19 + Vite production build served by nginx.
 
 ---
 
@@ -78,8 +78,7 @@ kubectl apply -f k8s/secrets.yaml
 ### 2. Deploy Microservices & Ingress
 ```bash
 kubectl apply -f k8s/api/
-kubectl apply -f k8s/syncd/
-kubectl apply -f k8s/worker/
+kubectl apply -f k8s/ingestd/
 kubectl apply -f k8s/web/
 kubectl apply -f k8s/ingress.yaml
 ```

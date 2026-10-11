@@ -52,15 +52,15 @@ Before you start wrestling with code, make sure you have:
 
 ```text
 SkillIssues/
-├── backend/          # Pure Go microservices (API gateway, syncd, worker, ETL)
-│   ├── cmd/          # Entrypoints: /api, /syncd, /worker, /kaggle_etl, /healthcheck
+├── backend/          # Go services (API gateway, ingestion engine, migrations)
+│   ├── cmd/          # Entrypoints: /api, /ingestd, /migrate, /healthcheck
 │   └── internal/     # Core domain packages: auth, db, issue search, progression, etc.
 ├── web/              # React 18 + Vite + TypeScript dashboard
 │   └── src/          # Components, styles, 3D landing hero, and catalog views
 ├── desktop/          # Electron companion app (native frameless window + Git engine)
 ├── database/         # PostgreSQL schema and numbered migrations (001 -> 006)
 ├── data/             # Datasets & offline metadata archives
-├── k8s/              # Production Kubernetes manifests (api, syncd, worker, web)
+├── k8s/              # Production Kubernetes manifests (api, ingestd, web)
 ├── compose.yaml      # Docker Compose stack for local development
 ├── ARCHITECTURE.md   # System deep-dive and component diagrams
 └── CONTRIBUTING.md   # You are here!
@@ -99,7 +99,7 @@ Everything will be live at:
 
 To tail service logs in real time:
 ```bash
-docker compose logs -f go-api syncd
+docker compose logs -f go-api ingestd
 ```
 
 ---
@@ -185,7 +185,7 @@ We like [Conventional Commits](https://www.conventionalcommits.org/) because the
 - `feat(search): add category accordion counts`
 - `fix(electron): handle dynamic default branch checkout`
 - `docs: update quickstart instructions`
-- `perf(syncd): optimize worker queue drainage`
+- `perf(ingestd): optimize worker queue drainage`
 
 ---
 
