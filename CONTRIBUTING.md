@@ -223,9 +223,15 @@ We like [Conventional Commits](https://www.conventionalcommits.org/) because the
 - **Never block the UI**: Stream Git operations asynchronously so the window never stutters or freezes during large repository clones.
 
 ### Database & Migrations
-- **Never rewrite history**: Existing migrations in `database/migrations/` are frozen in time.
-- **Always pair migrations**: When adding new schema changes, add both `<num>_<name>.up.sql` and `<num>_<name>.down.sql`.
+- **Where they live**: `backend/internal/migrate/migrations/`, embedded into the binaries with
+  `go:embed`. This is the single source of truth for the schema — there is no separate
+  `schema.sql`.
+- **Never rewrite history**: Once a migration has been applied anywhere, treat it as frozen.
+  Add a new one instead.
+- **Use goose annotations**: Each file carries `-- +goose Up` and `-- +goose Down` sections.
 - **Be idempotent**: Use `IF NOT EXISTS` where appropriate.
+- **Applying them**: `go run ./cmd/migrate`, or the `migrate` service that Docker Compose runs
+  to completion before `go-api` and `ingestd` start.
 
 ---
 
