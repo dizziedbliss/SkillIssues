@@ -142,7 +142,11 @@ sequenceDiagram
 
 ## 4. Database Schema & Migration Lore
 
-Our database lives in PostgreSQL 16 and is versioned via sequential migrations in `database/migrations/`:
+Our database lives in PostgreSQL 16. The schema is defined by goose migrations in
+`backend/internal/migrate/migrations/`, embedded into the binaries with `go:embed` and applied
+by the one-shot `migrate` service. The table below is the historical record of how the schema
+was built up; those original migration pairs have since been consolidated into
+`00001_initial_schema.sql`.
 
 | Migration | What it added | Why it exists |
 | :--- | :--- | :--- |
