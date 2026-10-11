@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 jobs:
-  build-electron:
+  build-desktop:
     name: Build Desktop App
     runs-on: ${{ matrix.os }}
     strategy:
@@ -20,36 +20,36 @@ jobs:
           node-version: '22'
       - name: Install Dependencies
         run: |
-          cd electron
+          cd desktop
           npm ci
       - name: Package Windows Executable
         if: matrix.os == 'windows-latest'
         run: |
-          cd electron
+          cd desktop
           npm run dist:win
       - name: Package Linux AppImage
         if: matrix.os == 'ubuntu-latest'
         run: |
-          cd electron
+          cd desktop
           npm run dist:linux
       - name: Package macOS DMG
         if: matrix.os == 'macos-latest'
         run: |
-          cd electron
+          cd desktop
           npm run dist:mac
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: electron-${{ matrix.os }}
+          name: desktop-${{ matrix.os }}
           path: |
-            electron/dist/*.exe
-            electron/dist/*.AppImage
-            electron/dist/*.dmg
-            electron/dist/*.zip
+            desktop/dist/*.exe
+            desktop/dist/*.AppImage
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
 
   create-release:
     name: Create GitHub Release
-    needs: build-electron
+    needs: build-desktop
     runs-on: ubuntu-latest
     permissions:
       contents: write
