@@ -17,7 +17,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/config"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/github"
-	syncd "github.com/dizziedbliss/skillissues/internal/sync"
+	ingest "github.com/dizziedbliss/skillissues/internal/sync"
 )
 
 func main() {
@@ -26,7 +26,7 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
-	slog.Info("starting SkillIssues Sync Coordinator (syncd)")
+	slog.Info("starting SkillIssues Sync Coordinator (ingestd)")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -37,7 +37,7 @@ func main() {
 	// Log presence only. Never log the token, a prefix of it, or its length:
 	// a prefix leaks secret bytes and the length identifies the credential type.
 	if cfg.GitHubToken == "" {
-		slog.Warn("GITHUB_TOKEN is not set — syncd will skip all GitHub GraphQL syncs")
+		slog.Warn("GITHUB_TOKEN is not set — ingestd will skip all GitHub GraphQL syncs")
 	} else {
 		slog.Info("github token loaded")
 	}
@@ -74,14 +74,14 @@ func main() {
 	ghClient := github.NewClient(cfg.GitHubGraphQLURL)
 
 	// Initialize Sync Coordinator
-	coordCfg := syncd.CoordinatorConfig{
+	coordCfg := ingest.CoordinatorConfig{
 		WorkerCount:         cfg.WorkerCount,
 		PriorityWorkerCount: cfg.PriorityWorkerCount,
 		OnDemandWorkerCount: cfg.OnDemandWorkerCount,
 		SyncInterval:        time.Duration(cfg.SyncIntervalSecs) * time.Second,
 		GitHubToken:         cfg.GitHubToken,
 	}
-	coordinator := syncd.NewCoordinator(dbPool, cacheClient, ghClient, coordCfg)
+	coordinator := ingest.NewCoordinator(dbPool, cacheClient, ghClient, coordCfg)
 	coordinator.Start()
 	defer func() {
 		_ = coordinator.Shutdown(5 * time.Second)
@@ -94,7 +94,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status":  "ok",
-			"service": "syncd",
+			"service": "ingestd",
 			"time":    time.Now().UTC(),
 		})
 	})
@@ -161,21 +161,21 @@ func main() {
 	}
 
 	go func() {
-		slog.Info("syncd HTTP server listening", "port", port)
+		slog.Info("ingestd HTTP server listening", "port", port)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("syncd HTTP server failed", "error", err)
+			slog.Error("ingestd HTTP server failed", "error", err)
 		}
 	}()
 
 	<-ctx.Done()
-	slog.Info("syncd shutting down gracefully...")
+	slog.Info("ingestd shutting down gracefully...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		slog.Error("syncd server forced shutdown", "error", err)
+		slog.Error("ingestd server forced shutdown", "error", err)
 	}
 
-	slog.Info("syncd shutdown complete")
+	slog.Info("ingestd shutdown complete")
 }

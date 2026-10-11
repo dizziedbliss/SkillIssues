@@ -17,11 +17,11 @@ backend/testdata/
 # Compiled binary outputs in cmd directories
 backend/cmd/api/api
 backend/cmd/api/api.exe
-backend/cmd/syncd/syncd
-backend/cmd/syncd/syncd.exe
-backend/cmd/worker/worker
-backend/cmd/worker/worker.exe
-backend/cmd/kaggle_etl/kaggle_etl
-backend/cmd/kaggle_etl/kaggle_etl.exe
+backend/cmd/ingestd/ingestd
+backend/cmd/ingestd/ingestd.exe
+backend/cmd/migrate/migrate
+backend/cmd/migrate/migrate.exe
 backend/cmd/healthcheck/healthcheck
 backend/cmd/healthcheck/healthcheck.exe
+
+CLAUDE.md

@@ -3,6 +3,9 @@ name: skillissues
 services:
   # --------------------------------------------------------------------------
   # PostgreSQL — authoritative persistent data store
+  #
+  # Tuned for the 4GB / 2 vCPU deployment target. shared_buffers is the single
+  # most important setting: the issue catalog working set must stay cached.
   # --------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
@@ -10,6 +13,16 @@ services:
       POSTGRES_DB: skillissues
       POSTGRES_USER: skillissues
       POSTGRES_PASSWORD: skillissues
+    command:
+      - postgres
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - effective_cache_size=2GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - max_connections=40
     ports:
       - "5432:5432"
     volumes:
@@ -21,13 +34,26 @@ services:
       retries: 10
 
   # --------------------------------------------------------------------------
-  # Redis — session cache, rate limiting, distributed locks, hot-path cache
+  # Redis — rate limiting and response caching only.
+  #
+  # Deliberately capped and non-persistent: sessions fall through to Postgres,
+  # so losing this on restart costs latency, never correctness. Issue bodies
+  # are kept out of Redis so they cannot evict the rate-limit counters.
   # --------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
-    command: redis-server --save "" --appendonly no  # in-memory only for dev
+    command:
+      - redis-server
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - ""
+      - --appendonly
+      - "no"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -35,8 +61,22 @@ services:
       retries: 10
 
   # --------------------------------------------------------------------------
-  # Go API — authoritative primary backend (Phase 7: Full Cutover)
-  # Pure Go implementation of all 28 API routes, auth, progression, and issues.
+  # Schema migrations — one-shot, runs to completion before the services start.
+  # This is what makes a fresh `docker compose up` need no manual SQL.
+  # --------------------------------------------------------------------------
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: cmd/migrate/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # --------------------------------------------------------------------------
+  # Go API — HTTP API, auth, catalog, progression
   # --------------------------------------------------------------------------
   go-api:
     build:
@@ -52,7 +92,7 @@ services:
       GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8000/auth/github/callback}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-dev_local_webhook_secret}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-dev_local_admin_sync_token}
-      SYNCD_URL: http://syncd:8002
+      SYNCD_URL: http://ingestd:8002
       UNAUTH_RATE_LIMIT: ${UNAUTH_RATE_LIMIT:-180}
       AUTH_RATE_LIMIT: ${AUTH_RATE_LIMIT:-1000}
       PORT: 8000
@@ -63,6 +103,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/healthcheck"]
       interval: 5s
@@ -71,12 +113,14 @@ services:
       start_period: 3s
 
   # --------------------------------------------------------------------------
-  # Go syncd — Sync Coordinator & GitHub GraphQL ingestion engine (Phase 4)
+  # Go ingestd — GitHub GraphQL ingestion engine and sync scheduler.
+  #
+  # Owns its own tick interval, so it needs no external trigger process.
   # --------------------------------------------------------------------------
-  syncd:
+  ingestd:
     build:
       context: ./backend
-      dockerfile: cmd/syncd/Dockerfile
+      dockerfile: cmd/ingestd/Dockerfile
     environment:
       DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
       REDIS_URL: redis://redis:6379/0
@@ -93,29 +137,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/healthcheck"]
       interval: 5s
       timeout: 3s
       retries: 10
       start_period: 3s
-
-  # --------------------------------------------------------------------------
-  # Go worker — priority issue catalog refresh daemon (Phase 4)
-  # --------------------------------------------------------------------------
-  worker:
-    build:
-      context: ./backend
-      dockerfile: cmd/worker/Dockerfile
-    environment:
-      API_URL: http://go-api:8000
-      SYNCD_URL: http://syncd:8002
-      SYNC_INTERVAL_SECONDS: 900
-    depends_on:
-      go-api:
-        condition: service_healthy
-      syncd:
-        condition: service_healthy
 
   frontend:
     build: ./web

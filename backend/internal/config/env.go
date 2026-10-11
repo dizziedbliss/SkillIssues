@@ -40,7 +40,7 @@ type Config struct {
 	PriorityWorkerCount int // Priority sync goroutines (default: 2)
 	OnDemandWorkerCount int // On-demand goroutines (default: 8)
 	SyncIntervalSecs    int // Seconds between routine sync ticks (default: 900)
-	SyncdURL            string // URL to Go syncd service (default: http://syncd:8002)
+	SyncdURL            string // URL to the Go ingestion service (default: http://ingestd:8002)
 
 	// Rate Limiting (Requests per hour)
 	UnauthRateLimit int // GitHub-style unauthenticated hourly limit (default: 60)
@@ -65,7 +65,7 @@ func Load() (*Config, error) {
 		PriorityWorkerCount: intEnv("PRIORITY_WORKER_COUNT", 2),
 		OnDemandWorkerCount: intEnv("ON_DEMAND_WORKER_COUNT", 8),
 		SyncIntervalSecs:    intEnv("SYNC_INTERVAL_SECONDS", 900),
-		SyncdURL:            strEnv("SYNCD_URL", "http://syncd:8002"),
+		SyncdURL:            strEnv("SYNCD_URL", "http://ingestd:8002"),
 		MaxRepositories:     intEnv("MAX_REPOSITORIES", 500),
 		MinStars:            intEnv("MIN_STARS", 50),
 		UnauthRateLimit:     intEnv("UNAUTH_RATE_LIMIT", 180),

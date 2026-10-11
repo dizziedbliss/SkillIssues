@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: skillissues-syncd
+  name: skillissues-ingestd
   namespace: skillissues
   labels:
-    app: skillissues-syncd
+    app: skillissues-ingestd
 spec:
   replicas: 1 # Singleton coordinator
   selector:
     matchLabels:
-      app: skillissues-syncd
+      app: skillissues-ingestd
   template:
     metadata:
       labels:
-        app: skillissues-syncd
+        app: skillissues-ingestd
     spec:
       containers:
-        - name: syncd
-          image: skillissues-syncd:latest
+        - name: ingestd
+          image: skillissues-ingestd:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8002
@@ -59,10 +59,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: skillissues-syncd
+  name: skillissues-ingestd
   namespace: skillissues
   labels:
-    app: skillissues-syncd
+    app: skillissues-ingestd
 spec:
   type: ClusterIP
   ports:
@@ -70,4 +70,4 @@ spec:
       targetPort: 8002
       name: http
   selector:
-    app: skillissues-syncd
+    app: skillissues-ingestd

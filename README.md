@@ -57,7 +57,7 @@ Then it gives you somewhere less overwhelming to start looking.
 
 ## How it works
 
-1. `syncd` collects and qualifies GitHub issues.
+1. `ingestd` collects and qualifies GitHub issues.
 2. SkillIssues categorizes and scores them.
 3. You search, filter, or browse the catalog.
 4. You pick an issue that looks interesting — or at least survivable.
@@ -90,10 +90,10 @@ No XP for clicking a shiny button. No XP for saying “I will definitely start t
             PostgreSQL      Redis
                  ^            ^
                  |            |
-              syncd :8002 + worker
+                 ingestd :8002
                        ^
                        |
-               GitHub API / ETL
+                   GitHub API
 ```
 
 The main pieces are:
@@ -146,7 +146,7 @@ Open:
 
 See live service logs with:
 ```bash
-docker compose logs -f go-api syncd worker
+docker compose logs -f go-api ingestd
 ```
 
 ### Start the desktop app
