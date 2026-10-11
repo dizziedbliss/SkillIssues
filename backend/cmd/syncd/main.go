@@ -34,15 +34,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Diagnostic: log token presence and prefix (never log full token)
+	// Log presence only. Never log the token, a prefix of it, or its length:
+	// a prefix leaks secret bytes and the length identifies the credential type.
 	if cfg.GitHubToken == "" {
 		slog.Warn("GITHUB_TOKEN is not set — syncd will skip all GitHub GraphQL syncs")
 	} else {
-		prefix := cfg.GitHubToken
-		if len(prefix) > 8 {
-			prefix = prefix[:8] + "..."
-		}
-		slog.Info("github token loaded", "prefix", prefix, "length", len(cfg.GitHubToken))
+		slog.Info("github token loaded")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
