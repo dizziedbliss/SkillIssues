@@ -1,11 +1,8 @@
-// handlers.go — HTTP handler implementations for the SkillIssues Go API.
+// handlers.go — HTTP handler implementations for the SkillIssues API.
 //
-// Each handler function corresponds 1:1 with a Python FastAPI endpoint.
-// Response shapes are identical to the Python implementation to preserve
-// client compatibility (web frontend + Electron).
-//
-// Phase 1 provides: health, auth (all variants), and stub implementations
-// for remaining endpoints that proxy to the Python services during transition.
+// Response shapes are consumed by both the web frontend and the Electron
+// desktop app, so changing a payload shape requires updating both clients.
+// Sync and ingestion requests are forwarded to the ingestion service.
 package main
 
 import (
@@ -16,7 +13,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -624,27 +620,24 @@ func (h *handlers) getGitToken(w http.ResponseWriter, r *http.Request) {
 
 // ---------------------------------------------------------------------------
 // Issues, saved, recommendations, profile, contributions, webhook, admin
-// All proxied to Python API during Phase 1 migration.
-// Full Go implementations land in Phases 2–4.
-func (h *handlers) syncIssues(w http.ResponseWriter, r *http.Request) {
-	syncdURL := h.cfg.SyncdURL
-	if syncdURL == "" {
-		syncdURL = "http://syncd:8002"
-	}
-	targetURL := syncdURL + "/sync/issues"
-	repoQuery := r.URL.Query().Get("repo_id")
-	if repoQuery != "" {
-		targetURL = fmt.Sprintf("%s/sync/priority/%s", syncdURL, repoQuery)
+// ---------------------------------------------------------------------------
+
+// proxyToSyncd forwards a POST to the ingestion service and pipes the response back.
+func (h *handlers) proxyToSyncd(w http.ResponseWriter, r *http.Request, path string) {
+	base := strings.TrimRight(h.cfg.SyncdURL, "/")
+	if base == "" {
+		middleware.RespondError(w, http.StatusInternalServerError, "ingestion service not configured")
+		return
 	}
 
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, targetURL, nil)
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, base+path, nil)
 	if err != nil {
 		middleware.RespondError(w, http.StatusInternalServerError, "failed to create sync request")
 		return
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		middleware.RespondError(w, http.StatusBadGateway, "syncd service unavailable")
+		middleware.RespondError(w, http.StatusBadGateway, "ingestion service unavailable")
 		return
 	}
 	defer resp.Body.Close()
@@ -652,6 +645,28 @@ func (h *handlers) syncIssues(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
+}
+
+// syncPath builds the ingestion endpoint for an optional repository id.
+// The id is parsed as an integer so it can never inject extra path segments.
+func syncPath(rawRepoID string) (string, error) {
+	if rawRepoID == "" {
+		return "/sync/issues", nil
+	}
+	id, err := strconv.Atoi(rawRepoID)
+	if err != nil || id <= 0 {
+		return "", fmt.Errorf("invalid repository id")
+	}
+	return fmt.Sprintf("/sync/priority/%d", id), nil
+}
+
+func (h *handlers) syncIssues(w http.ResponseWriter, r *http.Request) {
+	path, err := syncPath(r.URL.Query().Get("repo_id"))
+	if err != nil {
+		middleware.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	h.proxyToSyncd(w, r, path)
 }
 
 func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
@@ -1230,57 +1245,17 @@ func (h *handlers) webhookGitHub(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) adminSyncRepository(w http.ResponseWriter, r *http.Request) {
-	h.proxyToPython(w, r, "/admin/sync/repository/"+r.PathValue("id"))
-}
-
-// ---------------------------------------------------------------------------
-// Python proxy (transition layer)
-// ---------------------------------------------------------------------------
-
-// pythonAPIBase is the upstream Python API URL.
-// Points to the Python api service during the migration period.
-func (h *handlers) pythonAPIBase() string {
-	base := os.Getenv("PYTHON_API_URL")
-	if base == "" {
-		base = "http://api:8000" // default: Docker service name
-	}
-	return strings.TrimRight(base, "/")
-}
-
-// proxyToPython forwards the request to the Python API and pipes the response back.
-// Auth headers/cookies are forwarded transparently so session validation works.
-func (h *handlers) proxyToPython(w http.ResponseWriter, r *http.Request, path string) {
-	target := h.pythonAPIBase() + path
-
-	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, target, r.Body)
-	if err != nil {
-		middleware.RespondError(w, http.StatusBadGateway, "proxy error")
+	rawID := r.PathValue("id")
+	if rawID == "" {
+		middleware.RespondError(w, http.StatusBadRequest, "repository id is required")
 		return
 	}
-
-	// Forward relevant headers
-	for _, hdr := range []string{"Content-Type", "Authorization", "Cookie", "X-Request-ID"} {
-		if v := r.Header.Get(hdr); v != "" {
-			proxyReq.Header.Set(hdr, v)
-		}
-	}
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(proxyReq)
+	path, err := syncPath(rawID)
 	if err != nil {
-		middleware.RespondError(w, http.StatusBadGateway, fmt.Sprintf("upstream unavailable: %v", err))
+		middleware.RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	defer resp.Body.Close()
-
-	// Forward response headers (Set-Cookie important for OAuth flow)
-	for key, vals := range resp.Header {
-		for _, v := range vals {
-			w.Header().Add(key, v)
-		}
-	}
-	w.WriteHeader(resp.StatusCode)
-	_, _ = io.Copy(w, resp.Body)
+	h.proxyToSyncd(w, r, path)
 }
 
 // ---------------------------------------------------------------------------
