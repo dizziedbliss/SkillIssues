@@ -70,15 +70,37 @@ type Service struct {
 	db       *db.Pool
 	cache    *cache.Client
 	ghClient *github.Client
+
+	// verifyQuota bounds PR verification attempts. Read per call so the limit
+	// can be tightened on a running system if it is being abused.
+	verifyQuota func() int
 }
 
-// New creates a new contribution Service.
-func New(db *db.Pool, cache *cache.Client, ghClient *github.Client) *Service {
-	return &Service{
-		db:       db,
-		cache:    cache,
-		ghClient: ghClient,
+// New creates a new contribution Service. verifyQuota may be nil, in which case
+// a built-in limit applies.
+func New(db *db.Pool, cache *cache.Client, ghClient *github.Client, verifyQuota func() int) *Service {
+	if verifyQuota == nil {
+		verifyQuota = func() int { return defaultVerifyQuota }
 	}
+	return &Service{
+		db:          db,
+		cache:       cache,
+		ghClient:    ghClient,
+		verifyQuota: verifyQuota,
+	}
+}
+
+// defaultVerifyQuota is the fallback hourly verification limit.
+const defaultVerifyQuota = 5
+
+// verifyAttemptsPerHour clamps the configured quota so a bad snapshot can never
+// disable the anti-abuse limit entirely.
+func (s *Service) verifyAttemptsPerHour() int64 {
+	n := s.verifyQuota()
+	if n < 1 {
+		return 1
+	}
+	return int64(n)
 }
 
 // StartContribution creates or touches a contribution record in STARTED state.

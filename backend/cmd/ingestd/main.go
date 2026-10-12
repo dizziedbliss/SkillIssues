@@ -17,6 +17,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/config"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/github"
+	"github.com/dizziedbliss/skillissues/internal/settings"
 	ingest "github.com/dizziedbliss/skillissues/internal/sync"
 )
 
@@ -73,15 +74,28 @@ func main() {
 	// Initialize GitHub Client
 	ghClient := github.NewClient(cfg.GitHubGraphQLURL)
 
-	// Initialize Sync Coordinator
+	// Load live settings and watch for changes, so the ingestion tunables below
+	// can be retuned without restarting this service.
+	live := settings.NewLive(ctx, dbPool.Raw(), cfg.DatabaseURL)
+	live.Start(ctx)
+
+	// Initialize Sync Coordinator. Worker counts and the interval come from the
+	// settings snapshot; the static fields are only the pre-settings fallback.
+	snap := live.Current()
 	coordCfg := ingest.CoordinatorConfig{
-		WorkerCount:         cfg.WorkerCount,
-		PriorityWorkerCount: cfg.PriorityWorkerCount,
-		OnDemandWorkerCount: cfg.OnDemandWorkerCount,
-		SyncInterval:        time.Duration(cfg.SyncIntervalSecs) * time.Second,
+		WorkerCount:         snap.Int(settings.IngestRoutineWorkers),
+		PriorityWorkerCount: snap.Int(settings.IngestPriorityWorkers),
+		OnDemandWorkerCount: snap.Int(settings.IngestOnDemandWorkers),
+		SyncInterval:        snap.Seconds(settings.IngestSyncIntervalSeconds),
 		GitHubToken:         cfg.GitHubToken,
+		Settings:            live.Current,
 	}
 	coordinator := ingest.NewCoordinator(dbPool, cacheClient, ghClient, coordCfg)
+
+	// Push concurrency changes into the pools as soon as settings reload, rather
+	// than waiting for the next sync cycle.
+	live.OnChange(coordinator.ApplySettings)
+
 	coordinator.Start()
 	defer func() {
 		_ = coordinator.Shutdown(5 * time.Second)

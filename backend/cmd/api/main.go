@@ -31,6 +31,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
 	"github.com/dizziedbliss/skillissues/internal/profile"
+	"github.com/dizziedbliss/skillissues/internal/settings"
 )
 
 func main() {
@@ -51,8 +52,6 @@ func main() {
 	slog.Info("SkillIssues API starting",
 		"port", cfg.Port,
 		"frontend_url", cfg.FrontendURL,
-		"unauth_rate_limit", cfg.UnauthRateLimit,
-		"auth_rate_limit", cfg.AuthRateLimit,
 	)
 
 	// 2. Connect to PostgreSQL
@@ -84,15 +83,28 @@ func main() {
 		RedirectURI:  cfg.GitHubRedirectURI,
 		GraphQLURL:   cfg.GitHubGraphQLURL,
 	}, authSvc)
+	// 5. Load live settings and start watching for changes. Operational values
+	// are read from the snapshot per request, so they can change without a
+	// restart; see internal/settings.
+	live := settings.NewLive(ctx, pool.Raw(), cfg.DatabaseURL)
+	live.Start(ctx)
+
 	profileSvc := profile.New(pool)
-	issueSvc := issue.New(pool)
+	issueSvc := issue.New(pool, func() int {
+		return live.Current().Int(settings.SearchPerCategoryCap)
+	})
 	ghClient := github.NewClient(cfg.GitHubGraphQLURL)
-	contribSvc := contribution.New(pool, cacheClient, ghClient)
+	contribSvc := contribution.New(pool, cacheClient, ghClient, func() int {
+		return live.Current().Int(settings.ContributionVerifyPerHour)
+	})
+	authSvc.SetSessionTTL(func() time.Duration {
+		return live.Current().Hours(settings.SessionTTLHours)
+	})
 
-	// 5. Build the HTTP router and register all routes
-	mux := buildRouter(cfg, pool, cacheClient, authSvc, ghOAuth, profileSvc, issueSvc, contribSvc, ghClient)
+	// 6. Build the HTTP router and register all routes
+	mux := buildRouter(cfg, live, pool, cacheClient, authSvc, ghOAuth, profileSvc, issueSvc, contribSvc, ghClient)
 
-	// 6. Start the HTTP server
+	// 7. Start the HTTP server
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
 		Handler:      mux,
@@ -129,6 +141,7 @@ func main() {
 // Route registration mirrors the Python FastAPI spec exactly.
 func buildRouter(
 	cfg *config.Config,
+	live *settings.Live,
 	pool *db.Pool,
 	cacheClient *cache.Client,
 	authSvc *auth.Service,
@@ -143,6 +156,7 @@ func buildRouter(
 	// Handlers object bundles all dependencies for handler functions
 	h := &handlers{
 		cfg:        cfg,
+		live:       live,
 		db:         pool,
 		cache:      cacheClient,
 		authSvc:    authSvc,
@@ -209,11 +223,23 @@ func buildRouter(
 	// ----- Admin -----
 	mux.Handle("POST /admin/sync/repository/{id}",
 		requireAdmin(cfg.AdminSyncToken, http.HandlerFunc(h.adminSyncRepository)))
+	mux.Handle("GET /admin/config",
+		requireAdmin(cfg.AdminSyncToken, http.HandlerFunc(h.adminGetConfig)))
+	mux.Handle("PUT /admin/config/{key}",
+		requireAdmin(cfg.AdminSyncToken, http.HandlerFunc(h.adminPutConfig)))
 
 	// Apply global middleware: RequestID → Logger → CORS → OptionalAuth → RateLimiter → mux
 	var handler http.Handler = mux
 	if cacheClient != nil {
-		handler = middleware.RateLimiter(cacheClient, int64(cfg.UnauthRateLimit), int64(cfg.AuthRateLimit), time.Hour, time.Hour, "global")(handler)
+		// Read limits per request so a settings change applies without a restart.
+		handler = middleware.RateLimiter(cacheClient, func() middleware.RateLimits {
+			s := live.Current()
+			return middleware.RateLimits{
+				Unauth: int64(s.Int(settings.RateLimitUnauthPerHour)),
+				Auth:   int64(s.Int(settings.RateLimitAuthPerHour)),
+				Window: s.Seconds(settings.RateLimitWindowSeconds),
+			}
+		}, "global")(handler)
 	}
 	handler = middleware.OptionalAuth(authSvc, cacheClient)(handler)
 	handler = middleware.CORS(cfg.FrontendURL)(handler)

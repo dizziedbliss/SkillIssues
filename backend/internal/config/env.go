@@ -1,5 +1,14 @@
-// Package config provides typed configuration loaded from environment variables.
-// All service configuration is centralised here; no other package reads os.Getenv directly.
+// Package config provides the startup configuration read from the environment.
+//
+// This is layers 1 and 2 only: bootstrap values needed before the database
+// exists, and secrets. Operational tunables — limits, page sizes, intervals,
+// worker counts, cache TTLs — live in the `settings` table and are served by
+// internal/settings, which reloads them without a restart.
+//
+// Adding an operational knob here is almost always the wrong move; add a key to
+// the settings registry instead. Secrets, conversely, must never go in the
+// settings table: it is readable through an admin endpoint and reproduced in
+// audit rows and database backups.
 package config
 
 import (
@@ -9,72 +18,45 @@ import (
 	"strings"
 )
 
-// Config holds all runtime configuration for the SkillIssues backend.
-// Values are read from environment variables at startup; missing required values cause a fatal error.
+// Config holds startup configuration for the SkillIssues backend.
 type Config struct {
-	// Database
+	// --- Layer 1: bootstrap, needed before the database is reachable ---
+
 	DatabaseURL string
+	RedisURL    string
+	Port        int
 
-	// Redis
-	RedisURL string
-
-	// HTTP server
-	Port int
-
-	// CORS / Frontend
+	// FrontendURL drives CORS and decides whether session cookies are marked
+	// Secure, so it is fixed at startup rather than reloadable.
 	FrontendURL string
 
-	// GitHub integration
-	GitHubToken         string // Server-side PAT for catalog ingestion and fallback operations
-	GitHubWebhookSecret string // HMAC secret for verifying GitHub webhook payloads
+	// SyncdURL is the ingestion service address used to forward sync requests.
+	SyncdURL string
+
+	// GitHubGraphQLURL is overridden only by tests and GitHub Enterprise.
+	GitHubGraphQLURL string
+
+	// --- Layer 2: secrets ---
+
+	GitHubToken         string // Server-side token for ingestion
+	GitHubWebhookSecret string // HMAC secret for verifying webhook payloads
 	GitHubClientID      string // OAuth App client ID
 	GitHubClientSecret  string // OAuth App client secret
-	GitHubRedirectURI   string // OAuth callback URL (must match GitHub App settings)
-	GitHubGraphQLURL    string // GitHub GraphQL endpoint (default: https://api.github.com/graphql)
-
-	// Admin
-	AdminSyncToken string // Bearer token for /admin/* endpoints
-
-	// Sync coordinator
-	WorkerCount         int // Routine sync goroutines (default: 4)
-	PriorityWorkerCount int // Priority sync goroutines (default: 2)
-	OnDemandWorkerCount int // On-demand goroutines (default: 8)
-	SyncIntervalSecs    int // Seconds between routine sync ticks (default: 900)
-	SyncdURL            string // URL to the Go ingestion service (default: http://ingestd:8002)
-
-	// Rate Limiting (Requests per hour)
-	UnauthRateLimit int // GitHub-style unauthenticated hourly limit (default: 60)
-	AuthRateLimit   int // Authenticated user hourly limit (default: 1000)
-
-	// Kaggle ETL (used by Python ingestion pipeline only)
-	KaggleUsername     string
-	KaggleKey          string
-	MaxRepositories    int
-	MinStars           int
+	GitHubRedirectURI   string // OAuth callback URL; must match the GitHub App
+	AdminSyncToken      string // Bearer token for /admin/* endpoints
 }
 
-// Load reads and validates all configuration from environment variables.
-// It returns an error if any required variable is missing or malformed.
+// Load reads and validates configuration from the environment.
 func Load() (*Config, error) {
 	cfg := &Config{
-		Port:                intEnv("PORT", 8000),
-		GitHubGraphQLURL:    strEnv("GITHUB_GRAPHQL_URL", "https://api.github.com/graphql"),
-		FrontendURL:         strEnv("FRONTEND_URL", "http://localhost:5173"),
-		GitHubRedirectURI:   strEnv("GITHUB_REDIRECT_URI", "http://localhost:8000/auth/github/callback"),
-		WorkerCount:         intEnv("WORKER_COUNT", 4),
-		PriorityWorkerCount: intEnv("PRIORITY_WORKER_COUNT", 2),
-		OnDemandWorkerCount: intEnv("ON_DEMAND_WORKER_COUNT", 8),
-		SyncIntervalSecs:    intEnv("SYNC_INTERVAL_SECONDS", 900),
-		SyncdURL:            strEnv("SYNCD_URL", "http://ingestd:8002"),
-		MaxRepositories:     intEnv("MAX_REPOSITORIES", 500),
-		MinStars:            intEnv("MIN_STARS", 50),
-		UnauthRateLimit:     intEnv("UNAUTH_RATE_LIMIT", 180),
-		AuthRateLimit:       intEnv("AUTH_RATE_LIMIT", 1000),
-		KaggleUsername:      strEnv("KAGGLE_USERNAME", ""),
-		KaggleKey:           strEnv("KAGGLE_KEY", ""),
+		Port:              intEnv("PORT", 8000),
+		GitHubGraphQLURL:  strEnv("GITHUB_GRAPHQL_URL", "https://api.github.com/graphql"),
+		FrontendURL:       strEnv("FRONTEND_URL", "http://localhost:5173"),
+		GitHubRedirectURI: strEnv("GITHUB_REDIRECT_URI", "http://localhost:8000/auth/github/callback"),
+		SyncdURL:          strEnv("SYNCD_URL", "http://ingestd:8002"),
+		RedisURL:          strEnv("REDIS_URL", "redis://localhost:6379/0"),
 	}
 
-	// Required variables
 	var missing []string
 
 	cfg.DatabaseURL = cleanToken(os.Getenv("DATABASE_URL"))
@@ -82,15 +64,13 @@ func Load() (*Config, error) {
 		missing = append(missing, "DATABASE_URL")
 	}
 
-	cfg.RedisURL = strEnv("REDIS_URL", "redis://localhost:6379/0")
-
 	cfg.GitHubToken = cleanToken(os.Getenv("GITHUB_TOKEN"))
 	cfg.GitHubWebhookSecret = strEnv("GITHUB_WEBHOOK_SECRET", "dev_local_webhook_secret")
 	cfg.GitHubClientID = cleanToken(os.Getenv("GITHUB_CLIENT_ID"))
 	cfg.GitHubClientSecret = cleanToken(os.Getenv("GITHUB_CLIENT_SECRET"))
 	cfg.AdminSyncToken = strEnv("ADMIN_SYNC_TOKEN", "dev_local_admin_sync_token")
 
-	// In strict production mode, verify they are explicitly configured
+	// Refuse to start in production on the development placeholder secrets.
 	if os.Getenv("ENV") == "production" {
 		if cfg.GitHubWebhookSecret == "dev_local_webhook_secret" {
 			missing = append(missing, "GITHUB_WEBHOOK_SECRET")
@@ -125,16 +105,4 @@ func intEnv(key string, fallback int) int {
 		}
 	}
 	return fallback
-}
-
-func boolEnv(key string, fallback bool) bool {
-	v := os.Getenv(key)
-	if v == "" {
-		return fallback
-	}
-	b, err := strconv.ParseBool(v)
-	if err != nil {
-		return fallback
-	}
-	return b
 }

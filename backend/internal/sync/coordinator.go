@@ -12,6 +12,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/github"
+	"github.com/dizziedbliss/skillissues/internal/settings"
 	"github.com/dizziedbliss/skillissues/internal/worker"
 	"github.com/jackc/pgx/v5"
 )
@@ -37,15 +38,17 @@ func (b *RateLimitBudget) Update(rl github.GraphQLRateLimit) {
 	b.Cost = rl.Cost
 }
 
-// CanProceed checks whether there is sufficient rate limit capacity remaining.
-func (b *RateLimitBudget) CanProceed() bool {
+// CanProceed reports whether the remaining GraphQL budget is above floor.
+// The floor is supplied by the caller rather than hardcoded so it can be
+// retuned without a restart.
+func (b *RateLimitBudget) CanProceed(floor int) bool {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	if b.Remaining == 0 && b.Limit == 0 {
 		// Budget not initialized yet; allow first attempt
 		return true
 	}
-	if b.Remaining < 100 && time.Now().Before(b.ResetAt) {
+	if b.Remaining < floor && time.Now().Before(b.ResetAt) {
 		return false
 	}
 	return true
@@ -76,6 +79,10 @@ type CoordinatorConfig struct {
 	OnDemandWorkerCount int
 	SyncInterval        time.Duration
 	GitHubToken         string
+
+	// Settings supplies live operational values. May be nil, in which case the
+	// static fields above and built-in defaults apply.
+	Settings func() *settings.Snapshot
 }
 
 // Coordinator orchestrates multi-tiered background synchronization for open-source issue ingestion.
@@ -89,6 +96,7 @@ type Coordinator struct {
 	onDemandPool *worker.Pool
 	budget       *RateLimitBudget
 	syncInterval time.Duration
+	settings     func() *settings.Snapshot
 	ctx          context.Context
 	cancel       context.CancelFunc
 	wg           sync.WaitGroup
@@ -112,11 +120,17 @@ func NewCoordinator(dbPool *db.Pool, cacheClient *cache.Client, ghClient *github
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	if cfg.Settings == nil {
+		fallback := settings.Defaults()
+		cfg.Settings = func() *settings.Snapshot { return fallback }
+	}
+
 	return &Coordinator{
 		db:           dbPool,
 		cache:        cacheClient,
 		github:       ghClient,
 		token:        cfg.GitHubToken,
+		settings:     cfg.Settings,
 		routinePool:  worker.NewPool("sync-routine", cfg.WorkerCount, cfg.WorkerCount*8),
 		priorityPool: worker.NewPool("sync-priority", cfg.PriorityWorkerCount, cfg.PriorityWorkerCount*8),
 		onDemandPool: worker.NewPool("sync-ondemand", cfg.OnDemandWorkerCount, cfg.OnDemandWorkerCount*8),
@@ -127,25 +141,55 @@ func NewCoordinator(dbPool *db.Pool, cacheClient *cache.Client, ghClient *github
 	}
 }
 
-// Start boots the routine scheduler ticker loop in a background goroutine.
+// rateLimitFloor is the remaining GraphQL budget below which syncing pauses.
+func (c *Coordinator) rateLimitFloor() int {
+	return c.settings().Int(settings.IngestRateLimitFloor)
+}
+
+// applySettings pushes the current concurrency limits into the pools. Called
+// each cycle so a change takes effect without restarting the service.
+// ApplySettings pushes current concurrency limits into the pools.
+func (c *Coordinator) ApplySettings(_ *settings.Snapshot) {
+	s := c.settings()
+	c.routinePool.SetConcurrency(s.Int(settings.IngestRoutineWorkers))
+	c.priorityPool.SetConcurrency(s.Int(settings.IngestPriorityWorkers))
+	c.onDemandPool.SetConcurrency(s.Int(settings.IngestOnDemandWorkers))
+}
+
+// syncIntervalNow resolves the configured sweep interval, falling back to the
+// value supplied at construction.
+func (c *Coordinator) syncIntervalNow() time.Duration {
+	if d := c.settings().Seconds(settings.IngestSyncIntervalSeconds); d > 0 {
+		return d
+	}
+	return c.syncInterval
+}
+
+// Start boots the routine scheduler loop in a background goroutine.
+//
+// The loop re-reads its interval each iteration rather than holding a ticker,
+// so changing the interval does not require a restart.
 func (c *Coordinator) Start() {
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
-		slog.Info("sync coordinator scheduler started", "interval", c.syncInterval.String())
-
-		ticker := time.NewTicker(c.syncInterval)
-		defer ticker.Stop()
+		slog.Info("sync coordinator scheduler started", "interval", c.syncIntervalNow().String())
 
 		// Run an initial routine sync on boot
+		c.ApplySettings(nil)
 		_, _ = c.TriggerRoutineSync(c.ctx)
 
 		for {
+			interval := c.syncIntervalNow()
+			timer := time.NewTimer(interval)
+
 			select {
 			case <-c.ctx.Done():
+				timer.Stop()
 				slog.Info("sync coordinator scheduler stopped")
 				return
-			case <-ticker.C:
+			case <-timer.C:
+				c.ApplySettings(nil)
 				if _, err := c.TriggerRoutineSync(c.ctx); err != nil {
 					slog.Warn("routine sync cycle encountered error", "error", err)
 				}
@@ -154,9 +198,21 @@ func (c *Coordinator) Start() {
 	}()
 }
 
+// sleepCtx waits for d unless ctx is cancelled first.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
+}
+
 // TriggerRoutineSync enqueues pending repositories into the routine worker pool.
 func (c *Coordinator) TriggerRoutineSync(ctx context.Context) (int, error) {
-	if !c.budget.CanProceed() {
+	if !c.budget.CanProceed(c.rateLimitFloor()) {
 		slog.Warn("rate limit budget depleted, skipping routine sync cycle", "reset_at", c.budget.Snapshot().ResetAt)
 		return 0, nil
 	}
@@ -214,7 +270,7 @@ func (c *Coordinator) SyncRepository(ctx context.Context, repo RepositoryJob, to
 		return nil
 	}
 
-	if !c.budget.CanProceed() {
+	if !c.budget.CanProceed(c.rateLimitFloor()) {
 		slog.Warn("rate limit low, aborting repository sync", "repo", repo.FullName)
 		return errors.New("github rate limit low")
 	}
@@ -244,9 +300,12 @@ func (c *Coordinator) SyncRepository(ctx context.Context, repo RepositoryJob, to
 		var page *github.RepositoryIssuesPage
 		var fetchErr error
 
-		// Retry up to 3 times with exponential backoff
-		for attempt := 0; attempt < 3; attempt++ {
-			page, fetchErr = c.github.FetchRepositoryIssues(ctx, token, owner, name, cursor, since)
+		// Retry with exponential backoff, bounded by configuration.
+		maxAttempts := c.settings().Int(settings.IngestMaxAttempts)
+		pageSize := c.settings().Int(settings.IngestGraphQLPageSize)
+		backoffBase := c.settings().Seconds(settings.IngestBackoffBaseSeconds)
+		for attempt := 0; attempt < maxAttempts; attempt++ {
+			page, fetchErr = c.github.FetchRepositoryIssues(ctx, token, owner, name, cursor, since, pageSize)
 			if fetchErr == nil {
 				break
 			}
@@ -263,7 +322,10 @@ func (c *Coordinator) SyncRepository(ctx context.Context, repo RepositoryJob, to
 				_ = MarkSyncFailed(ctx, c.db, repo.ID)
 				return fetchErr
 			}
-			time.Sleep(time.Duration(1<<attempt) * time.Second)
+			// ctx-aware so a shutdown is not delayed by a pending backoff.
+			if !sleepCtx(ctx, backoffBase*(1<<attempt)) {
+				return ctx.Err()
+			}
 		}
 
 		if fetchErr != nil {
@@ -290,8 +352,9 @@ func (c *Coordinator) SyncRepository(ctx context.Context, repo RepositoryJob, to
 			}
 		}
 
-		if page.RateLimit.Remaining < 100 {
-			slog.Warn("rate limit remaining low (<100), stopping pagination", "repo", repo.FullName, "remaining", page.RateLimit.Remaining)
+		if floor := c.rateLimitFloor(); page.RateLimit.Remaining < floor {
+			slog.Warn("rate limit remaining low, stopping pagination",
+				"repo", repo.FullName, "remaining", page.RateLimit.Remaining, "floor", floor)
 			break
 		}
 
@@ -312,7 +375,7 @@ func (c *Coordinator) SyncRepository(ctx context.Context, repo RepositoryJob, to
 // Status returns coordinator operational telemetry.
 func (c *Coordinator) Status() map[string]any {
 	return map[string]any{
-		"rate_limit":      c.budget.Snapshot(),
+		"rate_limit":     c.budget.Snapshot(),
 		"routine_pool":   c.routinePool.Stats(),
 		"priority_pool":  c.priorityPool.Stats(),
 		"on_demand_pool": c.onDemandPool.Stats(),

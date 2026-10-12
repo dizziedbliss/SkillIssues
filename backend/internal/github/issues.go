@@ -43,9 +43,9 @@ type RepositoryIssuesPage struct {
 	RateLimit      GraphQLRateLimit   `json:"rate_limit"`
 }
 
-const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: String!, $after: String, $since: DateTime) {
+const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: String!, $after: String, $since: DateTime, $first: Int!) {
     repository(owner: $owner, name: $name) {
-        issues(first: 50, after: $after, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}, filterBy: {since: $since}) {
+        issues(first: $first, after: $after, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}, filterBy: {since: $since}) {
             nodes {
                 databaseId
                 number
@@ -66,10 +66,20 @@ const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: St
 }`
 
 // FetchRepositoryIssues queries the GitHub GraphQL API for open issues in a repository.
-func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name string, after *string, since *time.Time) (*RepositoryIssuesPage, error) {
+func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name string, after *string, since *time.Time, pageSize int) (*RepositoryIssuesPage, error) {
+	// GitHub rejects anything outside 1..100, and an oversized page also raises
+	// the chance of the query exceeding the 10s limit.
+	if pageSize < 1 {
+		pageSize = 1
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
 	variables := map[string]any{
 		"owner": owner,
 		"name":  name,
+		"first": pageSize,
 	}
 	if after != nil && *after != "" {
 		variables["after"] = *after

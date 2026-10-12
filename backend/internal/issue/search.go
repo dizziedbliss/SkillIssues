@@ -52,11 +52,37 @@ type Filters struct {
 // Service manages issue queries and bookmarks.
 type Service struct {
 	db *db.Pool
+
+	// perCategoryCap is read per query so the search shape can be retuned on a
+	// running system. It is a narrow function rather than a config object so the
+	// dependency is explicit and trivial to stub in tests.
+	perCategoryCap func() int
 }
 
-// New creates a new issue Service.
-func New(db *db.Pool) *Service {
-	return &Service{db: db}
+// New creates a new issue Service. perCategoryCap may be nil, in which case a
+// conservative built-in cap applies.
+func New(db *db.Pool, perCategoryCap func() int) *Service {
+	if perCategoryCap == nil {
+		perCategoryCap = func() int { return defaultPerCategoryCap }
+	}
+	return &Service{db: db, perCategoryCap: perCategoryCap}
+}
+
+// defaultPerCategoryCap is the fallback when no provider is supplied.
+const defaultPerCategoryCap = 25
+
+// categoryCap clamps the configured cap into a sane range. The database
+// validates bounds too, but a nil or corrupt snapshot must never produce a
+// query that returns nothing or scans everything.
+func (s *Service) categoryCap() int {
+	n := s.perCategoryCap()
+	if n < 1 {
+		return 1
+	}
+	if n > 1000 {
+		return 1000
+	}
+	return n
 }
 
 const baseIssueSelect = `
@@ -204,7 +230,7 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 			       comments, author_name, full_name, repo_url, repo_desc, repo_lang, stars, repo_license,
 			       match_cat
 			FROM ranked_matches
-			WHERE cat_rank <= 25
+			WHERE cat_rank <= $%d
 			ORDER BY
 			    cat_rank ASC,
 			    CASE match_cat
@@ -221,9 +247,9 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 			sIdx, sIdx, sIdx, sIdx, sIdx,
 			tIdx, tIdx, tIdx, tIdx, sIdx, sIdx, sIdx, tIdx,
 			diffClause, langClause,
-			argIdx, argIdx+1)
+			argIdx, argIdx+1, argIdx+2)
 
-		args = append(args, limit, offset)
+		args = append(args, s.categoryCap(), limit, offset)
 
 		var all []Issue
 		err := s.db.QueryRows(ctx, searchQuery, args, func(rows pgx.Rows) error {
