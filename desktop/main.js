@@ -242,7 +242,13 @@ async function apiRequest(pathname, options = {}) {
  * @returns {Promise<any>} Parsed response data
  */
 async function apiJson(pathname, options = {}) {
-  const response = await apiRequest(pathname, options);
+  // `allow304`/`returnEtag` are consumed here, never forwarded to fetch()
+  // (D15 — ETag revalidation for cached recommendations).
+  const { allow304, returnEtag, ...fetchOptions } = options;
+  const response = await apiRequest(pathname, fetchOptions);
+  if (response.status === 304 && allow304) {
+    return { __notModified: true };
+  }
   const body = await response.text();
   let data = {};
   try {
@@ -255,6 +261,10 @@ async function apiJson(pathname, options = {}) {
       clearSavedSession();
     }
     throw new Error(data.detail || `API request failed (${response.status})`);
+  }
+  if (returnEtag) {
+    const etag = response.headers.get("etag");
+    if (etag) data.__etag = etag;
   }
   return data;
 }
