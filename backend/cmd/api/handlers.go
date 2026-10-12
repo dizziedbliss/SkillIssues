@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -33,6 +34,20 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// ticketTTL bounds how long a desktop OAuth ticket stays claimable. Without
+// an expiry, a ticket that's never polled (or polled only once and left
+// unconsumed) would hand out a live session to whoever holds it, forever.
+const ticketTTL = 10 * time.Minute
+
+// ticketEntry pairs stored ticket data with when it was created, so expired
+// entries can be rejected and swept instead of living in memory forever.
+type ticketEntry struct {
+	data      any
+	createdAt time.Time
+}
+
+func (t ticketEntry) expired() bool { return time.Since(t.createdAt) > ticketTTL }
+
 // handlers bundles all service dependencies for the handler functions.
 type handlers struct {
 	cfg            *config.Config
@@ -45,8 +60,30 @@ type handlers struct {
 	issueSvc       *issue.Service
 	contribSvc     *contribution.Service
 	ghClient       *github.Client
-	desktopTickets sync.Map // ticket -> session data
-	stateTickets   sync.Map // state -> ticket
+	desktopTickets sync.Map // ticket -> ticketEntry{data: session data}
+	stateTickets   sync.Map // state -> ticketEntry{data: ticket string}
+}
+
+// sweepExpiredTickets periodically drops stale entries from desktopTickets
+// and stateTickets so abandoned OAuth attempts don't accumulate forever.
+func (h *handlers) sweepExpiredTickets(ctx context.Context) {
+	ticker := time.NewTicker(ticketTTL)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			for _, m := range []*sync.Map{&h.desktopTickets, &h.stateTickets} {
+				m.Range(func(key, value any) bool {
+					if entry, ok := value.(ticketEntry); ok && entry.expired() {
+						m.Delete(key)
+					}
+					return true
+				})
+			}
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -227,7 +264,7 @@ func (h *handlers) authGitHubBegin(w http.ResponseWriter, r *http.Request) {
 	var ticket string
 	if isDesktop {
 		ticket = uuid.NewString()
-		h.stateTickets.Store(state, ticket)
+		h.stateTickets.Store(state, ticketEntry{data: ticket, createdAt: time.Now()})
 	}
 
 	// If browser directly navigated or explicitly requested redirect
@@ -261,7 +298,9 @@ func (h *handlers) authGitHubCallback(w http.ResponseWriter, r *http.Request) {
 
 	var ticket string
 	if stateVal, ok := h.stateTickets.LoadAndDelete(state); ok {
-		ticket = stateVal.(string)
+		if entry, ok := stateVal.(ticketEntry); ok && !entry.expired() {
+			ticket = entry.data.(string)
+		}
 	}
 
 	redirectWithError := func(code string, detail string) {
@@ -360,7 +399,7 @@ func (h *handlers) authGitHubCallback(w http.ResponseWriter, r *http.Request) {
     <p>You can close this tab and return to the application to try again.</p>
   </div>
 </body>
-</html>`, code, detail)
+</html>`, html.EscapeString(code), html.EscapeString(detail))
 			return
 		}
 		sep := "?"
@@ -409,12 +448,15 @@ func (h *handlers) authGitHubCallback(w http.ResponseWriter, r *http.Request) {
 
 	// If this flow originated from Electron Desktop, record ticket & present auto-redirect landing page
 	if ticket != "" {
-		h.desktopTickets.Store(ticket, map[string]any{
-			"session_token": rawToken,
-			"user": map[string]any{
-				"id":         userID,
-				"username":   ghUser.Username,
-				"avatar_url": ghUser.AvatarURL,
+		h.desktopTickets.Store(ticket, ticketEntry{
+			createdAt: time.Now(),
+			data: map[string]any{
+				"session_token": rawToken,
+				"user": map[string]any{
+					"id":         userID,
+					"username":   ghUser.Username,
+					"avatar_url": ghUser.AvatarURL,
+				},
 			},
 		})
 
@@ -528,12 +570,10 @@ func (h *handlers) authGitHubCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Web flow: Redirect to frontend with token in query param
-	sep := "?"
-	if strings.Contains(frontendURL, "?") {
-		sep = "&"
-	}
-	http.Redirect(w, r, fmt.Sprintf("%s%stoken=%s", frontendURL, sep, url.QueryEscape(rawToken)), http.StatusFound)
+	// Web flow: the session cookie was already set above; redirect back to the
+	// frontend without putting the token in the URL (it would leak via browser
+	// history and the Referer header).
+	http.Redirect(w, r, frontendURL, http.StatusFound)
 }
 
 // authGitHubPoll handles GET /auth/github/poll?ticket=...
@@ -549,7 +589,16 @@ func (h *handlers) authGitHubPoll(w http.ResponseWriter, r *http.Request) {
 		middleware.RespondJSON(w, http.StatusOK, map[string]any{"authenticated": false})
 		return
 	}
-	data := val.(map[string]any)
+	entry, ok := val.(ticketEntry)
+	if !ok || entry.expired() {
+		h.desktopTickets.Delete(ticket)
+		middleware.RespondJSON(w, http.StatusOK, map[string]any{"authenticated": false})
+		return
+	}
+	// Consume the ticket: once the desktop app has retrieved the session, the
+	// ticket must not be claimable again by anyone who later learns it.
+	h.desktopTickets.Delete(ticket)
+	data := entry.data.(map[string]any)
 	middleware.RespondJSON(w, http.StatusOK, map[string]any{
 		"authenticated": true,
 		"session_token": data["session_token"],
@@ -574,16 +623,14 @@ func (h *handlers) forkRepository(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch user's token or fallback
+	// Forking attributes the fork to whoever's token performs it, so this must
+	// always be the user's own GitHub authorization — never the server's.
 	var token string
 	_ = h.db.QueryRow(r.Context(),
 		`SELECT COALESCE(github_access_token, '') FROM users WHERE id = $1`,
 		[]any{userID},
 		func(row pgx.Row) error { return row.Scan(&token) },
 	)
-	if token == "" {
-		token = h.cfg.GitHubToken
-	}
 	if token == "" {
 		middleware.RespondError(w, http.StatusForbidden, "Please click 'Connect GitHub' in top bar to authorize repository forking.")
 		return
@@ -601,22 +648,22 @@ func (h *handlers) forkRepository(w http.ResponseWriter, r *http.Request) {
 func (h *handlers) getGitToken(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
-	// Fetch the user's stored GitHub token
+	// This token drives `git push`, so it must be the user's own GitHub
+	// authorization — a server-token fallback would attribute every push
+	// made this way to the server's identity, not the contributor's.
 	var token string
 	_ = h.db.QueryRow(r.Context(),
 		`SELECT COALESCE(github_access_token, '') FROM users WHERE id = $1`,
 		[]any{userID},
 		func(row pgx.Row) error { return row.Scan(&token) },
 	)
-
-	// Fall back to server GITHUB_TOKEN if user has no stored token
 	if token == "" {
-		token = h.cfg.GitHubToken
+		middleware.RespondError(w, http.StatusForbidden, "Connect GitHub before pushing changes.")
+		return
 	}
 
 	middleware.RespondJSON(w, http.StatusOK, map[string]string{
-		"token":          token,
-		"fallback_token": h.cfg.GitHubToken,
+		"token": token,
 	})
 }
 
@@ -1107,9 +1154,6 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 
 	token := userToken
 	if token == "" {
-		token = h.cfg.GitHubToken
-	}
-	if token == "" && username != "alex-dev" {
 		middleware.RespondError(w, http.StatusForbidden, "Connect GitHub before submitting a pull request.")
 		return
 	}
@@ -1135,7 +1179,7 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 	var prNum int
 	var pullRequest map[string]any
 
-	if token != "" && username != "alex-dev" {
+	{
 		head := body.Branch
 		if username != "" {
 			head = fmt.Sprintf("%s:%s", username, body.Branch)

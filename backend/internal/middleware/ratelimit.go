@@ -23,10 +23,16 @@ type RateLimits struct {
 // Limits are read through the provider on every request rather than captured at
 // construction, so they can be changed on a running system.
 // If cache is nil or down, the middleware fails open.
-func RateLimiter(c *cache.Client, limits func() RateLimits, keyPrefix string) func(http.Handler) http.Handler {
+//
+// trustedProxies lists the CIDRs permitted to set X-Forwarded-For/X-Real-IP;
+// a request from any other peer has those headers ignored so a client can't
+// spoof its own rate-limit identity. auth/health/metrics endpoints are not
+// blanket-exempt — only /health, /health/detail and /metrics are, so PAT and
+// OAuth login are rate limited like everything else.
+func RateLimiter(c *cache.Client, limits func() RateLimits, keyPrefix string, trustedProxies []*net.IPNet) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if c == nil || r.URL.Path == "/health" || r.URL.Path == "/health/detail" || r.URL.Path == "/metrics" || strings.HasPrefix(r.URL.Path, "/auth/") {
+			if c == nil || r.URL.Path == "/health" || r.URL.Path == "/health/detail" || r.URL.Path == "/metrics" {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -44,7 +50,7 @@ func RateLimiter(c *cache.Client, limits func() RateLimits, keyPrefix string) fu
 				rateLimitKey = fmt.Sprintf("%s:u%d", keyPrefix, uid)
 			} else {
 				limit = current.Unauth
-				clientIP := clientIdentifier(r)
+				clientIP := clientIdentifier(r, trustedProxies)
 				rateLimitKey = fmt.Sprintf("%s:anon:%s", keyPrefix, clientIP)
 			}
 
@@ -77,19 +83,50 @@ func RateLimiter(c *cache.Client, limits func() RateLimits, keyPrefix string) fu
 	}
 }
 
-// clientIdentifier resolves client IP for unauthenticated users
-func clientIdentifier(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		return strings.TrimSpace(parts[0])
-	}
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
+// clientIdentifier resolves client IP for unauthenticated users.
+//
+// X-Forwarded-For/X-Real-IP are only honored when the immediate peer
+// (r.RemoteAddr) is a trusted proxy; otherwise any client could set those
+// headers itself and pick its own rate-limit bucket.
+func clientIdentifier(r *http.Request, trustedProxies []*net.IPNet) string {
+	peerHost, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		peerHost = r.RemoteAddr
 	}
 
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err == nil {
-		return host
+	if isTrustedProxy(peerHost, trustedProxies) {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			parts := strings.Split(xff, ",")
+			return strings.TrimSpace(parts[0])
+		}
+		if xri := r.Header.Get("X-Real-IP"); xri != "" {
+			return strings.TrimSpace(xri)
+		}
 	}
-	return r.RemoteAddr
+
+	return peerHost
+}
+
+// ParseTrustedProxies parses CIDR strings (invalid entries are skipped).
+func ParseTrustedProxies(cidrs []string) []*net.IPNet {
+	var out []*net.IPNet
+	for _, c := range cidrs {
+		if _, ipnet, err := net.ParseCIDR(c); err == nil {
+			out = append(out, ipnet)
+		}
+	}
+	return out
+}
+
+func isTrustedProxy(host string, trusted []*net.IPNet) bool {
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	for _, n := range trusted {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
