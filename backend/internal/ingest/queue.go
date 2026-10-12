@@ -135,6 +135,17 @@ func repoIDs(byID map[int]*Job) []int {
 // If hasNextPage, the job (or a new "deep" job, if this was "initial")
 // goes back to pending with the new cursor. Otherwise it's marked done.
 func CompleteOrRequeue(ctx context.Context, tx pgx.Tx, job Job, newCursor string, hasNextPage bool, pagesDone int) error {
+	// "Last successful sync time, separate from the cursor" (ingestion design
+	// §5). Written in the same transaction as the page's rows, so it can
+	// never claim a sync that was rolled back — and it is what
+	// EnqueueFreshnessJobs orders the cycle by.
+	if _, err := tx.Exec(ctx,
+		`UPDATE repositories SET last_synced_at = now() WHERE id = $1`,
+		job.RepositoryID,
+	); err != nil {
+		return fmt.Errorf("ingest: mark repository synced: %w", err)
+	}
+
 	if !hasNextPage {
 		_, err := tx.Exec(ctx,
 			`UPDATE ingest_jobs SET status = 'done', cursor = $2, pages_done = $3,
@@ -251,6 +262,94 @@ func EnqueueInitialJobs(ctx context.Context, pool *db.Pool, limit int) (int, err
 	)
 	if err != nil {
 		return 0, fmt.Errorf("ingest: enqueue initial jobs: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
+// EnqueueFreshnessJobs re-queues the first page of repositories whose last
+// successful sync is older than olderThan — the Freshness half of the
+// Initial/Freshness worker. Without this the catalog goes quiet once every
+// repository has been seeded once: EnqueueInitialJobs only ever picks up
+// repositories that have no ingest_jobs row at all.
+//
+// Still FIFO and still no score: "oldest successful sync first" is cycle
+// ordering, not a ranking of repository value. The partial unique index on
+// (repository_id) WHERE status IN ('pending','running') makes this safe to
+// run on every cycle — a repository with work already queued is skipped.
+func EnqueueFreshnessJobs(ctx context.Context, pool *db.Pool, limit int, olderThan time.Duration) (int, error) {
+	if limit <= 0 {
+		return 0, nil
+	}
+	tag, err := pool.Raw().Exec(ctx,
+		`WITH due AS (
+			SELECT r.id
+			FROM repositories r
+			WHERE r.is_eligible
+			  AND r.last_synced_at IS NOT NULL
+			  AND r.last_synced_at < now() - ($2 * interval '1 second')
+			  AND NOT EXISTS (
+				SELECT 1 FROM ingest_jobs j
+				WHERE j.repository_id = r.id AND j.status IN ('pending', 'running')
+			  )
+			ORDER BY r.last_synced_at
+			LIMIT $1
+		 )
+		 INSERT INTO ingest_jobs (repository_id, job_type, status, next_retry_at)
+		 SELECT id, 'initial', 'pending', now() FROM due
+		 ON CONFLICT (repository_id) WHERE status IN ('pending', 'running') DO NOTHING`,
+		limit, olderThan.Seconds(),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("ingest: enqueue freshness jobs: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
+// RecomputeEligibility re-tests every stored repository against the current
+// thresholds and rewrites is_eligible/eligibility_reason. The importer
+// stores every record in the dataset, eligible or not, precisely so this is
+// a pure SQL recompute: lowering the star floor pulls repositories into the
+// crawl without re-reading the multi-GB source file, and raising it stops
+// them being crawled.
+//
+// The rule mirrors cmd/repoimport's eligible() exactly — if one changes,
+// both change. Repositories GitHub itself rejected (MarkUnavailable writes
+// eligibility_reason = 'not_found') are left alone: that is a fact about
+// the repository, not a threshold decision, and re-enabling them would
+// re-queue work that is known to fail.
+func RecomputeEligibility(ctx context.Context, pool *db.Pool, minStars, pushedWithinDays int) (int, error) {
+	tag, err := pool.Raw().Exec(ctx,
+		`WITH judged AS (
+			SELECT id,
+			       array_to_string(array_remove(ARRAY[
+			         CASE WHEN is_fork THEN 'is_fork' END,
+			         CASE WHEN is_archived THEN 'archived' END,
+			         -- NULL means "never imported with this field", not
+			         -- "has no issues". Absence of data is unknown, never a
+			         -- negative judgement — reading it as 0 here would
+			         -- declare the entire pre-existing catalog ineligible
+			         -- and stop the crawl dead.
+			         CASE WHEN issue_count IS NOT NULL AND issue_count <= 0 THEN 'no_issues' END,
+			         CASE WHEN language IS NULL OR language = '' THEN 'no_primary_language' END,
+			         CASE WHEN pushed_at IS NULL
+			                OR pushed_at < now() - ($2 * interval '1 day')
+			              THEN 'stale' END,
+			         CASE WHEN coalesce(stars, 0) < $1 THEN 'below_star_floor' END
+			       ], NULL), ';') AS reason
+			FROM repositories
+			WHERE eligibility_reason IS DISTINCT FROM 'not_found'
+		 )
+		 UPDATE repositories r
+		 SET is_eligible = (judged.reason = ''),
+		     eligibility_reason = judged.reason
+		 FROM judged
+		 WHERE r.id = judged.id
+		   AND (r.is_eligible IS DISTINCT FROM (judged.reason = '')
+		        OR r.eligibility_reason IS DISTINCT FROM judged.reason)`,
+		minStars, pushedWithinDays,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("ingest: recompute eligibility: %w", err)
 	}
 	return int(tag.RowsAffected()), nil
 }

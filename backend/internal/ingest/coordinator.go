@@ -41,6 +41,10 @@ type Coordinator struct {
 
 	owner string
 
+	// lastEligibilityCheck throttles the whole-table eligibility recompute,
+	// which must not run on every 5s claim cycle.
+	lastEligibilityCheck time.Time
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -109,14 +113,54 @@ func (c *Coordinator) Start() {
 }
 
 func (c *Coordinator) cycle() {
-	if n, err := EnqueueInitialJobs(c.ctx, c.pool, 500); err != nil {
+	snap := c.live()
+	batch := snap.Int(settings.IngestEnqueueBatchSize)
+
+	// 1. Eligibility first, on its own cadence: a threshold change decides
+	//    what the next two steps are even allowed to look at.
+	c.recheckEligibility(snap)
+
+	// 2. Repositories that have never been ingested.
+	if n, err := EnqueueInitialJobs(c.ctx, c.pool, batch); err != nil {
 		slog.Warn("failed to enqueue initial jobs", "error", err)
 	} else if n > 0 {
 		slog.Info("enqueued initial jobs for newly eligible repositories", "count", n)
 	}
 
+	// 3. Repositories whose first page is stale — the Freshness half of the
+	//    cycle. Without this the catalog stops moving once seeded.
+	freshnessAfter := snap.Seconds(settings.IngestFreshnessIntervalSeconds)
+	if n, err := EnqueueFreshnessJobs(c.ctx, c.pool, batch, freshnessAfter); err != nil {
+		slog.Warn("failed to enqueue freshness jobs", "error", err)
+	} else if n > 0 {
+		slog.Info("enqueued freshness re-checks", "count", n, "older_than", freshnessAfter)
+	}
+
 	c.claimAndSubmit(JobInitial, c.initialPool)
 	c.claimAndSubmit(JobDeep, c.deepPool)
+}
+
+// recheckEligibility re-tests stored repository metadata against the current
+// thresholds, no more often than ingest.eligibility.recheck_seconds. It is a
+// whole-table UPDATE, so it deliberately does not run on every 5s cycle.
+func (c *Coordinator) recheckEligibility(snap *settings.Snapshot) {
+	interval := snap.Seconds(settings.IngestEligibilityRecheckSeconds)
+	if time.Since(c.lastEligibilityCheck) < interval {
+		return
+	}
+	c.lastEligibilityCheck = time.Now()
+
+	minStars := snap.Int(settings.IngestEligibilityMinStars)
+	pushedWithinDays := snap.Int(settings.IngestEligibilityPushedWithinDays)
+	n, err := RecomputeEligibility(c.ctx, c.pool, minStars, pushedWithinDays)
+	if err != nil {
+		slog.Warn("failed to recompute repository eligibility", "error", err)
+		return
+	}
+	if n > 0 {
+		slog.Info("repository eligibility recomputed",
+			"changed", n, "min_stars", minStars, "pushed_within_days", pushedWithinDays)
+	}
 }
 
 func (c *Coordinator) claimAndSubmit(jobType JobType, pool *worker.Pool) {

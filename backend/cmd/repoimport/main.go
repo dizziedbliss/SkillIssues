@@ -1,10 +1,18 @@
-// cmd/repoimport is a one-shot offline importer for repository metadata
-// (plan Phase 4, D18): the Kaggle "github-repository-metadata-with-5-stars"
+// cmd/repoimport is the offline importer for repository metadata (plan
+// Phase 4, D18): the Kaggle "github-repository-metadata-with-5-stars"
 // dataset, or any file matching its JSON shape. It streams the (multi-GB)
-// JSON array rather than loading it into memory, filters by the same
-// eligibility rule the live crawler uses (D1), upserts eligible repositories
-// idempotently, and records everything else in a skip ledger so the
-// decision stays auditable and a threshold change is one local re-pass.
+// JSON array rather than loading it into memory.
+//
+// It stores *every* record it can read, eligible or not, with is_eligible
+// and eligibility_reason computed from the current thresholds. That is
+// deliberate: eligibility is a live setting, so it has to be re-decidable
+// from stored metadata (ingest.RecomputeEligibility) rather than only at
+// import time. Dropping ineligible records on the floor meant lowering the
+// star floor required a fresh pass over 3 GB of JSON before the crawler
+// could see the repositories it had just become willing to crawl.
+//
+// Only records that cannot be stored at all (no nameWithOwner) land in the
+// import_skipped ledger now.
 //
 // Does not touch issues, ingest_jobs, or anything else — this only ever
 // populates repositories and import_skipped.
@@ -25,6 +33,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/config"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/settings"
+	"github.com/jackc/pgx/v5"
 )
 
 type languageEntry struct {
@@ -63,7 +72,11 @@ type repoRecord struct {
 func main() {
 	filePath := flag.String("file", envOr("IMPORT_FILE", "data/repo_metadata.json"), "path to the metadata JSON file (or a .zip containing one)")
 	logEvery := flag.Int("log-every", 50000, "log progress every N records processed")
+	batchSize := flag.Int("batch-size", 500, "statements per database round trip")
 	flag.Parse()
+	if *batchSize < 1 {
+		*batchSize = 1
+	}
 
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	ctx := context.Background()
@@ -93,7 +106,12 @@ func main() {
 	}
 	defer closeFn()
 
-	imp := &importer{pool: pool, minStars: minStars, pushedWithinDays: pushedWithinDays}
+	imp := &importer{
+		pool:             pool,
+		minStars:         minStars,
+		pushedWithinDays: pushedWithinDays,
+		batchSize:        *batchSize,
+	}
 	if err := imp.run(ctx, reader, *logEvery); err != nil {
 		slog.Error("import failed", "error", err)
 		os.Exit(1)
@@ -101,10 +119,18 @@ func main() {
 
 	slog.Info("import complete",
 		"processed", imp.processed,
-		"imported", imp.imported,
-		"skipped", imp.skipped,
+		"stored", imp.stored,
+		"eligible", imp.eligible,
+		"ineligible", imp.ineligible,
+		"unusable", imp.unusable,
 		"errors", imp.errored,
 	)
+	if imp.errored > 0 {
+		// A partially-applied import is not a success: the caller needs a
+		// non-zero exit to notice, and the logged counts say how much
+		// landed.
+		os.Exit(1)
+	}
 }
 
 func envOr(key, fallback string) string {
@@ -146,7 +172,55 @@ type importer struct {
 	minStars         int
 	pushedWithinDays int
 
-	processed, imported, skipped, errored int
+	// Writes are batched because this now stores every record in the
+	// dataset, not the eligible minority: one round trip per record turns a
+	// multi-million-row pass into hours of pure network latency.
+	batchSize int
+	batch     *pgx.Batch
+
+	processed, stored, eligible, ineligible, unusable, errored int
+}
+
+// queue adds one statement to the pending batch, flushing when it is full.
+func (imp *importer) queue(ctx context.Context, sql string, args ...any) error {
+	if imp.batch == nil {
+		imp.batch = &pgx.Batch{}
+	}
+	imp.batch.Queue(sql, args...)
+	if imp.batch.Len() >= imp.batchSize {
+		return imp.flush(ctx)
+	}
+	return nil
+}
+
+// flush sends the pending batch. If the batch fails, it is replayed one
+// statement at a time so the failure is attributed to the record that
+// caused it instead of losing the whole batch to a single bad row.
+func (imp *importer) flush(ctx context.Context) error {
+	if imp.batch == nil || imp.batch.Len() == 0 {
+		return nil
+	}
+	batch := imp.batch
+	imp.batch = nil
+
+	results := imp.pool.Raw().SendBatch(ctx, batch)
+	err := results.Close()
+	if err == nil {
+		imp.stored += batch.Len()
+		return nil
+	}
+
+	slog.Warn("batch failed, replaying individually to isolate the bad record",
+		"batch_size", batch.Len(), "error", err)
+	for _, q := range batch.QueuedQueries {
+		if execErr := imp.pool.Exec(ctx, q.SQL, q.Arguments...); execErr != nil {
+			imp.errored++
+			slog.Warn("record failed", "error", execErr, "args", q.Arguments[:1])
+			continue
+		}
+		imp.stored++
+	}
+	return nil
 }
 
 // run streams the top-level JSON array, record by record, so a multi-GB
@@ -177,14 +251,16 @@ func (imp *importer) run(ctx context.Context, r io.Reader, logEvery int) error {
 		if logEvery > 0 && imp.processed%logEvery == 0 {
 			slog.Info("progress",
 				"processed", imp.processed,
-				"imported", imp.imported,
-				"skipped", imp.skipped,
+				"stored", imp.stored,
+				"eligible", imp.eligible,
+				"ineligible", imp.ineligible,
+				"unusable", imp.unusable,
 				"errors", imp.errored,
 			)
 		}
 	}
 
-	return nil
+	return imp.flush(ctx)
 }
 
 // eligible applies D1's rule. The star floor is abuse control (anyone can
@@ -218,17 +294,21 @@ func eligible(r repoRecord, minStars, pushedWithinDays int) (bool, string) {
 
 func (imp *importer) handle(ctx context.Context, r repoRecord) error {
 	if r.NameWithOwner == "" {
-		return fmt.Errorf("record has no nameWithOwner")
+		// Nothing identifies this record, so there is no row to store and
+		// nothing to re-decide later. The ledger is now only for this.
+		imp.unusable++
+		return imp.queue(ctx,
+			`INSERT INTO import_skipped (full_name, reason) VALUES ($1, $2)
+			 ON CONFLICT (full_name) DO UPDATE SET reason = EXCLUDED.reason, skipped_at = now()`,
+			fmt.Sprintf("<record #%d>", imp.processed), "no_name_with_owner",
+		)
 	}
 
 	ok, reason := eligible(r, imp.minStars, imp.pushedWithinDays)
-	if !ok {
-		imp.skipped++
-		return imp.pool.Exec(ctx,
-			`INSERT INTO import_skipped (full_name, reason) VALUES ($1, $2)
-			 ON CONFLICT (full_name) DO UPDATE SET reason = EXCLUDED.reason, skipped_at = now()`,
-			r.NameWithOwner, reason,
-		)
+	if ok {
+		imp.eligible++
+	} else {
+		imp.ineligible++
 	}
 
 	topics := make([]string, 0, len(r.Topics))
@@ -247,13 +327,17 @@ func (imp *importer) handle(ctx context.Context, r repoRecord) error {
 
 	url := "https://github.com/" + r.NameWithOwner
 
-	imp.imported++
-	if err := imp.pool.Exec(ctx,
+	// is_eligible/eligibility_reason are recomputed on every pass, except
+	// where the crawler has already learned from GitHub that the repository
+	// does not exist. That is a fact about the repository, not a threshold
+	// decision, so a metadata refresh must not resurrect it.
+	return imp.queue(ctx,
 		`INSERT INTO repositories (
 			full_name, url, description, language, stars, license, forkable,
 			last_activity_at, forks, watchers, is_archived, created_at, pushed_at,
-			topics, languages, forking_allowed, parent_full_name, is_eligible, eligibility_reason
-		 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,true,'')
+			topics, languages, forking_allowed, parent_full_name,
+			is_fork, issue_count, is_eligible, eligibility_reason
+		 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
 		 ON CONFLICT (lower(full_name)) DO UPDATE SET
 			stars = EXCLUDED.stars,
 			forks = EXCLUDED.forks,
@@ -266,21 +350,28 @@ func (imp *importer) handle(ctx context.Context, r repoRecord) error {
 			license = EXCLUDED.license,
 			topics = EXCLUDED.topics,
 			languages = EXCLUDED.languages,
-			forking_allowed = EXCLUDED.forking_allowed
+			forking_allowed = EXCLUDED.forking_allowed,
+			is_fork = EXCLUDED.is_fork,
+			issue_count = EXCLUDED.issue_count,
+			is_eligible = CASE
+			  WHEN repositories.eligibility_reason = 'not_found' THEN false
+			  ELSE EXCLUDED.is_eligible END,
+			eligibility_reason = CASE
+			  WHEN repositories.eligibility_reason = 'not_found' THEN 'not_found'
+			  ELSE EXCLUDED.eligibility_reason END
 		 WHERE repositories.stars IS DISTINCT FROM EXCLUDED.stars
 			OR repositories.forks IS DISTINCT FROM EXCLUDED.forks
 			OR repositories.watchers IS DISTINCT FROM EXCLUDED.watchers
 			OR repositories.is_archived IS DISTINCT FROM EXCLUDED.is_archived
 			OR repositories.pushed_at IS DISTINCT FROM EXCLUDED.pushed_at
-			OR repositories.description IS DISTINCT FROM EXCLUDED.description`,
+			OR repositories.description IS DISTINCT FROM EXCLUDED.description
+			OR repositories.is_fork IS DISTINCT FROM EXCLUDED.is_fork
+			OR repositories.issue_count IS DISTINCT FROM EXCLUDED.issue_count
+			OR repositories.is_eligible IS DISTINCT FROM EXCLUDED.is_eligible
+			OR repositories.eligibility_reason IS DISTINCT FROM EXCLUDED.eligibility_reason`,
 		r.NameWithOwner, url, r.Description, r.PrimaryLanguage, r.Stars, r.License, r.ForkingAllowed,
 		r.PushedAt, r.Forks, r.Watchers, r.IsArchived, r.CreatedAt, r.PushedAt,
 		topics, languagesJSON, r.ForkingAllowed, parentFullName,
-	); err != nil {
-		return fmt.Errorf("upsert repository: %w", err)
-	}
-
-	// A repo that was skipped in an earlier pass but is eligible now (e.g. it
-	// crossed the star floor) should stop showing up in the skip ledger.
-	return imp.pool.Exec(ctx, `DELETE FROM import_skipped WHERE full_name = $1`, r.NameWithOwner)
+		r.IsFork, r.Issues, ok, reason,
+	)
 }
