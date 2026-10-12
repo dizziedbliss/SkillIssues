@@ -28,6 +28,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/crypto"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/github"
+	"github.com/dizziedbliss/skillissues/internal/githubapp"
 	"github.com/dizziedbliss/skillissues/internal/issue"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
@@ -91,6 +92,35 @@ func main() {
 		RedirectURI:  cfg.GitHubRedirectURI,
 		GraphQLURL:   cfg.GitHubGraphQLURL,
 	}, authSvc)
+
+	// GitHub App (D5): optional until configured. Installation token drives
+	// server-side crawling/on-demand reads; user-to-server token drives
+	// fork/push/PR, replacing the OAuth App's blanket `repo` scope for
+	// accounts that log in through it. Disabled (nil) leaves the OAuth
+	// App/PAT login paths as the only ones, unchanged.
+	var ghApp *githubapp.App
+	var ghAppLogin *auth.GitHubAppLogin
+	if cfg.GitHubAppID != "" {
+		privKey, err := githubapp.LoadPrivateKeyFile(cfg.GitHubAppPrivateKeyPath)
+		if err != nil {
+			slog.Error("failed to load GitHub App private key", "error", err)
+			os.Exit(1)
+		}
+		ghApp, err = githubapp.New(githubapp.Config{
+			AppID:        cfg.GitHubAppID,
+			ClientID:     cfg.GitHubAppClientID,
+			ClientSecret: cfg.GitHubAppClientSecret,
+			PrivateKey:   privKey,
+			CallbackURL:  cfg.GitHubAppCallbackURL,
+		})
+		if err != nil {
+			slog.Error("failed to initialize GitHub App", "error", err)
+			os.Exit(1)
+		}
+		authSvc.SetGitHubApp(ghApp)
+		ghAppLogin = auth.NewGitHubAppLogin(ghApp, authSvc, ghOAuth)
+		slog.Info("GitHub App configured", "app_id", cfg.GitHubAppID)
+	}
 	// 5. Load live settings and start watching for changes. Operational values
 	// are read from the snapshot per request, so they can change without a
 	// restart; see internal/settings.
@@ -111,7 +141,7 @@ func main() {
 	})
 
 	// 6. Build the HTTP router and register all routes
-	mux := buildRouter(cfg, live, pool, cacheClient, authSvc, ghOAuth, profileSvc, issueSvc, contribSvc, ghClient)
+	mux := buildRouter(cfg, live, pool, cacheClient, authSvc, ghOAuth, ghAppLogin, profileSvc, issueSvc, contribSvc, ghClient)
 
 	// 7. Start the HTTP server
 	server := &http.Server{
@@ -155,6 +185,7 @@ func buildRouter(
 	cacheClient *cache.Client,
 	authSvc *auth.Service,
 	ghOAuth *auth.GitHubOAuth,
+	ghAppLogin *auth.GitHubAppLogin,
 	profileSvc *profile.Service,
 	issueSvc *issue.Service,
 	contribSvc *contribution.Service,
@@ -170,6 +201,7 @@ func buildRouter(
 		cache:      cacheClient,
 		authSvc:    authSvc,
 		ghOAuth:    ghOAuth,
+		ghAppLogin: ghAppLogin,
 		profileSvc: profileSvc,
 		issueSvc:   issueSvc,
 		contribSvc: contribSvc,
@@ -189,6 +221,8 @@ func buildRouter(
 	mux.HandleFunc("POST /auth/github", h.authGitHubBegin) // both GET and POST per spec
 	mux.HandleFunc("GET /auth/github/callback", h.authGitHubCallback)
 	mux.HandleFunc("GET /auth/github/poll", h.authGitHubPoll)
+	mux.HandleFunc("GET /auth/github-app", h.authGitHubAppBegin)
+	mux.HandleFunc("GET /auth/github-app/callback", h.authGitHubAppCallback)
 	mux.HandleFunc("POST /auth/logout", h.authLogout)
 	mux.HandleFunc("POST /auth/purge", h.authPurge)
 

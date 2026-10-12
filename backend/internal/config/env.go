@@ -53,6 +53,16 @@ type Config struct {
 	GitHubRedirectURI   string // OAuth callback URL; must match the GitHub App
 	AdminSyncToken      string // Bearer token for /admin/* endpoints
 
+	// GitHub App (plan D5) — separate from the OAuth App above. Installation
+	// token drives server-side crawling/reads; the user-to-server token
+	// drives fork/push/PR. All empty means the App isn't configured yet and
+	// those code paths stay disabled, falling back to the OAuth App/PAT.
+	GitHubAppID             string
+	GitHubAppClientID       string
+	GitHubAppClientSecret   string
+	GitHubAppPrivateKeyPath string
+	GitHubAppCallbackURL    string
+
 	// TokenEncryptionKey is the AES-256 key (derived via SHA-256 from
 	// TOKEN_ENCRYPTION_KEY, so operators can set any length secret) used to
 	// encrypt users.github_access_token at rest. Losing or rotating it
@@ -85,6 +95,12 @@ func Load() (*Config, error) {
 	cfg.GitHubClientID = cleanToken(os.Getenv("GITHUB_CLIENT_ID"))
 	cfg.GitHubClientSecret = cleanToken(os.Getenv("GITHUB_CLIENT_SECRET"))
 	cfg.AdminSyncToken = strEnv("ADMIN_SYNC_TOKEN", "dev_local_admin_sync_token")
+
+	cfg.GitHubAppID = cleanToken(os.Getenv("GITHUB_APP_ID"))
+	cfg.GitHubAppClientID = cleanToken(os.Getenv("GITHUB_APP_CLIENT_ID"))
+	cfg.GitHubAppClientSecret = cleanToken(os.Getenv("GITHUB_APP_CLIENT_SECRET"))
+	cfg.GitHubAppPrivateKeyPath = cleanToken(os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH"))
+	cfg.GitHubAppCallbackURL = strEnv("GITHUB_APP_CALLBACK_URL", "http://localhost:8000/auth/github-app/callback")
 
 	tokenEncryptionSecret := strEnv("TOKEN_ENCRYPTION_KEY", "dev_local_token_encryption_key")
 	keyHash := sha256.Sum256([]byte(tokenEncryptionSecret))

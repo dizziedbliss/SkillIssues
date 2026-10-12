@@ -78,11 +78,18 @@ services:
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-}
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_CLIENT_ID: ${GITHUB_APP_CLIENT_ID:-}
+      GITHUB_APP_CLIENT_SECRET: ${GITHUB_APP_CLIENT_SECRET:-}
+      GITHUB_APP_CALLBACK_URL: ${GITHUB_APP_CALLBACK_URL:-https://api.skillissues.com/auth/github-app/callback}
+      GITHUB_APP_PRIVATE_KEY_PATH: /run/secrets/github-app-private-key.pem
       SYNCD_URL: http://ingestd:8002
       ENV: production
       PORT: 8000
     ports:
       - "8000:8000"
+    volumes:
+      - ${GITHUB_APP_PRIVATE_KEY_HOST_PATH:-/dev/null}:/run/secrets/github-app-private-key.pem:ro
     depends_on:
       postgres:
         condition: service_healthy

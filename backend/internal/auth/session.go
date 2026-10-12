@@ -23,8 +23,14 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/crypto"
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/githubapp"
 	"github.com/jackc/pgx/v5"
 )
+
+// refreshMargin is how much life a GitHub App user token must have left
+// before GetAccessToken proactively refreshes it, so a caller never
+// receives a token that expires mid-request.
+const refreshMargin = 2 * time.Minute
 
 // SessionDuration is the built-in session lifetime, used when no provider is
 // configured via SetSessionTTL.
@@ -66,6 +72,11 @@ type Service struct {
 	// Postgres. Nil only in tests that don't set it, in which case tokens
 	// pass through unencrypted.
 	tokenCipher *crypto.Cipher
+
+	// githubApp refreshes GitHub-App-issued user tokens before they expire.
+	// Nil when the GitHub App isn't configured, in which case stored tokens
+	// are assumed to be classic OAuth App tokens, which don't expire.
+	githubApp *githubapp.App
 }
 
 // New creates an auth.Service.
@@ -81,6 +92,12 @@ func New(db *db.Pool, cacheClient ...*cache.Client) *Service {
 // access tokens. Safe to call only during startup wiring.
 func (s *Service) SetTokenCipher(c *crypto.Cipher) {
 	s.tokenCipher = c
+}
+
+// SetGitHubApp installs the GitHub App used to refresh expiring
+// user-to-server tokens. Safe to call only during startup wiring.
+func (s *Service) SetGitHubApp(app *githubapp.App) {
+	s.githubApp = app
 }
 
 // DecryptAccessToken reverses the encryption UpsertUser applies. It returns
@@ -99,17 +116,65 @@ func (s *Service) DecryptAccessToken(encrypted string) string {
 }
 
 // GetAccessToken fetches and decrypts a user's stored GitHub token, if any.
+// If it's a GitHub-App-issued token nearing or past its 8-hour expiry, this
+// refreshes it first via the stored refresh token and persists the result —
+// callers never receive a token that's about to stop working mid-request.
+// A failed refresh returns "" rather than a stale token, same as "no token":
+// the caller's existing "connect GitHub" error path handles it.
 func (s *Service) GetAccessToken(ctx context.Context, userID int) (string, error) {
-	var enc string
+	var encToken, encRefresh string
+	var expiresAt *time.Time
 	err := s.db.QueryRow(ctx,
-		`SELECT COALESCE(github_access_token, '') FROM users WHERE id = $1`,
+		`SELECT COALESCE(github_access_token, ''), COALESCE(github_refresh_token, ''), github_token_expires_at
+		 FROM users WHERE id = $1`,
 		[]any{userID},
-		func(row pgx.Row) error { return row.Scan(&enc) },
+		func(row pgx.Row) error { return row.Scan(&encToken, &encRefresh, &expiresAt) },
 	)
 	if err != nil {
 		return "", err
 	}
-	return s.DecryptAccessToken(enc), nil
+
+	if expiresAt == nil || time.Until(*expiresAt) > refreshMargin || encRefresh == "" || s.githubApp == nil {
+		return s.DecryptAccessToken(encToken), nil
+	}
+
+	refreshToken := s.DecryptAccessToken(encRefresh)
+	if refreshToken == "" {
+		return "", nil
+	}
+	fresh, err := s.githubApp.RefreshUserToken(ctx, refreshToken)
+	if err != nil {
+		return "", nil
+	}
+	if err := s.storeUserToken(ctx, userID, fresh); err != nil {
+		return "", nil
+	}
+	return fresh.AccessToken, nil
+}
+
+// storeUserToken encrypts and persists a GitHub App user token (access
+// token, refresh token, expiry) for userID.
+func (s *Service) storeUserToken(ctx context.Context, userID int, tok *githubapp.UserToken) error {
+	encToken, err := s.encryptToken(tok.AccessToken)
+	if err != nil {
+		return err
+	}
+	encRefresh, err := s.encryptToken(tok.RefreshToken)
+	if err != nil {
+		return err
+	}
+	return s.db.Exec(ctx,
+		`UPDATE users SET github_access_token = $1, github_refresh_token = $2, github_token_expires_at = $3
+		 WHERE id = $4`,
+		encToken, encRefresh, tok.ExpiresAt, userID,
+	)
+}
+
+func (s *Service) encryptToken(plain string) (string, error) {
+	if plain == "" || s.tokenCipher == nil {
+		return plain, nil
+	}
+	return s.tokenCipher.Encrypt(plain)
 }
 
 // ---------------------------------------------------------------------------
@@ -331,5 +396,19 @@ func (s *Service) UpsertUser(ctx context.Context, githubID, username, avatarURL,
 		userID,
 	)
 
+	return userID, nil
+}
+
+// UpsertUserWithAppToken is UpsertUser for the GitHub App login flow: it
+// additionally persists the refresh token and expiry a user-to-server token
+// carries, so GetAccessToken can refresh it before it expires.
+func (s *Service) UpsertUserWithAppToken(ctx context.Context, githubID, username, avatarURL string, tok *githubapp.UserToken) (int, error) {
+	userID, err := s.UpsertUser(ctx, githubID, username, avatarURL, tok.AccessToken)
+	if err != nil {
+		return 0, err
+	}
+	if err := s.storeUserToken(ctx, userID, tok); err != nil {
+		return 0, fmt.Errorf("auth: store app token: %w", err)
+	}
 	return userID, nil
 }
