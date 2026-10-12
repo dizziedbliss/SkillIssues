@@ -24,7 +24,7 @@ const classificationRulesVersion = 1
 // row whenever two repositories' issue numbers coincided with a stale
 // github_id (defect fixed here, not carried forward from internal/sync).
 func UpsertIssueTx(ctx context.Context, tx pgx.Tx, repoID int, issue github.GraphQLIssueNode, repoLanguage string) error {
-	labels := sanitizeSlice(issue.Labels)
+	labels := SanitizeSlice(issue.Labels)
 	score, difficulty, hasValid, skills, tech, tags := sync.ExtractMetadata(labels, repoLanguage)
 
 	var difficultyScore *int
@@ -32,7 +32,7 @@ func UpsertIssueTx(ctx context.Context, tx pgx.Tx, repoID int, issue github.Grap
 		difficultyScore = &score
 	}
 
-	author := sanitizeText(issue.AuthorLogin)
+	author := SanitizeText(issue.AuthorLogin)
 	if author == "" {
 		author = "open-source"
 	}
@@ -70,7 +70,7 @@ func UpsertIssueTx(ctx context.Context, tx pgx.Tx, repoID int, issue github.Grap
 			has_difficulty_label         = EXCLUDED.has_difficulty_label,
 			updated_at                   = EXCLUDED.updated_at,
 			author                       = EXCLUDED.author`,
-		issue.DatabaseID, repoID, issue.Number, sanitizeText(issue.Title), issue.URL, issue.State,
+		issue.DatabaseID, repoID, issue.Number, SanitizeText(issue.Title), issue.URL, issue.State,
 		difficultyScore, difficulty, skills, tech, tags,
 		labels, classificationRulesVersion, issue.CommentsCount, hasValid,
 		createdAt, updatedAt, author,

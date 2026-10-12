@@ -32,6 +32,7 @@ import (
 
 	"github.com/dizziedbliss/skillissues/internal/config"
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/ingest"
 	"github.com/dizziedbliss/skillissues/internal/settings"
 	"github.com/jackc/pgx/v5"
 )
@@ -311,9 +312,21 @@ func (imp *importer) handle(ctx context.Context, r repoRecord) error {
 		imp.ineligible++
 	}
 
+	// NUL bytes do occur in this dataset's descriptions and topic names, and
+	// Postgres's text type rejects them outright — one NUL would otherwise
+	// fail its whole batch. Same rule, same helper as the issue path.
 	topics := make([]string, 0, len(r.Topics))
 	for _, t := range r.Topics {
 		topics = append(topics, t.Name)
+	}
+	topics = ingest.SanitizeSlice(topics)
+	description := ingest.SanitizeOptional(r.Description)
+	primaryLanguage := ingest.SanitizeOptional(r.PrimaryLanguage)
+	license := ingest.SanitizeOptional(r.License)
+	fullName := ingest.SanitizeText(r.NameWithOwner)
+	for i := range r.Languages {
+		// jsonb rejects \u0000 too, so this has to happen before the marshal.
+		r.Languages[i].Name = ingest.SanitizeText(r.Languages[i].Name)
 	}
 	languagesJSON, err := json.Marshal(r.Languages)
 	if err != nil {
@@ -322,10 +335,10 @@ func (imp *importer) handle(ctx context.Context, r repoRecord) error {
 
 	var parentFullName *string
 	if r.Parent != nil && r.Parent.NameWithOwner != "" {
-		parentFullName = &r.Parent.NameWithOwner
+		parentFullName = ingest.SanitizeOptional(&r.Parent.NameWithOwner)
 	}
 
-	url := "https://github.com/" + r.NameWithOwner
+	url := "https://github.com/" + fullName
 
 	// is_eligible/eligibility_reason are recomputed on every pass, except
 	// where the crawler has already learned from GitHub that the repository
@@ -369,7 +382,7 @@ func (imp *importer) handle(ctx context.Context, r repoRecord) error {
 			OR repositories.issue_count IS DISTINCT FROM EXCLUDED.issue_count
 			OR repositories.is_eligible IS DISTINCT FROM EXCLUDED.is_eligible
 			OR repositories.eligibility_reason IS DISTINCT FROM EXCLUDED.eligibility_reason`,
-		r.NameWithOwner, url, r.Description, r.PrimaryLanguage, r.Stars, r.License, r.ForkingAllowed,
+		fullName, url, description, primaryLanguage, r.Stars, license, r.ForkingAllowed,
 		r.PushedAt, r.Forks, r.Watchers, r.IsArchived, r.CreatedAt, r.PushedAt,
 		topics, languagesJSON, r.ForkingAllowed, parentFullName,
 		r.IsFork, r.Issues, ok, reason,
