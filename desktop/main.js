@@ -650,7 +650,6 @@ ipcMain.handle("auth:github-token", async (_, token) => {
 
 ipcMain.handle("auth:logout", async () => {
   try {
-    await apiJson("/auth/purge", { method: "POST" });
     await apiJson("/auth/logout", { method: "POST" });
     await session.defaultSession.clearStorageData({ storages: ["cookies"] });
   } catch {
@@ -659,6 +658,19 @@ ipcMain.handle("auth:logout", async () => {
     clearSavedSession();
   }
   return { loggedOut: true };
+});
+
+// Deletes the user's account and all of their data. Unlike auth:logout, this
+// is destructive and irreversible, so the renderer must get explicit
+// confirmation from the user before invoking it.
+ipcMain.handle("auth:delete-account", async () => {
+  try {
+    await apiJson("/auth/purge", { method: "POST" });
+    await session.defaultSession.clearStorageData({ storages: ["cookies"] });
+  } finally {
+    clearSavedSession();
+  }
+  return { purged: true };
 });
 
 // ==============================================================================
@@ -968,34 +980,24 @@ ipcMain.handle("workspace:push", async (_, workspace, branch) => {
 });
 
 async function gitPushWithCredentials(workspace, branch, credentials) {
-  const pushWithToken = async (tok) => {
-    const auth = Buffer.from(`x-access-token:${tok}`).toString("base64");
-    return runGit(
-      workspace,
-      [
-        "-c",
-        `http.extraheader=AUTHORIZATION: basic ${auth}`,
-        "push",
-        "--set-upstream",
-        "origin",
-        branch,
-      ],
-      `git push --set-upstream origin "${branch}"`,
-    );
-  };
-
-  try {
-    return await pushWithToken(credentials.token);
-  } catch (err) {
-    if (
-      credentials.fallback_token &&
-      credentials.fallback_token !== credentials.token &&
-      /403|permission to .* denied|unable to access|Authentication failed/i.test(err.message)
-    ) {
-      return await pushWithToken(credentials.fallback_token);
-    }
-    throw err;
+  if (!credentials.token) {
+    throw new Error("Connect GitHub before pushing changes.");
   }
+  const auth = Buffer.from(`x-access-token:${credentials.token}`).toString(
+    "base64",
+  );
+  return runGit(
+    workspace,
+    [
+      "-c",
+      `http.extraheader=AUTHORIZATION: basic ${auth}`,
+      "push",
+      "--set-upstream",
+      "origin",
+      branch,
+    ],
+    `git push --set-upstream origin "${branch}"`,
+  );
 }
 
 ipcMain.handle(

@@ -56,6 +56,14 @@ contextBridge.exposeInMainWorld("skillIssuesDesktop", {
   logout: () => ipcRenderer.invoke("auth:logout"),
 
   /**
+   * Permanently delete the user's account and all associated data (XP,
+   * contributions, history). Irreversible — the renderer must confirm with
+   * the user before calling this.
+   * @returns {Promise<{purged: boolean}>}
+   */
+  deleteAccount: () => ipcRenderer.invoke("auth:delete-account"),
+
+  /**
    * Window controls for custom actions if needed.
    */
   minimizeWindow: () => ipcRenderer.invoke("window:minimize"),

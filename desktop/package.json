@@ -26,7 +26,8 @@
       "app.js",
       "logo.png",
       "icon.png",
-      "package.json"
+      "package.json",
+      "vendor/**/*"
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
