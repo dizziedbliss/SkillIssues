@@ -156,9 +156,9 @@ issues, most-recently-updated first — not every comment, reaction, event or cl
 
 ```
 Kaggle repository-metadata dataset  (cmd/repoimport)
-        │  every record stored; is_eligible computed, never pre-filtered away
+        │  ~4.2M records streamed, filtered at import; only passers stored
         ▼
-eligibility filter  (live settings, re-evaluated continuously)
+eligible repositories  (~288k at the current thresholds)
         │
         ▼
 Initial  — one first page of open issues per eligible repository
@@ -182,10 +182,14 @@ claim and submit work to the Initial and Deep pools.
   judgement about repository value. Data-science ranking comes later, from the collected data.
 - **Eligibility is abuse control and pacing, not quality.** The star floor exists because
   anyone can open an issue on a throwaway repository to burn crawl budget.
-- **Eligibility is re-decidable.** `cmd/repoimport` stores every record in the dataset, so
-  `ingest.RecomputeEligibility` can re-test stored metadata against the current thresholds in
-  SQL. Lowering the star floor pulls repositories into the crawl without re-reading the
-  dataset; raising it stops them being crawled. Never filter records out at import time.
+- **Only eligible repositories are stored.** The dataset is ~4.2M records and ~288k pass the
+  filter; storing the rest cost ~2.8 GB of rows nothing is ever allowed to crawl. A full
+  import pass is ~16 minutes and idempotent, so **loosening** a threshold means re-running
+  `cmd/repoimport`, which is cheaper than warehousing the dataset.
+- **Tightening is live.** `ingest.RecomputeEligibility` re-tests the rows that *are* stored
+  against the current thresholds on a throttled cycle, so raising the star floor, or metadata
+  going stale, takes repositories out of the crawl without a re-import. The rule it applies
+  must stay identical to `cmd/repoimport`'s `eligible()` — if one changes, both change.
 - **Unknown is not a negative.** A NULL metadata field means "not imported yet", never
   "fails the check" — the same principle as unlabeled issues not being `BEGINNER`.
 - **Cursors advance only after the rows they describe are committed**, in the same

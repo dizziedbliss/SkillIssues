@@ -3,16 +3,20 @@
 // dataset, or any file matching its JSON shape. It streams the (multi-GB)
 // JSON array rather than loading it into memory.
 //
-// It stores *every* record it can read, eligible or not, with is_eligible
-// and eligibility_reason computed from the current thresholds. That is
-// deliberate: eligibility is a live setting, so it has to be re-decidable
-// from stored metadata (ingest.RecomputeEligibility) rather than only at
-// import time. Dropping ineligible records on the floor meant lowering the
-// star floor required a fresh pass over 3 GB of JSON before the crawler
-// could see the repositories it had just become willing to crawl.
+// It stores only records that pass the eligibility filter. Of the ~4.2M
+// records in the dataset, ~288k pass at the current thresholds; storing the
+// rest cost ~2.8GB of rows nothing is ever allowed to crawl. A full pass
+// over the source file takes ~16 minutes and is idempotent, so loosening a
+// threshold is a re-run — not a reason to warehouse the whole dataset.
 //
-// Only records that cannot be stored at all (no nameWithOwner) land in the
-// import_skipped ledger now.
+// That means the importer is the only place eligibility can *loosen*.
+// ingest.RecomputeEligibility still re-tests the rows that are stored, so
+// tightening a threshold (or metadata going stale) takes effect live.
+//
+// Ineligible records are counted by reason and reported in aggregate at the
+// end of the run; there is deliberately no row per rejected record, which
+// would be ~3.9M ledger rows to record "below_star_floor". Only records
+// that cannot be stored at all (no nameWithOwner) land in import_skipped.
 //
 // Does not touch issues, ingest_jobs, or anything else — this only ever
 // populates repositories and import_skipped.
@@ -27,6 +31,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -112,6 +117,7 @@ func main() {
 		minStars:         minStars,
 		pushedWithinDays: pushedWithinDays,
 		batchSize:        *batchSize,
+		reasons:          map[string]int{},
 	}
 	if err := imp.run(ctx, reader, *logEvery); err != nil {
 		slog.Error("import failed", "error", err)
@@ -126,6 +132,7 @@ func main() {
 		"unusable", imp.unusable,
 		"errors", imp.errored,
 	)
+	slog.Info("ineligible breakdown", imp.topReasons(10)...)
 	if imp.errored > 0 {
 		// A partially-applied import is not a success: the caller needs a
 		// non-zero exit to notice, and the logged counts say how much
@@ -179,7 +186,29 @@ type importer struct {
 	batchSize int
 	batch     *pgx.Batch
 
+	// reasons counts ineligible records by their reason string, so a run
+	// still explains itself without a row per rejected record.
+	reasons map[string]int
+
 	processed, stored, eligible, ineligible, unusable, errored int
+}
+
+// topReasons returns the n most common ineligibility reasons as an
+// slog-friendly key/value list.
+func (imp *importer) topReasons(n int) []any {
+	keys := make([]string, 0, len(imp.reasons))
+	for k := range imp.reasons {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return imp.reasons[keys[i]] > imp.reasons[keys[j]] })
+	if len(keys) > n {
+		keys = keys[:n]
+	}
+	out := make([]any, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, k, imp.reasons[k])
+	}
+	return out
 }
 
 // queue adds one statement to the pending batch, flushing when it is full.
@@ -306,11 +335,21 @@ func (imp *importer) handle(ctx context.Context, r repoRecord) error {
 	}
 
 	ok, reason := eligible(r, imp.minStars, imp.pushedWithinDays)
-	if ok {
-		imp.eligible++
-	} else {
+	if !ok {
+		// Not stored. The dataset is ~4.2M records and only ~288k pass the
+		// filter; keeping the rest would cost ~2.8GB for rows nothing is
+		// ever allowed to crawl. A full re-pass over the source file is 16
+		// minutes and idempotent, so loosening a threshold is a re-run, not
+		// a reason to warehouse the whole dataset.
+		//
+		// Per-record skip rows are not written either, for the same reason —
+		// 3.9M ledger rows to record "below_star_floor". The aggregate
+		// breakdown is logged at the end of the run instead.
 		imp.ineligible++
+		imp.reasons[reason]++
+		return nil
 	}
+	imp.eligible++
 
 	// NUL bytes do occur in this dataset's descriptions and topic names, and
 	// Postgres's text type rejects them outright — one NUL would otherwise
