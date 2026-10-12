@@ -202,7 +202,9 @@ func buildRouter(
 	ghClient *github.Client,
 	bodyFetcher *issue.BodyFetcher,
 ) http.Handler {
-	mux := http.NewServeMux()
+	mux := http.NewServeMux()        // public routes — full middleware chain
+	adminMux := http.NewServeMux()   // /admin — own auth, no CORS/rate-limit
+	webhookMux := http.NewServeMux() // /webhooks — HMAC verified, no CORS/rate-limit
 
 	// Handlers object bundles all dependencies for handler functions
 	h := &handlers{
@@ -269,35 +271,52 @@ func buildRouter(
 	mux.Handle("POST /contributions/{id}/verify", requireAuth(authSvc, http.HandlerFunc(h.verifyContribution)))
 
 	// ----- Webhooks (GitHub HMAC authenticated) -----
-	mux.HandleFunc("POST /webhooks/github", h.webhookGitHub)
+	webhookMux.HandleFunc("POST /webhooks/github", h.webhookGitHub)
 
 	// ----- Admin -----
-	mux.Handle("POST /admin/sync/repository/{id}",
+	adminMux.Handle("POST /admin/sync/repository/{id}",
 		requireAdmin(cfg.AdminSyncToken, http.HandlerFunc(h.adminSyncRepository)))
-	mux.Handle("GET /admin/config",
+	adminMux.Handle("GET /admin/config",
 		requireAdmin(cfg.AdminSyncToken, http.HandlerFunc(h.adminGetConfig)))
-	mux.Handle("PUT /admin/config/{key}",
+	adminMux.Handle("PUT /admin/config/{key}",
 		requireAdmin(cfg.AdminSyncToken, http.HandlerFunc(h.adminPutConfig)))
 
-	// Apply global middleware: RequestID → Logger → CORS → OptionalAuth → RateLimiter → mux
-	var handler http.Handler = mux
+	// Public chain: RequestID → Logger → CORS → OptionalAuth → RateLimiter → mux
+	var publicHandler http.Handler = mux
 	if cacheClient != nil {
 		trustedProxies := middleware.ParseTrustedProxies(cfg.TrustedProxies)
 		// Read limits per request so a settings change applies without a restart.
-		handler = middleware.RateLimiter(cacheClient, func() middleware.RateLimits {
+		publicHandler = middleware.RateLimiter(cacheClient, func() middleware.RateLimits {
 			s := live.Current()
 			return middleware.RateLimits{
 				Unauth: int64(s.Int(settings.RateLimitUnauthPerHour)),
 				Auth:   int64(s.Int(settings.RateLimitAuthPerHour)),
 				Window: s.Seconds(settings.RateLimitWindowSeconds),
 			}
-		}, "global", trustedProxies)(handler)
+		}, "global", trustedProxies)(publicHandler)
 	}
-	handler = middleware.OptionalAuth(authSvc)(handler)
-	handler = middleware.CORS(cfg.FrontendURL)(handler)
-	handler = middleware.Logger(handler)
-	handler = middleware.RequestID(handler)
+	publicHandler = middleware.OptionalAuth(authSvc)(publicHandler)
+	publicHandler = middleware.CORS(cfg.FrontendURL)(publicHandler)
+	publicHandler = middleware.Logger(publicHandler)
+	publicHandler = middleware.RequestID(publicHandler)
 
+	// /admin and /webhooks authenticate themselves (admin token / HMAC signature) and
+	// have no browser callers, so they skip CORS, OptionalAuth and the browsing rate
+	// limiter — only RequestID/Logger apply.
+	top := http.NewServeMux()
+	top.Handle("/admin/", group(adminMux, middleware.Logger, middleware.RequestID))
+	top.Handle("/webhooks/", group(webhookMux, middleware.Logger, middleware.RequestID))
+	top.Handle("/", publicHandler)
+
+	return top
+}
+
+// group applies middleware (outermost first) to a handler mounted at a path prefix,
+// letting it bypass the global chain applied to the rest of the router.
+func group(handler http.Handler, mw ...func(http.Handler) http.Handler) http.Handler {
+	for i := len(mw) - 1; i >= 0; i-- {
+		handler = mw[i](handler)
+	}
 	return handler
 }
 
