@@ -84,7 +84,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	authSvc := auth.New(pool, cacheClient)
+	authSvc := auth.New(pool)
 	authSvc.SetTokenCipher(tokenCipher)
 	ghOAuth := auth.NewGitHubOAuth(auth.GitHubConfig{
 		ClientID:     cfg.GitHubClientID,
@@ -218,7 +218,6 @@ func buildRouter(
 	mux.HandleFunc("GET /auth/session", h.getSession)
 	mux.HandleFunc("POST /auth/github/token", h.authGitHubToken)
 	mux.HandleFunc("GET /auth/github", h.authGitHubBegin)
-	mux.HandleFunc("POST /auth/github", h.authGitHubBegin) // both GET and POST per spec
 	mux.HandleFunc("GET /auth/github/callback", h.authGitHubCallback)
 	mux.HandleFunc("GET /auth/github/poll", h.authGitHubPoll)
 	mux.HandleFunc("GET /auth/github-app", h.authGitHubAppBegin)
@@ -227,39 +226,34 @@ func buildRouter(
 	mux.HandleFunc("POST /auth/purge", h.authPurge)
 
 	// ----- GitHub integration -----
-	mux.Handle("POST /github/forks", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.forkRepository)))
-	mux.Handle("GET /github/git-token", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.getGitToken)))
+	mux.Handle("POST /github/forks", requireAuth(authSvc, http.HandlerFunc(h.forkRepository)))
+	mux.Handle("GET /github/git-token", requireAuth(authSvc, http.HandlerFunc(h.getGitToken)))
 
 	// ----- Issues -----
-	mux.Handle("POST /issues/sync", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.syncIssues)))
-	mux.Handle("GET /issues", optionalAuth(authSvc, cacheClient, http.HandlerFunc(h.listIssues)))
+	mux.Handle("GET /issues", optionalAuth(authSvc, http.HandlerFunc(h.listIssues)))
 	mux.HandleFunc("GET /issues/{id}", h.getIssue) // no auth required
 
 	// ----- Saved issues -----
-	mux.Handle("GET /saved", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.getSaved)))
-	mux.Handle("POST /saved", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.saveIssue)))
-	mux.Handle("DELETE /saved/{id}", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.unsaveIssue)))
+	mux.Handle("GET /saved", requireAuth(authSvc, http.HandlerFunc(h.getSaved)))
+	mux.Handle("POST /saved", requireAuth(authSvc, http.HandlerFunc(h.saveIssue)))
+	mux.Handle("DELETE /saved/{id}", requireAuth(authSvc, http.HandlerFunc(h.unsaveIssue)))
 
 	// ----- Recommendations -----
-	mux.Handle("GET /recommendations", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.getRecommendations)))
+	mux.Handle("GET /recommendations", requireAuth(authSvc, http.HandlerFunc(h.getRecommendations)))
 
 	// ----- User profile -----
-	mux.Handle("GET /me", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.getMe)))
-	mux.Handle("GET /profile", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.getMe))) // alias
-	mux.Handle("PUT /profile", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.updateProfile)))
-	mux.Handle("GET /preferences", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.getPreferences)))
-	mux.Handle("PUT /preferences", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.updatePreferences)))
+	mux.Handle("GET /me", requireAuth(authSvc, http.HandlerFunc(h.getMe)))
+	mux.Handle("PUT /profile", requireAuth(authSvc, http.HandlerFunc(h.updateProfile)))
 	mux.HandleFunc("GET /preferences/options", h.getPreferenceOptions) // no auth required
-	mux.Handle("GET /progress", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.getProgress)))
 
 	// ----- Contributions -----
-	mux.Handle("POST /contributions", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.startContribution)))
-	mux.Handle("GET /contributions", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.listContributions)))
-	mux.Handle("GET /working", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.getWorking)))
-	mux.Handle("GET /contributions/{id}", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.getContribution)))
-	mux.Handle("PUT /contributions/{id}", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.updateContribution)))
-	mux.Handle("POST /contributions/{id}/submit", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.submitContribution)))
-	mux.Handle("POST /contributions/{id}/verify", requireAuth(authSvc, cacheClient, http.HandlerFunc(h.verifyContribution)))
+	mux.Handle("POST /contributions", requireAuth(authSvc, http.HandlerFunc(h.startContribution)))
+	mux.Handle("GET /contributions", requireAuth(authSvc, http.HandlerFunc(h.listContributions)))
+	mux.Handle("GET /working", requireAuth(authSvc, http.HandlerFunc(h.getWorking)))
+	mux.Handle("GET /contributions/{id}", requireAuth(authSvc, http.HandlerFunc(h.getContribution)))
+	mux.Handle("PUT /contributions/{id}", requireAuth(authSvc, http.HandlerFunc(h.updateContribution)))
+	mux.Handle("POST /contributions/{id}/submit", requireAuth(authSvc, http.HandlerFunc(h.submitContribution)))
+	mux.Handle("POST /contributions/{id}/verify", requireAuth(authSvc, http.HandlerFunc(h.verifyContribution)))
 
 	// ----- Webhooks (GitHub HMAC authenticated) -----
 	mux.HandleFunc("POST /webhooks/github", h.webhookGitHub)
@@ -286,7 +280,7 @@ func buildRouter(
 			}
 		}, "global", trustedProxies)(handler)
 	}
-	handler = middleware.OptionalAuth(authSvc, cacheClient)(handler)
+	handler = middleware.OptionalAuth(authSvc)(handler)
 	handler = middleware.CORS(cfg.FrontendURL)(handler)
 	handler = middleware.Logger(handler)
 	handler = middleware.RequestID(handler)
@@ -298,12 +292,12 @@ func buildRouter(
 // Middleware helper functions (thin wrappers around middleware package)
 // ---------------------------------------------------------------------------
 
-func requireAuth(authSvc *auth.Service, c *cache.Client, next http.Handler) http.Handler {
-	return middleware.RequireAuth(authSvc, c)(next)
+func requireAuth(authSvc *auth.Service, next http.Handler) http.Handler {
+	return middleware.RequireAuth(authSvc)(next)
 }
 
-func optionalAuth(authSvc *auth.Service, c *cache.Client, next http.Handler) http.Handler {
-	return middleware.OptionalAuth(authSvc, c)(next)
+func optionalAuth(authSvc *auth.Service, next http.Handler) http.Handler {
+	return middleware.OptionalAuth(authSvc)(next)
 }
 
 func requireAdmin(token string, next http.Handler) http.Handler {

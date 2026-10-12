@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/crypto"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/githubapp"
@@ -61,8 +60,7 @@ var ErrUnauthorized = errors.New("auth: unauthorized")
 
 // Service handles session lifecycle and authentication.
 type Service struct {
-	db    *db.Pool
-	cache *cache.Client
+	db *db.Pool
 
 	// sessionTTL is read when a session is created. Changing it affects newly
 	// issued sessions only; existing ones keep the expiry they were given.
@@ -79,13 +77,11 @@ type Service struct {
 	githubApp *githubapp.App
 }
 
-// New creates an auth.Service.
-func New(db *db.Pool, cacheClient ...*cache.Client) *Service {
-	s := &Service{db: db, sessionTTL: func() time.Duration { return SessionDuration }}
-	if len(cacheClient) > 0 {
-		s.cache = cacheClient[0]
-	}
-	return s
+// New creates an auth.Service. Auth has no Redis dependency (D11) — it
+// never touched the cache field for anything but sessions, which now go
+// straight to Postgres.
+func New(db *db.Pool) *Service {
+	return &Service{db: db, sessionTTL: func() time.Duration { return SessionDuration }}
 }
 
 // SetTokenCipher installs the cipher used to encrypt/decrypt stored GitHub
@@ -201,24 +197,17 @@ func (s *Service) CreateSession(ctx context.Context, userID int, provider string
 		return "", fmt.Errorf("auth: store session: %w", err)
 	}
 
-	if s.cache != nil {
-		s.cache.SetSession(ctx, hashed, userID, s.ttl())
-	}
-
 	return raw, nil
 }
 
 // ValidateSession looks up a raw session token and returns the owning user ID.
 // Returns ErrUnauthorized if the token is missing, expired, or invalid.
+//
+// Goes straight to Postgres (D11) — a lookup on a hashed-token primary key
+// is already fast, and this is what makes "sessions survive a Redis
+// outage" structural rather than accidental: auth touches Redis zero times.
 func (s *Service) ValidateSession(ctx context.Context, rawToken string) (int, error) {
 	hashed := hashToken(rawToken)
-
-	// Redis Fast Path (< 1ms)
-	if s.cache != nil {
-		if cachedUID := s.cache.GetSession(ctx, hashed); cachedUID > 0 {
-			return cachedUID, nil
-		}
-	}
 
 	var userID int
 	err := s.db.QueryRow(ctx,
@@ -236,19 +225,12 @@ func (s *Service) ValidateSession(ctx context.Context, rawToken string) (int, er
 		return 0, fmt.Errorf("auth: validate session: %w", err)
 	}
 
-	if s.cache != nil {
-		s.cache.SetSession(ctx, hashed, userID, s.ttl())
-	}
-
 	return userID, nil
 }
 
 // DeleteSession invalidates a single session (logout).
 func (s *Service) DeleteSession(ctx context.Context, rawToken string) error {
 	hashed := hashToken(rawToken)
-	if s.cache != nil {
-		s.cache.DeleteSession(ctx, hashed)
-	}
 	return s.db.Exec(ctx,
 		`DELETE FROM auth_sessions WHERE token = $1`,
 		hashed,
@@ -261,12 +243,6 @@ func (s *Service) DeleteAllSessions(ctx context.Context, userID int) error {
 		`DELETE FROM auth_sessions WHERE user_id = $1`,
 		userID,
 	)
-}
-
-// HashedToken returns the stored (hashed) form of a raw token.
-// Exported for use by the cache layer which keys on the hashed form.
-func HashedToken(rawToken string) string {
-	return hashToken(rawToken)
 }
 
 // ---------------------------------------------------------------------------
