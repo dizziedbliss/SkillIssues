@@ -166,9 +166,6 @@ func (h *handlers) authLogout(w http.ResponseWriter, r *http.Request) {
 	rawToken := h.extractToken(r)
 	if rawToken != "" {
 		_ = h.authSvc.DeleteSession(r.Context(), rawToken)
-		if h.cache != nil {
-			h.cache.DeleteSession(r.Context(), auth.HashedToken(rawToken))
-		}
 	}
 	h.clearSessionCookie(w)
 	middleware.RespondJSON(w, http.StatusOK, map[string]bool{"logged_out": true})
@@ -760,26 +757,16 @@ func (h *handlers) proxyToSyncd(w http.ResponseWriter, r *http.Request, path str
 	_, _ = io.Copy(w, resp.Body)
 }
 
-// syncPath builds the ingestion endpoint for an optional repository id.
-// The id is parsed as an integer so it can never inject extra path segments.
+// syncPath builds the ingestion endpoint that forces an immediate sync of
+// one repository. The id is parsed as an integer so it can never inject
+// extra path segments. Not a priority mechanism (D9) — it's an explicit
+// admin nudge onto the same FIFO queue everything else uses.
 func syncPath(rawRepoID string) (string, error) {
-	if rawRepoID == "" {
-		return "/sync/issues", nil
-	}
 	id, err := strconv.Atoi(rawRepoID)
 	if err != nil || id <= 0 {
 		return "", fmt.Errorf("invalid repository id")
 	}
 	return fmt.Sprintf("/sync/priority/%d", id), nil
-}
-
-func (h *handlers) syncIssues(w http.ResponseWriter, r *http.Request) {
-	path, err := syncPath(r.URL.Query().Get("repo_id"))
-	if err != nil {
-		middleware.RespondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	h.proxyToSyncd(w, r, path)
 }
 
 func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
@@ -1009,23 +996,6 @@ func (h *handlers) updateProfile(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondJSON(w, http.StatusOK, p)
 }
 
-func (h *handlers) getPreferences(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r.Context())
-	p, err := h.profileSvc.GetFullProfile(r.Context(), userID)
-	if err != nil {
-		middleware.RespondError(w, http.StatusUnauthorized, "profile not found")
-		return
-	}
-	middleware.RespondJSON(w, http.StatusOK, map[string]any{
-		"interests":           p.Interests,
-		"preferred_languages": p.PreferredLanguages,
-	})
-}
-
-func (h *handlers) updatePreferences(w http.ResponseWriter, r *http.Request) {
-	h.updateProfile(w, r)
-}
-
 func (h *handlers) getPreferenceOptions(w http.ResponseWriter, r *http.Request) {
 	options, err := h.profileSvc.GetPreferenceOptions(r.Context())
 	if err != nil {
@@ -1035,68 +1005,6 @@ func (h *handlers) getPreferenceOptions(w http.ResponseWriter, r *http.Request) 
 	middleware.RespondJSON(w, http.StatusOK, map[string]any{"options": options})
 }
 
-func (h *handlers) getProgress(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r.Context())
-	p, err := h.profileSvc.GetFullProfile(r.Context(), userID)
-	if err != nil {
-		middleware.RespondError(w, http.StatusUnauthorized, "profile not found")
-		return
-	}
-
-	var contribs []map[string]any
-	_ = h.db.QueryRows(r.Context(),
-		`SELECT c.id, c.user_id, c.issue_id, COALESCE(c.pr_url, ''), COALESCE(c.pr_number, 0),
-		        c.state, c.created_at::text, c.updated_at::text, COALESCE(c.merged_at::text, ''),
-		        i.title, i.number, i.difficulty, i.url AS issue_url,
-		        COALESCE(i.required_skills, '{}'), COALESCE(i.technologies, '{}'),
-		        i.updated_at::text AS issue_updated_at, r.full_name AS repository, COALESCE(r.language, '')
-		 FROM contributions c
-		 JOIN issues i ON i.id = c.issue_id
-		 JOIN repositories r ON r.id = i.repository_id
-		 WHERE c.user_id = $1 ORDER BY c.updated_at DESC`,
-		[]any{userID},
-		func(rows pgx.Rows) error {
-			var id, uID, issueID, prNum, issueNum int
-			var prURL, state, createdAt, updatedAt, mergedAt, title, diff, issueURL, issueUpdatedAt, repo, lang string
-			var skills, techs []string
-			if err := rows.Scan(&id, &uID, &issueID, &prURL, &prNum, &state, &createdAt, &updatedAt, &mergedAt,
-				&title, &issueNum, &diff, &issueURL, &skills, &techs, &issueUpdatedAt, &repo, &lang); err != nil {
-				return err
-			}
-			contribs = append(contribs, map[string]any{
-				"id":               id,
-				"user_id":          uID,
-				"issue_id":         issueID,
-				"pr_url":           prURL,
-				"pr_number":        prNum,
-				"state":            state,
-				"created_at":       createdAt,
-				"updated_at":       updatedAt,
-				"merged_at":        mergedAt,
-				"title":            title,
-				"number":           issueNum,
-				"difficulty":       diff,
-				"issue_url":        issueURL,
-				"required_skills":  skills,
-				"technologies":     techs,
-				"issue_updated_at": issueUpdatedAt,
-				"repository":       repo,
-				"language":         lang,
-			})
-			return nil
-		},
-	)
-	if contribs == nil {
-		contribs = []map[string]any{}
-	}
-
-	middleware.RespondJSON(w, http.StatusOK, map[string]any{
-		"progress_score":      p.ProgressScore,
-		"completed_count":     p.CompletedCount,
-		"demonstrated_skills": p.DemonstratedSkills,
-		"contributions":       contribs,
-	})
-}
 func (h *handlers) startContribution(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	var body struct {
@@ -1439,12 +1347,6 @@ func (h *handlers) resolveSession(r *http.Request) (int, error) {
 	if rawToken == "" {
 		return 0, fmt.Errorf("no token")
 	}
-	if h.cache != nil {
-		hashed := auth.HashedToken(rawToken)
-		if uid := h.cache.GetSession(r.Context(), hashed); uid != 0 {
-			return uid, nil
-		}
-	}
 	return h.authSvc.ValidateSession(r.Context(), rawToken)
 }
 
@@ -1473,13 +1375,6 @@ func (h *handlers) getUserBasic(ctx context.Context, userID int) (map[string]any
 }
 
 // queryString returns the raw query string portion of the URL, with leading "?".
-func queryString(r *http.Request) string {
-	if r.URL.RawQuery != "" {
-		return "?" + r.URL.RawQuery
-	}
-	return ""
-}
-
 // ensure time import is used (in setSessionCookie)
 var _ = strconv.Itoa
 var _ = time.Second

@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/auth"
-	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/google/uuid"
 )
@@ -107,10 +106,10 @@ func Logger(next http.Handler) http.Handler {
 //
 // On success, injects the userID into the request context.
 // On failure, responds with 401 JSON.
-func RequireAuth(authSvc *auth.Service, cache *cache.Client) func(http.Handler) http.Handler {
+func RequireAuth(authSvc *auth.Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userID, err := resolveSession(r, authSvc, cache)
+			userID, err := resolveSession(r, authSvc)
 			if err != nil {
 				respondError(w, http.StatusUnauthorized, "authentication required")
 				return
@@ -123,10 +122,10 @@ func RequireAuth(authSvc *auth.Service, cache *cache.Client) func(http.Handler) 
 
 // OptionalAuth attempts session resolution but does not reject unauthenticated requests.
 // Downstream handlers can call GetUserID to check if a user is logged in.
-func OptionalAuth(authSvc *auth.Service, cache *cache.Client) func(http.Handler) http.Handler {
+func OptionalAuth(authSvc *auth.Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userID, _ := resolveSession(r, authSvc, cache)
+			userID, _ := resolveSession(r, authSvc)
 			ctx := context.WithValue(r.Context(), ctxUserID, userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -161,7 +160,11 @@ func RequireAdmin(adminToken string) func(http.Handler) http.Handler {
 
 // resolveSession extracts and validates a session token from the request.
 // Priority: Authorization header > skillissues_session cookie.
-func resolveSession(r *http.Request, authSvc *auth.Service, c *cache.Client) (int, error) {
+//
+// Goes straight to Postgres (D11) — a lookup on a hashed-token primary key
+// is already fast, and this is what makes "sessions survive a Redis
+// outage" structural rather than accidental: auth touches Redis zero times.
+func resolveSession(r *http.Request, authSvc *auth.Service) (int, error) {
 	rawToken := ""
 
 	// 1. Check Authorization header (used by Electron)
@@ -180,27 +183,7 @@ func resolveSession(r *http.Request, authSvc *auth.Service, c *cache.Client) (in
 		return 0, errors.New("no session token provided")
 	}
 
-	// Fast path: check Redis cache
-	if c != nil {
-		hashed := auth.HashedToken(rawToken)
-		if userID := c.GetSession(r.Context(), hashed); userID != 0 {
-			return userID, nil
-		}
-	}
-
-	// Slow path: validate against database
-	userID, err := authSvc.ValidateSession(r.Context(), rawToken)
-	if err != nil {
-		return 0, err
-	}
-
-	// Populate cache for next request
-	if c != nil {
-		hashed := auth.HashedToken(rawToken)
-		c.SetSession(r.Context(), hashed, userID, auth.SessionDuration)
-	}
-
-	return userID, nil
+	return authSvc.ValidateSession(r.Context(), rawToken)
 }
 
 // ---------------------------------------------------------------------------
