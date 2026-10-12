@@ -7,6 +7,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -61,6 +63,7 @@ type handlers struct {
 	issueSvc       *issue.Service
 	contribSvc     *contribution.Service
 	ghClient       *github.Client
+	bodyFetcher    *issue.BodyFetcher
 	desktopTickets sync.Map // ticket -> ticketEntry{data: session data}
 	stateTickets   sync.Map // state -> ticketEntry{data: ticket string}
 }
@@ -878,6 +881,38 @@ func (h *handlers) getIssue(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondJSON(w, http.StatusOK, it)
 }
 
+// getIssueBody handles GET /issues/{id}/body — the on-demand read path
+// (plan §3.1). Issue bodies are never stored unbounded (D17); this fetches
+// through the Postgres cache / single-flight GraphQL path instead.
+func (h *handlers) getIssueBody(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		middleware.RespondError(w, http.StatusNotFound, "invalid issue id")
+		return
+	}
+	if h.bodyFetcher == nil {
+		middleware.RespondError(w, http.StatusServiceUnavailable, "body fetching is not configured")
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	var userToken string
+	if userID != 0 {
+		userToken, _ = h.authSvc.GetAccessToken(r.Context(), userID)
+	}
+
+	body, err := h.bodyFetcher.GetBody(r.Context(), id, userID, userToken)
+	if err != nil {
+		if err == issue.ErrBodyUnavailable {
+			middleware.RespondError(w, http.StatusAccepted, "queued, retrying — try again shortly")
+			return
+		}
+		middleware.RespondError(w, http.StatusBadGateway, "failed to fetch issue body")
+		return
+	}
+	middleware.RespondJSON(w, http.StatusOK, map[string]string{"body": body})
+}
+
 func (h *handlers) getSaved(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	saved, err := h.issueSvc.GetSavedIssues(r.Context(), userID)
@@ -934,9 +969,7 @@ func (h *handlers) getRecommendations(w http.ResponseWriter, r *http.Request) {
 	// Redis Cache lookup for default limit
 	if limit == 3 && h.cache != nil {
 		if cached := h.cache.GetRecommendations(r.Context(), userID); cached != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(cached)
+			h.respondRecommendations(w, r, cached)
 			return
 		}
 	}
@@ -958,13 +991,35 @@ func (h *handlers) getRecommendations(w http.ResponseWriter, r *http.Request) {
 		scored = []issue.Issue{}
 	}
 
-	if recTTL := h.live.Current().Seconds(settings.CacheRecommendationsTTLSecond); limit == 3 && recTTL > 0 && h.cache != nil {
-		if data, err := json.Marshal(scored); err == nil {
-			h.cache.SetRecommendations(r.Context(), userID, data, recTTL)
-		}
+	data, err := json.Marshal(scored)
+	if err != nil {
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to encode recommendations")
+		return
 	}
 
-	middleware.RespondJSON(w, http.StatusOK, scored)
+	if recTTL := h.live.Current().Seconds(settings.CacheRecommendationsTTLSecond); limit == 3 && recTTL > 0 && h.cache != nil {
+		h.cache.SetRecommendations(r.Context(), userID, data, recTTL)
+	}
+
+	h.respondRecommendations(w, r, data)
+}
+
+// respondRecommendations sends data with an ETag (D15), responding 304
+// without a body when the client's If-None-Match already matches — the
+// client's cached copy (keyed by profile version, per D15) is still valid.
+func (h *handlers) respondRecommendations(w http.ResponseWriter, r *http.Request, data []byte) {
+	sum := sha256.Sum256(data)
+	etag := `"` + hex.EncodeToString(sum[:]) + `"`
+
+	w.Header().Set("ETag", etag)
+	if match := r.Header.Get("If-None-Match"); match != "" && match == etag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }
 
 func (h *handlers) getMe(w http.ResponseWriter, r *http.Request) {
@@ -1103,12 +1158,12 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		issueID, issueNum                               int
-		username, userToken, title, issueBody, repoFull string
+		issueID, issueNum                    int
+		username, userToken, title, repoFull string
 	)
 	err = h.db.QueryRow(r.Context(),
 		`SELECT c.issue_id, u.username, COALESCE(u.github_access_token, ''),
-		        i.title, COALESCE(i.body, ''), i.number, r.full_name
+		        i.title, i.number, r.full_name
 		 FROM contributions c
 		 JOIN users u ON u.id = c.user_id
 		 JOIN issues i ON i.id = c.issue_id
@@ -1116,7 +1171,7 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 		 WHERE c.id = $1 AND c.user_id = $2`,
 		[]any{id, userID},
 		func(row pgx.Row) error {
-			return row.Scan(&issueID, &username, &userToken, &title, &issueBody, &issueNum, &repoFull)
+			return row.Scan(&issueID, &username, &userToken, &title, &issueNum, &repoFull)
 		},
 	)
 	if err != nil {
@@ -1132,10 +1187,7 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 
 	owner, name, _ := strings.Cut(repoFull, "/")
 	prTitle := title
-	prBody := issueBody
-	if prBody == "" {
-		prBody = fmt.Sprintf("SkillIssues contribution for issue #%d", issueNum)
-	}
+	prBody := fmt.Sprintf("SkillIssues contribution for issue #%d", issueNum)
 
 	// Dynamically determine target repository default branch (e.g. 'main', 'master', 'develop')
 	baseBranch := strings.TrimSpace(body.Base)
@@ -1303,8 +1355,8 @@ func (h *handlers) setSessionCookie(w http.ResponseWriter, rawToken string) {
 		sameSite = http.SameSiteNoneMode
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name:     "skillissues_session",
-		Value:    rawToken,
+		Name:  "skillissues_session",
+		Value: rawToken,
 		// Must track the session TTL, or the cookie and the stored session
 		// disagree about when the session ends.
 		MaxAge:   int(h.sessionTTL().Seconds()),

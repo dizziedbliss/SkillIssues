@@ -17,9 +17,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/github"
-	"github.com/jackc/pgx/v5"
 )
 
 // Lane separates the crawler's budget reservation from interactive,
