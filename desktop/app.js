@@ -830,6 +830,38 @@ function renderMarkdown(md) {
   return window.SkillIssuesMarkdown.renderMarkdown(md);
 }
 
+// Issue bodies are fetched on demand (GET /issues/{id}/body) rather than
+// coming inline with the issue — the backend may still be fetching/caching
+// it (HTTP 202), so poll briefly. `bodyFetchId` lets a newer selection
+// supersede an older one still in flight.
+let bodyFetchId = 0;
+const BODY_FETCH_ERROR_HTML =
+  '<p class="empty-body">Couldn’t load the issue description. Try again shortly.</p>';
+
+async function loadIssueBody(issue) {
+  const myFetchId = ++bodyFetchId;
+  el("body").innerHTML =
+    '<div class="detail-body markdown-body loading">Loading issue description...</div>';
+  for (let attempt = 0; attempt < 6; attempt++) {
+    if (myFetchId !== bodyFetchId) return;
+    try {
+      const data = await api(`/issues/${issue.id}/body`);
+      if (myFetchId !== bodyFetchId) return;
+      if (typeof data.body === "string") {
+        el("body").innerHTML = renderMarkdown(data.body);
+        return;
+      }
+      // Still queued (202) — fall through to retry after a short delay.
+    } catch {
+      if (myFetchId !== bodyFetchId) return;
+      el("body").innerHTML = BODY_FETCH_ERROR_HTML;
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  if (myFetchId === bodyFetchId) el("body").innerHTML = BODY_FETCH_ERROR_HTML;
+}
+
 function selectIssue(issue) {
   if (!issue) return;
   selected = issue;
@@ -853,7 +885,7 @@ function selectIssue(issue) {
   el("repository").textContent =
     `${issue.repository} · ${issue.language || "Open source"}`;
   el("github").href = issue.url;
-  el("body").innerHTML = renderMarkdown(issue.body);
+  void loadIssueBody(issue);
   el("skills").innerHTML = (issue.required_skills || [])
     .map((skill) => `<span class="tag">${escapeHtml(skill)}</span>`)
     .join("");

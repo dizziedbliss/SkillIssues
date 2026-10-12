@@ -9,7 +9,7 @@
  * - GitHub Personal Access Token (PAT) authentication modal
  */
 
-import { StrictMode, useEffect, useState } from "react";
+import { StrictMode, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Bookmark,
@@ -38,7 +38,6 @@ type Issue = {
   id: number;
   number: number;
   title: string;
-  body: string;
   difficulty: string;
   difficulty_score: number;
   required_skills: string[];
@@ -398,6 +397,9 @@ export function App() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [selected, setSelected] = useState<Issue | null>(null);
+  const [selectedBody, setSelectedBody] = useState<string | null>(null);
+  const [selectedBodyError, setSelectedBodyError] = useState(false);
+  const issuesAbortRef = useRef<AbortController | null>(null);
   const [query, setQuery] = useState("");
   const [searchCategory, setSearchCategory] = useState<string>("ALL");
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
@@ -435,6 +437,11 @@ export function App() {
   }
 
   async function loadIssues(pageNum = page, diff = difficultyFilter, searchKeyword = query) {
+    // Cancel any still-in-flight list/search request so a slow stale
+    // response can't land after a newer one and clobber the UI.
+    issuesAbortRef.current?.abort();
+    const controller = new AbortController();
+    issuesAbortRef.current = controller;
     try {
       const isSearch = Boolean(searchKeyword.trim());
       const limit = isSearch ? 50 : 20;
@@ -445,10 +452,11 @@ export function App() {
       if (isSearch) {
         url += `&search=${encodeURIComponent(searchKeyword.trim())}`;
       }
-      const data = await request<Issue[]>(url);
+      const data = await request<Issue[]>(url, { signal: controller.signal });
       setIssues(data || []);
       setHasMore((data || []).length === limit);
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setIssues([]);
       setHasMore(false);
     }
@@ -515,6 +523,51 @@ export function App() {
       document.body.style.overflow = "";
     }
   }, [selected]);
+
+  useEffect(() => {
+    if (!selected) {
+      setSelectedBody(null);
+      setSelectedBodyError(false);
+      return;
+    }
+    setSelectedBody(null);
+    setSelectedBodyError(false);
+    const controller = new AbortController();
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let retries = 0;
+
+    async function fetchBody() {
+      try {
+        const response = await fetch(`${API}/issues/${selected!.id}/body`, {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (response.status === 202) {
+          if (retries++ < 5) {
+            retryTimer = setTimeout(fetchBody, 1500);
+          } else {
+            setSelectedBodyError(true);
+          }
+          return;
+        }
+        if (!response.ok) {
+          setSelectedBodyError(true);
+          return;
+        }
+        const data = await response.json();
+        setSelectedBody(typeof data.body === "string" ? data.body : "");
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setSelectedBodyError(true);
+      }
+    }
+
+    void fetchBody();
+    return () => {
+      controller.abort();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [selected?.id]);
 
   useEffect(() => {
     // Check URL parameters for OAuth redirect results (the session itself
@@ -1260,12 +1313,20 @@ export function App() {
               </span>
             </div>
 
-            <div
-              className="detail-body markdown-body"
-              dangerouslySetInnerHTML={{
-                __html: renderMarkdown(selected.body),
-              }}
-            />
+            {selectedBody === null && !selectedBodyError ? (
+              <div className="detail-body markdown-body loading">
+                Loading issue description...
+              </div>
+            ) : (
+              <div
+                className="detail-body markdown-body"
+                dangerouslySetInnerHTML={{
+                  __html: selectedBodyError
+                    ? '<p class="empty-body">Couldn\'t load the issue description. Try again shortly.</p>'
+                    : renderMarkdown(selectedBody ?? ""),
+                }}
+              />
+            )}
 
             <div className="atom-row">
               {selected.required_skills.map((skill) => (

@@ -6317,7 +6317,7 @@ var SkillIssuesMarkdown = (() => {
     DOMPurify.isSupported = typeof entries === "function" && typeof getParentNode === "function" && implementation && implementation.createHTMLDocument !== void 0;
     const MUSTACHE_EXPR$1 = MUSTACHE_EXPR, ERB_EXPR$1 = ERB_EXPR, TMPLIT_EXPR$1 = TMPLIT_EXPR, DATA_ATTR$1 = DATA_ATTR, ARIA_ATTR$1 = ARIA_ATTR, IS_SCRIPT_OR_DATA$1 = IS_SCRIPT_OR_DATA, ATTR_WHITESPACE$1 = ATTR_WHITESPACE, CUSTOM_ELEMENT$1 = CUSTOM_ELEMENT;
     let IS_ALLOWED_URI$1 = IS_ALLOWED_URI;
-    let ALLOWED_TAGS = null;
+    let ALLOWED_TAGS2 = null;
     const DEFAULT_ALLOWED_TAGS = addToSet({}, [
       ...html$1,
       ...svg$1,
@@ -6325,7 +6325,7 @@ var SkillIssuesMarkdown = (() => {
       ...mathMl$1,
       ...text2
     ]);
-    let ALLOWED_ATTR = null;
+    let ALLOWED_ATTR2 = null;
     const DEFAULT_ALLOWED_ATTR = addToSet({}, [
       ...html,
       ...svg,
@@ -6487,8 +6487,8 @@ var SkillIssuesMarkdown = (() => {
       cfg = clone(cfg);
       PARSER_MEDIA_TYPE = SUPPORTED_PARSER_MEDIA_TYPES.indexOf(cfg.PARSER_MEDIA_TYPE) === -1 ? DEFAULT_PARSER_MEDIA_TYPE : cfg.PARSER_MEDIA_TYPE;
       transformCaseFunc = PARSER_MEDIA_TYPE === "application/xhtml+xml" ? stringToString : stringToLowerCase;
-      ALLOWED_TAGS = _resolveSetOption(cfg, "ALLOWED_TAGS", DEFAULT_ALLOWED_TAGS, { transform: transformCaseFunc });
-      ALLOWED_ATTR = _resolveSetOption(cfg, "ALLOWED_ATTR", DEFAULT_ALLOWED_ATTR, { transform: transformCaseFunc });
+      ALLOWED_TAGS2 = _resolveSetOption(cfg, "ALLOWED_TAGS", DEFAULT_ALLOWED_TAGS, { transform: transformCaseFunc });
+      ALLOWED_ATTR2 = _resolveSetOption(cfg, "ALLOWED_ATTR", DEFAULT_ALLOWED_ATTR, { transform: transformCaseFunc });
       ALLOWED_NAMESPACES = _resolveSetOption(cfg, "ALLOWED_NAMESPACES", DEFAULT_ALLOWED_NAMESPACES, { transform: stringToString });
       URI_SAFE_ATTRIBUTES = _resolveSetOption(cfg, "ADD_URI_SAFE_ATTR", DEFAULT_URI_SAFE_ATTRIBUTES, {
         transform: transformCaseFunc,
@@ -6530,26 +6530,26 @@ var SkillIssuesMarkdown = (() => {
       if (SAFE_FOR_TEMPLATES) ALLOW_DATA_ATTR = false;
       if (RETURN_DOM_FRAGMENT) RETURN_DOM = true;
       if (USE_PROFILES) {
-        ALLOWED_TAGS = addToSet({}, text2);
-        ALLOWED_ATTR = create(null);
+        ALLOWED_TAGS2 = addToSet({}, text2);
+        ALLOWED_ATTR2 = create(null);
         if (USE_PROFILES.html === true) {
-          addToSet(ALLOWED_TAGS, html$1);
-          addToSet(ALLOWED_ATTR, html);
+          addToSet(ALLOWED_TAGS2, html$1);
+          addToSet(ALLOWED_ATTR2, html);
         }
         if (USE_PROFILES.svg === true) {
-          addToSet(ALLOWED_TAGS, svg$1);
-          addToSet(ALLOWED_ATTR, svg);
-          addToSet(ALLOWED_ATTR, xml);
+          addToSet(ALLOWED_TAGS2, svg$1);
+          addToSet(ALLOWED_ATTR2, svg);
+          addToSet(ALLOWED_ATTR2, xml);
         }
         if (USE_PROFILES.svgFilters === true) {
-          addToSet(ALLOWED_TAGS, svgFilters);
-          addToSet(ALLOWED_ATTR, svg);
-          addToSet(ALLOWED_ATTR, xml);
+          addToSet(ALLOWED_TAGS2, svgFilters);
+          addToSet(ALLOWED_ATTR2, svg);
+          addToSet(ALLOWED_ATTR2, xml);
         }
         if (USE_PROFILES.mathMl === true) {
-          addToSet(ALLOWED_TAGS, mathMl$1);
-          addToSet(ALLOWED_ATTR, mathMl);
-          addToSet(ALLOWED_ATTR, xml);
+          addToSet(ALLOWED_TAGS2, mathMl$1);
+          addToSet(ALLOWED_ATTR2, mathMl);
+          addToSet(ALLOWED_ATTR2, xml);
         }
       }
       EXTRA_ELEMENT_HANDLING.tagCheck = null;
@@ -6557,29 +6557,29 @@ var SkillIssuesMarkdown = (() => {
       if (objectHasOwnProperty(cfg, "ADD_TAGS")) {
         if (typeof cfg.ADD_TAGS === "function") EXTRA_ELEMENT_HANDLING.tagCheck = cfg.ADD_TAGS;
         else if (arrayIsArray(cfg.ADD_TAGS)) {
-          if (ALLOWED_TAGS === DEFAULT_ALLOWED_TAGS) ALLOWED_TAGS = clone(ALLOWED_TAGS);
-          addToSet(ALLOWED_TAGS, cfg.ADD_TAGS, transformCaseFunc);
+          if (ALLOWED_TAGS2 === DEFAULT_ALLOWED_TAGS) ALLOWED_TAGS2 = clone(ALLOWED_TAGS2);
+          addToSet(ALLOWED_TAGS2, cfg.ADD_TAGS, transformCaseFunc);
         }
       }
       if (objectHasOwnProperty(cfg, "ADD_ATTR")) {
         if (typeof cfg.ADD_ATTR === "function") EXTRA_ELEMENT_HANDLING.attributeCheck = cfg.ADD_ATTR;
         else if (arrayIsArray(cfg.ADD_ATTR)) {
-          if (ALLOWED_ATTR === DEFAULT_ALLOWED_ATTR) ALLOWED_ATTR = clone(ALLOWED_ATTR);
-          addToSet(ALLOWED_ATTR, cfg.ADD_ATTR, transformCaseFunc);
+          if (ALLOWED_ATTR2 === DEFAULT_ALLOWED_ATTR) ALLOWED_ATTR2 = clone(ALLOWED_ATTR2);
+          addToSet(ALLOWED_ATTR2, cfg.ADD_ATTR, transformCaseFunc);
         }
       }
       if (objectHasOwnProperty(cfg, "ADD_FORBID_CONTENTS") && arrayIsArray(cfg.ADD_FORBID_CONTENTS)) {
         if (FORBID_CONTENTS === DEFAULT_FORBID_CONTENTS) FORBID_CONTENTS = clone(FORBID_CONTENTS);
         addToSet(FORBID_CONTENTS, cfg.ADD_FORBID_CONTENTS, transformCaseFunc);
       }
-      if (KEEP_CONTENT) ALLOWED_TAGS["#text"] = true;
-      if (WHOLE_DOCUMENT) addToSet(ALLOWED_TAGS, [
+      if (KEEP_CONTENT) ALLOWED_TAGS2["#text"] = true;
+      if (WHOLE_DOCUMENT) addToSet(ALLOWED_TAGS2, [
         "html",
         "head",
         "body"
       ]);
-      if (ALLOWED_TAGS.table) {
-        addToSet(ALLOWED_TAGS, ["tbody"]);
+      if (ALLOWED_TAGS2.table) {
+        addToSet(ALLOWED_TAGS2, ["tbody"]);
         delete FORBID_TAGS.tbody;
       }
       if (cfg.TRUSTED_TYPES_POLICY) {
@@ -6716,7 +6716,7 @@ var SkillIssuesMarkdown = (() => {
       for (let i = attributes.length - 1; i >= 0; --i) {
         const attribute = attributes[i];
         const name = attribute && attribute.name;
-        if (typeof name !== "string" || ALLOWED_ATTR[transformCaseFunc(name)]) continue;
+        if (typeof name !== "string" || ALLOWED_ATTR2[transformCaseFunc(name)]) continue;
         _stripAttributeNode(element, attribute, name);
       }
     };
@@ -6887,17 +6887,17 @@ var SkillIssuesMarkdown = (() => {
         return true;
       }
       const tagName = transformCaseFunc(_readNodeName(currentNode));
-      ALLOWED_TAGS = _forkSharedAllowlist(hooks.uponSanitizeElement, ALLOWED_TAGS, DEFAULT_ALLOWED_TAGS, SET_CONFIG_ALLOWED_TAGS);
+      ALLOWED_TAGS2 = _forkSharedAllowlist(hooks.uponSanitizeElement, ALLOWED_TAGS2, DEFAULT_ALLOWED_TAGS, SET_CONFIG_ALLOWED_TAGS);
       _executeHooks(hooks.uponSanitizeElement, currentNode, {
         tagName,
-        allowedTags: ALLOWED_TAGS
+        allowedTags: ALLOWED_TAGS2
       });
       if (_handleHookDetachedNode(currentNode, root)) return true;
       if (_isUnsafeNode(currentNode, tagName)) {
         _forceRemove(currentNode);
         return true;
       }
-      if (FORBID_TAGS[tagName] || !(EXTRA_ELEMENT_HANDLING.tagCheck instanceof Function && EXTRA_ELEMENT_HANDLING.tagCheck(tagName)) && !ALLOWED_TAGS[tagName]) {
+      if (FORBID_TAGS[tagName] || !(EXTRA_ELEMENT_HANDLING.tagCheck instanceof Function && EXTRA_ELEMENT_HANDLING.tagCheck(tagName)) && !ALLOWED_TAGS2[tagName]) {
         const removed = _sanitizeDisallowedNode(currentNode, tagName, root);
         if (removed === false) {
           _executeHooks(hooks.afterSanitizeElements, currentNode, null);
@@ -6927,7 +6927,7 @@ var SkillIssuesMarkdown = (() => {
       if (FORBID_ATTR[lcName]) return false;
       if (_isPatchLinkageAttribute(lcName, lcTag)) return false;
       if (SANITIZE_DOM && (lcName === "id" || lcName === "name") && (value in document || value in formElement)) return false;
-      const nameIsPermitted = ALLOWED_ATTR[lcName] || EXTRA_ELEMENT_HANDLING.attributeCheck instanceof Function && EXTRA_ELEMENT_HANDLING.attributeCheck(lcName, lcTag);
+      const nameIsPermitted = ALLOWED_ATTR2[lcName] || EXTRA_ELEMENT_HANDLING.attributeCheck instanceof Function && EXTRA_ELEMENT_HANDLING.attributeCheck(lcName, lcTag);
       if (ALLOW_DATA_ATTR && regExpTest(DATA_ATTR$1, lcName)) return true;
       if (ALLOW_ARIA_ATTR && regExpTest(ARIA_ATTR$1, lcName)) return true;
       if (!nameIsPermitted) return _isBasicCustomElement(lcTag) && _matchesNameCheck(CUSTOM_ELEMENT_HANDLING.tagNameCheck, lcTag) && _matchesNameCheck(CUSTOM_ELEMENT_HANDLING.attributeNameCheck, lcName, lcTag) || lcName === "is" && CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements && _matchesNameCheck(CUSTOM_ELEMENT_HANDLING.tagNameCheck, value);
@@ -6978,12 +6978,12 @@ var SkillIssuesMarkdown = (() => {
       if (_handleHookDetachedNode(currentNode, root)) return;
       const attributes = currentNode.attributes;
       if (!attributes || _isClobbered(currentNode)) return;
-      ALLOWED_ATTR = _forkSharedAllowlist(hooks.uponSanitizeAttribute, ALLOWED_ATTR, DEFAULT_ALLOWED_ATTR, SET_CONFIG_ALLOWED_ATTR);
+      ALLOWED_ATTR2 = _forkSharedAllowlist(hooks.uponSanitizeAttribute, ALLOWED_ATTR2, DEFAULT_ALLOWED_ATTR, SET_CONFIG_ALLOWED_ATTR);
       const hookEvent = {
         attrName: "",
         attrValue: "",
         keepAttr: true,
-        allowedAttributes: ALLOWED_ATTR,
+        allowedAttributes: ALLOWED_ATTR2,
         forceKeepAttr: void 0
       };
       let l = attributes.length;
@@ -7109,11 +7109,11 @@ var SkillIssuesMarkdown = (() => {
       }
       if (!DOMPurify.isSupported) return dirty;
       if (SET_CONFIG) {
-        ALLOWED_TAGS = SET_CONFIG_ALLOWED_TAGS;
-        ALLOWED_ATTR = SET_CONFIG_ALLOWED_ATTR;
+        ALLOWED_TAGS2 = SET_CONFIG_ALLOWED_TAGS;
+        ALLOWED_ATTR2 = SET_CONFIG_ALLOWED_ATTR;
       } else _parseConfig(cfg);
-      if (hooks.uponSanitizeElement.length > 0 || hooks.uponSanitizeAttribute.length > 0) ALLOWED_TAGS = clone(ALLOWED_TAGS);
-      if (hooks.uponSanitizeAttribute.length > 0) ALLOWED_ATTR = clone(ALLOWED_ATTR);
+      if (hooks.uponSanitizeElement.length > 0 || hooks.uponSanitizeAttribute.length > 0) ALLOWED_TAGS2 = clone(ALLOWED_TAGS2);
+      if (hooks.uponSanitizeAttribute.length > 0) ALLOWED_ATTR2 = clone(ALLOWED_ATTR2);
       DOMPurify.removed = [];
       const inPlace = IN_PLACE && typeof dirty !== "string" && _isNode(dirty);
       if (inPlace) {
@@ -7121,7 +7121,7 @@ var SkillIssuesMarkdown = (() => {
         const nn = _readNodeName(dirty);
         if (typeof nn === "string") {
           const tagName = transformCaseFunc(nn);
-          if (!ALLOWED_TAGS[tagName] || FORBID_TAGS[tagName]) {
+          if (!ALLOWED_TAGS2[tagName] || FORBID_TAGS[tagName]) {
             _neutralizeRoot(dirty);
             throw typeErrorCreate("root node is forbidden and cannot be sanitized in-place");
           }
@@ -7184,11 +7184,11 @@ var SkillIssuesMarkdown = (() => {
           returnNode = createDocumentFragment.call(body.ownerDocument);
           while (body.firstChild) returnNode.appendChild(body.firstChild);
         } else returnNode = body;
-        if (ALLOWED_ATTR.shadowroot || ALLOWED_ATTR.shadowrootmode) returnNode = importNode.call(originalDocument, returnNode, true);
+        if (ALLOWED_ATTR2.shadowroot || ALLOWED_ATTR2.shadowrootmode) returnNode = importNode.call(originalDocument, returnNode, true);
         return returnNode;
       }
       let serializedHTML = WHOLE_DOCUMENT ? body.outerHTML : body.innerHTML;
-      if (WHOLE_DOCUMENT && ALLOWED_TAGS["!doctype"] && body.ownerDocument && body.ownerDocument.doctype && body.ownerDocument.doctype.name && regExpTest(DOCTYPE_NAME, body.ownerDocument.doctype.name)) serializedHTML = "<!DOCTYPE " + body.ownerDocument.doctype.name + ">\n" + serializedHTML;
+      if (WHOLE_DOCUMENT && ALLOWED_TAGS2["!doctype"] && body.ownerDocument && body.ownerDocument.doctype && body.ownerDocument.doctype.name && regExpTest(DOCTYPE_NAME, body.ownerDocument.doctype.name)) serializedHTML = "<!DOCTYPE " + body.ownerDocument.doctype.name + ">\n" + serializedHTML;
       if (SAFE_FOR_TEMPLATES) serializedHTML = _stripTemplateExpressions(serializedHTML);
       return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? _createTrustedHTML(serializedHTML) : serializedHTML;
     };
@@ -7196,8 +7196,8 @@ var SkillIssuesMarkdown = (() => {
       let cfg = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
       _parseConfig(cfg);
       SET_CONFIG = true;
-      SET_CONFIG_ALLOWED_TAGS = ALLOWED_TAGS;
-      SET_CONFIG_ALLOWED_ATTR = ALLOWED_ATTR;
+      SET_CONFIG_ALLOWED_TAGS = ALLOWED_TAGS2;
+      SET_CONFIG_ALLOWED_ATTR = ALLOWED_ATTR2;
     };
     DOMPurify.clearConfig = function() {
       CONFIG = null;
@@ -7239,7 +7239,7 @@ var SkillIssuesMarkdown = (() => {
 
   // src/index.ts
   var md = new MarkdownItCallable({
-    html: false,
+    html: true,
     linkify: true,
     breaks: true
   });
@@ -7253,10 +7253,73 @@ var SkillIssuesMarkdown = (() => {
     return defaultLinkOpen(tokens, idx, options, env, self);
   };
   var ALLOWED_URI_REGEXP = /^(https?|mailto):/i;
+  var ALLOWED_TAGS = [
+    "p",
+    "br",
+    "hr",
+    "a",
+    "img",
+    "picture",
+    "source",
+    "strong",
+    "b",
+    "em",
+    "i",
+    "u",
+    "s",
+    "del",
+    "ins",
+    "sub",
+    "sup",
+    "mark",
+    "small",
+    "code",
+    "pre",
+    "kbd",
+    "samp",
+    "blockquote",
+    "ul",
+    "ol",
+    "li",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "table",
+    "thead",
+    "tbody",
+    "tfoot",
+    "tr",
+    "th",
+    "td",
+    "details",
+    "summary",
+    "span",
+    "div"
+  ];
+  var ALLOWED_ATTR = [
+    "href",
+    "src",
+    "alt",
+    "title",
+    "width",
+    "height",
+    "align",
+    "target",
+    "rel",
+    "colspan",
+    "rowspan",
+    "srcset",
+    "media"
+  ];
   function renderMarkdown(source) {
     const rawHtml = md.render(String(source ?? ""));
     return purify_default.sanitize(rawHtml, {
       ALLOWED_URI_REGEXP,
+      ALLOWED_TAGS,
+      ALLOWED_ATTR,
       ADD_ATTR: ["target", "rel"]
     });
   }
