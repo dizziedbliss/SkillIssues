@@ -77,6 +77,7 @@ func (s *Service) VerifyContribution(ctx context.Context, userID, contribID int,
 	if err != nil {
 		return nil, db.ErrNotFound
 	}
+	userToken = s.decryptToken(userToken)
 
 	if prURL == "" {
 		return &VerifyResult{
@@ -101,7 +102,7 @@ func (s *Service) VerifyContribution(ctx context.Context, userID, contribID int,
 	if token == "" {
 		token = fallbackToken
 	}
-	if token == "" && username != "alex-dev" {
+	if token == "" {
 		return &VerifyResult{
 			Verified: false,
 			Message:  "Connect GitHub before verifying pull request status.",
