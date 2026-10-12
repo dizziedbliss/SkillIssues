@@ -126,7 +126,8 @@ func main() {
 	// FIFO queue everything else uses, just nudged to check sooner. See D9;
 	// no repository priority/ranking lives in the crawl path.
 	mux.HandleFunc("POST /sync/issues", func(w http.ResponseWriter, r *http.Request) {
-		count, err := ingest.EnqueueInitialJobs(r.Context(), dbPool, 500)
+		count, err := ingest.EnqueueInitialJobs(r.Context(), dbPool,
+			live.Current().Int(settings.IngestEnqueueBatchSize))
 		w.Header().Set("Content-Type", "application/json")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)

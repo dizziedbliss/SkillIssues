@@ -53,6 +53,19 @@ const (
 
 	IngestEligibilityMinStars         Key = "ingest.eligibility.min_stars"
 	IngestEligibilityPushedWithinDays Key = "ingest.eligibility.pushed_within_days"
+
+	// IngestFreshnessIntervalSeconds is how stale a repository's last
+	// successful sync must be before its first issue page is re-fetched.
+	// This is what makes the catalog cycle continuously instead of going
+	// quiet once every repository has been seeded once.
+	IngestFreshnessIntervalSeconds Key = "ingest.freshness_interval_seconds"
+	// IngestEnqueueBatchSize bounds how many jobs one coordinator cycle
+	// enqueues, for both new-repository seeding and freshness re-queues.
+	IngestEnqueueBatchSize Key = "ingest.enqueue_batch_size"
+	// IngestEligibilityRecheckSeconds is how often stored repository
+	// metadata is re-tested against the current eligibility thresholds, so
+	// changing a threshold takes effect without a re-import or a restart.
+	IngestEligibilityRecheckSeconds Key = "ingest.eligibility.recheck_seconds"
 )
 
 // Kind is the value type a key accepts.
@@ -116,6 +129,10 @@ var Registry = map[Key]Spec{
 
 	IngestEligibilityMinStars:         intSpec(25, 0, 100000, "Minimum stars for a repository to be eligible for ingestion. Abuse control, not ranking."),
 	IngestEligibilityPushedWithinDays: intSpec(730, 1, 3650, "A repository must have been pushed to within this many days to be eligible for ingestion."),
+
+	IngestFreshnessIntervalSeconds:  intSpec(86400, 300, 2592000, "How old a repository's last successful sync must be before its first issue page is re-fetched."),
+	IngestEnqueueBatchSize:          intSpec(500, 1, 50000, "Jobs enqueued per coordinator cycle, for both new-repository seeding and freshness re-queues."),
+	IngestEligibilityRecheckSeconds: intSpec(3600, 60, 86400, "How often stored repository metadata is re-tested against the current eligibility thresholds."),
 }
 
 // Snapshot is an immutable view of the settings. Readers hold one for the
