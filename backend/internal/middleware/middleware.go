@@ -4,8 +4,8 @@ package middleware
 
 import (
 	"context"
-	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -148,20 +148,12 @@ func RequireAdmin(adminToken string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			provided := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-			// Use HMAC equal for timing-safe comparison (matches Python hmac.compare_digest)
-			h := hmac.New(sha256.New, []byte(adminToken))
-			h.Write([]byte(provided))
-			expectedMAC := h.Sum(nil)
-			h2 := hmac.New(sha256.New, []byte(adminToken))
-			h2.Write([]byte(adminToken))
-			adminMAC := h2.Sum(nil)
-			// Simplified: direct constant-time string comparison
-			if !hmac.Equal([]byte(provided), []byte(adminToken)) {
+			// Constant-time comparison so a wrong token cannot be guessed byte
+			// by byte from response timing.
+			if subtle.ConstantTimeCompare([]byte(provided), []byte(adminToken)) != 1 {
 				respondError(w, http.StatusForbidden, "admin access required")
 				return
 			}
-			_ = expectedMAC
-			_ = adminMAC
 			next.ServeHTTP(w, r)
 		})
 	}
