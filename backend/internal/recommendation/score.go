@@ -157,7 +157,10 @@ func ScoreCandidates(u *profile.FullProfile, candidates []issue.Issue, limit int
 		}
 		interestMatch := interestOverlap
 
-		diffScore := item.DifficultyScore
+		diffScore := 0
+		if item.DifficultyScore != nil {
+			diffScore = *item.DifficultyScore
+		}
 		if diffScore <= 0 {
 			diffScore = 1
 		}

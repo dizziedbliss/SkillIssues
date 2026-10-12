@@ -1,11 +1,11 @@
 // SkillIssues API Server — Go implementation
 //
 // This is the main entry point for the Go backend. It:
-//   1. Loads configuration from environment variables
-//   2. Connects to PostgreSQL and Redis
-//   3. Wires up all service dependencies
-//   4. Registers all 28 HTTP routes (matching the Python FastAPI spec exactly)
-//   5. Starts the HTTP server with graceful shutdown
+//  1. Loads configuration from environment variables
+//  2. Connects to PostgreSQL and Redis
+//  3. Wires up all service dependencies
+//  4. Registers all 28 HTTP routes (matching the Python FastAPI spec exactly)
+//  5. Starts the HTTP server with graceful shutdown
 //
 // During the migration phase, this Go API runs alongside the Python API.
 // Once all routes are verified, the Python api service is decommissioned.
@@ -132,6 +132,16 @@ func main() {
 		return live.Current().Int(settings.SearchPerCategoryCap)
 	})
 	ghClient := github.NewClient(cfg.GitHubGraphQLURL)
+
+	// On-demand issue body reads (§3.1) prefer the installation token when
+	// the GitHub App is configured, falling back to the plain PAT.
+	installationTokenFn := func(ctx context.Context) (string, error) { return cfg.GitHubToken, nil }
+	if ghApp != nil {
+		installationTokenFn = ghApp.InstallationToken
+	}
+	bodyFetcher := issue.NewBodyFetcher(pool, ghClient, installationTokenFn)
+	go pruneBodyCacheLoop(ctx, pool)
+
 	contribSvc := contribution.New(pool, cacheClient, ghClient, func() int {
 		return live.Current().Int(settings.ContributionVerifyPerHour)
 	})
@@ -141,7 +151,7 @@ func main() {
 	})
 
 	// 6. Build the HTTP router and register all routes
-	mux := buildRouter(cfg, live, pool, cacheClient, authSvc, ghOAuth, ghAppLogin, profileSvc, issueSvc, contribSvc, ghClient)
+	mux := buildRouter(cfg, live, pool, cacheClient, authSvc, ghOAuth, ghAppLogin, profileSvc, issueSvc, contribSvc, ghClient, bodyFetcher)
 
 	// 7. Start the HTTP server
 	server := &http.Server{
@@ -190,22 +200,24 @@ func buildRouter(
 	issueSvc *issue.Service,
 	contribSvc *contribution.Service,
 	ghClient *github.Client,
+	bodyFetcher *issue.BodyFetcher,
 ) http.Handler {
 	mux := http.NewServeMux()
 
 	// Handlers object bundles all dependencies for handler functions
 	h := &handlers{
-		cfg:        cfg,
-		live:       live,
-		db:         pool,
-		cache:      cacheClient,
-		authSvc:    authSvc,
-		ghOAuth:    ghOAuth,
-		ghAppLogin: ghAppLogin,
-		profileSvc: profileSvc,
-		issueSvc:   issueSvc,
-		contribSvc: contribSvc,
-		ghClient:   ghClient,
+		cfg:         cfg,
+		live:        live,
+		db:          pool,
+		cache:       cacheClient,
+		authSvc:     authSvc,
+		ghOAuth:     ghOAuth,
+		ghAppLogin:  ghAppLogin,
+		profileSvc:  profileSvc,
+		issueSvc:    issueSvc,
+		contribSvc:  contribSvc,
+		ghClient:    ghClient,
+		bodyFetcher: bodyFetcher,
 	}
 	go h.sweepExpiredTickets(context.Background())
 
@@ -232,6 +244,7 @@ func buildRouter(
 	// ----- Issues -----
 	mux.Handle("GET /issues", optionalAuth(authSvc, http.HandlerFunc(h.listIssues)))
 	mux.HandleFunc("GET /issues/{id}", h.getIssue) // no auth required
+	mux.Handle("GET /issues/{id}/body", optionalAuth(authSvc, http.HandlerFunc(h.getIssueBody)))
 
 	// ----- Saved issues -----
 	mux.Handle("GET /saved", requireAuth(authSvc, http.HandlerFunc(h.getSaved)))
@@ -291,6 +304,25 @@ func buildRouter(
 // ---------------------------------------------------------------------------
 // Middleware helper functions (thin wrappers around middleware package)
 // ---------------------------------------------------------------------------
+
+// pruneBodyCacheLoop periodically trims issue_body_cache back to its row
+// cap (plan §3.1 — a bounded LRU, not unbounded storage).
+func pruneBodyCacheLoop(ctx context.Context, pool *db.Pool) {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if n, err := issue.PruneBodyCache(ctx, pool); err != nil {
+				slog.Warn("failed to prune issue body cache", "error", err)
+			} else if n > 0 {
+				slog.Info("pruned issue body cache", "rows_removed", n)
+			}
+		}
+	}
+}
 
 func requireAuth(authSvc *auth.Service, next http.Handler) http.Handler {
 	return middleware.RequireAuth(authSvc)(next)

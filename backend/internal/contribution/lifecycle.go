@@ -10,11 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/crypto"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/github"
-	"github.com/jackc/pgx/v5"
 )
 
 // ContributionState represents the state of a contribution.
@@ -55,7 +56,6 @@ type ContributionDetail struct {
 	MergedAt       string   `json:"merged_at"`
 	Title          string   `json:"title"`
 	Number         int      `json:"number"`
-	Body           string   `json:"body,omitempty"`
 	Difficulty     string   `json:"difficulty"`
 	IssueURL       string   `json:"issue_url"`
 	RequiredSkills []string `json:"required_skills"`
@@ -198,7 +198,7 @@ func (s *Service) GetWorking(ctx context.Context, userID int) ([]ContributionDet
 	query := `
 		SELECT c.id, c.user_id, c.issue_id, COALESCE(c.pr_url, ''), COALESCE(c.pr_number, 0),
 		       c.state, c.created_at::text, c.updated_at::text, COALESCE(c.merged_at::text, ''),
-		       i.title, i.number, COALESCE(i.body, ''), i.difficulty, i.url AS issue_url,
+		       i.title, i.number, i.difficulty, i.url AS issue_url,
 		       COALESCE(i.required_skills, '{}'), COALESCE(i.technologies, '{}'),
 		       r.full_name AS repository, r.url AS repository_url, COALESCE(r.language, '')
 		FROM contributions c
@@ -213,7 +213,7 @@ func (s *Service) GetWorking(ctx context.Context, userID int) ([]ContributionDet
 		if err := rows.Scan(
 			&item.ID, &item.UserID, &item.IssueID, &item.PRURL, &item.PRNumber,
 			&item.State, &item.CreatedAt, &item.UpdatedAt, &item.MergedAt,
-			&item.Title, &item.Number, &item.Body, &item.Difficulty, &item.IssueURL,
+			&item.Title, &item.Number, &item.Difficulty, &item.IssueURL,
 			&item.RequiredSkills, &item.Technologies,
 			&item.Repository, &item.RepositoryURL, &item.Language,
 		); err != nil {
