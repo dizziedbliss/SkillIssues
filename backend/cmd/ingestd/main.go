@@ -13,12 +13,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/config"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/github"
+	"github.com/dizziedbliss/skillissues/internal/githubapp"
+	"github.com/dizziedbliss/skillissues/internal/ingest"
 	"github.com/dizziedbliss/skillissues/internal/settings"
-	ingest "github.com/dizziedbliss/skillissues/internal/sync"
 )
 
 func main() {
@@ -27,7 +27,7 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
-	slog.Info("starting SkillIssues Sync Coordinator (ingestd)")
+	slog.Info("starting SkillIssues ingestion daemon (ingestd)")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -35,18 +35,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Log presence only. Never log the token, a prefix of it, or its length:
-	// a prefix leaks secret bytes and the length identifies the credential type.
-	if cfg.GitHubToken == "" {
-		slog.Warn("GITHUB_TOKEN is not set — ingestd will skip all GitHub GraphQL syncs")
-	} else {
-		slog.Info("github token loaded")
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Initialize Database Pool with retries
 	dbCfg := db.DefaultConfig(cfg.DatabaseURL)
 	var dbPool *db.Pool
 	for attempt := 1; attempt <= 15; attempt++ {
@@ -63,37 +54,50 @@ func main() {
 	}
 	defer dbPool.Close()
 
-	// Initialize Redis Cache
-	cacheClient, err := cache.New(ctx, cfg.RedisURL)
-	if err != nil {
-		slog.Warn("redis connection warning (proceeding in degraded mode)", "error", err)
-	} else {
-		defer cacheClient.Close()
-	}
-
-	// Initialize GitHub Client
 	ghClient := github.NewClient(cfg.GitHubGraphQLURL)
 
-	// Load live settings and watch for changes, so the ingestion tunables below
-	// can be retuned without restarting this service.
+	// Token: prefer the GitHub App's installation token (D5, D2 — the crawl
+	// credential strictly separate from the contribution path), falling
+	// back to the plain PAT while the App isn't configured. Read fresh per
+	// call so a renewed/rotated token takes effect without a restart.
+	tokenFn := func() string { return cfg.GitHubToken }
+	if cfg.GitHubAppID != "" {
+		privKey, err := githubapp.LoadPrivateKeyFile(cfg.GitHubAppPrivateKeyPath)
+		if err != nil {
+			slog.Error("failed to load GitHub App private key", "error", err)
+			os.Exit(1)
+		}
+		ghApp, err := githubapp.New(githubapp.Config{
+			AppID:        cfg.GitHubAppID,
+			ClientID:     cfg.GitHubAppClientID,
+			ClientSecret: cfg.GitHubAppClientSecret,
+			PrivateKey:   privKey,
+			CallbackURL:  cfg.GitHubAppCallbackURL,
+		})
+		if err != nil {
+			slog.Error("failed to initialize GitHub App", "error", err)
+			os.Exit(1)
+		}
+		tokenFn = func() string {
+			tok, err := ghApp.InstallationToken(ctx)
+			if err != nil {
+				slog.Warn("failed to mint installation token, falling back to GITHUB_TOKEN", "error", err)
+				return cfg.GitHubToken
+			}
+			return tok
+		}
+		slog.Info("ingestd crawling via GitHub App installation token", "app_id", cfg.GitHubAppID)
+	} else if cfg.GitHubToken == "" {
+		slog.Warn("neither GITHUB_APP_ID nor GITHUB_TOKEN is set — ingestd will skip all GitHub GraphQL syncs")
+	}
+
 	live := settings.NewLive(ctx, dbPool.Raw(), cfg.DatabaseURL)
 	live.Start(ctx)
 
-	// Initialize Sync Coordinator. Worker counts and the interval come from the
-	// settings snapshot; the static fields are only the pre-settings fallback.
-	snap := live.Current()
-	coordCfg := ingest.CoordinatorConfig{
-		WorkerCount:         snap.Int(settings.IngestRoutineWorkers),
-		PriorityWorkerCount: snap.Int(settings.IngestPriorityWorkers),
-		OnDemandWorkerCount: snap.Int(settings.IngestOnDemandWorkers),
-		SyncInterval:        snap.Seconds(settings.IngestSyncIntervalSeconds),
-		GitHubToken:         cfg.GitHubToken,
-		Settings:            live.Current,
-	}
-	coordinator := ingest.NewCoordinator(dbPool, cacheClient, ghClient, coordCfg)
-
-	// Push concurrency changes into the pools as soon as settings reload, rather
-	// than waiting for the next sync cycle.
+	coordinator := ingest.NewCoordinator(dbPool, ghClient, ingest.CoordinatorConfig{
+		Token:    tokenFn,
+		Settings: live.Current,
+	})
 	live.OnChange(coordinator.ApplySettings)
 
 	coordinator.Start()
@@ -101,7 +105,6 @@ func main() {
 		_ = coordinator.Shutdown(5 * time.Second)
 	}()
 
-	// Setup HTTP server for coordination & healthchecks
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -118,8 +121,12 @@ func main() {
 		_ = json.NewEncoder(w).Encode(coordinator.Status())
 	})
 
+	// Manual admin trigger: enqueue up to `limit` eligible repositories that
+	// have no ingest_jobs row yet. Not a priority mechanism — it's the same
+	// FIFO queue everything else uses, just nudged to check sooner. See D9;
+	// no repository priority/ranking lives in the crawl path.
 	mux.HandleFunc("POST /sync/issues", func(w http.ResponseWriter, r *http.Request) {
-		count, err := coordinator.TriggerRoutineSync(r.Context())
+		count, err := ingest.EnqueueInitialJobs(r.Context(), dbPool, 500)
 		w.Header().Set("Content-Type", "application/json")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -133,6 +140,8 @@ func main() {
 		})
 	})
 
+	// Manual admin trigger for one repository: enqueues an "initial" job
+	// due immediately, or bumps an existing job's next_retry_at to now.
 	mux.HandleFunc("POST /sync/priority/{id}", func(w http.ResponseWriter, r *http.Request) {
 		idStr := r.PathValue("id")
 		repoID, err := strconv.Atoi(idStr)
@@ -141,7 +150,13 @@ func main() {
 			return
 		}
 
-		if err := coordinator.TriggerPrioritySync(r.Context(), repoID); err != nil {
+		if err := dbPool.Exec(r.Context(),
+			`INSERT INTO ingest_jobs (repository_id, job_type, status, next_retry_at)
+			 VALUES ($1, 'initial', 'pending', now())
+			 ON CONFLICT (repository_id) WHERE status IN ('pending', 'running')
+			 DO UPDATE SET next_retry_at = now()`,
+			repoID,
+		); err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})

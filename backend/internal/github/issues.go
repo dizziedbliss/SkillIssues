@@ -21,13 +21,17 @@ type GraphQLRateLimit struct {
 }
 
 // GraphQLIssueNode represents an individual GitHub issue item.
+//
+// There is no Body field: D17 removes issue bodies from the ingest query
+// entirely (they're ~92% of the payload and no ingestion-time hot path
+// needs them — see internal/ingest for the on-demand read path instead).
 type GraphQLIssueNode struct {
 	DatabaseID    int64     `json:"database_id"`
 	Number        int       `json:"number"`
 	Title         string    `json:"title"`
-	Body          string    `json:"body"`
 	URL           string    `json:"url"`
 	State         string    `json:"state"`
+	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 	AuthorLogin   string    `json:"author_login"`
 	CommentsCount int       `json:"comments_count"`
@@ -50,13 +54,13 @@ const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: St
                 databaseId
                 number
                 title
-                body
                 url
                 state
+                createdAt
                 updatedAt
                 author { login }
                 comments { totalCount }
-                labels(first: 10) { nodes { name } }
+                labels(first: 20) { nodes { name } }
             }
             pageInfo { hasNextPage endCursor }
         }
@@ -138,9 +142,9 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 						DatabaseID int64  `json:"databaseId"`
 						Number     int    `json:"number"`
 						Title      string `json:"title"`
-						Body       string `json:"body"`
 						URL        string `json:"url"`
 						State      string `json:"state"`
+						CreatedAt  string `json:"createdAt"`
 						UpdatedAt  string `json:"updatedAt"`
 						Author     *struct {
 							Login string `json:"login"`
@@ -195,6 +199,7 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 
 	var issues []GraphQLIssueNode
 	for _, n := range rawResponse.Data.Repository.Issues.Nodes {
+		createdAt, _ := time.Parse(time.RFC3339, n.CreatedAt)
 		updatedAt, _ := time.Parse(time.RFC3339, n.UpdatedAt)
 		author := ""
 		if n.Author != nil {
@@ -211,9 +216,9 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 			DatabaseID:    n.DatabaseID,
 			Number:        n.Number,
 			Title:         n.Title,
-			Body:          n.Body,
 			URL:           n.URL,
 			State:         strings.ToUpper(n.State),
+			CreatedAt:     createdAt,
 			UpdatedAt:     updatedAt,
 			AuthorLogin:   author,
 			CommentsCount: n.Comments.TotalCount,

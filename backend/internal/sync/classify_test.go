@@ -7,11 +7,11 @@ import (
 
 func TestClassifyLabels(t *testing.T) {
 	tests := []struct {
-		name         string
-		labels       []string
-		wantValid    bool
-		wantDiff     string
-		wantScore    int
+		name      string
+		labels    []string
+		wantValid bool
+		wantDiff  string
+		wantScore int
 	}{
 		{
 			name:      "good first issue",
@@ -42,11 +42,11 @@ func TestClassifyLabels(t *testing.T) {
 			wantScore: 8,
 		},
 		{
-			name:      "no matching label defaults to beginner score 3",
+			name:      "no matching label is unclassified, never beginner",
 			labels:    []string{"triage", "needs-info"},
 			wantValid: false,
-			wantDiff:  "BEGINNER",
-			wantScore: 3,
+			wantDiff:  "UNCLASSIFIED",
+			wantScore: 0,
 		},
 	}
 
@@ -62,10 +62,9 @@ func TestClassifyLabels(t *testing.T) {
 
 func TestExtractMetadata(t *testing.T) {
 	labels := []string{"good first issue", "documentation", "api"}
-	body := "Please update the REST endpoint docs"
 	repoLang := "TypeScript"
 
-	score, diff, valid, skills, tech, tags := ExtractMetadata(labels, body, repoLang)
+	score, diff, valid, skills, tech, tags := ExtractMetadata(labels, repoLang)
 
 	if !valid || diff != "BEGINNER" || score != 2 {
 		t.Errorf("unexpected classification: valid=%v diff=%v score=%v", valid, diff, score)
