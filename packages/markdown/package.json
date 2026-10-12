@@ -5,14 +5,8 @@
   "description": "Shared sanitised Markdown renderer used by both the web and desktop clients, so a fix to the sanitisation rules can't land in one copy and miss the other.",
   "type": "module",
   "main": "src/index.ts",
-  "scripts": {
-    "build:global": "esbuild src/index.ts --bundle --format=iife --global-name=SkillIssuesMarkdown --outfile=../../desktop/vendor/skillissues-markdown.js"
-  },
   "dependencies": {
     "markdown-it": "15.0.2",
     "dompurify": "3.4.16"
-  },
-  "devDependencies": {
-    "esbuild": "0.28.2"
   }
 }

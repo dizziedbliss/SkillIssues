@@ -222,7 +222,7 @@ function friendlyGitError(error) {
  * @param {RequestInit} [options] - Fetch configuration options
  * @returns {Promise<Response>}
  */
-async function apiRequest(pathname, options = {}) {
+async function apiRequest(pathname: string, options: any = {}) {
   const headers = { Accept: "application/json", ...(options.headers || {}) };
   if (apiSessionToken) headers.Authorization = `Bearer ${apiSessionToken}`;
   const response = await fetch(`${API_URL}${pathname}`, {
@@ -241,7 +241,7 @@ async function apiRequest(pathname, options = {}) {
  * @param {RequestInit} [options] - Fetch configuration options
  * @returns {Promise<any>} Parsed response data
  */
-async function apiJson(pathname, options = {}) {
+async function apiJson(pathname: string, options: any = {}): Promise<any> {
   // `allow304`/`returnEtag` are consumed here, never forwarded to fetch()
   // (D15 — ETag revalidation for cached recommendations).
   const { allow304, returnEtag, ...fetchOptions } = options;
@@ -250,7 +250,7 @@ async function apiJson(pathname, options = {}) {
     return { __notModified: true };
   }
   const body = await response.text();
-  let data = {};
+  let data: any = {};
   try {
     data = body ? JSON.parse(body) : {};
   } catch {
@@ -407,11 +407,13 @@ async function runGit(workspace, args, command) {
 // Window Management & Protocol Handling
 // ==============================================================================
 
-let mainWindow = null;
-let pendingDeepLinkUrl = null;
+let mainWindow: InstanceType<typeof BrowserWindow> | null = null;
+let pendingDeepLinkUrl: string | null = null;
 
-// Register custom URL protocol client for deep linking (skillissues://)
-if (process.defaultApp) {
+// Register custom URL protocol client for deep linking (skillissues://).
+// `defaultApp` is an Electron-specific augmentation of `process`, true only
+// when running unpackaged (e.g. `electron .` in dev).
+if ((process as any).defaultApp) {
   if (process.argv.length >= 2) {
     app.setAsDefaultProtocolClient("skillissues", process.execPath, [
       path.resolve(process.argv[1]),
@@ -448,7 +450,10 @@ function createWindow() {
     minWidth: 880,
     minHeight: 640,
     show: false,
-    icon: path.join(__dirname, "icon.png"),
+    // `app.getAppPath()` is the project root in dev and the asar root when
+    // packaged — stable regardless of where electron-vite places the built
+    // main bundle (`out/main/index.js`), unlike a `__dirname`-relative path.
+    icon: path.join(app.getAppPath(), "icon.png"),
     backgroundColor: "#f7f6fb",
     titleBarStyle: "hidden",
     titleBarOverlay: {
@@ -462,7 +467,9 @@ function createWindow() {
       sandbox: true,
       nodeIntegration: false,
       webSecurity: true,
-      preload: path.join(__dirname, "preload.js"),
+      // electron-vite builds main to out/main/index.js and preload to
+      // out/preload/index.js (or .mjs) — siblings under out/, not this file.
+      preload: path.join(__dirname, "../preload/index.js"),
     },
   });
 
@@ -486,7 +493,14 @@ function createWindow() {
     if (!url.startsWith("file://")) event.preventDefault();
   });
 
-  mainWindow.loadFile(path.join(__dirname, "index.html"));
+  // electron-vite sets ELECTRON_RENDERER_URL during `electron-vite dev` so
+  // the window loads the Vite dev server (HMR); the packaged/production
+  // build has no such server and loads the pre-built renderer file instead.
+  if (process.env.ELECTRON_RENDERER_URL) {
+    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
+  } else {
+    mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
+  }
   return mainWindow;
 }
 
@@ -576,7 +590,7 @@ ipcMain.handle("auth:github", async () => {
     if (!loginResponse.ok) {
       throw new Error(`API returned HTTP ${loginResponse.status}`);
     }
-    const login = await loginResponse.json();
+    const login: any = await loginResponse.json();
     if (!login.authorize_url) {
       return {
         authenticated: false,
@@ -646,7 +660,7 @@ ipcMain.handle("auth:github", async () => {
               `${API_URL}/auth/github/poll?ticket=${encodeURIComponent(login.ticket)}`,
             );
             if (pollRes.ok) {
-              const pollData = await pollRes.json();
+              const pollData: any = await pollRes.json();
               if (pollData && pollData.authenticated && pollData.session_token) {
                 void finish(pollData.session_token);
               }

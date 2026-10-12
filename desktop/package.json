@@ -4,14 +4,16 @@
   "description": "SkillIssues desktop contribution workspace",
   "author": "SkillIssues",
   "private": true,
-  "main": "main.js",
+  "main": "out/main/index.js",
   "scripts": {
-    "start": "electron .",
-    "check": "node --check main.js && node --check preload.js && node --check app.js",
-    "dist": "electron-builder --mac --linux --win",
-    "dist:mac": "electron-builder --mac",
-    "dist:linux": "electron-builder --linux",
-    "dist:win": "electron-builder --win"
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "check": "tsc --noEmit",
+    "dist": "npm run build && electron-builder --mac --linux --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "dist:win": "npm run build && electron-builder --win"
   },
   "build": {
     "appId": "com.skillissues.desktop",
@@ -19,15 +21,9 @@
     "icon": "icon.png",
     "asar": true,
     "files": [
-      "main.js",
-      "preload.js",
-      "index.html",
-      "app.css",
-      "app.js",
-      "logo.png",
+      "out/**/*",
       "icon.png",
-      "package.json",
-      "vendor/**/*"
+      "package.json"
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
@@ -49,7 +45,11 @@
     }
   },
   "devDependencies": {
+    "@types/node": "22.20.5",
     "electron": "44.3.0",
-    "electron-builder": "26.15.3"
+    "electron-builder": "26.15.3",
+    "electron-vite": "4.0.1",
+    "typescript": "5.9.3",
+    "vite": "6.4.4"
   }
 }

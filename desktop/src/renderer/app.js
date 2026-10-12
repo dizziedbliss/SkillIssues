@@ -8,6 +8,8 @@
  * - IPC bridge communication with the Electron main process (window.skillIssuesDesktop)
  */
 
+import { renderMarkdown as renderIssueMarkdown } from "../../../packages/markdown/src/index";
+
 const API = "http://localhost:8000";
 
 // ==============================================================================
@@ -895,13 +897,14 @@ async function toggleSave(issue) {
     showResult(error.message, true);
   }
 }
-// Rendering (markdown-it + DOMPurify) lives in packages/markdown, shared with
-// the web client, and is loaded above as the SkillIssuesMarkdown global —
-// see vendor/skillissues-markdown.js and vendor/README.md.
+// Rendering (markdown-it + DOMPurify) lives in packages/markdown, shared
+// with the web client and bundled directly now that Vite builds this
+// renderer — no more checked-in vendor bundle (see git history for the old
+// desktop/vendor/ hack, removed when desktop moved to electron-vite).
 function renderMarkdown(md) {
   if (!md || !md.trim())
     return '<p class="empty-body">No issue description available.</p>';
-  return window.SkillIssuesMarkdown.renderMarkdown(md);
+  return renderIssueMarkdown(md);
 }
 
 // Issue bodies are fetched on demand (GET /issues/{id}/body) rather than
