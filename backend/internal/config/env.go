@@ -33,6 +33,13 @@ type Config struct {
 	// SyncdURL is the ingestion service address used to forward sync requests.
 	SyncdURL string
 
+	// TrustedProxies lists the CIDRs allowed to set X-Forwarded-For/X-Real-IP
+	// for rate-limit identification. A request from any other peer has those
+	// headers ignored, since otherwise any client could spoof its rate-limit
+	// identity by setting them itself. Defaults to loopback only (the
+	// Docker Compose topology puts no proxy in front of the API).
+	TrustedProxies []string
+
 	// GitHubGraphQLURL is overridden only by tests and GitHub Enterprise.
 	GitHubGraphQLURL string
 
@@ -55,6 +62,7 @@ func Load() (*Config, error) {
 		GitHubRedirectURI: strEnv("GITHUB_REDIRECT_URI", "http://localhost:8000/auth/github/callback"),
 		SyncdURL:          strEnv("SYNCD_URL", "http://ingestd:8002"),
 		RedisURL:          strEnv("REDIS_URL", "redis://localhost:6379/0"),
+		TrustedProxies:    strListEnv("TRUSTED_PROXIES", []string{"127.0.0.1/32", "::1/128"}),
 	}
 
 	var missing []string
@@ -96,6 +104,23 @@ func strEnv(key, fallback string) string {
 		return cleanToken(v)
 	}
 	return fallback
+}
+
+func strListEnv(key string, fallback []string) []string {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	var out []string
+	for _, part := range strings.Split(v, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	if len(out) == 0 {
+		return fallback
+	}
+	return out
 }
 
 func intEnv(key string, fallback int) int {

@@ -166,6 +166,7 @@ func buildRouter(
 		contribSvc: contribSvc,
 		ghClient:   ghClient,
 	}
+	go h.sweepExpiredTickets(context.Background())
 
 	// ----- Health & Metrics -----
 	mux.HandleFunc("GET /health", h.health)
@@ -231,6 +232,7 @@ func buildRouter(
 	// Apply global middleware: RequestID → Logger → CORS → OptionalAuth → RateLimiter → mux
 	var handler http.Handler = mux
 	if cacheClient != nil {
+		trustedProxies := middleware.ParseTrustedProxies(cfg.TrustedProxies)
 		// Read limits per request so a settings change applies without a restart.
 		handler = middleware.RateLimiter(cacheClient, func() middleware.RateLimits {
 			s := live.Current()
@@ -239,7 +241,7 @@ func buildRouter(
 				Auth:   int64(s.Int(settings.RateLimitAuthPerHour)),
 				Window: s.Seconds(settings.RateLimitWindowSeconds),
 			}
-		}, "global")(handler)
+		}, "global", trustedProxies)(handler)
 	}
 	handler = middleware.OptionalAuth(authSvc, cacheClient)(handler)
 	handler = middleware.CORS(cfg.FrontendURL)(handler)
