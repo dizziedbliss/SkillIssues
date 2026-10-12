@@ -6,7 +6,16 @@
  * and authenticated API communications.
  */
 
-const { app, BrowserWindow, ipcMain, shell, session, dialog, Menu } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  shell,
+  session,
+  dialog,
+  Menu,
+  safeStorage,
+} = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const { execFile } = require("node:child_process");
@@ -37,13 +46,26 @@ function getSessionFilePath() {
   }
 }
 
+// The session file is encrypted with the OS keychain (safeStorage) whenever
+// it's available, so a copy of userData on disk doesn't hand over a live
+// session. Platforms without OS-backed encryption fall back to plaintext —
+// still readable only by the local user, same as before.
 function loadSavedSession() {
   const sessionFile = getSessionFilePath();
   if (!sessionFile) return;
   try {
     if (fs.existsSync(sessionFile)) {
       const data = JSON.parse(fs.readFileSync(sessionFile, "utf8"));
-      if (data && typeof data.token === "string" && data.token.trim()) {
+      if (
+        data &&
+        typeof data.encrypted === "string" &&
+        safeStorage.isEncryptionAvailable()
+      ) {
+        const token = safeStorage
+          .decryptString(Buffer.from(data.encrypted, "base64"))
+          .trim();
+        if (token) apiSessionToken = token;
+      } else if (data && typeof data.token === "string" && data.token.trim()) {
         apiSessionToken = data.token.trim();
       }
     }
@@ -58,7 +80,14 @@ function saveSession(token) {
   if (!sessionFile) return;
   try {
     fs.mkdirSync(path.dirname(sessionFile), { recursive: true });
-    fs.writeFileSync(sessionFile, JSON.stringify({ token: apiSessionToken }), "utf8");
+    const payload = safeStorage.isEncryptionAvailable()
+      ? { encrypted: safeStorage.encryptString(apiSessionToken).toString("base64") }
+      : { token: apiSessionToken };
+    fs.writeFileSync(sessionFile, JSON.stringify(payload), {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    fs.chmodSync(sessionFile, 0o600);
   } catch (err) {
     logRuntimeError("saveSession", err);
   }

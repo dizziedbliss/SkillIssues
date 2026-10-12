@@ -25,6 +25,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/config"
 	"github.com/dizziedbliss/skillissues/internal/contribution"
+	"github.com/dizziedbliss/skillissues/internal/crypto"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/dizziedbliss/skillissues/internal/issue"
@@ -76,7 +77,14 @@ func main() {
 	}
 
 	// 4. Instantiate service layer
+	tokenCipher, err := crypto.New(cfg.TokenEncryptionKey)
+	if err != nil {
+		slog.Error("failed to initialize token encryption", "error", err)
+		os.Exit(1)
+	}
+
 	authSvc := auth.New(pool, cacheClient)
+	authSvc.SetTokenCipher(tokenCipher)
 	ghOAuth := auth.NewGitHubOAuth(auth.GitHubConfig{
 		ClientID:     cfg.GitHubClientID,
 		ClientSecret: cfg.GitHubClientSecret,
@@ -97,6 +105,7 @@ func main() {
 	contribSvc := contribution.New(pool, cacheClient, ghClient, func() int {
 		return live.Current().Int(settings.ContributionVerifyPerHour)
 	})
+	contribSvc.SetTokenCipher(tokenCipher)
 	authSvc.SetSessionTTL(func() time.Duration {
 		return live.Current().Hours(settings.SessionTTLHours)
 	})

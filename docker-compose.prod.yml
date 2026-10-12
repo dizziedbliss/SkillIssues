@@ -77,6 +77,7 @@ services:
       GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-https://api.skillissues.com/auth/github/callback}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
       SYNCD_URL: http://ingestd:8002
       ENV: production
       PORT: 8000
@@ -107,6 +108,7 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
       SYNCD_PORT: 8002
       ENV: production
       PORT: 8002

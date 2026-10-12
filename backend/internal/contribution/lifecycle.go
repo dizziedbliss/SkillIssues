@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/cache"
+	"github.com/dizziedbliss/skillissues/internal/crypto"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/jackc/pgx/v5"
@@ -74,6 +75,29 @@ type Service struct {
 	// verifyQuota bounds PR verification attempts. Read per call so the limit
 	// can be tightened on a running system if it is being abused.
 	verifyQuota func() int
+
+	// tokenCipher decrypts users.github_access_token, which auth.Service
+	// encrypts before storing. Nil only in tests that don't set it.
+	tokenCipher *crypto.Cipher
+}
+
+// SetTokenCipher installs the cipher used to decrypt stored GitHub access
+// tokens. Safe to call only during startup wiring.
+func (s *Service) SetTokenCipher(c *crypto.Cipher) {
+	s.tokenCipher = c
+}
+
+// decryptToken returns "" if the value can't be decrypted rather than ever
+// treating ciphertext as a usable token.
+func (s *Service) decryptToken(encrypted string) string {
+	if encrypted == "" || s.tokenCipher == nil {
+		return encrypted
+	}
+	plain, err := s.tokenCipher.Decrypt(encrypted)
+	if err != nil {
+		return ""
+	}
+	return plain
 }
 
 // New creates a new contribution Service. verifyQuota may be nil, in which case
@@ -255,6 +279,7 @@ func (s *Service) AttachPR(ctx context.Context, userID, contribID int, prURL str
 	if err != nil {
 		return nil, db.ErrNotFound
 	}
+	userToken = s.decryptToken(userToken)
 
 	// Case-insensitive repository match
 	if strings.ToLower(fmt.Sprintf("%s/%s", owner, repo)) != strings.ToLower(expectedRepo) {

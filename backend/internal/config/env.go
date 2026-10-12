@@ -12,6 +12,7 @@
 package config
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"strconv"
@@ -51,6 +52,13 @@ type Config struct {
 	GitHubClientSecret  string // OAuth App client secret
 	GitHubRedirectURI   string // OAuth callback URL; must match the GitHub App
 	AdminSyncToken      string // Bearer token for /admin/* endpoints
+
+	// TokenEncryptionKey is the AES-256 key (derived via SHA-256 from
+	// TOKEN_ENCRYPTION_KEY, so operators can set any length secret) used to
+	// encrypt users.github_access_token at rest. Losing or rotating it
+	// without migrating existing rows makes stored tokens undecryptable —
+	// callers treat that as "no token", not a crash.
+	TokenEncryptionKey []byte
 }
 
 // Load reads and validates configuration from the environment.
@@ -78,6 +86,10 @@ func Load() (*Config, error) {
 	cfg.GitHubClientSecret = cleanToken(os.Getenv("GITHUB_CLIENT_SECRET"))
 	cfg.AdminSyncToken = strEnv("ADMIN_SYNC_TOKEN", "dev_local_admin_sync_token")
 
+	tokenEncryptionSecret := strEnv("TOKEN_ENCRYPTION_KEY", "dev_local_token_encryption_key")
+	keyHash := sha256.Sum256([]byte(tokenEncryptionSecret))
+	cfg.TokenEncryptionKey = keyHash[:]
+
 	// Refuse to start in production on the development placeholder secrets.
 	if os.Getenv("ENV") == "production" {
 		if cfg.GitHubWebhookSecret == "dev_local_webhook_secret" {
@@ -85,6 +97,9 @@ func Load() (*Config, error) {
 		}
 		if cfg.AdminSyncToken == "dev_local_admin_sync_token" {
 			missing = append(missing, "ADMIN_SYNC_TOKEN")
+		}
+		if tokenEncryptionSecret == "dev_local_token_encryption_key" {
+			missing = append(missing, "TOKEN_ENCRYPTION_KEY")
 		}
 	}
 

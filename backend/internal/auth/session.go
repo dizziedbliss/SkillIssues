@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/cache"
+	"github.com/dizziedbliss/skillissues/internal/crypto"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/jackc/pgx/v5"
 )
@@ -60,6 +61,11 @@ type Service struct {
 	// sessionTTL is read when a session is created. Changing it affects newly
 	// issued sessions only; existing ones keep the expiry they were given.
 	sessionTTL func() time.Duration
+
+	// tokenCipher encrypts/decrypts github_access_token before it reaches
+	// Postgres. Nil only in tests that don't set it, in which case tokens
+	// pass through unencrypted.
+	tokenCipher *crypto.Cipher
 }
 
 // New creates an auth.Service.
@@ -69,6 +75,41 @@ func New(db *db.Pool, cacheClient ...*cache.Client) *Service {
 		s.cache = cacheClient[0]
 	}
 	return s
+}
+
+// SetTokenCipher installs the cipher used to encrypt/decrypt stored GitHub
+// access tokens. Safe to call only during startup wiring.
+func (s *Service) SetTokenCipher(c *crypto.Cipher) {
+	s.tokenCipher = c
+}
+
+// DecryptAccessToken reverses the encryption UpsertUser applies. It returns
+// "" (never an error) if the value can't be decrypted — e.g. it predates
+// encryption or the key has changed — rather than ever handing back
+// ciphertext as if it were a usable token.
+func (s *Service) DecryptAccessToken(encrypted string) string {
+	if encrypted == "" || s.tokenCipher == nil {
+		return encrypted
+	}
+	plain, err := s.tokenCipher.Decrypt(encrypted)
+	if err != nil {
+		return ""
+	}
+	return plain
+}
+
+// GetAccessToken fetches and decrypts a user's stored GitHub token, if any.
+func (s *Service) GetAccessToken(ctx context.Context, userID int) (string, error) {
+	var enc string
+	err := s.db.QueryRow(ctx,
+		`SELECT COALESCE(github_access_token, '') FROM users WHERE id = $1`,
+		[]any{userID},
+		func(row pgx.Row) error { return row.Scan(&enc) },
+	)
+	if err != nil {
+		return "", err
+	}
+	return s.DecryptAccessToken(enc), nil
 }
 
 // ---------------------------------------------------------------------------
@@ -218,6 +259,16 @@ func VerifyWebhookSignature(secret, body []byte, sigHeader string) bool {
 // Returns the database user ID.
 func (s *Service) UpsertUser(ctx context.Context, githubID, username, avatarURL, accessToken string) (int, error) {
 	var userID int
+
+	// Encrypt before it ever reaches a query: github_access_token in Postgres
+	// must never hold a usable plaintext token.
+	if s.tokenCipher != nil && accessToken != "" {
+		encrypted, err := s.tokenCipher.Encrypt(accessToken)
+		if err != nil {
+			return 0, fmt.Errorf("auth: encrypt access token: %w", err)
+		}
+		accessToken = encrypted
+	}
 
 	// First, attempt to match an existing user record by GitHub ID or case-insensitive username
 	var existingID int

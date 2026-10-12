@@ -625,12 +625,7 @@ func (h *handlers) forkRepository(w http.ResponseWriter, r *http.Request) {
 
 	// Forking attributes the fork to whoever's token performs it, so this must
 	// always be the user's own GitHub authorization — never the server's.
-	var token string
-	_ = h.db.QueryRow(r.Context(),
-		`SELECT COALESCE(github_access_token, '') FROM users WHERE id = $1`,
-		[]any{userID},
-		func(row pgx.Row) error { return row.Scan(&token) },
-	)
+	token, _ := h.authSvc.GetAccessToken(r.Context(), userID)
 	if token == "" {
 		middleware.RespondError(w, http.StatusForbidden, "Please click 'Connect GitHub' in top bar to authorize repository forking.")
 		return
@@ -651,12 +646,7 @@ func (h *handlers) getGitToken(w http.ResponseWriter, r *http.Request) {
 	// This token drives `git push`, so it must be the user's own GitHub
 	// authorization — a server-token fallback would attribute every push
 	// made this way to the server's identity, not the contributor's.
-	var token string
-	_ = h.db.QueryRow(r.Context(),
-		`SELECT COALESCE(github_access_token, '') FROM users WHERE id = $1`,
-		[]any{userID},
-		func(row pgx.Row) error { return row.Scan(&token) },
-	)
+	token, _ := h.authSvc.GetAccessToken(r.Context(), userID)
 	if token == "" {
 		middleware.RespondError(w, http.StatusForbidden, "Connect GitHub before pushing changes.")
 		return
@@ -1152,7 +1142,7 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := userToken
+	token := h.authSvc.DecryptAccessToken(userToken)
 	if token == "" {
 		middleware.RespondError(w, http.StatusForbidden, "Connect GitHub before submitting a pull request.")
 		return
