@@ -1,0 +1,270 @@
+package ingest
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/jackc/pgx/v5"
+)
+
+// JobType distinguishes the two pagination roles. Initial and Freshness
+// share the same handling — both fetch exactly one page — so they share
+// the "initial" job type; a freshness re-check is just a new "initial" job
+// enqueued for a repository that already completed one.
+type JobType string
+
+const (
+	JobInitial JobType = "initial"
+	JobDeep    JobType = "deep"
+)
+
+// Job is one claimed row from ingest_jobs.
+type Job struct {
+	ID            int
+	RepositoryID  int
+	FullName      string
+	Language      *string
+	JobType       JobType
+	Cursor        *string
+	PagesDone     int
+	AttemptCount  int
+	LastSyncSince *time.Time
+}
+
+// defaultLeaseDuration bounds how long a claimed job can run before another
+// worker is allowed to reclaim it — the self-healing half of plan §7's
+// "leases expire, so a crash self-heals."
+const defaultLeaseDuration = 5 * time.Minute
+
+// ClaimJobs atomically claims up to limit pending-or-due jobs of the given
+// type via SELECT ... FOR UPDATE SKIP LOCKED, so two workers (in this
+// process or another) can never claim the same job. FIFO on next_retry_at —
+// no priority score (plan §7, D1/D9).
+func ClaimJobs(ctx context.Context, pool *db.Pool, jobType JobType, limit int, owner string) ([]Job, error) {
+	if limit <= 0 {
+		limit = 1
+	}
+	rows, err := pool.Raw().Query(ctx,
+		`UPDATE ingest_jobs j
+		 SET status = 'running', lease_owner = $1, lease_expires_at = now() + ($2 * interval '1 second')
+		 FROM (
+			SELECT id FROM ingest_jobs
+			WHERE job_type = $3
+			  AND status = 'pending'
+			  AND (next_retry_at IS NULL OR next_retry_at <= now())
+			ORDER BY next_retry_at NULLS FIRST, id
+			LIMIT $4
+			FOR UPDATE SKIP LOCKED
+		 ) claimed
+		 WHERE j.id = claimed.id
+		 RETURNING j.id, j.repository_id, j.cursor, j.pages_done, j.attempt_count, j.job_type`,
+		owner, defaultLeaseDuration.Seconds(), string(jobType), limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("ingest: claim jobs: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []int
+	byID := map[int]*Job{}
+	for rows.Next() {
+		j := &Job{}
+		var jt string
+		if err := rows.Scan(&j.ID, &j.RepositoryID, &j.Cursor, &j.PagesDone, &j.AttemptCount, &jt); err != nil {
+			return nil, fmt.Errorf("ingest: scan claimed job: %w", err)
+		}
+		j.JobType = JobType(jt)
+		ids = append(ids, j.ID)
+		byID[j.ID] = j
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	// Fill in repository full_name/language (not worth a JOIN above given
+	// SKIP LOCKED already does the hard part).
+	err = pool.QueryRows(ctx,
+		`SELECT id, full_name, language FROM repositories WHERE id = ANY($1)`,
+		[]any{repoIDs(byID)},
+		func(rows pgx.Rows) error {
+			var id int
+			var fullName string
+			var lang *string
+			if err := rows.Scan(&id, &fullName, &lang); err != nil {
+				return err
+			}
+			for _, j := range byID {
+				if j.RepositoryID == id {
+					j.FullName = fullName
+					j.Language = lang
+				}
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("ingest: load repository details for claimed jobs: %w", err)
+	}
+
+	jobs := make([]Job, 0, len(ids))
+	for _, id := range ids {
+		jobs = append(jobs, *byID[id])
+	}
+	return jobs, nil
+}
+
+func repoIDs(byID map[int]*Job) []int {
+	ids := make([]int, 0, len(byID))
+	for _, j := range byID {
+		ids = append(ids, j.RepositoryID)
+	}
+	return ids
+}
+
+// CompleteOrRequeue finishes a page within an already-open transaction:
+// caller is responsible for upserting the page's issues in the same tx
+// first, so the cursor only ever advances alongside committed rows (plan
+// §7 "atomic progress" / "never advance a cursor before its rows are
+// committed").
+//
+// If hasNextPage, the job (or a new "deep" job, if this was "initial")
+// goes back to pending with the new cursor. Otherwise it's marked done.
+func CompleteOrRequeue(ctx context.Context, tx pgx.Tx, job Job, newCursor string, hasNextPage bool, pagesDone int) error {
+	if !hasNextPage {
+		_, err := tx.Exec(ctx,
+			`UPDATE ingest_jobs SET status = 'done', cursor = $2, pages_done = $3,
+			    has_next_page = false, lease_owner = NULL, lease_expires_at = NULL,
+			    next_retry_at = NULL, updated_at = now()
+			 WHERE id = $1`,
+			job.ID, newCursor, pagesDone,
+		)
+		return err
+	}
+
+	if job.JobType == JobDeep {
+		_, err := tx.Exec(ctx,
+			`UPDATE ingest_jobs SET status = 'pending', cursor = $2, pages_done = $3,
+			    has_next_page = true, lease_owner = NULL, lease_expires_at = NULL,
+			    next_retry_at = now(), attempt_count = 0, updated_at = now()
+			 WHERE id = $1`,
+			job.ID, newCursor, pagesDone,
+		)
+		return err
+	}
+
+	// An "initial" job's role ends after its one page: mark it done and
+	// hand off pagination to a new "deep" job, per the Initial/Freshness
+	// vs. Deep Diver split.
+	if _, err := tx.Exec(ctx,
+		`UPDATE ingest_jobs SET status = 'done', cursor = $2, pages_done = $3,
+		    has_next_page = true, lease_owner = NULL, lease_expires_at = NULL,
+		    next_retry_at = NULL, updated_at = now()
+		 WHERE id = $1`,
+		job.ID, newCursor, pagesDone,
+	); err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx,
+		`INSERT INTO ingest_jobs (repository_id, job_type, status, cursor, pages_done, has_next_page, next_retry_at)
+		 VALUES ($1, 'deep', 'pending', $2, $3, true, now())
+		 ON CONFLICT (repository_id) WHERE status IN ('pending', 'running') DO NOTHING`,
+		job.RepositoryID, newCursor, pagesDone,
+	)
+	return err
+}
+
+// ReleaseJob returns a claimed job to pending without counting it as a
+// failed attempt — used when the worker never actually tried GitHub (e.g.
+// the shared budget was exhausted before the call was made).
+func ReleaseJob(ctx context.Context, pool *db.Pool, job Job, retryAfter time.Duration) error {
+	return pool.Exec(ctx,
+		`UPDATE ingest_jobs SET status = 'pending', lease_owner = NULL, lease_expires_at = NULL,
+		    next_retry_at = now() + ($2 * interval '1 second'), updated_at = now()
+		 WHERE id = $1`,
+		job.ID, retryAfter.Seconds(),
+	)
+}
+
+// FailJob records an error and schedules a retry with exponential backoff,
+// or — once attempt_count exceeds maxAttempts — leaves the job in 'failed'
+// so a persistently expensive repository defers itself instead of
+// blocking unrelated work (plan §7 "poison isolation").
+func FailJob(ctx context.Context, pool *db.Pool, job Job, errClass, errDetail string, backoffBase time.Duration, maxAttempts int) error {
+	attempt := job.AttemptCount + 1
+	if attempt >= maxAttempts {
+		return pool.Exec(ctx,
+			`UPDATE ingest_jobs SET status = 'failed', attempt_count = $2,
+			    last_error_class = $3, last_error_detail = $4,
+			    lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
+			 WHERE id = $1`,
+			job.ID, attempt, errClass, errDetail,
+		)
+	}
+	backoff := backoffBase * time.Duration(1<<uint(attempt))
+	return pool.Exec(ctx,
+		`UPDATE ingest_jobs SET status = 'pending', attempt_count = $2,
+		    last_error_class = $3, last_error_detail = $4,
+		    lease_owner = NULL, lease_expires_at = NULL,
+		    next_retry_at = now() + ($5 * interval '1 second'), updated_at = now()
+		 WHERE id = $1`,
+		job.ID, attempt, errClass, errDetail, backoff.Seconds(),
+	)
+}
+
+// MarkUnavailable isolates a poisoned repository (e.g. GitHub returns
+// NOT_FOUND) permanently rather than retrying it forever, and flags the
+// repository itself so other code stops treating it as ingestible.
+func MarkUnavailable(ctx context.Context, pool *db.Pool, job Job, reason string) error {
+	if err := pool.Exec(ctx,
+		`UPDATE ingest_jobs SET status = 'failed', last_error_class = 'not_found', last_error_detail = $2,
+		    lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
+		 WHERE id = $1`,
+		job.ID, reason,
+	); err != nil {
+		return err
+	}
+	return pool.Exec(ctx,
+		`UPDATE repositories SET is_eligible = false, eligibility_reason = $2 WHERE id = $1`,
+		job.RepositoryID, reason,
+	)
+}
+
+// EnqueueInitialJobs inserts a pending "initial" job for every eligible
+// repository that doesn't already have any ingest_jobs row at all — new
+// repositories (freshly imported, or newly discovered) enter the pipeline
+// this way. Idempotent: already-queued or already-processed repositories
+// are untouched.
+func EnqueueInitialJobs(ctx context.Context, pool *db.Pool, limit int) (int, error) {
+	tag, err := pool.Raw().Exec(ctx,
+		`INSERT INTO ingest_jobs (repository_id, job_type, status, next_retry_at)
+		 SELECT r.id, 'initial', 'pending', now()
+		 FROM repositories r
+		 WHERE r.is_eligible
+		   AND NOT EXISTS (SELECT 1 FROM ingest_jobs j WHERE j.repository_id = r.id)
+		 LIMIT $1`,
+		limit,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("ingest: enqueue initial jobs: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
+// ReclaimExpiredLeases returns running jobs whose lease has lapsed (a
+// crashed worker) back to pending, so they self-heal instead of being
+// stuck forever (plan §7 "leases expire, so a crash self-heals").
+func ReclaimExpiredLeases(ctx context.Context, pool *db.Pool) (int, error) {
+	tag, err := pool.Raw().Exec(ctx,
+		`UPDATE ingest_jobs SET status = 'pending', lease_owner = NULL, lease_expires_at = NULL
+		 WHERE status = 'running' AND lease_expires_at IS NOT NULL AND lease_expires_at < now()`,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("ingest: reclaim expired leases: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}

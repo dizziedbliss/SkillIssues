@@ -52,7 +52,9 @@ func ClassifyLabels(labels []string) (bool, string, int) {
 		}
 	}
 
-	return false, "BEGINNER", 3
+	// Absence of a difficulty label is unknown difficulty, not easy
+	// difficulty — never default an unmatched issue to BEGINNER.
+	return false, "UNCLASSIFIED", 0
 }
 
 func startsWithAny(s string, prefixes ...string) bool {
@@ -65,8 +67,11 @@ func startsWithAny(s string, prefixes ...string) bool {
 }
 
 // ExtractMetadata extracts difficulty, score, valid label flag, skills, technologies, and tags
-// from issue details and repository primary language.
-func ExtractMetadata(labels []string, body string, repoLanguage string) (score int, difficulty string, hasValid bool, skills []string, technologies []string, tags []string) {
+// from an issue's labels and the repository's primary language.
+//
+// Label-only (D6, D17): there is no issue body to inspect — it is never
+// ingested — so this can't and doesn't look at anything but labels.
+func ExtractMetadata(labels []string, repoLanguage string) (score int, difficulty string, hasValid bool, skills []string, technologies []string, tags []string) {
 	hasValid, difficulty, score = ClassifyLabels(labels)
 
 	var labelNames []string
@@ -78,7 +83,6 @@ func ExtractMetadata(labels []string, body string, repoLanguage string) (score i
 	}
 
 	labelText := strings.ToLower(strings.Join(labelNames, " "))
-	bodyLower := strings.ToLower(body)
 
 	seenSkills := make(map[string]struct{})
 	var skillList []string
@@ -101,11 +105,11 @@ func ExtractMetadata(labels []string, body string, repoLanguage string) (score i
 		technologies = []string{}
 	}
 
-	if containsAny(labelText, "api", "http", "rest") || containsAny(bodyLower, "api", "http", "rest") {
+	if containsAny(labelText, "api", "http", "rest") {
 		addSkill("REST APIs")
 	}
 
-	if containsAny(labelText, "docs", "documentation") || containsAny(bodyLower, "docs", "documentation") {
+	if containsAny(labelText, "docs", "documentation") {
 		addSkill("Technical Writing")
 	}
 

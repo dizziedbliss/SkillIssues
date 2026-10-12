@@ -42,9 +42,14 @@ const (
 	IngestRateLimitFloor      Key = "ingest.rate_limit_floor"
 	IngestMaxAttempts         Key = "ingest.max_attempts"
 	IngestBackoffBaseSeconds  Key = "ingest.backoff_base_seconds"
-	IngestRoutineWorkers      Key = "ingest.routine_workers"
-	IngestPriorityWorkers     Key = "ingest.priority_workers"
-	IngestOnDemandWorkers     Key = "ingest.ondemand_workers"
+	// IngestRoutineWorkers backs the Initial/Freshness pool and
+	// IngestPriorityWorkers the Deep Diver pool (Phase 5) — same keys as
+	// before that split existed, repurposed meaning, not a priority queue.
+	IngestRoutineWorkers  Key = "ingest.routine_workers"
+	IngestPriorityWorkers Key = "ingest.priority_workers"
+	// IngestOnDemandWorkers is reserved for the on-demand issue-body read
+	// path (Phase 6); not read by anything yet.
+	IngestOnDemandWorkers Key = "ingest.ondemand_workers"
 
 	IngestEligibilityMinStars         Key = "ingest.eligibility.min_stars"
 	IngestEligibilityPushedWithinDays Key = "ingest.eligibility.pushed_within_days"
@@ -103,9 +108,11 @@ var Registry = map[Key]Spec{
 	IngestRateLimitFloor:      intSpec(100, 0, 5000, "Stop issuing GraphQL calls when the remaining point budget falls below this."),
 	IngestMaxAttempts:         intSpec(3, 1, 10, "Attempts per repository before a sync is recorded as failed."),
 	IngestBackoffBaseSeconds:  intSpec(1, 1, 60, "Base for exponential retry backoff between sync attempts."),
-	IngestRoutineWorkers:      intSpec(4, 1, 64, "Concurrent routine sync workers."),
-	IngestPriorityWorkers:     intSpec(2, 1, 64, "Concurrent priority sync workers."),
-	IngestOnDemandWorkers:     intSpec(8, 1, 64, "Concurrent on-demand sync workers."),
+	// D20: ~4 total in-flight by default, sized for the 2 vCPU target
+	// deployment rather than a 20-vCPU dev box.
+	IngestRoutineWorkers:  intSpec(2, 1, 64, "Concurrent Initial/Freshness workers (one page per eligible repository)."),
+	IngestPriorityWorkers: intSpec(1, 1, 64, "Concurrent Deep Diver workers (subsequent pagination)."),
+	IngestOnDemandWorkers: intSpec(1, 1, 64, "Concurrent on-demand workers. Reserved for the on-demand issue-body read path; not wired up yet."),
 
 	IngestEligibilityMinStars:         intSpec(25, 0, 100000, "Minimum stars for a repository to be eligible for ingestion. Abuse control, not ranking."),
 	IngestEligibilityPushedWithinDays: intSpec(730, 1, 3650, "A repository must have been pushed to within this many days to be eligible for ingestion."),
