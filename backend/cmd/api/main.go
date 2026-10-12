@@ -247,6 +247,7 @@ func buildRouter(
 	mux.Handle("GET /issues", optionalAuth(authSvc, http.HandlerFunc(h.listIssues)))
 	mux.HandleFunc("GET /issues/{id}", h.getIssue) // no auth required
 	mux.Handle("GET /issues/{id}/body", optionalAuth(authSvc, http.HandlerFunc(h.getIssueBody)))
+	mux.Handle("POST /issues/{id}/freshness", requireAuth(authSvc, http.HandlerFunc(h.checkIssueFreshness)))
 
 	// ----- Saved issues -----
 	mux.Handle("GET /saved", requireAuth(authSvc, http.HandlerFunc(h.getSaved)))

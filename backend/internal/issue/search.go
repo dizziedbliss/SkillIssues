@@ -350,6 +350,23 @@ func (s *Service) GetIssue(ctx context.Context, id int) (*Issue, error) {
 	return found, nil
 }
 
+// GetRepositoryID returns the internal repository id an issue belongs to,
+// for enqueueing a targeted resync (D16) without exposing that id in the
+// public Issue JSON.
+func (s *Service) GetRepositoryID(ctx context.Context, issueID int) (int, error) {
+	var repoID int
+	err := s.db.QueryRow(ctx, "SELECT repository_id FROM issues WHERE id = $1", []any{issueID}, func(row pgx.Row) error {
+		return row.Scan(&repoID)
+	})
+	if err != nil {
+		return 0, fmt.Errorf("issue: get repository id: %w", err)
+	}
+	if repoID == 0 {
+		return 0, db.ErrNotFound
+	}
+	return repoID, nil
+}
+
 // GetSavedIssues returns all bookmarked issues for a developer.
 func (s *Service) GetSavedIssues(ctx context.Context, userID int) ([]Issue, error) {
 	query := baseIssueSelect + `

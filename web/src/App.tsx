@@ -84,7 +84,13 @@ type Contribution = {
   issue_url: string;
 };
 
-type View = "Overview" | "SkillIssues" | "Saved" | "Working" | "Submissions";
+type View =
+  | "Overview"
+  | "SkillIssues"
+  | "Recommended"
+  | "Saved"
+  | "Working"
+  | "Submissions";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -122,6 +128,63 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(errorMsg);
   }
   return response.json();
+}
+
+// D15 — recommendations cache: localStorage + ETag revalidation. The
+// backend invalidates its own cache (and so the ETag it serves) whenever
+// preferences/XP/level/contributions change, so revalidating against the
+// stored ETag is sufficient; no separate "profile version" is tracked here.
+const RECOMMENDATIONS_CACHE_KEY = "skillissues.recommendations.v1";
+
+type RecommendationsCacheEntry = { etag: string; data: Issue[] };
+
+function loadRecommendationsCache(): RecommendationsCacheEntry | null {
+  try {
+    const raw = localStorage.getItem(RECOMMENDATIONS_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as RecommendationsCacheEntry) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveRecommendationsCache(etag: string, data: Issue[]) {
+  try {
+    localStorage.setItem(RECOMMENDATIONS_CACHE_KEY, JSON.stringify({ etag, data }));
+  } catch {
+    // storage unavailable/full — caching is a convenience, not required
+  }
+}
+
+function clearRecommendationsCache() {
+  try {
+    localStorage.removeItem(RECOMMENDATIONS_CACHE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+// Fetches /recommendations, revalidating against the cached ETag. On
+// outright failure, falls back to the stale cached copy (the caller shows
+// a "showing cached results" indicator) rather than an empty feed.
+async function fetchRecommendations(): Promise<{ data: Issue[]; stale: boolean }> {
+  const cached = loadRecommendationsCache();
+  try {
+    const response = await fetch(`${API}/recommendations`, {
+      credentials: "include",
+      headers: cached ? { "If-None-Match": cached.etag } : {},
+    });
+    if (response.status === 304 && cached) {
+      return { data: cached.data, stale: false };
+    }
+    if (!response.ok) throw new Error("Request failed");
+    const data: Issue[] = await response.json();
+    const etag = response.headers.get("etag");
+    if (etag) saveRecommendationsCache(etag, data);
+    return { data, stale: false };
+  } catch {
+    if (cached) return { data: cached.data, stale: true };
+    return { data: [], stale: false };
+  }
 }
 
 function daysAgo(value?: string) {
@@ -411,6 +474,14 @@ export function App() {
   const [selectedLangs, setSelectedLangs] = useState<string[]>([]);
   const [availableOptions, setAvailableOptions] = useState<string[]>([]);
   const [prefSearch, setPrefSearch] = useState("");
+  const [recommendedIssues, setRecommendedIssues] = useState<Issue[]>([]);
+  const [recommendedStale, setRecommendedStale] = useState(false);
+
+  async function loadRecommended() {
+    const { data, stale } = await fetchRecommendations();
+    setRecommendedIssues(data);
+    setRecommendedStale(stale);
+  }
 
   async function loadUser(): Promise<Profile | null> {
     try {
@@ -570,6 +641,12 @@ export function App() {
   }, [selected?.id]);
 
   useEffect(() => {
+    if (view === "Recommended" && profile) {
+      void loadRecommended();
+    }
+  }, [view, profile]);
+
+  useEffect(() => {
     // Check URL parameters for OAuth redirect results (the session itself
     // arrives via an HttpOnly cookie set by the backend, never in the URL).
     const params = new URLSearchParams(window.location.search);
@@ -598,6 +675,9 @@ export function App() {
     setSubmissions([]);
     setEditing(false);
     setView("Overview");
+    setRecommendedIssues([]);
+    setRecommendedStale(false);
+    clearRecommendationsCache();
     void loadIssues(page, difficultyFilter, query);
   }
 
@@ -659,7 +739,8 @@ export function App() {
     return renderIssueMarkdown(md);
   }
 
-  const displayed = view === "Saved" ? savedIssues : issues;
+  const displayed =
+    view === "Saved" ? savedIssues : view === "Recommended" ? recommendedIssues : issues;
   const isSearchActive = Boolean(query.trim()) && view === "SkillIssues";
 
   const searchCategoryGroups = (() => {
@@ -825,26 +906,34 @@ export function App() {
       <section className="web-grid">
         <div className="web-feed">
           <nav className="web-tabs">
-            {(["SkillIssues", "Saved", "Working", "Submissions"] as View[]).map(
-              (item) => (
-                <button
-                  key={item}
-                  className={view === item ? "active" : ""}
-                  onClick={() => setView(item)}
-                >
-                  {item}{" "}
-                  <b>
-                    {item === "SkillIssues"
-                      ? issues.length
+            {(
+              [
+                "SkillIssues",
+                ...(profile ? (["Recommended"] as View[]) : []),
+                "Saved",
+                "Working",
+                "Submissions",
+              ] as View[]
+            ).map((item) => (
+              <button
+                key={item}
+                className={view === item ? "active" : ""}
+                onClick={() => setView(item)}
+              >
+                {item}{" "}
+                <b>
+                  {item === "SkillIssues"
+                    ? issues.length
+                    : item === "Recommended"
+                      ? recommendedIssues.length
                       : item === "Saved"
                         ? savedIssues.length
                         : item === "Working"
                           ? working.length
                           : submissions.length}
-                  </b>
-                </button>
-              ),
-            )}
+                </b>
+              </button>
+            ))}
           </nav>
 
           {view === "SkillIssues" && (
@@ -867,12 +956,16 @@ export function App() {
               {view === "SkillIssues"
                 ? isSearchActive
                   ? `Search results for "${query}"`
-                  : "Personalized for your current level and preferences"
-                : view === "Saved"
-                  ? "Challenges saved for later"
-                  : view === "Working"
-                    ? "Repositories you are actively solving"
-                    : "Pull requests submitted and completed"}
+                  : "Browse the full challenge catalog"
+                : view === "Recommended"
+                  ? recommendedStale
+                    ? "Personalized for your current level and preferences (showing cached results — offline or refresh pending)"
+                    : "Personalized for your current level and preferences"
+                  : view === "Saved"
+                    ? "Challenges saved for later"
+                    : view === "Working"
+                      ? "Repositories you are actively solving"
+                      : "Pull requests submitted and completed"}
             </span>
           </div>
 

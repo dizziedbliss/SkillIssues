@@ -39,6 +39,76 @@ async function api(path, options = {}) {
     },
   });
 }
+
+// D15 — recommendations cache: localStorage + ETag revalidation. The
+// backend already invalidates its own cache (and so the ETag it serves)
+// on preference/XP/level/contribution changes (InvalidateRecommendations),
+// so revalidating against the stored ETag is sufficient; no separate
+// "profile version" needs tracking client-side.
+const RECOMMENDATIONS_CACHE_KEY = "skillissues.recommendations.v1";
+let recommendationsStale = false;
+
+function loadRecommendationsCache() {
+  try {
+    const raw = localStorage.getItem(RECOMMENDATIONS_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveRecommendationsCache(etag, data) {
+  try {
+    localStorage.setItem(
+      RECOMMENDATIONS_CACHE_KEY,
+      JSON.stringify({ etag, data, cachedAt: Date.now() }),
+    );
+  } catch {
+    /* storage unavailable/full — caching is a convenience, not required */
+  }
+}
+
+function clearRecommendationsCache() {
+  try {
+    localStorage.removeItem(RECOMMENDATIONS_CACHE_KEY);
+  } catch {
+    /* ignore */
+  }
+  recommendationsStale = false;
+}
+
+// Fetches /recommendations, revalidating against the cached ETag. Falls
+// back to the stale cached copy (flagging `recommendationsStale`) if the
+// request fails outright — offline is better served by yesterday's
+// recommendations than an empty feed.
+async function fetchRecommendations(diffParam, page, limit) {
+  const path = `/recommendations?${diffParam ? diffParam.slice(1) + "&" : ""}page=${page}&limit=${limit}`;
+  const cached = loadRecommendationsCache();
+  try {
+    const headers = cached && cached.etag ? { "If-None-Match": cached.etag } : {};
+    const result = await api(path, { headers, allow304: true, returnEtag: true });
+    if (result && result.__notModified) {
+      recommendationsStale = false;
+      if (cached) return cached.data;
+      return await api(path);
+    }
+    const etag = result && result.__etag;
+    if (result && typeof result === "object" && "__etag" in result) {
+      delete result.__etag;
+    }
+    const list = Array.isArray(result) ? result : [];
+    recommendationsStale = false;
+    if (etag) saveRecommendationsCache(etag, list);
+    return list;
+  } catch (err) {
+    if (cached) {
+      recommendationsStale = true;
+      return cached.data;
+    }
+    throw err;
+  }
+}
+
 function daysAgo(value) {
   if (!value) return "recently";
   const date = new Date(value);
@@ -340,13 +410,14 @@ async function loadIssues(query = "", page = 1) {
 
     if (session && session.authenticated) {
       updateAuthUI(session.user || { username: "connected" });
-      const issuesUrl = query
-        ? `/issues?search=${encodeURIComponent(query)}${diffParam}${pageParam}`
-        : `/recommendations?${diffParam ? diffParam.slice(1) + "&" : ""}page=${page}&limit=${limit}`;
 
       const [recommendations, savedResult, workingResult, submissionResult] =
         await Promise.all([
-          api(issuesUrl).catch(() => []),
+          query
+            ? api(
+                `/issues?search=${encodeURIComponent(query)}${diffParam}${pageParam}`,
+              ).catch(() => [])
+            : fetchRecommendations(diffParam, page, limit).catch(() => []),
           api("/saved").catch(() => []),
           api("/working").catch(() => []),
           api("/contributions").catch(() => []),
@@ -408,10 +479,13 @@ function renderIssues() {
     return;
   }
   const visible = activeTab === "saved" ? savedIssues : issues;
+  const showStale = activeTab === "all" && !currentSearchQuery.trim() && recommendationsStale;
   el("feed-subtitle").textContent =
     activeTab === "saved"
       ? "Challenges to do later"
-      : "Personalized for your current level and preferences";
+      : showStale
+        ? "Personalized for your current level and preferences (showing cached results — offline or refresh pending)"
+        : "Personalized for your current level and preferences";
 
   const isSearchActive = Boolean(currentSearchQuery.trim()) && activeTab === "all";
 
@@ -940,7 +1014,32 @@ async function startChallenge() {
     return;
   }
 
+  // D16: live freshness check at the moment of commitment (not on list
+  // render or detail open) — one request through our backend using the
+  // user's own GitHub authorization. If GitHub says the issue closed since
+  // our last sync, block the fork/clone, explain why, and let the backend's
+  // enqueued resync catch the catalog up. A check failure (rate limit,
+  // network) fails open — this is an enhancement, not a prerequisite.
   el("start-challenge").disabled = true;
+  el("start-challenge").textContent = "Checking issue status...";
+  try {
+    const freshness = await api(`/issues/${selected.id}/freshness`, {
+      method: "POST",
+    });
+    if (freshness && freshness.state === "closed") {
+      showResult(
+        "This issue was closed on GitHub since it was last synced here. A refresh has been queued — give the catalog a moment to catch up, then try a different issue.",
+        true,
+      );
+      el("start-challenge").disabled = false;
+      el("start-challenge").innerHTML =
+        "Solve issue (Fork & Clone) <span>↗</span>";
+      return;
+    }
+  } catch {
+    /* fail open */
+  }
+
   el("start-challenge").textContent = "Forking & Cloning...";
   showRunnerProgress(true);
   try {
@@ -1457,6 +1556,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
+      clearRecommendationsCache();
       window.location.reload();
     }
   });
@@ -1471,6 +1571,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (error) {
       console.error("Delete account error:", error);
     } finally {
+      clearRecommendationsCache();
       window.location.reload();
     }
   });

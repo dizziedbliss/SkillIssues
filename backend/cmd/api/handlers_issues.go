@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/issue"
@@ -49,6 +52,33 @@ func syncPath(rawRepoID string) (string, error) {
 		return "", fmt.Errorf("invalid repository id")
 	}
 	return fmt.Sprintf("/sync/priority/%d", id), nil
+}
+
+// enqueueResync fires the same priority sync `adminSyncRepository` triggers,
+// but fire-and-forget: the caller (a freshness check — D16) doesn't need the
+// ingestion service's response, just to know the nudge was sent.
+func (h *handlers) enqueueResync(ctx context.Context, repoID int) error {
+	base := strings.TrimRight(h.cfg.SyncdURL, "/")
+	if base == "" {
+		return fmt.Errorf("ingestion service not configured")
+	}
+	path, err := syncPath(strconv.Itoa(repoID))
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+path, nil)
+	if err != nil {
+		return fmt.Errorf("create sync request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("ingestion service unavailable: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("ingestion service returned HTTP %d", resp.StatusCode)
+	}
+	return nil
 }
 
 func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
@@ -190,4 +220,66 @@ func (h *handlers) getIssueBody(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	middleware.RespondJSON(w, http.StatusOK, map[string]string{"body": body})
+}
+
+// checkIssueFreshness handles POST /issues/{id}/freshness (D16) — a live
+// GitHub state check made only at the moment a user commits to an issue
+// (fork/clone), never on list render or detail open, using the user's own
+// GitHub authorization rather than the server's. If GitHub reports the
+// issue closed, this enqueues a priority resync so the catalog catches up
+// and tells the caller to block the action with an explanation.
+func (h *handlers) checkIssueFreshness(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		middleware.RespondError(w, http.StatusNotFound, "invalid issue id")
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	token, _ := h.authSvc.GetAccessToken(r.Context(), userID)
+	if token == "" {
+		middleware.RespondError(w, http.StatusForbidden, "Connect GitHub to check issue freshness.")
+		return
+	}
+
+	it, err := h.issueSvc.GetIssue(r.Context(), id)
+	if err != nil {
+		middleware.RespondError(w, http.StatusNotFound, "issue not found")
+		return
+	}
+	owner, name, ok := strings.Cut(it.Repository, "/")
+	if !ok {
+		middleware.RespondError(w, http.StatusInternalServerError, "malformed repository reference")
+		return
+	}
+
+	state, err := h.ghClient.FetchIssueState(r.Context(), token, owner, name, it.Number)
+	if err != nil {
+		middleware.RespondError(w, http.StatusBadGateway, "failed to check issue state on GitHub")
+		return
+	}
+
+	if state.State != "CLOSED" {
+		middleware.RespondJSON(w, http.StatusOK, map[string]any{"state": "open"})
+		return
+	}
+
+	refreshEnqueued := false
+	if repoID, err := h.issueSvc.GetRepositoryID(r.Context(), id); err == nil {
+		// Best-effort: the client already has what it needs to block the
+		// action and explain why, regardless of whether this nudge lands.
+		go func(repoID int) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := h.enqueueResync(ctx, repoID); err != nil {
+				slog.Warn("freshness check: failed to enqueue resync", "repository_id", repoID, "error", err)
+			}
+		}(repoID)
+		refreshEnqueued = true
+	}
+
+	middleware.RespondJSON(w, http.StatusOK, map[string]any{
+		"state":            "closed",
+		"refresh_enqueued": refreshEnqueued,
+	})
 }
