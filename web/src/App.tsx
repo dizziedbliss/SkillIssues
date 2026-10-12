@@ -27,6 +27,7 @@ import {
   User as UserIcon,
   X,
 } from "lucide-react";
+import { renderMarkdown as renderIssueMarkdown } from "../../packages/markdown/src/index";
 import "./index.css";
 import { LandingPage } from "./LandingPage";
 
@@ -100,19 +101,16 @@ const languageLogoBase =
   "https://raw.githubusercontent.com/abranhe/programming-languages-logos/master/src";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = localStorage.getItem("skillissues_token");
   const response = await fetch(`${API}${path}`, {
     ...init,
     credentials: "include",
     headers: {
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   });
   if (!response.ok) {
     if (response.status === 401) {
-      localStorage.removeItem("skillissues_token");
       throw new Error("Authentication required");
     }
     let errorMsg = "Request failed";
@@ -296,16 +294,10 @@ function LoginForm({
     setLoading(true);
     setErr("");
     try {
-      const resp = await request<{ authenticated: boolean; session_token?: string }>(
-        "/auth/github/token",
-        {
-          method: "POST",
-          body: JSON.stringify({ token: token.trim() }),
-        }
-      );
-      if (resp.session_token) {
-        localStorage.setItem("skillissues_token", resp.session_token);
-      }
+      await request<{ authenticated: boolean }>("/auth/github/token", {
+        method: "POST",
+        body: JSON.stringify({ token: token.trim() }),
+      });
       onLogin();
     } catch (caught) {
       setErr(caught instanceof Error ? caught.message : "Invalid GitHub Token");
@@ -401,9 +393,7 @@ export function App() {
   const [savedIssues, setSavedIssues] = useState<Issue[]>([]);
   const [working, setWorking] = useState<Contribution[]>([]);
   const [submissions, setSubmissions] = useState<Contribution[]>([]);
-  const [view, setView] = useState<View>(() =>
-    localStorage.getItem("skillissues_token") ? "SkillIssues" : "Overview"
-  );
+  const [view, setView] = useState<View>("Overview");
   const [difficultyFilter, setDifficultyFilter] = useState<"ALL" | "BEGINNER" | "INTERMEDIATE" | "ADVANCED">("ALL");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -421,14 +411,6 @@ export function App() {
   const [prefSearch, setPrefSearch] = useState("");
 
   async function loadUser(): Promise<Profile | null> {
-    const token = localStorage.getItem("skillissues_token");
-    if (!token) {
-      setProfile(null);
-      setSavedIssues([]);
-      setWorking([]);
-      setSubmissions([]);
-      return null;
-    }
     try {
       const [user, saved, current, submitted] = await Promise.all([
         request<Profile>("/me"),
@@ -444,7 +426,6 @@ export function App() {
       setSubmissions((submitted || []).filter((item) => item.state !== "STARTED"));
       return user;
     } catch {
-      localStorage.removeItem("skillissues_token");
       setProfile(null);
       setSavedIssues([]);
       setWorking([]);
@@ -474,7 +455,8 @@ export function App() {
   }
 
   async function refresh() {
-    await loadUser();
+    const user = await loadUser();
+    if (user) setView((v) => (v === "Overview" ? "SkillIssues" : v));
     await loadIssues(page, difficultyFilter, query);
   }
 
@@ -535,20 +517,11 @@ export function App() {
   }, [selected]);
 
   useEffect(() => {
-    // Check URL parameters for OAuth redirect results
+    // Check URL parameters for OAuth redirect results (the session itself
+    // arrives via an HttpOnly cookie set by the backend, never in the URL).
     const params = new URLSearchParams(window.location.search);
-    const tokenParam = params.get("token");
     const errorParam = params.get("error");
     const errorDesc = params.get("error_description");
-
-    if (tokenParam) {
-      localStorage.setItem("skillissues_token", tokenParam);
-      window.history.replaceState({}, document.title, window.location.pathname);
-      setShowLoginModal(false);
-      setOAuthError("");
-      void refresh();
-      return;
-    }
 
     if (errorParam) {
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -566,12 +539,12 @@ export function App() {
     } catch {
       // ignore
     }
-    localStorage.removeItem("skillissues_token");
     setProfile(null);
     setSavedIssues([]);
     setWorking([]);
     setSubmissions([]);
     setEditing(false);
+    setView("Overview");
     void loadIssues(page, difficultyFilter, query);
   }
 
@@ -630,97 +603,7 @@ export function App() {
   function renderMarkdown(md: string) {
     if (!md || !md.trim())
       return '<p class="empty-body">No issue description available.</p>';
-    const codeBlocks: string[] = [];
-    let text = String(md).replace(
-      /```(\w*)\r?\n([\s\S]*?)```/g,
-      (match, lang, code) => {
-        const escapedCode = code
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;");
-        codeBlocks.push(
-          `<pre><code class="language-${lang}">${escapedCode.trim()}</code></pre>`,
-        );
-        return `\n__CODE_BLOCK_${codeBlocks.length - 1}__\n`;
-      },
-    );
-    text = text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-    const inlineCodes: string[] = [];
-    text = text.replace(/`([^`]+)`/g, (match, code) => {
-      inlineCodes.push(`<code>${code}</code>`);
-      return `__INLINE_CODE_${inlineCodes.length - 1}__`;
-    });
-    text = text.replace(/^###### (.*$)/gim, "<h6>$1</h6>");
-    text = text.replace(/^##### (.*$)/gim, "<h5>$1</h5>");
-    text = text.replace(/^#### (.*$)/gim, "<h4>$1</h4>");
-    text = text.replace(/^### (.*$)/gim, "<h3>$1</h3>");
-    text = text.replace(/^## (.*$)/gim, "<h2>$1</h2>");
-    text = text.replace(/^# (.*$)/gim, "<h1>$1</h1>");
-    text = text.replace(/^\&gt;\s?(.*$)/gim, "<blockquote>$1</blockquote>");
-    text = text.replace(/^[\*\-_]{3,}$/gim, "<hr>");
-    text = text.replace(
-      /!\[([^\]]*)\]\(([^\s\)]+)\)/g,
-      '<img src="$2" alt="$1" />',
-    );
-    text = text.replace(
-      /\[([^\]]+)\]\(([^\s\)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noreferrer">$1</a>',
-    );
-    text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-    text = text.replace(/__([^_]+)__/g, "<strong>$1</strong>");
-    text = text.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-    text = text.replace(/_([^_]+)_/g, "<em>$1</em>");
-    text = text.replace(/~~([^~]+)~~/g, "<del>$1</del>");
-    text = text.replace(/^[\s]*[\-\*] (.*$)/gim, "<li>$1</li>");
-    text = text.replace(/^[\s]*\d+\. (.*$)/gim, "<li>$1</li>");
-    text = text.replace(/(<li>[\s\S]*?<\/li>)/gim, "<ul>$1</ul>");
-    text = text.replace(/<\/ul>\s*<ul>/g, "");
-    const lines = text.split(/\r?\n/);
-    const result: string[] = [];
-    let inP = false;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) {
-        if (inP) {
-          result.push("</p>");
-          inP = false;
-        }
-        continue;
-      }
-      if (
-        line.startsWith("<h") ||
-        line.startsWith("<ul") ||
-        line.startsWith("<ol") ||
-        line.startsWith("<blockquote") ||
-        line.startsWith("<pre") ||
-        line.startsWith("<hr") ||
-        line.includes("__CODE_BLOCK_")
-      ) {
-        if (inP) {
-          result.push("</p>");
-          inP = false;
-        }
-        result.push(line);
-      } else {
-        if (!inP) {
-          result.push("<p>");
-          inP = true;
-        }
-        result.push(line + "<br>");
-      }
-    }
-    if (inP) result.push("</p>");
-    let finalHtml = result.join("\n");
-    inlineCodes.forEach((code, idx) => {
-      finalHtml = finalHtml.replace(`__INLINE_CODE_${idx}__`, code);
-    });
-    codeBlocks.forEach((block, idx) => {
-      finalHtml = finalHtml.replace(`__CODE_BLOCK_${idx}__`, block);
-    });
-    return finalHtml;
+    return renderIssueMarkdown(md);
   }
 
   const displayed = view === "Saved" ? savedIssues : issues;
