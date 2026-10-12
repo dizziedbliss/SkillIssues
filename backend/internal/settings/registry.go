@@ -45,6 +45,9 @@ const (
 	IngestRoutineWorkers      Key = "ingest.routine_workers"
 	IngestPriorityWorkers     Key = "ingest.priority_workers"
 	IngestOnDemandWorkers     Key = "ingest.ondemand_workers"
+
+	IngestEligibilityMinStars         Key = "ingest.eligibility.min_stars"
+	IngestEligibilityPushedWithinDays Key = "ingest.eligibility.pushed_within_days"
 )
 
 // Kind is the value type a key accepts.
@@ -103,6 +106,9 @@ var Registry = map[Key]Spec{
 	IngestRoutineWorkers:      intSpec(4, 1, 64, "Concurrent routine sync workers."),
 	IngestPriorityWorkers:     intSpec(2, 1, 64, "Concurrent priority sync workers."),
 	IngestOnDemandWorkers:     intSpec(8, 1, 64, "Concurrent on-demand sync workers."),
+
+	IngestEligibilityMinStars:         intSpec(25, 0, 100000, "Minimum stars for a repository to be eligible for ingestion. Abuse control, not ranking."),
+	IngestEligibilityPushedWithinDays: intSpec(730, 1, 3650, "A repository must have been pushed to within this many days to be eligible for ingestion."),
 }
 
 // Snapshot is an immutable view of the settings. Readers hold one for the
