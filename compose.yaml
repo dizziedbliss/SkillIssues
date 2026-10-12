@@ -9,6 +9,11 @@ services:
   # --------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
+    # Docker's default /dev/shm is 64MB, which is below what a parallel query
+    # needs to size its shared hash/sort segments: aggregates over the
+    # multi-million-row repositories table fail outright with
+    # "could not resize shared memory segment ... No space left on device".
+    shm_size: 1gb
     environment:
       POSTGRES_DB: skillissues
       POSTGRES_USER: skillissues
