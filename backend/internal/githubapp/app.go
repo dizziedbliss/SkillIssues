@@ -71,6 +71,10 @@ type App struct {
 	installationID  int64
 	installationTok string
 	installationExp time.Time
+
+	botMu    sync.Mutex
+	botLogin string
+	botID    int64
 }
 
 // New constructs an App. cfg.PrivateKey must be non-nil.
@@ -207,6 +211,126 @@ func (a *App) discoverInstallationID(ctx context.Context) (int64, error) {
 		return 0, errors.New("githubapp: app has no installations")
 	}
 	return installations[0].ID, nil
+}
+
+// ---------------------------------------------------------------------------
+// Bot identity (D23 — co-contribution trailer)
+// ---------------------------------------------------------------------------
+
+// BotCoAuthorTrailer returns the `Co-authored-by:` trailer that credits this
+// App's bot identity on a commit, in the exact form GitHub recognizes and
+// links to the App on github.com. The noreply email's numeric prefix is the
+// bot *account's* user id — not the App id — which only the GitHub API
+// exposes (D23: "the bot trailer format is undocumented — verify it before
+// shipping; a mis-formatted email looks valid but never links").
+//
+// Resolved once (slug and bot id never change for a given App) and cached;
+// the result is useless if it changed anyway, since the client renders it
+// into a commit message verbatim.
+func (a *App) BotCoAuthorTrailer(ctx context.Context) (string, error) {
+	a.botMu.Lock()
+	defer a.botMu.Unlock()
+
+	if a.botLogin != "" && a.botID != 0 {
+		return formatCoAuthorTrailer(a.botLogin, a.botID), nil
+	}
+
+	slug, err := a.appSlug(ctx)
+	if err != nil {
+		return "", err
+	}
+	botLogin := slug + "[bot]"
+
+	// The installation token (not the App JWT, which only authenticates
+	// App-management endpoints) keeps this well under GitHub's 60/hr
+	// unauthenticated REST limit.
+	installTok, err := a.InstallationToken(ctx)
+	if err != nil {
+		return "", err
+	}
+	botID, err := fetchUserID(ctx, installTok, botLogin)
+	if err != nil {
+		return "", err
+	}
+
+	a.botLogin = botLogin
+	a.botID = botID
+	return formatCoAuthorTrailer(a.botLogin, a.botID), nil
+}
+
+func formatCoAuthorTrailer(login string, id int64) string {
+	return fmt.Sprintf("Co-authored-by: %s <%d+%s@users.noreply.github.com>", login, id, login)
+}
+
+// appSlug fetches this App's slug (its URL-safe name, e.g. "skillissues")
+// via GET /app, authenticated as the App itself (JWT, not an installation
+// token — this endpoint is App-level, not installation-level).
+func (a *App) appSlug(ctx context.Context) (string, error) {
+	appJWT, err := a.signedJWT()
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/app", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+appJWT)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("githubapp: get app: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("githubapp: get app: HTTP %d: %s", resp.StatusCode, body)
+	}
+
+	var result struct {
+		Slug string `json:"slug"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", fmt.Errorf("githubapp: parse app response: %w", err)
+	}
+	if result.Slug == "" {
+		return "", errors.New("githubapp: app has no slug")
+	}
+	return result.Slug, nil
+}
+
+// fetchUserID looks up a GitHub account's numeric id by login, authenticated
+// with the installation token to stay off the 60/hr unauthenticated limit —
+// the bot account's id isn't secret, but the request still needs headroom.
+func fetchUserID(ctx context.Context, token, login string) (int64, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		"https://api.github.com/users/"+url.PathEscape(login), nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("githubapp: get user %s: %w", login, err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("githubapp: get user %s: HTTP %d: %s", login, resp.StatusCode, body)
+	}
+
+	var result struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return 0, fmt.Errorf("githubapp: parse user response: %w", err)
+	}
+	if result.ID == 0 {
+		return 0, fmt.Errorf("githubapp: user %s has no id", login)
+	}
+	return result.ID, nil
 }
 
 // ---------------------------------------------------------------------------

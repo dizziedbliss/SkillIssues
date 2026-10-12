@@ -22,6 +22,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/contribution"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/github"
+	"github.com/dizziedbliss/skillissues/internal/githubapp"
 	"github.com/dizziedbliss/skillissues/internal/issue"
 	"github.com/dizziedbliss/skillissues/internal/profile"
 	"github.com/dizziedbliss/skillissues/internal/settings"
@@ -50,6 +51,7 @@ type handlers struct {
 	authSvc        *auth.Service
 	ghOAuth        *auth.GitHubOAuth
 	ghAppLogin     *auth.GitHubAppLogin // nil until the GitHub App is configured
+	ghApp          *githubapp.App       // nil until the GitHub App is configured (D23 bot identity)
 	profileSvc     *profile.Service
 	issueSvc       *issue.Service
 	contribSvc     *contribution.Service

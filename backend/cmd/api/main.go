@@ -151,7 +151,7 @@ func main() {
 	})
 
 	// 6. Build the HTTP router and register all routes
-	mux := buildRouter(cfg, live, pool, cacheClient, authSvc, ghOAuth, ghAppLogin, profileSvc, issueSvc, contribSvc, ghClient, bodyFetcher)
+	mux := buildRouter(cfg, live, pool, cacheClient, authSvc, ghOAuth, ghAppLogin, ghApp, profileSvc, issueSvc, contribSvc, ghClient, bodyFetcher)
 
 	// 7. Start the HTTP server
 	server := &http.Server{
@@ -196,6 +196,7 @@ func buildRouter(
 	authSvc *auth.Service,
 	ghOAuth *auth.GitHubOAuth,
 	ghAppLogin *auth.GitHubAppLogin,
+	ghApp *githubapp.App,
 	profileSvc *profile.Service,
 	issueSvc *issue.Service,
 	contribSvc *contribution.Service,
@@ -215,6 +216,7 @@ func buildRouter(
 		authSvc:     authSvc,
 		ghOAuth:     ghOAuth,
 		ghAppLogin:  ghAppLogin,
+		ghApp:       ghApp,
 		profileSvc:  profileSvc,
 		issueSvc:    issueSvc,
 		contribSvc:  contribSvc,
@@ -242,6 +244,7 @@ func buildRouter(
 	// ----- GitHub integration -----
 	mux.Handle("POST /github/forks", requireAuth(authSvc, http.HandlerFunc(h.forkRepository)))
 	mux.Handle("GET /github/git-token", requireAuth(authSvc, http.HandlerFunc(h.getGitToken)))
+	mux.Handle("GET /github/co-contribution-trailer", requireAuth(authSvc, http.HandlerFunc(h.coContributionTrailer)))
 
 	// ----- Issues -----
 	mux.Handle("GET /issues", optionalAuth(authSvc, http.HandlerFunc(h.listIssues)))
