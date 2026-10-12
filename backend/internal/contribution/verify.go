@@ -35,14 +35,16 @@ type VerifyResult struct {
 
 // VerifyContribution verifies PR merge status on GitHub using GraphQL and awards XP idempotently.
 func (s *Service) VerifyContribution(ctx context.Context, userID, contribID int, fallbackToken string) (*VerifyResult, error) {
-	// 1. Anti-exploit: Redis rate-limiting (max 5 verify attempts per user per contribution per hour)
+	// 1. Anti-exploit: cap verification attempts per user per contribution per hour.
 	if s.cache != nil {
+		quota := s.verifyAttemptsPerHour()
 		rlKey := fmt.Sprintf("verify:%d:%d", userID, contribID)
-		res := s.cache.CheckRateLimit(ctx, rlKey, 5, time.Hour)
+		res := s.cache.CheckRateLimit(ctx, rlKey, quota, time.Hour)
 		if !res.Allowed {
 			return &VerifyResult{
 				Verified: false,
-				Message:  "Rate limit exceeded: maximum 5 verification attempts per hour for this challenge.",
+				Message: fmt.Sprintf(
+					"Rate limit exceeded: maximum %d verification attempts per hour for this challenge.", quota),
 			}, nil
 		}
 	}

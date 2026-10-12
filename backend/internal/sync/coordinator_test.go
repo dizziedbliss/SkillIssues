@@ -11,7 +11,7 @@ func TestRateLimitBudget(t *testing.T) {
 	budget := &RateLimitBudget{}
 
 	// Initial uninitialized state should allow proceed
-	if !budget.CanProceed() {
+	if !budget.CanProceed(100) {
 		t.Errorf("expected initial budget to allow proceed")
 	}
 
@@ -24,7 +24,7 @@ func TestRateLimitBudget(t *testing.T) {
 		Cost:      1,
 	})
 
-	if !budget.CanProceed() {
+	if !budget.CanProceed(100) {
 		t.Errorf("expected budget with 4500 remaining to allow proceed")
 	}
 
@@ -42,7 +42,7 @@ func TestRateLimitBudget(t *testing.T) {
 		Cost:      1,
 	})
 
-	if budget.CanProceed() {
+	if budget.CanProceed(100) {
 		t.Errorf("expected budget with 50 remaining to block proceed")
 	}
 
@@ -55,7 +55,7 @@ func TestRateLimitBudget(t *testing.T) {
 		Cost:      1,
 	})
 
-	if !budget.CanProceed() {
+	if !budget.CanProceed(100) {
 		t.Errorf("expected budget with expired reset time to allow proceed")
 	}
 }

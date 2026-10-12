@@ -28,6 +28,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/middleware"
 	"github.com/dizziedbliss/skillissues/internal/profile"
 	"github.com/dizziedbliss/skillissues/internal/recommendation"
+	"github.com/dizziedbliss/skillissues/internal/settings"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -35,6 +36,7 @@ import (
 // handlers bundles all service dependencies for the handler functions.
 type handlers struct {
 	cfg            *config.Config
+	live           *settings.Live
 	db             *db.Pool
 	cache          *cache.Client
 	authSvc        *auth.Service
@@ -88,12 +90,12 @@ func (h *handlers) healthDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	middleware.RespondJSON(w, http.StatusOK, map[string]any{
-		"status":       "ok",
-		"service":      "api",
-		"repositories": repoCount,
-		"issues":       issueCount,
+		"status":        "ok",
+		"service":       "api",
+		"repositories":  repoCount,
+		"issues":        issueCount,
 		"contributions": contribCount,
-		"cache":        cacheStatus,
+		"cache":         cacheStatus,
 	})
 }
 
@@ -671,7 +673,16 @@ func (h *handlers) syncIssues(w http.ResponseWriter, r *http.Request) {
 
 func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	limit := 20
+	cfg := h.live.Current()
+
+	// A search gets a larger page than a browse, since results are grouped into
+	// categories and each needs enough room to be useful.
+	defaultLimit := cfg.Int(settings.IssuesDefaultPageSize)
+	if q.Get("search") != "" {
+		defaultLimit = cfg.Int(settings.IssuesSearchPageSize)
+	}
+
+	limit := defaultLimit
 	if lStr := q.Get("limit"); lStr != "" {
 		if l, err := strconv.Atoi(lStr); err == nil && l > 0 {
 			limit = l
@@ -691,7 +702,11 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 		Page:       page,
 	}
 
-	isDefaultHot := f.Difficulty == "" && f.Language == "" && f.Search == "" && f.Limit == 50 && f.Page == 1
+	// The hot path is the unfiltered first page at the default size. This
+	// previously compared against a literal 50 while the default was 20, so the
+	// cache was unreachable; comparing against the configured default fixes it.
+	isDefaultHot := f.Difficulty == "" && f.Language == "" && f.Search == "" &&
+		f.Limit == cfg.Int(settings.IssuesDefaultPageSize) && f.Page == 1
 	userID := middleware.GetUserID(r.Context())
 
 	// Fast path: cached hot issues for unauthenticated or default views
@@ -733,13 +748,16 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 		issues = []issue.Issue{}
 	}
 
-	// Populate cache
+	// Populate cache. A TTL of zero means caching is switched off for that path.
 	if userID == 0 && h.cache != nil {
+		hotTTL := cfg.Seconds(settings.CacheHotIssuesTTLSeconds)
+		searchTTL := cfg.Seconds(settings.CacheSearchTTLSeconds)
+
 		if data, err := json.Marshal(issues); err == nil {
-			if isDefaultHot {
-				h.cache.SetHotIssues(r.Context(), data, 2*time.Minute)
-			} else if searchKey != "" {
-				h.cache.SetCachedSearch(r.Context(), searchKey, data, 1*time.Minute)
+			if isDefaultHot && hotTTL > 0 {
+				h.cache.SetHotIssues(r.Context(), data, hotTTL)
+			} else if searchKey != "" && searchTTL > 0 {
+				h.cache.SetCachedSearch(r.Context(), searchKey, data, searchTTL)
 			}
 		}
 	}
@@ -842,9 +860,9 @@ func (h *handlers) getRecommendations(w http.ResponseWriter, r *http.Request) {
 		scored = []issue.Issue{}
 	}
 
-	if limit == 3 && h.cache != nil {
+	if recTTL := h.live.Current().Seconds(settings.CacheRecommendationsTTLSecond); limit == 3 && recTTL > 0 && h.cache != nil {
 		if data, err := json.Marshal(scored); err == nil {
-			h.cache.SetRecommendations(r.Context(), userID, data, 5*time.Minute)
+			h.cache.SetRecommendations(r.Context(), userID, data, recTTL)
 		}
 	}
 
@@ -1066,7 +1084,7 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		issueID, issueNum int
+		issueID, issueNum                               int
 		username, userToken, title, issueBody, repoFull string
 	)
 	err = h.db.QueryRow(r.Context(),
@@ -1271,7 +1289,9 @@ func (h *handlers) setSessionCookie(w http.ResponseWriter, rawToken string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "skillissues_session",
 		Value:    rawToken,
-		MaxAge:   int(auth.SessionDuration.Seconds()),
+		// Must track the session TTL, or the cookie and the stored session
+		// disagree about when the session ends.
+		MaxAge:   int(h.sessionTTL().Seconds()),
 		HttpOnly: true,
 		Secure:   isSecure,
 		SameSite: sameSite,

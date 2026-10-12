@@ -11,11 +11,19 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/cache"
 )
 
+// RateLimits is the live limit configuration for one request.
+type RateLimits struct {
+	Unauth int64
+	Auth   int64
+	Window time.Duration
+}
+
 // RateLimiter returns an HTTP middleware enforcing rate limits via Redis.
-// Unauthenticated requests are limited to unauthLimit per unauthWindow (default: 60/hr, matching GitHub).
-// Authenticated requests are limited to authLimit per authWindow (default: 1000/hr).
+//
+// Limits are read through the provider on every request rather than captured at
+// construction, so they can be changed on a running system.
 // If cache is nil or down, the middleware fails open.
-func RateLimiter(c *cache.Client, unauthLimit, authLimit int64, unauthWindow, authWindow time.Duration, keyPrefix string) func(http.Handler) http.Handler {
+func RateLimiter(c *cache.Client, limits func() RateLimits, keyPrefix string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if c == nil || r.URL.Path == "/health" || r.URL.Path == "/health/detail" || r.URL.Path == "/metrics" || strings.HasPrefix(r.URL.Path, "/auth/") {
@@ -25,18 +33,17 @@ func RateLimiter(c *cache.Client, unauthLimit, authLimit int64, unauthWindow, au
 
 			uid := GetUserID(r.Context())
 			isAuthenticated := uid > 0
+			current := limits()
 
 			var limit int64
-			var window time.Duration
 			var rateLimitKey string
+			window := current.Window
 
 			if isAuthenticated {
-				limit = authLimit
-				window = authWindow
+				limit = current.Auth
 				rateLimitKey = fmt.Sprintf("%s:u%d", keyPrefix, uid)
 			} else {
-				limit = unauthLimit
-				window = unauthWindow
+				limit = current.Unauth
 				clientIP := clientIdentifier(r)
 				rateLimitKey = fmt.Sprintf("%s:anon:%s", keyPrefix, clientIP)
 			}
@@ -57,7 +64,7 @@ func RateLimiter(c *cache.Client, unauthLimit, authLimit int64, unauthWindow, au
 				w.WriteHeader(http.StatusTooManyRequests)
 				msg := "Too many requests. Please try again later."
 				if !isAuthenticated {
-					msg = fmt.Sprintf("API rate limit exceeded for unauthenticated user (%d requests per hour limit). Please sign in with GitHub to increase your rate limit.", limit)
+					msg = fmt.Sprintf("API rate limit exceeded for unauthenticated user (%d requests per %s limit). Please sign in with GitHub to increase your rate limit.", limit, window)
 				}
 				_ = json.NewEncoder(w).Encode(map[string]string{
 					"error": msg,

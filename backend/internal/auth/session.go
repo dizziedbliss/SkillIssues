@@ -25,8 +25,29 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// SessionDuration is how long a session stays valid after creation.
+// SessionDuration is the built-in session lifetime, used when no provider is
+// configured via SetSessionTTL.
 const SessionDuration = 7 * 24 * time.Hour
+
+// SetSessionTTL installs a provider for the session lifetime so it can be
+// retuned without a restart. Safe to call only during startup wiring.
+func (s *Service) SetSessionTTL(ttl func() time.Duration) {
+	if ttl != nil {
+		s.sessionTTL = ttl
+	}
+}
+
+// ttl resolves the configured session lifetime, falling back to the built-in
+// value if a provider yields something nonsensical.
+func (s *Service) ttl() time.Duration {
+	if s.sessionTTL == nil {
+		return SessionDuration
+	}
+	if d := s.sessionTTL(); d > 0 {
+		return d
+	}
+	return SessionDuration
+}
 
 // ErrUnauthorized is returned when a session token is invalid or expired.
 var ErrUnauthorized = errors.New("auth: unauthorized")
@@ -35,11 +56,15 @@ var ErrUnauthorized = errors.New("auth: unauthorized")
 type Service struct {
 	db    *db.Pool
 	cache *cache.Client
+
+	// sessionTTL is read when a session is created. Changing it affects newly
+	// issued sessions only; existing ones keep the expiry they were given.
+	sessionTTL func() time.Duration
 }
 
 // New creates an auth.Service.
 func New(db *db.Pool, cacheClient ...*cache.Client) *Service {
-	s := &Service{db: db}
+	s := &Service{db: db, sessionTTL: func() time.Duration { return SessionDuration }}
 	if len(cacheClient) > 0 {
 		s.cache = cacheClient[0]
 	}
@@ -64,14 +89,14 @@ func (s *Service) CreateSession(ctx context.Context, userID int, provider string
 		`INSERT INTO auth_sessions (token, user_id, provider, expires_at)
 		 VALUES ($1, $2, $3, $4)
 		 ON CONFLICT (token) DO NOTHING`,
-		hashed, userID, provider, time.Now().Add(SessionDuration),
+		hashed, userID, provider, time.Now().Add(s.ttl()),
 	)
 	if err != nil {
 		return "", fmt.Errorf("auth: store session: %w", err)
 	}
 
 	if s.cache != nil {
-		s.cache.SetSession(ctx, hashed, userID, SessionDuration)
+		s.cache.SetSession(ctx, hashed, userID, s.ttl())
 	}
 
 	return raw, nil
@@ -106,7 +131,7 @@ func (s *Service) ValidateSession(ctx context.Context, rawToken string) (int, er
 	}
 
 	if s.cache != nil {
-		s.cache.SetSession(ctx, hashed, userID, SessionDuration)
+		s.cache.SetSession(ctx, hashed, userID, s.ttl())
 	}
 
 	return userID, nil
