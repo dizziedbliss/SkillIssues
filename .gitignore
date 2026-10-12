@@ -1,7 +1,8 @@
 *.tsbuildinfo
-.env
+*.env
 node_modules/
 dist/
+desktop/out/
 .vscode/
 .DS_Store
 data/
@@ -23,5 +24,3 @@ backend/cmd/migrate/migrate
 backend/cmd/migrate/migrate.exe
 backend/cmd/healthcheck/healthcheck
 backend/cmd/healthcheck/healthcheck.exe
-
-CLAUDE.md
