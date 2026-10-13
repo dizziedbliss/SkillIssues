@@ -365,6 +365,10 @@ function renderIssueCardHtml(issue) {
     <div class="issue-card-bottom">
       <div class="pill-group-left">
         ${issue.match_category ? `<span class="pill match">Matched in ${escapeHtml(issue.match_category)}</span>` : ""}
+        ${issue.state === "CLOSED" ? `<span class="pill status-pill status-rejected">Closed</span>` : ""}
+        ${issue.lifecycle === "working" ? `<span class="pill purple">Working</span>` : ""}
+        ${issue.lifecycle === "submitted" ? `<span class="pill status-pill status-review">Submitted</span>` : ""}
+        ${issue.lifecycle === "merged" ? `<span class="pill status-pill status-accepted">Merged</span>` : ""}
         <span class="pill purple">${escapeHtml(issueAuthor(issue))}</span>
         <span class="pill purple">${daysAgo(issue.updated_at)}</span>
         <span class="pill purple">${SVG_COMMENT} ${issue.comments || 0}</span>
@@ -716,6 +720,7 @@ function renderWorking() {
                   <span class="pill light">${escapeHtml(item.language || "Open source")}</span>
                 </div>
                 <div class="pill-group-right">
+                  <a class="view-issue-btn" href="${escapeHtml(item.issue_url)}" target="_blank">View issue ↗</a>
                   <button class="view-issue-btn" data-working-vscode="${item.id}">VS Code ↗</button>
                   <button class="view-issue-btn" data-working-folder="${item.id}">Show folder</button>
                   <button class="view-issue-btn" data-working-push="${item.id}">Push & Submit PR</button>
@@ -832,7 +837,8 @@ function renderSubmissions() {
               <div class="issue-card-bottom">
                 <div class="pill-group-left">
                   <span class="pill status-pill ${statusClass}">${statusText}</span>
-                  <span class="pill purple">Submitted ${daysAgo(item.created_at)}</span>
+                  <span class="pill purple">Started ${daysAgo(item.created_at)}</span>
+                  ${item.submitted_at ? `<span class="pill purple">Submitted ${daysAgo(item.submitted_at)}</span>` : ""}
                 </div>
                 <div class="pill-group-middle">
                   <span class="pill light">${escapeHtml(item.language || "Open source")}</span>

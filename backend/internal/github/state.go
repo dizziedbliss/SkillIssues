@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // IssueState is the result of a live, on-demand single-issue state check
@@ -15,12 +16,16 @@ import (
 // never on list render or detail open, using the user's own credential.
 type IssueState struct {
 	State string // "OPEN" or "CLOSED"
+	// UpdatedAt is GitHub's own updatedAt for the issue. Stored verbatim
+	// whenever this state is persisted (CLAUDE.md: never import time or now()).
+	UpdatedAt time.Time
 }
 
 const issueStateQuery = `query IssueState($owner: String!, $name: String!, $number: Int!) {
     repository(owner: $owner, name: $name) {
         issue(number: $number) {
             state
+            updatedAt
         }
     }
 }`
@@ -76,7 +81,8 @@ func (c *Client) FetchIssueState(ctx context.Context, token, owner, name string,
 		Data struct {
 			Repository *struct {
 				Issue *struct {
-					State string `json:"state"`
+					State     string `json:"state"`
+					UpdatedAt string `json:"updatedAt"`
 				} `json:"issue"`
 			} `json:"repository"`
 		} `json:"data"`
@@ -92,5 +98,13 @@ func (c *Client) FetchIssueState(ctx context.Context, token, owner, name string,
 		return nil, fmt.Errorf("github: issue not found")
 	}
 
-	return &IssueState{State: strings.ToUpper(rawResponse.Data.Repository.Issue.State)}, nil
+	updatedAt, err := time.Parse(time.RFC3339, rawResponse.Data.Repository.Issue.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("github: parse updatedAt: %w", err)
+	}
+
+	return &IssueState{
+		State:     strings.ToUpper(rawResponse.Data.Repository.Issue.State),
+		UpdatedAt: updatedAt,
+	}, nil
 }

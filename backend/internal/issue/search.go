@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/jackc/pgx/v5"
@@ -39,6 +40,12 @@ type Issue struct {
 	RecommendationScore int      `json:"recommendation_score,omitempty"`
 	WhyRecommended      []string `json:"why_recommended,omitempty"`
 	MatchCategory       string   `json:"match_category,omitempty"`
+
+	// Lifecycle is only populated for the saved-issues list (D2b): the
+	// caller's own most recent contribution against this issue, one of
+	// none|working|submitted|merged. Saved stays sticky regardless of
+	// issue.State — this is what lets a client show why.
+	Lifecycle string `json:"lifecycle,omitempty"`
 }
 
 // Filters for issue catalog queries.
@@ -367,15 +374,62 @@ func (s *Service) GetRepositoryID(ctx context.Context, issueID int) (int, error)
 	return repoID, nil
 }
 
-// GetSavedIssues returns all bookmarked issues for a developer.
+// savedIssueSelect joins each saved issue against the caller's own latest
+// contribution for it (LEFT JOIN LATERAL — at most one row, the most
+// recently updated). Saved stays sticky by contract: this never filters on
+// issue or contribution state, it only labels what the client already shows.
+const savedIssueSelect = `
+	SELECT i.id, COALESCE(i.github_id, 0), i.number, i.title,
+	       i.url, i.state, i.updated_at::text,
+	       i.difficulty_score, i.difficulty,
+	       COALESCE(i.required_skills, '{}'),
+	       COALESCE(i.technologies, '{}'),
+	       COALESCE(i.learning_tags, '{}'),
+	       i.comments, COALESCE(i.author, split_part(r.full_name, '/', 1)),
+	       r.full_name, r.url, COALESCE(r.description, ''),
+	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, ''),
+	       COALESCE(c.lifecycle, 'none')
+	FROM issues i
+	JOIN repositories r ON r.id = i.repository_id
+	LEFT JOIN LATERAL (
+		SELECT CASE
+			WHEN c2.state IN ('PR_MERGED', 'VERIFIED') THEN 'merged'
+			WHEN c2.state = 'PR_OPEN' THEN 'submitted'
+			WHEN c2.state = 'STARTED' THEN 'working'
+			ELSE 'none'
+		END AS lifecycle
+		FROM contributions c2
+		WHERE c2.user_id = $1 AND c2.issue_id = i.id
+		ORDER BY c2.updated_at DESC
+		LIMIT 1
+	) c ON true
+`
+
+func scanSavedIssue(rows pgx.Rows) (Issue, error) {
+	var it Issue
+	err := rows.Scan(
+		&it.ID, &it.GitHubID, &it.Number, &it.Title,
+		&it.URL, &it.State, &it.UpdatedAt,
+		&it.DifficultyScore, &it.Difficulty,
+		&it.RequiredSkills, &it.Technologies, &it.LearningTags,
+		&it.Comments, &it.Author,
+		&it.Repository, &it.RepositoryURL, &it.RepositoryDescription,
+		&it.Language, &it.Stars, &it.License,
+		&it.Lifecycle,
+	)
+	return it, err
+}
+
+// GetSavedIssues returns all bookmarked issues for a developer, each labeled
+// with the caller's lifecycle against it (D2b).
 func (s *Service) GetSavedIssues(ctx context.Context, userID int) ([]Issue, error) {
-	query := baseIssueSelect + `
+	query := savedIssueSelect + `
 		WHERE i.id IN (SELECT issue_id FROM saved_issues WHERE user_id = $1)
 		ORDER BY i.difficulty_score, i.updated_at DESC
 	`
 	var issues []Issue
 	err := s.db.QueryRows(ctx, query, []any{userID}, func(rows pgx.Rows) error {
-		it, err := scanIssue(rows)
+		it, err := scanSavedIssue(rows)
 		if err != nil {
 			return err
 		}
@@ -389,6 +443,28 @@ func (s *Service) GetSavedIssues(ctx context.Context, userID int) ([]Issue, erro
 		issues = []Issue{}
 	}
 	return issues, nil
+}
+
+// SetState updates an issue's state and GitHub-reported updatedAt (D2a).
+// Called only from an on-demand freshness check or a webhook delivery —
+// never from the crawl path, which always writes OPEN.
+func (s *Service) SetState(ctx context.Context, issueID int, state string, updatedAt time.Time) error {
+	return s.db.Exec(ctx,
+		`UPDATE issues SET state = $2, updated_at = $3 WHERE id = $1`,
+		issueID, state, updatedAt,
+	)
+}
+
+// SetStateByRepoAndNumber is the webhook path (D2a): GitHub tells us the
+// repo full_name and issue number, not our internal id. A no-op if the
+// issue was never crawled — that repository/issue simply isn't in scope.
+func (s *Service) SetStateByRepoAndNumber(ctx context.Context, repoFullName string, number int, state string, updatedAt time.Time) error {
+	return s.db.Exec(ctx,
+		`UPDATE issues i SET state = $3, updated_at = $4
+		 FROM repositories r
+		 WHERE r.id = i.repository_id AND r.full_name = $1 AND i.number = $2`,
+		repoFullName, number, state, updatedAt,
+	)
 }
 
 // SaveIssue bookmarks an issue for a developer.

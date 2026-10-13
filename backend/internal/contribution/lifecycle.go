@@ -31,16 +31,17 @@ const (
 
 // Contribution represents an active or completed developer challenge attempt.
 type Contribution struct {
-	ID        int        `json:"id"`
-	UserID    int        `json:"user_id"`
-	IssueID   int        `json:"issue_id"`
-	PRURL     *string    `json:"pr_url"`
-	PRNumber  *int       `json:"pr_number"`
-	State     string     `json:"state"`
-	XPAwarded bool       `json:"xp_awarded"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	MergedAt  *time.Time `json:"merged_at"`
+	ID          int        `json:"id"`
+	UserID      int        `json:"user_id"`
+	IssueID     int        `json:"issue_id"`
+	PRURL       *string    `json:"pr_url"`
+	PRNumber    *int       `json:"pr_number"`
+	State       string     `json:"state"`
+	XPAwarded   bool       `json:"xp_awarded"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	MergedAt    *time.Time `json:"merged_at"`
+	SubmittedAt *time.Time `json:"submitted_at"`
 }
 
 // ContributionDetail enriches a contribution with issue and repository fields.
@@ -54,6 +55,7 @@ type ContributionDetail struct {
 	CreatedAt      string   `json:"created_at"`
 	UpdatedAt      string   `json:"updated_at"`
 	MergedAt       string   `json:"merged_at"`
+	SubmittedAt    string   `json:"submitted_at"`
 	Title          string   `json:"title"`
 	Number         int      `json:"number"`
 	Difficulty     string   `json:"difficulty"`
@@ -144,10 +146,10 @@ func (s *Service) StartContribution(ctx context.Context, userID, issueID int) (*
 		 VALUES ($1, $2, 'STARTED')
 		 ON CONFLICT (user_id, issue_id) WHERE state = 'STARTED' DO UPDATE SET
 		     updated_at = now()
-		 RETURNING id, user_id, issue_id, pr_url, pr_number, state, xp_awarded, created_at, updated_at, merged_at`,
+		 RETURNING id, user_id, issue_id, pr_url, pr_number, state, xp_awarded, created_at, updated_at, merged_at, submitted_at`,
 		[]any{userID, issueID},
 		func(row pgx.Row) error {
-			return row.Scan(&c.ID, &c.UserID, &c.IssueID, &c.PRURL, &c.PRNumber, &c.State, &c.XPAwarded, &c.CreatedAt, &c.UpdatedAt, &c.MergedAt)
+			return row.Scan(&c.ID, &c.UserID, &c.IssueID, &c.PRURL, &c.PRNumber, &c.State, &c.XPAwarded, &c.CreatedAt, &c.UpdatedAt, &c.MergedAt, &c.SubmittedAt)
 		},
 	)
 	if err != nil {
@@ -161,6 +163,7 @@ func (s *Service) ListContributions(ctx context.Context, userID int) ([]Contribu
 	query := `
 		SELECT c.id, c.user_id, c.issue_id, COALESCE(c.pr_url, ''), COALESCE(c.pr_number, 0),
 		       c.state, c.created_at::text, c.updated_at::text, COALESCE(c.merged_at::text, ''),
+		       COALESCE(c.submitted_at::text, ''),
 		       i.title, i.number, i.difficulty, i.url AS issue_url,
 		       COALESCE(i.required_skills, '{}'), COALESCE(i.technologies, '{}'),
 		       i.updated_at::text AS issue_updated_at, r.full_name AS repository, COALESCE(r.language, '')
@@ -175,6 +178,7 @@ func (s *Service) ListContributions(ctx context.Context, userID int) ([]Contribu
 		if err := rows.Scan(
 			&item.ID, &item.UserID, &item.IssueID, &item.PRURL, &item.PRNumber,
 			&item.State, &item.CreatedAt, &item.UpdatedAt, &item.MergedAt,
+			&item.SubmittedAt,
 			&item.Title, &item.Number, &item.Difficulty, &item.IssueURL,
 			&item.RequiredSkills, &item.Technologies, &item.IssueUpdatedAt,
 			&item.Repository, &item.Language,
@@ -198,6 +202,7 @@ func (s *Service) GetWorking(ctx context.Context, userID int) ([]ContributionDet
 	query := `
 		SELECT c.id, c.user_id, c.issue_id, COALESCE(c.pr_url, ''), COALESCE(c.pr_number, 0),
 		       c.state, c.created_at::text, c.updated_at::text, COALESCE(c.merged_at::text, ''),
+		       COALESCE(c.submitted_at::text, ''),
 		       i.title, i.number, i.difficulty, i.url AS issue_url,
 		       COALESCE(i.required_skills, '{}'), COALESCE(i.technologies, '{}'),
 		       r.full_name AS repository, r.url AS repository_url, COALESCE(r.language, '')
@@ -213,6 +218,7 @@ func (s *Service) GetWorking(ctx context.Context, userID int) ([]ContributionDet
 		if err := rows.Scan(
 			&item.ID, &item.UserID, &item.IssueID, &item.PRURL, &item.PRNumber,
 			&item.State, &item.CreatedAt, &item.UpdatedAt, &item.MergedAt,
+			&item.SubmittedAt,
 			&item.Title, &item.Number, &item.Difficulty, &item.IssueURL,
 			&item.RequiredSkills, &item.Technologies,
 			&item.Repository, &item.RepositoryURL, &item.Language,
@@ -235,11 +241,11 @@ func (s *Service) GetWorking(ctx context.Context, userID int) ([]ContributionDet
 func (s *Service) GetContribution(ctx context.Context, userID, id int) (*Contribution, error) {
 	var c Contribution
 	err := s.db.QueryRow(ctx,
-		`SELECT id, user_id, issue_id, pr_url, pr_number, state, xp_awarded, created_at, updated_at, merged_at
+		`SELECT id, user_id, issue_id, pr_url, pr_number, state, xp_awarded, created_at, updated_at, merged_at, submitted_at
 		 FROM contributions WHERE id = $1 AND user_id = $2`,
 		[]any{id, userID},
 		func(row pgx.Row) error {
-			return row.Scan(&c.ID, &c.UserID, &c.IssueID, &c.PRURL, &c.PRNumber, &c.State, &c.XPAwarded, &c.CreatedAt, &c.UpdatedAt, &c.MergedAt)
+			return row.Scan(&c.ID, &c.UserID, &c.IssueID, &c.PRURL, &c.PRNumber, &c.State, &c.XPAwarded, &c.CreatedAt, &c.UpdatedAt, &c.MergedAt, &c.SubmittedAt)
 		},
 	)
 	if err != nil {
@@ -306,12 +312,13 @@ func (s *Service) AttachPR(ctx context.Context, userID, contribID int, prURL str
 	var updated Contribution
 	err = s.db.QueryRow(ctx,
 		`UPDATE contributions
-		 SET pr_url = $1, pr_number = $2, state = 'PR_OPEN', updated_at = now()
+		 SET pr_url = $1, pr_number = $2, state = 'PR_OPEN', updated_at = now(),
+		     submitted_at = COALESCE(submitted_at, now())
 		 WHERE id = $3 AND user_id = $4
-		 RETURNING id, user_id, issue_id, pr_url, pr_number, state, xp_awarded, created_at, updated_at, merged_at`,
+		 RETURNING id, user_id, issue_id, pr_url, pr_number, state, xp_awarded, created_at, updated_at, merged_at, submitted_at`,
 		[]any{prURL, prNumber, contribID, userID},
 		func(row pgx.Row) error {
-			return row.Scan(&updated.ID, &updated.UserID, &updated.IssueID, &updated.PRURL, &updated.PRNumber, &updated.State, &updated.XPAwarded, &updated.CreatedAt, &updated.UpdatedAt, &updated.MergedAt)
+			return row.Scan(&updated.ID, &updated.UserID, &updated.IssueID, &updated.PRURL, &updated.PRNumber, &updated.State, &updated.XPAwarded, &updated.CreatedAt, &updated.UpdatedAt, &updated.MergedAt, &updated.SubmittedAt)
 		},
 	)
 	if err != nil {
