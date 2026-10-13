@@ -86,7 +86,13 @@ func (w *Worker) ProcessJob(ctx context.Context, job Job) error {
 		upserted++
 	}
 
-	if err := CompleteOrRequeue(ctx, tx, job, page.EndCursor, page.HasNextPage, job.PagesDone+1); err != nil {
+	pagesDone := job.PagesDone + 1
+	maxPages := snap.Int(settings.IngestMaxPagesPerRepo)
+	if maxPages > 0 && pagesDone >= maxPages && page.HasNextPage {
+		slog.Warn("repository hit the per-repository page cap, stopping pagination here",
+			"repo", job.FullName, "pages_done", pagesDone, "max_pages_per_repo", maxPages)
+	}
+	if err := CompleteOrRequeue(ctx, tx, job, page.EndCursor, page.HasNextPage, pagesDone, maxPages); err != nil {
 		return fmt.Errorf("complete/requeue job: %w", err)
 	}
 
