@@ -9,7 +9,7 @@
  * - GitHub Personal Access Token (PAT) authentication modal
  */
 
-import { StrictMode, useEffect, useState } from "react";
+import { StrictMode, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Bookmark,
@@ -27,6 +27,7 @@ import {
   User as UserIcon,
   X,
 } from "lucide-react";
+import { renderMarkdown as renderIssueMarkdown } from "../../packages/markdown/src/index";
 import "./index.css";
 import { LandingPage } from "./LandingPage";
 
@@ -37,7 +38,6 @@ type Issue = {
   id: number;
   number: number;
   title: string;
-  body: string;
   difficulty: string;
   difficulty_score: number;
   required_skills: string[];
@@ -84,7 +84,13 @@ type Contribution = {
   issue_url: string;
 };
 
-type View = "Overview" | "SkillIssues" | "Saved" | "Working" | "Submissions";
+type View =
+  | "Overview"
+  | "SkillIssues"
+  | "Recommended"
+  | "Saved"
+  | "Working"
+  | "Submissions";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -100,19 +106,16 @@ const languageLogoBase =
   "https://raw.githubusercontent.com/abranhe/programming-languages-logos/master/src";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = localStorage.getItem("skillissues_token");
   const response = await fetch(`${API}${path}`, {
     ...init,
     credentials: "include",
     headers: {
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   });
   if (!response.ok) {
     if (response.status === 401) {
-      localStorage.removeItem("skillissues_token");
       throw new Error("Authentication required");
     }
     let errorMsg = "Request failed";
@@ -125,6 +128,63 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(errorMsg);
   }
   return response.json();
+}
+
+// D15 — recommendations cache: localStorage + ETag revalidation. The
+// backend invalidates its own cache (and so the ETag it serves) whenever
+// preferences/XP/level/contributions change, so revalidating against the
+// stored ETag is sufficient; no separate "profile version" is tracked here.
+const RECOMMENDATIONS_CACHE_KEY = "skillissues.recommendations.v1";
+
+type RecommendationsCacheEntry = { etag: string; data: Issue[] };
+
+function loadRecommendationsCache(): RecommendationsCacheEntry | null {
+  try {
+    const raw = localStorage.getItem(RECOMMENDATIONS_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as RecommendationsCacheEntry) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveRecommendationsCache(etag: string, data: Issue[]) {
+  try {
+    localStorage.setItem(RECOMMENDATIONS_CACHE_KEY, JSON.stringify({ etag, data }));
+  } catch {
+    // storage unavailable/full — caching is a convenience, not required
+  }
+}
+
+function clearRecommendationsCache() {
+  try {
+    localStorage.removeItem(RECOMMENDATIONS_CACHE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+// Fetches /recommendations, revalidating against the cached ETag. On
+// outright failure, falls back to the stale cached copy (the caller shows
+// a "showing cached results" indicator) rather than an empty feed.
+async function fetchRecommendations(): Promise<{ data: Issue[]; stale: boolean }> {
+  const cached = loadRecommendationsCache();
+  try {
+    const response = await fetch(`${API}/recommendations`, {
+      credentials: "include",
+      headers: cached ? { "If-None-Match": cached.etag } : {},
+    });
+    if (response.status === 304 && cached) {
+      return { data: cached.data, stale: false };
+    }
+    if (!response.ok) throw new Error("Request failed");
+    const data: Issue[] = await response.json();
+    const etag = response.headers.get("etag");
+    if (etag) saveRecommendationsCache(etag, data);
+    return { data, stale: false };
+  } catch {
+    if (cached) return { data: cached.data, stale: true };
+    return { data: [], stale: false };
+  }
 }
 
 function daysAgo(value?: string) {
@@ -296,16 +356,10 @@ function LoginForm({
     setLoading(true);
     setErr("");
     try {
-      const resp = await request<{ authenticated: boolean; session_token?: string }>(
-        "/auth/github/token",
-        {
-          method: "POST",
-          body: JSON.stringify({ token: token.trim() }),
-        }
-      );
-      if (resp.session_token) {
-        localStorage.setItem("skillissues_token", resp.session_token);
-      }
+      await request<{ authenticated: boolean }>("/auth/github/token", {
+        method: "POST",
+        body: JSON.stringify({ token: token.trim() }),
+      });
       onLogin();
     } catch (caught) {
       setErr(caught instanceof Error ? caught.message : "Invalid GitHub Token");
@@ -401,13 +455,14 @@ export function App() {
   const [savedIssues, setSavedIssues] = useState<Issue[]>([]);
   const [working, setWorking] = useState<Contribution[]>([]);
   const [submissions, setSubmissions] = useState<Contribution[]>([]);
-  const [view, setView] = useState<View>(() =>
-    localStorage.getItem("skillissues_token") ? "SkillIssues" : "Overview"
-  );
+  const [view, setView] = useState<View>("Overview");
   const [difficultyFilter, setDifficultyFilter] = useState<"ALL" | "BEGINNER" | "INTERMEDIATE" | "ADVANCED">("ALL");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [selected, setSelected] = useState<Issue | null>(null);
+  const [selectedBody, setSelectedBody] = useState<string | null>(null);
+  const [selectedBodyError, setSelectedBodyError] = useState(false);
+  const issuesAbortRef = useRef<AbortController | null>(null);
   const [query, setQuery] = useState("");
   const [searchCategory, setSearchCategory] = useState<string>("ALL");
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
@@ -419,16 +474,16 @@ export function App() {
   const [selectedLangs, setSelectedLangs] = useState<string[]>([]);
   const [availableOptions, setAvailableOptions] = useState<string[]>([]);
   const [prefSearch, setPrefSearch] = useState("");
+  const [recommendedIssues, setRecommendedIssues] = useState<Issue[]>([]);
+  const [recommendedStale, setRecommendedStale] = useState(false);
+
+  async function loadRecommended() {
+    const { data, stale } = await fetchRecommendations();
+    setRecommendedIssues(data);
+    setRecommendedStale(stale);
+  }
 
   async function loadUser(): Promise<Profile | null> {
-    const token = localStorage.getItem("skillissues_token");
-    if (!token) {
-      setProfile(null);
-      setSavedIssues([]);
-      setWorking([]);
-      setSubmissions([]);
-      return null;
-    }
     try {
       const [user, saved, current, submitted] = await Promise.all([
         request<Profile>("/me"),
@@ -444,7 +499,6 @@ export function App() {
       setSubmissions((submitted || []).filter((item) => item.state !== "STARTED"));
       return user;
     } catch {
-      localStorage.removeItem("skillissues_token");
       setProfile(null);
       setSavedIssues([]);
       setWorking([]);
@@ -454,6 +508,11 @@ export function App() {
   }
 
   async function loadIssues(pageNum = page, diff = difficultyFilter, searchKeyword = query) {
+    // Cancel any still-in-flight list/search request so a slow stale
+    // response can't land after a newer one and clobber the UI.
+    issuesAbortRef.current?.abort();
+    const controller = new AbortController();
+    issuesAbortRef.current = controller;
     try {
       const isSearch = Boolean(searchKeyword.trim());
       const limit = isSearch ? 50 : 20;
@@ -464,17 +523,19 @@ export function App() {
       if (isSearch) {
         url += `&search=${encodeURIComponent(searchKeyword.trim())}`;
       }
-      const data = await request<Issue[]>(url);
+      const data = await request<Issue[]>(url, { signal: controller.signal });
       setIssues(data || []);
       setHasMore((data || []).length === limit);
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setIssues([]);
       setHasMore(false);
     }
   }
 
   async function refresh() {
-    await loadUser();
+    const user = await loadUser();
+    if (user) setView((v) => (v === "Overview" ? "SkillIssues" : v));
     await loadIssues(page, difficultyFilter, query);
   }
 
@@ -535,20 +596,62 @@ export function App() {
   }, [selected]);
 
   useEffect(() => {
-    // Check URL parameters for OAuth redirect results
-    const params = new URLSearchParams(window.location.search);
-    const tokenParam = params.get("token");
-    const errorParam = params.get("error");
-    const errorDesc = params.get("error_description");
-
-    if (tokenParam) {
-      localStorage.setItem("skillissues_token", tokenParam);
-      window.history.replaceState({}, document.title, window.location.pathname);
-      setShowLoginModal(false);
-      setOAuthError("");
-      void refresh();
+    if (!selected) {
+      setSelectedBody(null);
+      setSelectedBodyError(false);
       return;
     }
+    setSelectedBody(null);
+    setSelectedBodyError(false);
+    const controller = new AbortController();
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let retries = 0;
+
+    async function fetchBody() {
+      try {
+        const response = await fetch(`${API}/issues/${selected!.id}/body`, {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (response.status === 202) {
+          if (retries++ < 5) {
+            retryTimer = setTimeout(fetchBody, 1500);
+          } else {
+            setSelectedBodyError(true);
+          }
+          return;
+        }
+        if (!response.ok) {
+          setSelectedBodyError(true);
+          return;
+        }
+        const data = await response.json();
+        setSelectedBody(typeof data.body === "string" ? data.body : "");
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setSelectedBodyError(true);
+      }
+    }
+
+    void fetchBody();
+    return () => {
+      controller.abort();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [selected?.id]);
+
+  useEffect(() => {
+    if (view === "Recommended" && profile) {
+      void loadRecommended();
+    }
+  }, [view, profile]);
+
+  useEffect(() => {
+    // Check URL parameters for OAuth redirect results (the session itself
+    // arrives via an HttpOnly cookie set by the backend, never in the URL).
+    const params = new URLSearchParams(window.location.search);
+    const errorParam = params.get("error");
+    const errorDesc = params.get("error_description");
 
     if (errorParam) {
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -566,12 +669,15 @@ export function App() {
     } catch {
       // ignore
     }
-    localStorage.removeItem("skillissues_token");
     setProfile(null);
     setSavedIssues([]);
     setWorking([]);
     setSubmissions([]);
     setEditing(false);
+    setView("Overview");
+    setRecommendedIssues([]);
+    setRecommendedStale(false);
+    clearRecommendationsCache();
     void loadIssues(page, difficultyFilter, query);
   }
 
@@ -630,100 +736,11 @@ export function App() {
   function renderMarkdown(md: string) {
     if (!md || !md.trim())
       return '<p class="empty-body">No issue description available.</p>';
-    const codeBlocks: string[] = [];
-    let text = String(md).replace(
-      /```(\w*)\r?\n([\s\S]*?)```/g,
-      (match, lang, code) => {
-        const escapedCode = code
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;");
-        codeBlocks.push(
-          `<pre><code class="language-${lang}">${escapedCode.trim()}</code></pre>`,
-        );
-        return `\n__CODE_BLOCK_${codeBlocks.length - 1}__\n`;
-      },
-    );
-    text = text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-    const inlineCodes: string[] = [];
-    text = text.replace(/`([^`]+)`/g, (match, code) => {
-      inlineCodes.push(`<code>${code}</code>`);
-      return `__INLINE_CODE_${inlineCodes.length - 1}__`;
-    });
-    text = text.replace(/^###### (.*$)/gim, "<h6>$1</h6>");
-    text = text.replace(/^##### (.*$)/gim, "<h5>$1</h5>");
-    text = text.replace(/^#### (.*$)/gim, "<h4>$1</h4>");
-    text = text.replace(/^### (.*$)/gim, "<h3>$1</h3>");
-    text = text.replace(/^## (.*$)/gim, "<h2>$1</h2>");
-    text = text.replace(/^# (.*$)/gim, "<h1>$1</h1>");
-    text = text.replace(/^\&gt;\s?(.*$)/gim, "<blockquote>$1</blockquote>");
-    text = text.replace(/^[\*\-_]{3,}$/gim, "<hr>");
-    text = text.replace(
-      /!\[([^\]]*)\]\(([^\s\)]+)\)/g,
-      '<img src="$2" alt="$1" />',
-    );
-    text = text.replace(
-      /\[([^\]]+)\]\(([^\s\)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noreferrer">$1</a>',
-    );
-    text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-    text = text.replace(/__([^_]+)__/g, "<strong>$1</strong>");
-    text = text.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-    text = text.replace(/_([^_]+)_/g, "<em>$1</em>");
-    text = text.replace(/~~([^~]+)~~/g, "<del>$1</del>");
-    text = text.replace(/^[\s]*[\-\*] (.*$)/gim, "<li>$1</li>");
-    text = text.replace(/^[\s]*\d+\. (.*$)/gim, "<li>$1</li>");
-    text = text.replace(/(<li>[\s\S]*?<\/li>)/gim, "<ul>$1</ul>");
-    text = text.replace(/<\/ul>\s*<ul>/g, "");
-    const lines = text.split(/\r?\n/);
-    const result: string[] = [];
-    let inP = false;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) {
-        if (inP) {
-          result.push("</p>");
-          inP = false;
-        }
-        continue;
-      }
-      if (
-        line.startsWith("<h") ||
-        line.startsWith("<ul") ||
-        line.startsWith("<ol") ||
-        line.startsWith("<blockquote") ||
-        line.startsWith("<pre") ||
-        line.startsWith("<hr") ||
-        line.includes("__CODE_BLOCK_")
-      ) {
-        if (inP) {
-          result.push("</p>");
-          inP = false;
-        }
-        result.push(line);
-      } else {
-        if (!inP) {
-          result.push("<p>");
-          inP = true;
-        }
-        result.push(line + "<br>");
-      }
-    }
-    if (inP) result.push("</p>");
-    let finalHtml = result.join("\n");
-    inlineCodes.forEach((code, idx) => {
-      finalHtml = finalHtml.replace(`__INLINE_CODE_${idx}__`, code);
-    });
-    codeBlocks.forEach((block, idx) => {
-      finalHtml = finalHtml.replace(`__CODE_BLOCK_${idx}__`, block);
-    });
-    return finalHtml;
+    return renderIssueMarkdown(md);
   }
 
-  const displayed = view === "Saved" ? savedIssues : issues;
+  const displayed =
+    view === "Saved" ? savedIssues : view === "Recommended" ? recommendedIssues : issues;
   const isSearchActive = Boolean(query.trim()) && view === "SkillIssues";
 
   const searchCategoryGroups = (() => {
@@ -889,26 +906,34 @@ export function App() {
       <section className="web-grid">
         <div className="web-feed">
           <nav className="web-tabs">
-            {(["SkillIssues", "Saved", "Working", "Submissions"] as View[]).map(
-              (item) => (
-                <button
-                  key={item}
-                  className={view === item ? "active" : ""}
-                  onClick={() => setView(item)}
-                >
-                  {item}{" "}
-                  <b>
-                    {item === "SkillIssues"
-                      ? issues.length
+            {(
+              [
+                "SkillIssues",
+                ...(profile ? (["Recommended"] as View[]) : []),
+                "Saved",
+                "Working",
+                "Submissions",
+              ] as View[]
+            ).map((item) => (
+              <button
+                key={item}
+                className={view === item ? "active" : ""}
+                onClick={() => setView(item)}
+              >
+                {item}{" "}
+                <b>
+                  {item === "SkillIssues"
+                    ? issues.length
+                    : item === "Recommended"
+                      ? recommendedIssues.length
                       : item === "Saved"
                         ? savedIssues.length
                         : item === "Working"
                           ? working.length
                           : submissions.length}
-                  </b>
-                </button>
-              ),
-            )}
+                </b>
+              </button>
+            ))}
           </nav>
 
           {view === "SkillIssues" && (
@@ -931,12 +956,16 @@ export function App() {
               {view === "SkillIssues"
                 ? isSearchActive
                   ? `Search results for "${query}"`
-                  : "Personalized for your current level and preferences"
-                : view === "Saved"
-                  ? "Challenges saved for later"
-                  : view === "Working"
-                    ? "Repositories you are actively solving"
-                    : "Pull requests submitted and completed"}
+                  : "Browse the full challenge catalog"
+                : view === "Recommended"
+                  ? recommendedStale
+                    ? "Personalized for your current level and preferences (showing cached results — offline or refresh pending)"
+                    : "Personalized for your current level and preferences"
+                  : view === "Saved"
+                    ? "Challenges saved for later"
+                    : view === "Working"
+                      ? "Repositories you are actively solving"
+                      : "Pull requests submitted and completed"}
             </span>
           </div>
 
@@ -1377,12 +1406,20 @@ export function App() {
               </span>
             </div>
 
-            <div
-              className="detail-body markdown-body"
-              dangerouslySetInnerHTML={{
-                __html: renderMarkdown(selected.body),
-              }}
-            />
+            {selectedBody === null && !selectedBodyError ? (
+              <div className="detail-body markdown-body loading">
+                Loading issue description...
+              </div>
+            ) : (
+              <div
+                className="detail-body markdown-body"
+                dangerouslySetInnerHTML={{
+                  __html: selectedBodyError
+                    ? '<p class="empty-body">Couldn\'t load the issue description. Try again shortly.</p>'
+                    : renderMarkdown(selectedBody ?? ""),
+                }}
+              />
+            )}
 
             <div className="atom-row">
               {selected.required_skills.map((skill) => (

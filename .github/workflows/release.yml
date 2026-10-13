@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 jobs:
-  build-electron:
+  build-desktop:
     name: Build Desktop App
     runs-on: ${{ matrix.os }}
     strategy:
@@ -40,7 +40,7 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: electron-${{ matrix.os }}
+          name: desktop-${{ matrix.os }}
           path: |
             desktop/dist/*.exe
             desktop/dist/*.AppImage
@@ -49,7 +49,7 @@ jobs:
 
   create-release:
     name: Create GitHub Release
-    needs: build-electron
+    needs: build-desktop
     runs-on: ubuntu-latest
     permissions:
       contents: write

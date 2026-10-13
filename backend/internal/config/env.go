@@ -1,80 +1,97 @@
-// Package config provides typed configuration loaded from environment variables.
-// All service configuration is centralised here; no other package reads os.Getenv directly.
+// Package config provides the startup configuration read from the environment.
+//
+// This is layers 1 and 2 only: bootstrap values needed before the database
+// exists, and secrets. Operational tunables — limits, page sizes, intervals,
+// worker counts, cache TTLs — live in the `settings` table and are served by
+// internal/settings, which reloads them without a restart.
+//
+// Adding an operational knob here is almost always the wrong move; add a key to
+// the settings registry instead. Secrets, conversely, must never go in the
+// settings table: it is readable through an admin endpoint and reproduced in
+// audit rows and database backups.
 package config
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 )
 
-// Config holds all runtime configuration for the SkillIssues backend.
-// Values are read from environment variables at startup; missing required values cause a fatal error.
+// Config holds startup configuration for the SkillIssues backend.
 type Config struct {
-	// Database
+	// --- Layer 1: bootstrap, needed before the database is reachable ---
+
 	DatabaseURL string
+	RedisURL    string
+	Port        int
 
-	// Redis
-	RedisURL string
+	// DBMaxConns overrides the connection pool's max size (db.DefaultConfig
+	// otherwise defaults to 20). Pool size is fixed at creation, so changing
+	// it needs a restart regardless — it stays a bootstrap env var rather
+	// than a live `settings` row. 0 means "unset"; callers apply their own
+	// per-binary default (api and ingestd size differently against the same
+	// Postgres max_connections ceiling).
+	DBMaxConns int
 
-	// HTTP server
-	Port int
-
-	// CORS / Frontend
+	// FrontendURL drives CORS and decides whether session cookies are marked
+	// Secure, so it is fixed at startup rather than reloadable.
 	FrontendURL string
 
-	// GitHub integration
-	GitHubToken         string // Server-side PAT for catalog ingestion and fallback operations
-	GitHubWebhookSecret string // HMAC secret for verifying GitHub webhook payloads
+	// SyncdURL is the ingestion service address used to forward sync requests.
+	SyncdURL string
+
+	// TrustedProxies lists the CIDRs allowed to set X-Forwarded-For/X-Real-IP
+	// for rate-limit identification. A request from any other peer has those
+	// headers ignored, since otherwise any client could spoof its rate-limit
+	// identity by setting them itself. Defaults to loopback only (the
+	// Docker Compose topology puts no proxy in front of the API).
+	TrustedProxies []string
+
+	// GitHubGraphQLURL is overridden only by tests and GitHub Enterprise.
+	GitHubGraphQLURL string
+
+	// --- Layer 2: secrets ---
+
+	GitHubToken         string // Server-side token for ingestion
+	GitHubWebhookSecret string // HMAC secret for verifying webhook payloads
 	GitHubClientID      string // OAuth App client ID
 	GitHubClientSecret  string // OAuth App client secret
-	GitHubRedirectURI   string // OAuth callback URL (must match GitHub App settings)
-	GitHubGraphQLURL    string // GitHub GraphQL endpoint (default: https://api.github.com/graphql)
+	GitHubRedirectURI   string // OAuth callback URL; must match the GitHub App
+	AdminSyncToken      string // Bearer token for /admin/* endpoints
 
-	// Admin
-	AdminSyncToken string // Bearer token for /admin/* endpoints
+	// GitHub App (plan D5) — separate from the OAuth App above. Installation
+	// token drives server-side crawling/reads; the user-to-server token
+	// drives fork/push/PR. All empty means the App isn't configured yet and
+	// those code paths stay disabled, falling back to the OAuth App/PAT.
+	GitHubAppID             string
+	GitHubAppClientID       string
+	GitHubAppClientSecret   string
+	GitHubAppPrivateKeyPath string
+	GitHubAppCallbackURL    string
 
-	// Sync coordinator
-	WorkerCount         int // Routine sync goroutines (default: 4)
-	PriorityWorkerCount int // Priority sync goroutines (default: 2)
-	OnDemandWorkerCount int // On-demand goroutines (default: 8)
-	SyncIntervalSecs    int // Seconds between routine sync ticks (default: 900)
-	SyncdURL            string // URL to Go syncd service (default: http://syncd:8002)
-
-	// Rate Limiting (Requests per hour)
-	UnauthRateLimit int // GitHub-style unauthenticated hourly limit (default: 60)
-	AuthRateLimit   int // Authenticated user hourly limit (default: 1000)
-
-	// Kaggle ETL (used by Python ingestion pipeline only)
-	KaggleUsername     string
-	KaggleKey          string
-	MaxRepositories    int
-	MinStars           int
+	// TokenEncryptionKey is the AES-256 key (derived via SHA-256 from
+	// TOKEN_ENCRYPTION_KEY, so operators can set any length secret) used to
+	// encrypt users.github_access_token at rest. Losing or rotating it
+	// without migrating existing rows makes stored tokens undecryptable —
+	// callers treat that as "no token", not a crash.
+	TokenEncryptionKey []byte
 }
 
-// Load reads and validates all configuration from environment variables.
-// It returns an error if any required variable is missing or malformed.
+// Load reads and validates configuration from the environment.
 func Load() (*Config, error) {
 	cfg := &Config{
-		Port:                intEnv("PORT", 8000),
-		GitHubGraphQLURL:    strEnv("GITHUB_GRAPHQL_URL", "https://api.github.com/graphql"),
-		FrontendURL:         strEnv("FRONTEND_URL", "http://localhost:5173"),
-		GitHubRedirectURI:   strEnv("GITHUB_REDIRECT_URI", "http://localhost:8000/auth/github/callback"),
-		WorkerCount:         intEnv("WORKER_COUNT", 4),
-		PriorityWorkerCount: intEnv("PRIORITY_WORKER_COUNT", 2),
-		OnDemandWorkerCount: intEnv("ON_DEMAND_WORKER_COUNT", 8),
-		SyncIntervalSecs:    intEnv("SYNC_INTERVAL_SECONDS", 900),
-		SyncdURL:            strEnv("SYNCD_URL", "http://syncd:8002"),
-		MaxRepositories:     intEnv("MAX_REPOSITORIES", 500),
-		MinStars:            intEnv("MIN_STARS", 50),
-		UnauthRateLimit:     intEnv("UNAUTH_RATE_LIMIT", 180),
-		AuthRateLimit:       intEnv("AUTH_RATE_LIMIT", 1000),
-		KaggleUsername:      strEnv("KAGGLE_USERNAME", ""),
-		KaggleKey:           strEnv("KAGGLE_KEY", ""),
+		Port:              intEnv("PORT", 8000),
+		GitHubGraphQLURL:  strEnv("GITHUB_GRAPHQL_URL", "https://api.github.com/graphql"),
+		FrontendURL:       strEnv("FRONTEND_URL", "http://localhost:5173"),
+		GitHubRedirectURI: strEnv("GITHUB_REDIRECT_URI", "http://localhost:8000/auth/github/callback"),
+		SyncdURL:          strEnv("SYNCD_URL", "http://ingestd:8002"),
+		RedisURL:          strEnv("REDIS_URL", "redis://localhost:6379/0"),
+		TrustedProxies:    strListEnv("TRUSTED_PROXIES", []string{"127.0.0.1/32", "::1/128"}),
+		DBMaxConns:        intEnv("DB_MAX_CONNS", 0),
 	}
 
-	// Required variables
 	var missing []string
 
 	cfg.DatabaseURL = cleanToken(os.Getenv("DATABASE_URL"))
@@ -82,21 +99,32 @@ func Load() (*Config, error) {
 		missing = append(missing, "DATABASE_URL")
 	}
 
-	cfg.RedisURL = strEnv("REDIS_URL", "redis://localhost:6379/0")
-
 	cfg.GitHubToken = cleanToken(os.Getenv("GITHUB_TOKEN"))
 	cfg.GitHubWebhookSecret = strEnv("GITHUB_WEBHOOK_SECRET", "dev_local_webhook_secret")
 	cfg.GitHubClientID = cleanToken(os.Getenv("GITHUB_CLIENT_ID"))
 	cfg.GitHubClientSecret = cleanToken(os.Getenv("GITHUB_CLIENT_SECRET"))
 	cfg.AdminSyncToken = strEnv("ADMIN_SYNC_TOKEN", "dev_local_admin_sync_token")
 
-	// In strict production mode, verify they are explicitly configured
+	cfg.GitHubAppID = cleanToken(os.Getenv("GITHUB_APP_ID"))
+	cfg.GitHubAppClientID = cleanToken(os.Getenv("GITHUB_APP_CLIENT_ID"))
+	cfg.GitHubAppClientSecret = cleanToken(os.Getenv("GITHUB_APP_CLIENT_SECRET"))
+	cfg.GitHubAppPrivateKeyPath = cleanToken(os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH"))
+	cfg.GitHubAppCallbackURL = strEnv("GITHUB_APP_CALLBACK_URL", "http://localhost:8000/auth/github-app/callback")
+
+	tokenEncryptionSecret := strEnv("TOKEN_ENCRYPTION_KEY", "dev_local_token_encryption_key")
+	keyHash := sha256.Sum256([]byte(tokenEncryptionSecret))
+	cfg.TokenEncryptionKey = keyHash[:]
+
+	// Refuse to start in production on the development placeholder secrets.
 	if os.Getenv("ENV") == "production" {
 		if cfg.GitHubWebhookSecret == "dev_local_webhook_secret" {
 			missing = append(missing, "GITHUB_WEBHOOK_SECRET")
 		}
 		if cfg.AdminSyncToken == "dev_local_admin_sync_token" {
 			missing = append(missing, "ADMIN_SYNC_TOKEN")
+		}
+		if tokenEncryptionSecret == "dev_local_token_encryption_key" {
+			missing = append(missing, "TOKEN_ENCRYPTION_KEY")
 		}
 	}
 
@@ -118,6 +146,23 @@ func strEnv(key, fallback string) string {
 	return fallback
 }
 
+func strListEnv(key string, fallback []string) []string {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	var out []string
+	for _, part := range strings.Split(v, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	if len(out) == 0 {
+		return fallback
+	}
+	return out
+}
+
 func intEnv(key string, fallback int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
@@ -125,16 +170,4 @@ func intEnv(key string, fallback int) int {
 		}
 	}
 	return fallback
-}
-
-func boolEnv(key string, fallback bool) bool {
-	v := os.Getenv(key)
-	if v == "" {
-		return fallback
-	}
-	b, err := strconv.ParseBool(v)
-	if err != nil {
-		return fallback
-	}
-	return b
 }

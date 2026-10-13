@@ -52,15 +52,15 @@ Before you start wrestling with code, make sure you have:
 
 ```text
 SkillIssues/
-├── backend/          # Pure Go microservices (API gateway, syncd, worker, ETL)
-│   ├── cmd/          # Entrypoints: /api, /syncd, /worker, /kaggle_etl, /healthcheck
+├── backend/          # Go services (API gateway, ingestion engine, migrations)
+│   ├── cmd/          # Entrypoints: /api, /ingestd, /migrate, /healthcheck
 │   └── internal/     # Core domain packages: auth, db, issue search, progression, etc.
 ├── web/              # React 18 + Vite + TypeScript dashboard
 │   └── src/          # Components, styles, 3D landing hero, and catalog views
 ├── desktop/          # Electron companion app (native frameless window + Git engine)
 ├── database/         # PostgreSQL schema and numbered migrations (001 -> 006)
 ├── data/             # Datasets & offline metadata archives
-├── k8s/              # Production Kubernetes manifests (api, syncd, worker, web)
+├── k8s/              # Production Kubernetes manifests (api, ingestd, web)
 ├── compose.yaml      # Docker Compose stack for local development
 ├── ARCHITECTURE.md   # System deep-dive and component diagrams
 └── CONTRIBUTING.md   # You are here!
@@ -99,7 +99,7 @@ Everything will be live at:
 
 To tail service logs in real time:
 ```bash
-docker compose logs -f go-api syncd
+docker compose logs -f go-api ingestd
 ```
 
 ---
@@ -185,7 +185,7 @@ We like [Conventional Commits](https://www.conventionalcommits.org/) because the
 - `feat(search): add category accordion counts`
 - `fix(electron): handle dynamic default branch checkout`
 - `docs: update quickstart instructions`
-- `perf(syncd): optimize worker queue drainage`
+- `perf(ingestd): optimize worker queue drainage`
 
 ---
 
@@ -223,9 +223,15 @@ We like [Conventional Commits](https://www.conventionalcommits.org/) because the
 - **Never block the UI**: Stream Git operations asynchronously so the window never stutters or freezes during large repository clones.
 
 ### Database & Migrations
-- **Never rewrite history**: Existing migrations in `database/migrations/` are frozen in time.
-- **Always pair migrations**: When adding new schema changes, add both `<num>_<name>.up.sql` and `<num>_<name>.down.sql`.
+- **Where they live**: `backend/internal/migrate/migrations/`, embedded into the binaries with
+  `go:embed`. This is the single source of truth for the schema — there is no separate
+  `schema.sql`.
+- **Never rewrite history**: Once a migration has been applied anywhere, treat it as frozen.
+  Add a new one instead.
+- **Use goose annotations**: Each file carries `-- +goose Up` and `-- +goose Down` sections.
 - **Be idempotent**: Use `IF NOT EXISTS` where appropriate.
+- **Applying them**: `go run ./cmd/migrate`, or the `migrate` service that Docker Compose runs
+  to completion before `go-api` and `ingestd` start.
 
 ---
 

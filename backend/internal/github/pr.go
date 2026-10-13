@@ -37,12 +37,12 @@ func NewClient(graphqlURL string) *Client {
 
 // PullRequestInfo contains PR metadata retrieved from GitHub GraphQL.
 type PullRequestInfo struct {
-	Number      int       `json:"number"`
-	State       string    `json:"state"` // OPEN, CLOSED, MERGED
-	Merged      bool      `json:"merged"`
+	Number      int        `json:"number"`
+	State       string     `json:"state"` // OPEN, CLOSED, MERGED
+	Merged      bool       `json:"merged"`
 	MergedAt    *time.Time `json:"merged_at,omitempty"`
-	AuthorLogin string    `json:"author_login"`
-	HeadRefName string    `json:"head_ref_name"`
+	AuthorLogin string     `json:"author_login"`
+	HeadRefName string     `json:"head_ref_name"`
 }
 
 type graphQLRequest struct {
@@ -128,11 +128,11 @@ func (c *Client) GetPullRequest(ctx context.Context, token, owner, name string, 
 		Data struct {
 			Repository *struct {
 				PullRequest *struct {
-					Number      int        `json:"number"`
-					State       string     `json:"state"`
-					Merged      bool       `json:"merged"`
-					MergedAt    *time.Time `json:"mergedAt"`
-					Author      *struct {
+					Number   int        `json:"number"`
+					State    string     `json:"state"`
+					Merged   bool       `json:"merged"`
+					MergedAt *time.Time `json:"mergedAt"`
+					Author   *struct {
 						Login string `json:"login"`
 					} `json:"author"`
 					HeadRefName string `json:"headRefName"`

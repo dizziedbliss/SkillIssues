@@ -12,15 +12,16 @@ import (
 
 // Issue represents an open-source challenge issue joined with repository metadata.
 type Issue struct {
-	ID                    int      `json:"id"`
-	GitHubID              int64    `json:"github_id"`
-	Number                int      `json:"number"`
-	Title                 string   `json:"title"`
-	Body                  string   `json:"body"`
-	URL                   string   `json:"url"`
-	State                 string   `json:"state"`
-	UpdatedAt             string   `json:"updated_at"`
-	DifficultyScore       int      `json:"difficulty_score"`
+	ID        int    `json:"id"`
+	GitHubID  int64  `json:"github_id"`
+	Number    int    `json:"number"`
+	Title     string `json:"title"`
+	URL       string `json:"url"`
+	State     string `json:"state"`
+	UpdatedAt string `json:"updated_at"`
+	// DifficultyScore is nil for UNCLASSIFIED issues (D6) — never defaulted
+	// to a number that would imply BEGINNER or any other difficulty.
+	DifficultyScore       *int     `json:"difficulty_score"`
 	Difficulty            string   `json:"difficulty"`
 	RequiredSkills        []string `json:"required_skills"`
 	Technologies          []string `json:"technologies"`
@@ -52,15 +53,43 @@ type Filters struct {
 // Service manages issue queries and bookmarks.
 type Service struct {
 	db *db.Pool
+
+	// perCategoryCap is read per query so the search shape can be retuned on a
+	// running system. It is a narrow function rather than a config object so the
+	// dependency is explicit and trivial to stub in tests.
+	perCategoryCap func() int
 }
 
-// New creates a new issue Service.
-func New(db *db.Pool) *Service {
-	return &Service{db: db}
+// New creates a new issue Service. perCategoryCap may be nil, in which case a
+// conservative built-in cap applies.
+func New(db *db.Pool, perCategoryCap func() int) *Service {
+	if perCategoryCap == nil {
+		perCategoryCap = func() int { return defaultPerCategoryCap }
+	}
+	return &Service{db: db, perCategoryCap: perCategoryCap}
 }
 
+// defaultPerCategoryCap is the fallback when no provider is supplied.
+const defaultPerCategoryCap = 25
+
+// categoryCap clamps the configured cap into a sane range. The database
+// validates bounds too, but a nil or corrupt snapshot must never produce a
+// query that returns nothing or scans everything.
+func (s *Service) categoryCap() int {
+	n := s.perCategoryCap()
+	if n < 1 {
+		return 1
+	}
+	if n > 1000 {
+		return 1000
+	}
+	return n
+}
+
+// No i.body here — D17 removed it from everything but the bounded
+// issue_body_cache LRU (see internal/issue/body.go), which this doesn't read.
 const baseIssueSelect = `
-	SELECT i.id, COALESCE(i.github_id, 0), i.number, i.title, COALESCE(i.body, ''),
+	SELECT i.id, COALESCE(i.github_id, 0), i.number, i.title,
 	       i.url, i.state, i.updated_at::text,
 	       i.difficulty_score, i.difficulty,
 	       COALESCE(i.required_skills, '{}'),
@@ -76,7 +105,7 @@ const baseIssueSelect = `
 func scanIssue(rows pgx.Rows) (Issue, error) {
 	var it Issue
 	err := rows.Scan(
-		&it.ID, &it.GitHubID, &it.Number, &it.Title, &it.Body,
+		&it.ID, &it.GitHubID, &it.Number, &it.Title,
 		&it.URL, &it.State, &it.UpdatedAt,
 		&it.DifficultyScore, &it.Difficulty,
 		&it.RequiredSkills, &it.Technologies, &it.LearningTags,
@@ -90,7 +119,7 @@ func scanIssue(rows pgx.Rows) (Issue, error) {
 func scanIssueWithCategory(rows pgx.Rows) (Issue, error) {
 	var it Issue
 	err := rows.Scan(
-		&it.ID, &it.GitHubID, &it.Number, &it.Title, &it.Body,
+		&it.ID, &it.GitHubID, &it.Number, &it.Title,
 		&it.URL, &it.State, &it.UpdatedAt,
 		&it.DifficultyScore, &it.Difficulty,
 		&it.RequiredSkills, &it.Technologies, &it.LearningTags,
@@ -144,9 +173,14 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 		args = append(args, term, sRaw)
 		argIdx += 2
 
+		// D12: Postgres FTS (title + labels, via the search_vector trigger —
+		// there's no body to search, D17) replaces title ILIKE for the Title
+		// category, and pg_trgm-backed ILIKE replaces it for Repository/
+		// Author fuzzy matching. The Description category is gone entirely —
+		// 4 categories remain (Repository, Title, Language, Author).
 		searchQuery := fmt.Sprintf(`
 			WITH ranked_matches AS (
-				SELECT i.id, COALESCE(i.github_id, 0) AS github_id, i.number, i.title, COALESCE(i.body, '') AS body,
+				SELECT i.id, COALESCE(i.github_id, 0) AS github_id, i.number, i.title,
 				       i.url AS issue_url, i.state, i.updated_at::text AS updated_at_text,
 				       i.difficulty_score, i.difficulty,
 				       COALESCE(i.required_skills, '{}') AS req_skills,
@@ -157,26 +191,26 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 				       COALESCE(r.language, '') AS repo_lang, r.stars, COALESCE(r.license, '') AS repo_license,
 				       CASE
 				           WHEN lower(r.full_name) ILIKE $%d THEN 'Repository'
-				           WHEN lower(i.title) ILIKE $%d THEN 'Title'
+				           WHEN i.search_vector @@ websearch_to_tsquery('english', $%d) THEN 'Title'
 				           WHEN lower(COALESCE(r.language, '')) = lower($%d)
 				                OR lower(COALESCE(r.language, '')) ILIKE $%d
 				                OR $%d = ANY(i.technologies)
 				                OR $%d = ANY(i.learning_tags)
 				                OR $%d = ANY(i.required_skills) THEN 'Language'
 				           WHEN lower(COALESCE(i.author, split_part(r.full_name, '/', 1))) ILIKE $%d THEN 'Author'
-				           ELSE 'Description'
+				           ELSE 'Repository'
 				       END AS match_cat,
 				       ROW_NUMBER() OVER (
 				           PARTITION BY CASE
 				               WHEN lower(r.full_name) ILIKE $%d THEN 'Repository'
-				               WHEN lower(i.title) ILIKE $%d THEN 'Title'
+				               WHEN i.search_vector @@ websearch_to_tsquery('english', $%d) THEN 'Title'
 				               WHEN lower(COALESCE(r.language, '')) = lower($%d)
 				                    OR lower(COALESCE(r.language, '')) ILIKE $%d
 				                    OR $%d = ANY(i.technologies)
 				                    OR $%d = ANY(i.learning_tags)
 				                    OR $%d = ANY(i.required_skills) THEN 'Language'
 				               WHEN lower(COALESCE(i.author, split_part(r.full_name, '/', 1))) ILIKE $%d THEN 'Author'
-				               ELSE 'Description'
+				               ELSE 'Repository'
 				           END
 				           ORDER BY
 				               CASE
@@ -188,23 +222,25 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 				                   ELSE 4
 				               END ASC,
 				               r.stars DESC,
-				               i.difficulty_score ASC,
+				               i.difficulty_score ASC NULLS LAST,
 				               i.updated_at DESC
 				       ) as cat_rank
 				FROM issues i
 				JOIN repositories r ON r.id = i.repository_id
 				WHERE i.state = 'OPEN' AND (
-				    i.title ILIKE $%d OR i.body ILIKE $%d OR r.full_name ILIKE $%d OR r.language ILIKE $%d
+				    r.full_name ILIKE $%d
+				    OR i.search_vector @@ websearch_to_tsquery('english', $%d)
+				    OR r.language ILIKE $%d
 				    OR $%d = ANY(i.technologies) OR $%d = ANY(i.learning_tags) OR $%d = ANY(i.required_skills)
 				    OR i.author ILIKE $%d
 				) %s %s
 			)
-			SELECT id, github_id, number, title, body, issue_url, state, updated_at_text,
+			SELECT id, github_id, number, title, issue_url, state, updated_at_text,
 			       difficulty_score, difficulty, req_skills, techs, tags,
 			       comments, author_name, full_name, repo_url, repo_desc, repo_lang, stars, repo_license,
 			       match_cat
 			FROM ranked_matches
-			WHERE cat_rank <= 25
+			WHERE cat_rank <= $%d
 			ORDER BY
 			    cat_rank ASC,
 			    CASE match_cat
@@ -216,14 +252,14 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 			    END ASC
 			LIMIT $%d OFFSET $%d
 		`,
-			tIdx, tIdx, sIdx, tIdx, sIdx, sIdx, sIdx, tIdx,
-			tIdx, tIdx, sIdx, tIdx, sIdx, sIdx, sIdx, tIdx,
+			tIdx, sIdx, sIdx, tIdx, sIdx, sIdx, sIdx, tIdx,
+			tIdx, sIdx, sIdx, tIdx, sIdx, sIdx, sIdx, tIdx,
 			sIdx, sIdx, sIdx, sIdx, sIdx,
-			tIdx, tIdx, tIdx, tIdx, sIdx, sIdx, sIdx, tIdx,
+			tIdx, sIdx, tIdx, sIdx, sIdx, sIdx, tIdx,
 			diffClause, langClause,
-			argIdx, argIdx+1)
+			argIdx, argIdx+1, argIdx+2)
 
-		args = append(args, limit, offset)
+		args = append(args, s.categoryCap(), limit, offset)
 
 		var all []Issue
 		err := s.db.QueryRows(ctx, searchQuery, args, func(rows pgx.Rows) error {
@@ -312,6 +348,23 @@ func (s *Service) GetIssue(ctx context.Context, id int) (*Issue, error) {
 		return nil, db.ErrNotFound
 	}
 	return found, nil
+}
+
+// GetRepositoryID returns the internal repository id an issue belongs to,
+// for enqueueing a targeted resync (D16) without exposing that id in the
+// public Issue JSON.
+func (s *Service) GetRepositoryID(ctx context.Context, issueID int) (int, error) {
+	var repoID int
+	err := s.db.QueryRow(ctx, "SELECT repository_id FROM issues WHERE id = $1", []any{issueID}, func(row pgx.Row) error {
+		return row.Scan(&repoID)
+	})
+	if err != nil {
+		return 0, fmt.Errorf("issue: get repository id: %w", err)
+	}
+	if repoID == 0 {
+		return 0, db.ErrNotFound
+	}
+	return repoID, nil
 }
 
 // GetSavedIssues returns all bookmarked issues for a developer.

@@ -34,10 +34,12 @@ type PoolStats struct {
 	ActiveWorkers int64  `json:"active_workers"`
 }
 
-// Pool manages a fixed set of goroutines consuming from a bounded job channel.
+// Pool consumes from a bounded job channel, running jobs under a resizable
+// concurrency limit. Concurrency is a number rather than a goroutine count so
+// it can be changed on a running system.
 type Pool struct {
 	name          string
-	concurrency   int
+	limiter       *Limiter
 	queueCap      int
 	jobs          chan Job
 	ctx           context.Context
@@ -62,25 +64,36 @@ func NewPool(name string, concurrency int, queueCap int) *Pool {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Pool{
-		name:        name,
-		concurrency: concurrency,
-		queueCap:    queueCap,
-		jobs:        make(chan Job, queueCap),
-		ctx:         ctx,
-		cancel:      cancel,
+		name:     name,
+		limiter:  NewLimiter(concurrency),
+		queueCap: queueCap,
+		jobs:     make(chan Job, queueCap),
+		ctx:      ctx,
+		cancel:   cancel,
 	}
 
-	for i := 0; i < concurrency; i++ {
-		p.wg.Add(1)
-		go p.worker(i)
-	}
+	p.wg.Add(1)
+	go p.dispatch()
 
 	slog.Info("worker pool started", "name", name, "concurrency", concurrency, "queue_cap", queueCap)
 	return p
 }
 
-// worker is the worker goroutine loop.
-func (p *Pool) worker(id int) {
+// SetConcurrency changes the in-flight ceiling. Jobs already running are left
+// alone; the new limit applies to subsequent acquisitions.
+func (p *Pool) SetConcurrency(n int) {
+	if n < 1 {
+		n = 1
+	}
+	if p.limiter.Limit() == n {
+		return
+	}
+	p.limiter.SetLimit(n)
+	slog.Info("worker pool concurrency changed", "name", p.name, "concurrency", n)
+}
+
+// dispatch pulls jobs and starts each one once the limiter grants a slot.
+func (p *Pool) dispatch() {
 	defer p.wg.Done()
 
 	for {
@@ -91,9 +104,19 @@ func (p *Pool) worker(id int) {
 			if !ok {
 				return
 			}
-			p.activeWorkers.Add(1)
-			p.runJob(job)
-			p.activeWorkers.Add(-1)
+			if err := p.limiter.Acquire(p.ctx); err != nil {
+				return
+			}
+
+			p.wg.Add(1)
+			go func(job Job) {
+				defer p.wg.Done()
+				defer p.limiter.Release()
+
+				p.activeWorkers.Add(1)
+				p.runJob(job)
+				p.activeWorkers.Add(-1)
+			}(job)
 		}
 	}
 }
@@ -190,7 +213,7 @@ func (p *Pool) Shutdown(timeout time.Duration) error {
 func (p *Pool) Stats() PoolStats {
 	return PoolStats{
 		Name:          p.name,
-		Concurrency:   p.concurrency,
+		Concurrency:   p.limiter.Limit(),
 		QueueCapacity: p.queueCap,
 		QueueLength:   len(p.jobs),
 		JobsSubmitted: p.submitted.Load(),

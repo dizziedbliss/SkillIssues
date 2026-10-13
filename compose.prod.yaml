@@ -1,0 +1,232 @@
+name: skillissues-prod
+
+# Production deploy for the VPS. Every service pulls a pre-built image from
+# GHCR — nothing here has a `build:` stanza, because the VPS should never
+# compile Go or run npm. Images are published by .github/workflows/deploy.yml.
+#
+# IMAGE_TAG should always be an explicit sha-<short> tag in a real deploy
+# (never `latest` — that exists only for convenience, e.g. `docker pull` to
+# inspect the newest image). The deploy job always passes one explicitly;
+# the `latest` fallback below exists only so this file is runnable by hand
+# while testing.
+#
+# Sized for the provisioned host: Debian 13, 2 vCPU, 4 GB RAM, 40 GB disk.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+networks:
+  default:
+    name: skillissues_prod_net
+    ipam:
+      config:
+        # Fixed subnet so TRUSTED_PROXIES below is a real value, not a
+        # guess — Docker's default bridge gets a subnet assigned at
+        # creation time that this file can't know in advance.
+        - subnet: 172.28.0.0/24
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    shm_size: ${PG_SHM_SIZE:-256mb}
+    mem_limit: ${PG_MEM_LIMIT:-1536m}
+    cpus: ${PG_CPUS:-1.0}
+    logging: *default-logging
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-skillissues}
+      POSTGRES_USER: ${POSTGRES_USER:-skillissues}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in production}
+    # Tuned for 4GB/2vCPU. shared_buffers + effective_cache_size are sized
+    # to leave headroom for Redis, go-api, ingestd and Caddy on the same
+    # host; max_connections=60 covers api(15) + ingestd(10) + migrate +
+    # each service's settings-reload LISTEN connection, with room to spare
+    # over the 42-connection worst case measured against the old
+    # max_connections=40.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-768MB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-1536MB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-8MB}
+      - -c
+      - max_connections=${PG_MAX_CONNECTIONS:-60}
+      - -c
+      - max_parallel_workers_per_gather=${PG_MAX_PARALLEL_WORKERS_PER_GATHER:-1}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-skillissues} -d ${POSTGRES_DB:-skillissues}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Rate-limit counters and cached responses only; sessions resolve from
+  # Postgres, so an empty Redis on restart costs latency, never correctness.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: ${REDIS_MEM_LIMIT:-320m}
+    cpus: ${REDIS_CPUS:-0.25}
+    logging: *default-logging
+    command:
+      - redis-server
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-256mb}
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    image: ghcr.io/dizziedbliss/skillissues-migrate:${IMAGE_TAG:-latest}
+    mem_limit: ${MIGRATE_MEM_LIMIT:-256m}
+    cpus: ${MIGRATE_CPUS:-0.5}
+    logging: *default-logging
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-skillissues}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  go-api:
+    image: ghcr.io/dizziedbliss/skillissues-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    mem_limit: ${API_MEM_LIMIT:-384m}
+    cpus: ${API_CPUS:-0.5}
+    logging: *default-logging
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-skillissues}
+      DB_MAX_CONNS: ${API_DB_MAX_CONNS:-15}
+      REDIS_URL: redis://redis:6379/0
+      # https:// is mandatory here, not cosmetic: the session cookie is
+      # only marked Secure when FRONTEND_URL starts with https://, and
+      # same-origin (API under /api/ on this same host) is what makes
+      # the OAuth login flow work without any cross-origin cookie dance.
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL must be the production https:// origin, e.g. https://skillissues.dizziedbliss.lol}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:?GITHUB_REDIRECT_URI must be https://<domain>/api/auth/github/callback}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:?GITHUB_WEBHOOK_SECRET must be set in production}
+      ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:?ADMIN_SYNC_TOKEN must be set in production}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?TOKEN_ENCRYPTION_KEY must be set in production — see DEPLOYMENT.md before rotating it}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_CLIENT_ID: ${GITHUB_APP_CLIENT_ID:-}
+      GITHUB_APP_CLIENT_SECRET: ${GITHUB_APP_CLIENT_SECRET:-}
+      GITHUB_APP_CALLBACK_URL: ${GITHUB_APP_CALLBACK_URL:-}
+      GITHUB_APP_PRIVATE_KEY_PATH: /run/secrets/github-app-private-key.pem
+      SYNCD_URL: http://ingestd:8002
+      # Caddy is the only other container that talks to go-api, and it
+      # always comes from this network — so this is a real, exact value,
+      # not a guess at "whatever the proxy's IP turns out to be".
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-172.28.0.0/24}
+      ENV: production
+      PORT: 8000
+    # No published port: Caddy is the only ingress. go-api is reachable by
+    # other containers on skillissues_prod_net only.
+    volumes:
+      - ${GITHUB_APP_PRIVATE_KEY_HOST_PATH:-/dev/null}:/run/secrets/github-app-private-key.pem:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+
+  ingestd:
+    image: ghcr.io/dizziedbliss/skillissues-ingestd:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    mem_limit: ${INGESTD_MEM_LIMIT:-512m}
+    cpus: ${INGESTD_CPUS:-0.75}
+    logging: *default-logging
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-skillissues}
+      DB_MAX_CONNS: ${INGESTD_DB_MAX_CONNS:-10}
+      REDIS_URL: redis://redis:6379/0
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:?GITHUB_WEBHOOK_SECRET must be set in production}
+      ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:?ADMIN_SYNC_TOKEN must be set in production}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?TOKEN_ENCRYPTION_KEY must be set in production}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_CLIENT_ID: ${GITHUB_APP_CLIENT_ID:-}
+      GITHUB_APP_CLIENT_SECRET: ${GITHUB_APP_CLIENT_SECRET:-}
+      GITHUB_APP_CALLBACK_URL: ${GITHUB_APP_CALLBACK_URL:-}
+      GITHUB_APP_PRIVATE_KEY_PATH: /run/secrets/github-app-private-key.pem
+      SYNCD_PORT: 8002
+      ENV: production
+      PORT: 8002
+    # Internal only. ingestd's /sync/* endpoints have no auth of their own,
+    # so they must never be reachable from outside skillissues_prod_net.
+    volumes:
+      - ${GITHUB_APP_PRIVATE_KEY_HOST_PATH:-/dev/null}:/run/secrets/github-app-private-key.pem:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+
+  frontend:
+    image: ghcr.io/dizziedbliss/skillissues-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    mem_limit: ${FRONTEND_MEM_LIMIT:-128m}
+    cpus: ${FRONTEND_CPUS:-0.25}
+    logging: *default-logging
+    # No published port: Caddy proxies to it over skillissues_prod_net.
+    depends_on:
+      go-api:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    mem_limit: ${CADDY_MEM_LIMIT:-128m}
+    cpus: ${CADDY_CPUS:-0.25}
+    logging: *default-logging
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN must be set, e.g. skillissues.dizziedbliss.lol}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_started
+      go-api:
+        condition: service_healthy
+
+volumes:
+  postgres_prod_data:
+  caddy_data:
+  caddy_config:

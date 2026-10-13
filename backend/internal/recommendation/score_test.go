@@ -21,7 +21,7 @@ func TestScoreCandidates(t *testing.T) {
 			ID:              1,
 			Repository:      "golang/go",
 			Language:        "Go",
-			DifficultyScore: 3,
+			DifficultyScore: intPtr(3),
 			RequiredSkills:  []string{"Go"},
 			Technologies:    []string{"Go"},
 			LearningTags:    []string{"APIs"},
@@ -31,7 +31,7 @@ func TestScoreCandidates(t *testing.T) {
 			ID:              2,
 			Repository:      "vuejs/vue",
 			Language:        "JavaScript",
-			DifficultyScore: 3,
+			DifficultyScore: intPtr(3),
 			RequiredSkills:  []string{"JavaScript"},
 			Technologies:    []string{"JavaScript"},
 			LearningTags:    []string{"UI"},
@@ -58,3 +58,5 @@ func TestScoreCandidates(t *testing.T) {
 		t.Fatal("expected why_recommended tags to be populated")
 	}
 }
+
+func intPtr(n int) *int { return &n }

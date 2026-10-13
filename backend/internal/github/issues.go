@@ -21,13 +21,17 @@ type GraphQLRateLimit struct {
 }
 
 // GraphQLIssueNode represents an individual GitHub issue item.
+//
+// There is no Body field: D17 removes issue bodies from the ingest query
+// entirely (they're ~92% of the payload and no ingestion-time hot path
+// needs them — see internal/ingest for the on-demand read path instead).
 type GraphQLIssueNode struct {
 	DatabaseID    int64     `json:"database_id"`
 	Number        int       `json:"number"`
 	Title         string    `json:"title"`
-	Body          string    `json:"body"`
 	URL           string    `json:"url"`
 	State         string    `json:"state"`
+	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 	AuthorLogin   string    `json:"author_login"`
 	CommentsCount int       `json:"comments_count"`
@@ -43,20 +47,20 @@ type RepositoryIssuesPage struct {
 	RateLimit      GraphQLRateLimit   `json:"rate_limit"`
 }
 
-const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: String!, $after: String, $since: DateTime) {
+const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: String!, $after: String, $since: DateTime, $first: Int!) {
     repository(owner: $owner, name: $name) {
-        issues(first: 50, after: $after, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}, filterBy: {since: $since}) {
+        issues(first: $first, after: $after, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}, filterBy: {since: $since}) {
             nodes {
                 databaseId
                 number
                 title
-                body
                 url
                 state
+                createdAt
                 updatedAt
                 author { login }
                 comments { totalCount }
-                labels(first: 10) { nodes { name } }
+                labels(first: 20) { nodes { name } }
             }
             pageInfo { hasNextPage endCursor }
         }
@@ -66,10 +70,20 @@ const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: St
 }`
 
 // FetchRepositoryIssues queries the GitHub GraphQL API for open issues in a repository.
-func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name string, after *string, since *time.Time) (*RepositoryIssuesPage, error) {
+func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name string, after *string, since *time.Time, pageSize int) (*RepositoryIssuesPage, error) {
+	// GitHub rejects anything outside 1..100, and an oversized page also raises
+	// the chance of the query exceeding the 10s limit.
+	if pageSize < 1 {
+		pageSize = 1
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
 	variables := map[string]any{
 		"owner": owner,
 		"name":  name,
+		"first": pageSize,
 	}
 	if after != nil && *after != "" {
 		variables["after"] = *after
@@ -128,9 +142,9 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 						DatabaseID int64  `json:"databaseId"`
 						Number     int    `json:"number"`
 						Title      string `json:"title"`
-						Body       string `json:"body"`
 						URL        string `json:"url"`
 						State      string `json:"state"`
+						CreatedAt  string `json:"createdAt"`
 						UpdatedAt  string `json:"updatedAt"`
 						Author     *struct {
 							Login string `json:"login"`
@@ -185,6 +199,7 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 
 	var issues []GraphQLIssueNode
 	for _, n := range rawResponse.Data.Repository.Issues.Nodes {
+		createdAt, _ := time.Parse(time.RFC3339, n.CreatedAt)
 		updatedAt, _ := time.Parse(time.RFC3339, n.UpdatedAt)
 		author := ""
 		if n.Author != nil {
@@ -201,9 +216,9 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 			DatabaseID:    n.DatabaseID,
 			Number:        n.Number,
 			Title:         n.Title,
-			Body:          n.Body,
 			URL:           n.URL,
 			State:         strings.ToUpper(n.State),
+			CreatedAt:     createdAt,
 			UpdatedAt:     updatedAt,
 			AuthorLogin:   author,
 			CommentsCount: n.Comments.TotalCount,

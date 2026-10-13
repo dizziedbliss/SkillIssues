@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	hotIssuesKey   = "issues:hot"
+	hotIssuesKey    = "issues:hot"
 	searchKeyPrefix = "issues:search:"
 )
 

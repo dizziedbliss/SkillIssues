@@ -20,30 +20,157 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dizziedbliss/skillissues/internal/cache"
+	"github.com/dizziedbliss/skillissues/internal/crypto"
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/githubapp"
 	"github.com/jackc/pgx/v5"
 )
 
-// SessionDuration is how long a session stays valid after creation.
+// refreshMargin is how much life a GitHub App user token must have left
+// before GetAccessToken proactively refreshes it, so a caller never
+// receives a token that expires mid-request.
+const refreshMargin = 2 * time.Minute
+
+// SessionDuration is the built-in session lifetime, used when no provider is
+// configured via SetSessionTTL.
 const SessionDuration = 7 * 24 * time.Hour
+
+// SetSessionTTL installs a provider for the session lifetime so it can be
+// retuned without a restart. Safe to call only during startup wiring.
+func (s *Service) SetSessionTTL(ttl func() time.Duration) {
+	if ttl != nil {
+		s.sessionTTL = ttl
+	}
+}
+
+// ttl resolves the configured session lifetime, falling back to the built-in
+// value if a provider yields something nonsensical.
+func (s *Service) ttl() time.Duration {
+	if s.sessionTTL == nil {
+		return SessionDuration
+	}
+	if d := s.sessionTTL(); d > 0 {
+		return d
+	}
+	return SessionDuration
+}
 
 // ErrUnauthorized is returned when a session token is invalid or expired.
 var ErrUnauthorized = errors.New("auth: unauthorized")
 
 // Service handles session lifecycle and authentication.
 type Service struct {
-	db    *db.Pool
-	cache *cache.Client
+	db *db.Pool
+
+	// sessionTTL is read when a session is created. Changing it affects newly
+	// issued sessions only; existing ones keep the expiry they were given.
+	sessionTTL func() time.Duration
+
+	// tokenCipher encrypts/decrypts github_access_token before it reaches
+	// Postgres. Nil only in tests that don't set it, in which case tokens
+	// pass through unencrypted.
+	tokenCipher *crypto.Cipher
+
+	// githubApp refreshes GitHub-App-issued user tokens before they expire.
+	// Nil when the GitHub App isn't configured, in which case stored tokens
+	// are assumed to be classic OAuth App tokens, which don't expire.
+	githubApp *githubapp.App
 }
 
-// New creates an auth.Service.
-func New(db *db.Pool, cacheClient ...*cache.Client) *Service {
-	s := &Service{db: db}
-	if len(cacheClient) > 0 {
-		s.cache = cacheClient[0]
+// New creates an auth.Service. Auth has no Redis dependency (D11) — it
+// never touched the cache field for anything but sessions, which now go
+// straight to Postgres.
+func New(db *db.Pool) *Service {
+	return &Service{db: db, sessionTTL: func() time.Duration { return SessionDuration }}
+}
+
+// SetTokenCipher installs the cipher used to encrypt/decrypt stored GitHub
+// access tokens. Safe to call only during startup wiring.
+func (s *Service) SetTokenCipher(c *crypto.Cipher) {
+	s.tokenCipher = c
+}
+
+// SetGitHubApp installs the GitHub App used to refresh expiring
+// user-to-server tokens. Safe to call only during startup wiring.
+func (s *Service) SetGitHubApp(app *githubapp.App) {
+	s.githubApp = app
+}
+
+// DecryptAccessToken reverses the encryption UpsertUser applies. It returns
+// "" (never an error) if the value can't be decrypted — e.g. it predates
+// encryption or the key has changed — rather than ever handing back
+// ciphertext as if it were a usable token.
+func (s *Service) DecryptAccessToken(encrypted string) string {
+	if encrypted == "" || s.tokenCipher == nil {
+		return encrypted
 	}
-	return s
+	plain, err := s.tokenCipher.Decrypt(encrypted)
+	if err != nil {
+		return ""
+	}
+	return plain
+}
+
+// GetAccessToken fetches and decrypts a user's stored GitHub token, if any.
+// If it's a GitHub-App-issued token nearing or past its 8-hour expiry, this
+// refreshes it first via the stored refresh token and persists the result —
+// callers never receive a token that's about to stop working mid-request.
+// A failed refresh returns "" rather than a stale token, same as "no token":
+// the caller's existing "connect GitHub" error path handles it.
+func (s *Service) GetAccessToken(ctx context.Context, userID int) (string, error) {
+	var encToken, encRefresh string
+	var expiresAt *time.Time
+	err := s.db.QueryRow(ctx,
+		`SELECT COALESCE(github_access_token, ''), COALESCE(github_refresh_token, ''), github_token_expires_at
+		 FROM users WHERE id = $1`,
+		[]any{userID},
+		func(row pgx.Row) error { return row.Scan(&encToken, &encRefresh, &expiresAt) },
+	)
+	if err != nil {
+		return "", err
+	}
+
+	if expiresAt == nil || time.Until(*expiresAt) > refreshMargin || encRefresh == "" || s.githubApp == nil {
+		return s.DecryptAccessToken(encToken), nil
+	}
+
+	refreshToken := s.DecryptAccessToken(encRefresh)
+	if refreshToken == "" {
+		return "", nil
+	}
+	fresh, err := s.githubApp.RefreshUserToken(ctx, refreshToken)
+	if err != nil {
+		return "", nil
+	}
+	if err := s.storeUserToken(ctx, userID, fresh); err != nil {
+		return "", nil
+	}
+	return fresh.AccessToken, nil
+}
+
+// storeUserToken encrypts and persists a GitHub App user token (access
+// token, refresh token, expiry) for userID.
+func (s *Service) storeUserToken(ctx context.Context, userID int, tok *githubapp.UserToken) error {
+	encToken, err := s.encryptToken(tok.AccessToken)
+	if err != nil {
+		return err
+	}
+	encRefresh, err := s.encryptToken(tok.RefreshToken)
+	if err != nil {
+		return err
+	}
+	return s.db.Exec(ctx,
+		`UPDATE users SET github_access_token = $1, github_refresh_token = $2, github_token_expires_at = $3
+		 WHERE id = $4`,
+		encToken, encRefresh, tok.ExpiresAt, userID,
+	)
+}
+
+func (s *Service) encryptToken(plain string) (string, error) {
+	if plain == "" || s.tokenCipher == nil {
+		return plain, nil
+	}
+	return s.tokenCipher.Encrypt(plain)
 }
 
 // ---------------------------------------------------------------------------
@@ -64,14 +191,10 @@ func (s *Service) CreateSession(ctx context.Context, userID int, provider string
 		`INSERT INTO auth_sessions (token, user_id, provider, expires_at)
 		 VALUES ($1, $2, $3, $4)
 		 ON CONFLICT (token) DO NOTHING`,
-		hashed, userID, provider, time.Now().Add(SessionDuration),
+		hashed, userID, provider, time.Now().Add(s.ttl()),
 	)
 	if err != nil {
 		return "", fmt.Errorf("auth: store session: %w", err)
-	}
-
-	if s.cache != nil {
-		s.cache.SetSession(ctx, hashed, userID, SessionDuration)
 	}
 
 	return raw, nil
@@ -79,15 +202,12 @@ func (s *Service) CreateSession(ctx context.Context, userID int, provider string
 
 // ValidateSession looks up a raw session token and returns the owning user ID.
 // Returns ErrUnauthorized if the token is missing, expired, or invalid.
+//
+// Goes straight to Postgres (D11) — a lookup on a hashed-token primary key
+// is already fast, and this is what makes "sessions survive a Redis
+// outage" structural rather than accidental: auth touches Redis zero times.
 func (s *Service) ValidateSession(ctx context.Context, rawToken string) (int, error) {
 	hashed := hashToken(rawToken)
-
-	// Redis Fast Path (< 1ms)
-	if s.cache != nil {
-		if cachedUID := s.cache.GetSession(ctx, hashed); cachedUID > 0 {
-			return cachedUID, nil
-		}
-	}
 
 	var userID int
 	err := s.db.QueryRow(ctx,
@@ -105,19 +225,12 @@ func (s *Service) ValidateSession(ctx context.Context, rawToken string) (int, er
 		return 0, fmt.Errorf("auth: validate session: %w", err)
 	}
 
-	if s.cache != nil {
-		s.cache.SetSession(ctx, hashed, userID, SessionDuration)
-	}
-
 	return userID, nil
 }
 
 // DeleteSession invalidates a single session (logout).
 func (s *Service) DeleteSession(ctx context.Context, rawToken string) error {
 	hashed := hashToken(rawToken)
-	if s.cache != nil {
-		s.cache.DeleteSession(ctx, hashed)
-	}
 	return s.db.Exec(ctx,
 		`DELETE FROM auth_sessions WHERE token = $1`,
 		hashed,
@@ -130,12 +243,6 @@ func (s *Service) DeleteAllSessions(ctx context.Context, userID int) error {
 		`DELETE FROM auth_sessions WHERE user_id = $1`,
 		userID,
 	)
-}
-
-// HashedToken returns the stored (hashed) form of a raw token.
-// Exported for use by the cache layer which keys on the hashed form.
-func HashedToken(rawToken string) string {
-	return hashToken(rawToken)
 }
 
 // ---------------------------------------------------------------------------
@@ -193,6 +300,16 @@ func VerifyWebhookSignature(secret, body []byte, sigHeader string) bool {
 // Returns the database user ID.
 func (s *Service) UpsertUser(ctx context.Context, githubID, username, avatarURL, accessToken string) (int, error) {
 	var userID int
+
+	// Encrypt before it ever reaches a query: github_access_token in Postgres
+	// must never hold a usable plaintext token.
+	if s.tokenCipher != nil && accessToken != "" {
+		encrypted, err := s.tokenCipher.Encrypt(accessToken)
+		if err != nil {
+			return 0, fmt.Errorf("auth: encrypt access token: %w", err)
+		}
+		accessToken = encrypted
+	}
 
 	// First, attempt to match an existing user record by GitHub ID or case-insensitive username
 	var existingID int
@@ -255,5 +372,19 @@ func (s *Service) UpsertUser(ctx context.Context, githubID, username, avatarURL,
 		userID,
 	)
 
+	return userID, nil
+}
+
+// UpsertUserWithAppToken is UpsertUser for the GitHub App login flow: it
+// additionally persists the refresh token and expiry a user-to-server token
+// carries, so GetAccessToken can refresh it before it expires.
+func (s *Service) UpsertUserWithAppToken(ctx context.Context, githubID, username, avatarURL string, tok *githubapp.UserToken) (int, error) {
+	userID, err := s.UpsertUser(ctx, githubID, username, avatarURL, tok.AccessToken)
+	if err != nil {
+		return 0, err
+	}
+	if err := s.storeUserToken(ctx, userID, tok); err != nil {
+		return 0, fmt.Errorf("auth: store app token: %w", err)
+	}
 	return userID, nil
 }

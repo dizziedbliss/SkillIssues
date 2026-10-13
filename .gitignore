@@ -1,13 +1,22 @@
 *.tsbuildinfo
-.env
+*.env
 node_modules/
 dist/
+desktop/out/
 .vscode/
 .DS_Store
 data/
 prompt.txt
 *.log
 .skillissues/
+
+# Key material must never land in the repo. Deployment keys and the GitHub App
+# private key live outside the project, in ~/.secrets.
+*.pem
+*.key
+*_host_key*
+id_ed25519*
+id_rsa*
 
 # Go build artifacts
 backend/bin/
@@ -17,11 +26,9 @@ backend/testdata/
 # Compiled binary outputs in cmd directories
 backend/cmd/api/api
 backend/cmd/api/api.exe
-backend/cmd/syncd/syncd
-backend/cmd/syncd/syncd.exe
-backend/cmd/worker/worker
-backend/cmd/worker/worker.exe
-backend/cmd/kaggle_etl/kaggle_etl
-backend/cmd/kaggle_etl/kaggle_etl.exe
+backend/cmd/ingestd/ingestd
+backend/cmd/ingestd/ingestd.exe
+backend/cmd/migrate/migrate
+backend/cmd/migrate/migrate.exe
 backend/cmd/healthcheck/healthcheck
 backend/cmd/healthcheck/healthcheck.exe

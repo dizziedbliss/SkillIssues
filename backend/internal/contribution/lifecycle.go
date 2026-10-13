@@ -10,10 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/dizziedbliss/skillissues/internal/cache"
+	"github.com/dizziedbliss/skillissues/internal/crypto"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/github"
-	"github.com/jackc/pgx/v5"
 )
 
 // ContributionState represents the state of a contribution.
@@ -54,7 +56,6 @@ type ContributionDetail struct {
 	MergedAt       string   `json:"merged_at"`
 	Title          string   `json:"title"`
 	Number         int      `json:"number"`
-	Body           string   `json:"body,omitempty"`
 	Difficulty     string   `json:"difficulty"`
 	IssueURL       string   `json:"issue_url"`
 	RequiredSkills []string `json:"required_skills"`
@@ -70,15 +71,60 @@ type Service struct {
 	db       *db.Pool
 	cache    *cache.Client
 	ghClient *github.Client
+
+	// verifyQuota bounds PR verification attempts. Read per call so the limit
+	// can be tightened on a running system if it is being abused.
+	verifyQuota func() int
+
+	// tokenCipher decrypts users.github_access_token, which auth.Service
+	// encrypts before storing. Nil only in tests that don't set it.
+	tokenCipher *crypto.Cipher
 }
 
-// New creates a new contribution Service.
-func New(db *db.Pool, cache *cache.Client, ghClient *github.Client) *Service {
-	return &Service{
-		db:       db,
-		cache:    cache,
-		ghClient: ghClient,
+// SetTokenCipher installs the cipher used to decrypt stored GitHub access
+// tokens. Safe to call only during startup wiring.
+func (s *Service) SetTokenCipher(c *crypto.Cipher) {
+	s.tokenCipher = c
+}
+
+// decryptToken returns "" if the value can't be decrypted rather than ever
+// treating ciphertext as a usable token.
+func (s *Service) decryptToken(encrypted string) string {
+	if encrypted == "" || s.tokenCipher == nil {
+		return encrypted
 	}
+	plain, err := s.tokenCipher.Decrypt(encrypted)
+	if err != nil {
+		return ""
+	}
+	return plain
+}
+
+// New creates a new contribution Service. verifyQuota may be nil, in which case
+// a built-in limit applies.
+func New(db *db.Pool, cache *cache.Client, ghClient *github.Client, verifyQuota func() int) *Service {
+	if verifyQuota == nil {
+		verifyQuota = func() int { return defaultVerifyQuota }
+	}
+	return &Service{
+		db:          db,
+		cache:       cache,
+		ghClient:    ghClient,
+		verifyQuota: verifyQuota,
+	}
+}
+
+// defaultVerifyQuota is the fallback hourly verification limit.
+const defaultVerifyQuota = 5
+
+// verifyAttemptsPerHour clamps the configured quota so a bad snapshot can never
+// disable the anti-abuse limit entirely.
+func (s *Service) verifyAttemptsPerHour() int64 {
+	n := s.verifyQuota()
+	if n < 1 {
+		return 1
+	}
+	return int64(n)
 }
 
 // StartContribution creates or touches a contribution record in STARTED state.
@@ -152,7 +198,7 @@ func (s *Service) GetWorking(ctx context.Context, userID int) ([]ContributionDet
 	query := `
 		SELECT c.id, c.user_id, c.issue_id, COALESCE(c.pr_url, ''), COALESCE(c.pr_number, 0),
 		       c.state, c.created_at::text, c.updated_at::text, COALESCE(c.merged_at::text, ''),
-		       i.title, i.number, COALESCE(i.body, ''), i.difficulty, i.url AS issue_url,
+		       i.title, i.number, i.difficulty, i.url AS issue_url,
 		       COALESCE(i.required_skills, '{}'), COALESCE(i.technologies, '{}'),
 		       r.full_name AS repository, r.url AS repository_url, COALESCE(r.language, '')
 		FROM contributions c
@@ -167,7 +213,7 @@ func (s *Service) GetWorking(ctx context.Context, userID int) ([]ContributionDet
 		if err := rows.Scan(
 			&item.ID, &item.UserID, &item.IssueID, &item.PRURL, &item.PRNumber,
 			&item.State, &item.CreatedAt, &item.UpdatedAt, &item.MergedAt,
-			&item.Title, &item.Number, &item.Body, &item.Difficulty, &item.IssueURL,
+			&item.Title, &item.Number, &item.Difficulty, &item.IssueURL,
 			&item.RequiredSkills, &item.Technologies,
 			&item.Repository, &item.RepositoryURL, &item.Language,
 		); err != nil {
@@ -233,6 +279,7 @@ func (s *Service) AttachPR(ctx context.Context, userID, contribID int, prURL str
 	if err != nil {
 		return nil, db.ErrNotFound
 	}
+	userToken = s.decryptToken(userToken)
 
 	// Case-insensitive repository match
 	if strings.ToLower(fmt.Sprintf("%s/%s", owner, repo)) != strings.ToLower(expectedRepo) {

@@ -28,9 +28,9 @@ type GitHubConfig struct {
 
 // GitHubUser holds the data returned from GitHub for the authenticated user.
 type GitHubUser struct {
-	GitHubID   string // numeric database ID, stored as TEXT in users
-	Username   string
-	AvatarURL  string
+	GitHubID  string // numeric database ID, stored as TEXT in users
+	Username  string
+	AvatarURL string
 }
 
 // GitHubOAuth handles GitHub OAuth PKCE flow.

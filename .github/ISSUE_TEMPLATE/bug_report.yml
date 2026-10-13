@@ -55,8 +55,8 @@ body:
       options:
         - Desktop App (Electron)
         - Web App (React / Vite)
-        - Backend API (Go / Chi)
-        - Sync Coordinator (syncd / worker)
+        - Backend API (Go)
+        - Ingestion engine (ingestd)
         - Database / Migrations
         - Docker Compose / Kubernetes
         - Documentation
@@ -70,8 +70,8 @@ body:
       description: OS version, Docker version, Node/Go version, browser, etc.
       placeholder: |
         - OS: Windows 11 / macOS Sonoma / Ubuntu 24.04
-        - Node.js: v20.x
-        - Go: 1.23
+        - Node.js: v22.x
+        - Go: 1.26
         - Docker: 24.x
     validations:
       required: true
