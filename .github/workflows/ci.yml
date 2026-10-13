@@ -1,13 +1,17 @@
-name: CI Quality and Build Verification
+name: CI
 
 on:
   push:
-    branches: [ main, ship, refactor ]
+    branches: [ '**' ]
   pull_request:
     branches: [ main, ship ]
+  # Lets deploy.yml depend on this workflow directly (needs: ci-job-names)
+  # rather than reacting via workflow_run, which runs against the default
+  # branch and makes ref handling error-prone.
+  workflow_call: {}
 
 jobs:
-  go-test:
+  backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,12 +24,20 @@ jobs:
         run: |
           cd backend
           go vet ./...
+      - name: gofmt
+        run: |
+          cd backend
+          test -z "$(gofmt -l .)" || { echo "gofmt drift in:"; gofmt -l .; exit 1; }
+      - name: Go build
+        run: |
+          cd backend
+          go build ./...
       - name: Go test (unit, no integration)
         run: |
           cd backend
-          go test -v -short ./...
+          go test -short ./...
 
-  lint-and-syntax:
+  web:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,22 +45,87 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install and Check Frontend
+      - name: Install
         run: |
           cd web
           npm ci
-          npx tsc --noEmit
-      - name: Install and Check Electron
+      - name: Typecheck
         run: |
-          cd desktop
-          npm ci
-          npm run check
+          cd web
+          npm run typecheck
+      - name: Build
+        # The real build, not just tsc --noEmit: this is what actually
+        # catches a broken packages/markdown import, since typecheck alone
+        # does not exercise Vite's module resolution the same way.
+        run: |
+          cd web
+          npm run build
 
-  docker-build:
+  desktop:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate Docker Compose Configuration
-        run: docker compose config --quiet
-      - name: Build service images
-        run: docker compose build
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install
+        run: |
+          cd desktop
+          npm ci
+      - name: Check
+        run: |
+          cd desktop
+          npm run check
+      - name: Build
+        # electron-vite build is what actually catches the renderer's
+        # packages/markdown import breaking — npm run check (tsc --noEmit)
+        # does not cover src/renderer/app.js, which is plain JS.
+        run: |
+          cd desktop
+          npm run build
+
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Docker Compose configuration (dev + prod)
+        run: |
+          docker compose -f compose.yaml config --quiet
+          docker compose -f docker-compose.prod.yml config --quiet
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build api target
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: api
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build ingestd target
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ingestd
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build migrate target
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: migrate
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build web target
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: web
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VITE_API_URL=/api
