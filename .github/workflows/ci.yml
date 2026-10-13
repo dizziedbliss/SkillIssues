@@ -46,9 +46,14 @@ jobs:
         with:
           node-version: '22'
       - name: Install
+        # packages/markdown is imported directly from source (not an npm
+        # workspace member), so its own dependencies — markdown-it,
+        # dompurify — need their own install. web/package.json declaring
+        # them is not enough: TS/Vite module resolution walks up from the
+        # importing file's own directory, not web's.
         run: |
-          cd web
-          npm ci
+          cd packages/markdown && npm ci
+          cd ../../web && npm ci
       - name: Typecheck
         run: |
           cd web
@@ -70,9 +75,10 @@ jobs:
         with:
           node-version: '22'
       - name: Install
+        # Same reason as the web job's install step above.
         run: |
-          cd desktop
-          npm ci
+          cd packages/markdown && npm ci
+          cd ../../desktop && npm ci
       - name: Check
         run: |
           cd desktop
