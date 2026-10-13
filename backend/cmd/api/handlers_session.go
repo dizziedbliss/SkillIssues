@@ -40,15 +40,22 @@ func (h *handlers) authLogout(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondJSON(w, http.StatusOK, map[string]bool{"logged_out": true})
 }
 
-// authPurge handles POST /auth/purge
+// authPurge handles POST /auth/purge. auth_sessions.user_id cascades on
+// users.id (00001_initial_schema.sql), so deleting the user row alone is
+// atomic and complete — no separate DeleteAllSessions call, and no
+// transaction needed for a single statement. A failed delete must be
+// reported: a client that believes the account is gone while it still
+// exists server-side is worse than a visible error (CLAUDE.md).
 func (h *handlers) authPurge(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.resolveSession(r)
 	if err != nil {
 		middleware.RespondError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-	_ = h.authSvc.DeleteAllSessions(r.Context(), userID)
-	_ = h.db.Exec(r.Context(), `DELETE FROM users WHERE id = $1`, userID)
+	if err := h.db.Exec(r.Context(), `DELETE FROM users WHERE id = $1`, userID); err != nil {
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to delete account")
+		return
+	}
 	h.clearSessionCookie(w)
 	middleware.RespondJSON(w, http.StatusOK, map[string]bool{"purged": true})
 }

@@ -1,0 +1,8 @@
+{
+  "name": "@skillissues/api-client",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Typed client for the SkillIssues API, shared by web and desktop. One place for the Issue/Contribution/Profile types, status+detail error typing, AbortController support, and the ETag/localStorage revalidation that used to be duplicated (and drifting) in both renderers.",
+  "type": "module",
+  "main": "src/index.ts"
+}

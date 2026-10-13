@@ -46,14 +46,18 @@ jobs:
         with:
           node-version: '22'
       - name: Install
-        # packages/markdown is imported directly from source (not an npm
-        # workspace member), so its own dependencies — markdown-it,
-        # dompurify — need their own install. web/package.json declaring
-        # them is not enough: TS/Vite module resolution walks up from the
-        # importing file's own directory, not web's.
+        # web, desktop and packages/* are one npm workspace (root
+        # package.json) — a single install at the root resolves
+        # @skillissues/markdown, @skillissues/api-client and
+        # @skillissues/ui as real node_modules symlinks. Node 22's bundled
+        # npm (10.9.x) has a known bug where `npm ci` hard-fails on an
+        # unrelated optionalDependency's platform mismatch instead of
+        # skipping it, once enough workspace members (desktop's
+        # electron-builder) pull in enough platform-specific optional
+        # deps — same fix as the root Dockerfile.
         run: |
-          cd packages/markdown && npm ci
-          cd ../../web && npm ci
+          npm install -g npm@11
+          npm ci
       - name: Typecheck
         run: |
           cd web
@@ -77,8 +81,8 @@ jobs:
       - name: Install
         # Same reason as the web job's install step above.
         run: |
-          cd packages/markdown && npm ci
-          cd ../../desktop && npm ci
+          npm install -g npm@11
+          npm ci
       - name: Check
         run: |
           cd desktop
