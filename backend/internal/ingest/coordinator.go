@@ -45,6 +45,12 @@ type Coordinator struct {
 	// which must not run on every 5s claim cycle.
 	lastEligibilityCheck time.Time
 
+	// dbSizePaused and lastDBSizeMB back Status()/the D6 disk guardrail —
+	// pg_database_size() is cheap (metadata lookup, not a scan), so it's
+	// checked every cycle rather than throttled like eligibility.
+	dbSizePaused bool
+	lastDBSizeMB int64
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -120,6 +126,14 @@ func (c *Coordinator) cycle() {
 	//    what the next two steps are even allowed to look at.
 	c.recheckEligibility(snap)
 
+	// D6 disk guardrail: once the database itself has grown past the
+	// configured ceiling, stop enqueuing and claiming entirely — new work
+	// only adds rows, and existing "running" jobs still get to finish their
+	// current page rather than being killed mid-write.
+	if !c.checkDiskGuard(snap) {
+		return
+	}
+
 	// 2. Repositories that have never been ingested.
 	if n, err := EnqueueInitialJobs(c.ctx, c.pool, batch); err != nil {
 		slog.Warn("failed to enqueue initial jobs", "error", err)
@@ -163,6 +177,32 @@ func (c *Coordinator) recheckEligibility(snap *settings.Snapshot) {
 	}
 }
 
+// checkDiskGuard returns true if the coordinator should proceed with
+// enqueuing/claiming this cycle, false if ingest.max_db_size_mb is exceeded
+// and new work must pause. Logs loudly on each transition, not every cycle,
+// so a sustained pause doesn't spam the log at claimInterval.
+func (c *Coordinator) checkDiskGuard(snap *settings.Snapshot) bool {
+	maxMB := snap.Int(settings.IngestMaxDBSizeMB)
+
+	sizeMB, err := CurrentDBSizeMB(c.ctx, c.pool)
+	if err != nil {
+		slog.Warn("failed to check database size for disk guardrail, proceeding", "error", err)
+		return true
+	}
+	c.lastDBSizeMB = sizeMB
+
+	exceeded := maxMB > 0 && sizeMB > int64(maxMB)
+	if exceeded && !c.dbSizePaused {
+		slog.Warn("database size exceeds ingest.max_db_size_mb — pausing new ingestion work",
+			"db_size_mb", sizeMB, "max_db_size_mb", maxMB)
+	} else if !exceeded && c.dbSizePaused {
+		slog.Info("database size back under ingest.max_db_size_mb — resuming ingestion work",
+			"db_size_mb", sizeMB, "max_db_size_mb", maxMB)
+	}
+	c.dbSizePaused = exceeded
+	return !exceeded
+}
+
 func (c *Coordinator) claimAndSubmit(jobType JobType, pool *worker.Pool) {
 	stats := pool.Stats()
 	capacity := stats.QueueCapacity - stats.QueueLength
@@ -193,8 +233,10 @@ func (c *Coordinator) claimAndSubmit(jobType JobType, pool *worker.Pool) {
 // Status returns coordinator operational telemetry.
 func (c *Coordinator) Status() map[string]any {
 	return map[string]any{
-		"initial_pool": c.initialPool.Stats(),
-		"deep_pool":    c.deepPool.Stats(),
+		"initial_pool":   c.initialPool.Stats(),
+		"deep_pool":      c.deepPool.Stats(),
+		"db_size_mb":     c.lastDBSizeMB,
+		"db_size_paused": c.dbSizePaused,
 	}
 }
 

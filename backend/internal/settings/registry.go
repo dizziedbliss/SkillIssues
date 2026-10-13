@@ -66,6 +66,19 @@ const (
 	// metadata is re-tested against the current eligibility thresholds, so
 	// changing a threshold takes effect without a re-import or a restart.
 	IngestEligibilityRecheckSeconds Key = "ingest.eligibility.recheck_seconds"
+
+	// IngestMaxPagesPerRepo caps how many pages the Deep Diver will fetch for
+	// a single repository before the job is marked done instead of
+	// requeued, regardless of GitHub's hasNextPage. 0 means unlimited. This
+	// bounds how much of the 40GB disk one mega-repository's issue tracker
+	// can consume.
+	IngestMaxPagesPerRepo Key = "ingest.max_pages_per_repo"
+	// IngestMaxDBSizeMB is the ceiling on pg_database_size() above which the
+	// coordinator stops enqueuing and claiming new ingestion work entirely —
+	// a global guardrail on top of the per-repository one above. 0 means
+	// unlimited. Checked against Postgres itself rather than container free
+	// space, since ingestd cannot see the postgres volume.
+	IngestMaxDBSizeMB Key = "ingest.max_db_size_mb"
 )
 
 // Kind is the value type a key accepts.
@@ -133,6 +146,14 @@ var Registry = map[Key]Spec{
 	IngestFreshnessIntervalSeconds:  intSpec(86400, 300, 2592000, "How old a repository's last successful sync must be before its first issue page is re-fetched."),
 	IngestEnqueueBatchSize:          intSpec(500, 1, 50000, "Jobs enqueued per coordinator cycle, for both new-repository seeding and freshness re-queues."),
 	IngestEligibilityRecheckSeconds: intSpec(3600, 60, 86400, "How often stored repository metadata is re-tested against the current eligibility thresholds."),
+
+	// D6 disk guardrails. Defaults are sized for the 40GB VPS target: at the
+	// measured ~0.79 KB/row, 100 pages per repo (at up to 100 issues/page)
+	// bounds any single repository to ~10,000 issues, and 30000 MB leaves
+	// ~10GB of the 40GB disk for WAL, vacuum headroom, images and the OS —
+	// both 0 (unlimited) remain valid, explicit opt-outs.
+	IngestMaxPagesPerRepo: intSpec(100, 0, 100000, "Pages the Deep Diver will fetch for one repository before stopping, regardless of hasNextPage. 0 disables the cap."),
+	IngestMaxDBSizeMB:     intSpec(30000, 0, 1000000, "pg_database_size() ceiling above which the coordinator stops enqueuing and claiming new ingestion work. 0 disables the cap."),
 }
 
 // Snapshot is an immutable view of the settings. Readers hold one for the
