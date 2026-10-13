@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "SkillIssues desktop contribution workspace",
   "author": "SkillIssues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dizziedbliss/SkillIssues.git"
+  },
   "private": true,
   "main": "out/main/index.js",
   "scripts": {
@@ -20,6 +24,7 @@
     "productName": "SkillIssues",
     "icon": "icon.png",
     "asar": true,
+    "publish": null,
     "files": [
       "out/**/*",
       "icon.png",
