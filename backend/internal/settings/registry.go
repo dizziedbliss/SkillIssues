@@ -79,6 +79,11 @@ const (
 	// unlimited. Checked against Postgres itself rather than container free
 	// space, since ingestd cannot see the postgres volume.
 	IngestMaxDBSizeMB Key = "ingest.max_db_size_mb"
+
+	// AuthPATLoginEnabled gates POST /auth/github/token. Default false:
+	// OAuth is the only login path both clients expose; the PAT endpoint
+	// stays registered server-side but 404s unless explicitly turned on.
+	AuthPATLoginEnabled Key = "auth.pat_login_enabled"
 )
 
 // Kind is the value type a key accepts.
@@ -107,6 +112,10 @@ func intSpec(def, min, max int, desc string) Spec {
 		Min: float64(min), Max: float64(max), Bounded: true,
 		Description: desc,
 	}
+}
+
+func boolSpec(def bool, desc string) Spec {
+	return Spec{Kind: KindBool, Default: def, Description: desc}
 }
 
 // Registry is the complete set of live-reloadable keys. Adding one here without
@@ -154,6 +163,8 @@ var Registry = map[Key]Spec{
 	// both 0 (unlimited) remain valid, explicit opt-outs.
 	IngestMaxPagesPerRepo: intSpec(100, 0, 100000, "Pages the Deep Diver will fetch for one repository before stopping, regardless of hasNextPage. 0 disables the cap."),
 	IngestMaxDBSizeMB:     intSpec(30000, 0, 1000000, "pg_database_size() ceiling above which the coordinator stops enqueuing and claiming new ingestion work. 0 disables the cap."),
+
+	AuthPATLoginEnabled: boolSpec(false, "Whether POST /auth/github/token is reachable. Both clients only offer OAuth; this stays off unless explicitly turned on."),
 }
 
 // Snapshot is an immutable view of the settings. Readers hold one for the

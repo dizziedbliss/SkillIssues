@@ -35,9 +35,21 @@ type Config struct {
 	// Postgres max_connections ceiling).
 	DBMaxConns int
 
-	// FrontendURL drives CORS and decides whether session cookies are marked
-	// Secure, so it is fixed at startup rather than reloadable.
+	// FrontendURL drives CORS — it may be a comma-separated list of allowed
+	// origins — and is fixed at startup rather than reloadable.
 	FrontendURL string
+
+	// FrontendURLPrimary is FrontendURL's first entry, trimmed. Redirects
+	// (OAuth callbacks) and the cookie Secure/SameSite decision must pick
+	// exactly one origin, never the raw comma-joined value — a browser
+	// rejects a multi-value Location or Access-Control-Allow-Origin.
+	FrontendURLPrimary string
+
+	// SessionCookieDomain optionally sets the session cookie's Domain
+	// attribute, so it is shared across a parent domain (e.g. a web frontend
+	// on one subdomain and the API on another). Empty means "unset" — the
+	// browser defaults to the exact host that set the cookie.
+	SessionCookieDomain string
 
 	// SyncdURL is the ingestion service address used to forward sync requests.
 	SyncdURL string
@@ -82,14 +94,19 @@ type Config struct {
 // Load reads and validates configuration from the environment.
 func Load() (*Config, error) {
 	cfg := &Config{
-		Port:              intEnv("PORT", 8000),
-		GitHubGraphQLURL:  strEnv("GITHUB_GRAPHQL_URL", "https://api.github.com/graphql"),
-		FrontendURL:       strEnv("FRONTEND_URL", "http://localhost:5173"),
-		GitHubRedirectURI: strEnv("GITHUB_REDIRECT_URI", "http://localhost:8000/auth/github/callback"),
-		SyncdURL:          strEnv("SYNCD_URL", "http://ingestd:8002"),
-		RedisURL:          strEnv("REDIS_URL", "redis://localhost:6379/0"),
-		TrustedProxies:    strListEnv("TRUSTED_PROXIES", []string{"127.0.0.1/32", "::1/128"}),
-		DBMaxConns:        intEnv("DB_MAX_CONNS", 0),
+		Port:                intEnv("PORT", 8000),
+		GitHubGraphQLURL:    strEnv("GITHUB_GRAPHQL_URL", "https://api.github.com/graphql"),
+		FrontendURL:         strEnv("FRONTEND_URL", "http://localhost:5173"),
+		GitHubRedirectURI:   strEnv("GITHUB_REDIRECT_URI", "http://localhost:8000/auth/github/callback"),
+		SyncdURL:            strEnv("SYNCD_URL", "http://ingestd:8002"),
+		RedisURL:            strEnv("REDIS_URL", "redis://localhost:6379/0"),
+		TrustedProxies:      strListEnv("TRUSTED_PROXIES", []string{"127.0.0.1/32", "::1/128"}),
+		DBMaxConns:          intEnv("DB_MAX_CONNS", 0),
+		SessionCookieDomain: strEnv("SESSION_COOKIE_DOMAIN", ""),
+	}
+	cfg.FrontendURLPrimary = strings.TrimSpace(strings.SplitN(cfg.FrontendURL, ",", 2)[0])
+	if cfg.FrontendURLPrimary == "" {
+		cfg.FrontendURLPrimary = "http://localhost:5173"
 	}
 
 	var missing []string

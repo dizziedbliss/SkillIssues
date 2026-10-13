@@ -45,10 +45,7 @@ func (h *handlers) authGitHubAppCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	frontendURL := h.cfg.FrontendURL
-	if frontendURL == "" {
-		frontendURL = "http://localhost:5173"
-	}
+	frontendURL := h.cfg.FrontendURLPrimary
 
 	code := r.URL.Query().Get("code")
 	state := r.URL.Query().Get("state")
@@ -79,5 +76,5 @@ func (h *handlers) authGitHubAppCallback(w http.ResponseWriter, r *http.Request)
 	}
 
 	h.setSessionCookie(w, rawToken)
-	http.Redirect(w, r, frontendURL, http.StatusFound)
+	http.Redirect(w, r, frontendURL+"?auth=ok", http.StatusFound)
 }
