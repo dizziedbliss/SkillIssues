@@ -10,6 +10,14 @@ prompt.txt
 *.log
 .skillissues/
 
+# Key material must never land in the repo. Deployment keys and the GitHub App
+# private key live outside the project, in ~/.secrets.
+*.pem
+*.key
+*_host_key*
+id_ed25519*
+id_rsa*
+
 # Go build artifacts
 backend/bin/
 backend/*.exe
