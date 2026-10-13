@@ -899,6 +899,34 @@ ipcMain.handle("workspace:clone", async (_, repositoryUrl) => {
   return { path: target, output: "Repository cloned successfully." };
 });
 
+// shell.openPath never rejects — it resolves with "" on success or an error
+// string — but on WSL/Linux without a file manager registered, the
+// `xdg-open` it shells out to can hang indefinitely without ever resolving.
+// Racing it against a short timeout means the renderer's "Opening..." button
+// always comes back, even when the open can't be confirmed; `confirmed`
+// tells the caller which happened. The real openPath call is left running
+// in the background (and its eventual outcome just logged) rather than
+// abandoned, since it may still succeed moments later.
+const OPEN_PATH_CONFIRM_TIMEOUT_MS = 4000;
+const VSCODE_CANDIDATE_TIMEOUT_MS = 4000;
+
+async function openPathWithConfirmTimeout(target: string): Promise<{ error: string; confirmed: boolean }> {
+  const openPromise = shell.openPath(target);
+  const race = await Promise.race([
+    openPromise.then((error) => ({ timedOut: false as const, error })),
+    new Promise<{ timedOut: true }>((resolve) => setTimeout(() => resolve({ timedOut: true }), OPEN_PATH_CONFIRM_TIMEOUT_MS)),
+  ]);
+  if (race.timedOut) {
+    openPromise
+      .then((error) => {
+        if (error) logRuntimeError("workspace:open (delayed)", new Error(error));
+      })
+      .catch((err) => logRuntimeError("workspace:open (delayed)", err));
+    return { error: "", confirmed: false };
+  }
+  return { error: race.error, confirmed: true };
+}
+
 ipcMain.handle("workspace:open", async (_, workspace) => {
   const root = workspaceRoot();
   let target =
@@ -909,9 +937,9 @@ ipcMain.handle("workspace:open", async (_, workspace) => {
     fs.mkdirSync(target, { recursive: true });
   }
   if (!isWithinRoot(target)) target = root;
-  const error = await shell.openPath(target);
-  if (error) throw new Error(error);
-  return { opened: true, path: target };
+  const { error, confirmed } = await openPathWithConfirmTimeout(target);
+  if (confirmed && error) throw new Error(error);
+  return { opened: true, path: target, confirmed };
 });
 
 ipcMain.handle("workspace:open-vscode", async (_, workspace) => {
@@ -962,29 +990,30 @@ ipcMain.handle("workspace:open-vscode", async (_, workspace) => {
     },
     { bin: "/usr/local/bin/code", options: {} },
     { bin: "/usr/bin/code", options: {} },
-  ];
+  ].filter((candidate) => candidate.bin && (!candidate.bin.includes(path.sep) || fs.existsSync(candidate.bin)));
 
-  for (const candidate of candidates) {
-    if (!candidate.bin) continue;
-    if (candidate.bin.includes(path.sep) && !fs.existsSync(candidate.bin))
-      continue;
-    try {
-      await execFileAsync(candidate.bin, [target], {
-        timeout: 15000,
+  // Probed in parallel, each bounded to VSCODE_CANDIDATE_TIMEOUT_MS, instead
+  // of up to 9 sequential 15s attempts (which could hold "Launching VS
+  // Code..." for over two minutes on a machine missing every candidate).
+  const attempts = await Promise.allSettled(
+    candidates.map((candidate) =>
+      execFileAsync(candidate.bin, [target], {
+        timeout: VSCODE_CANDIDATE_TIMEOUT_MS,
         windowsHide: true,
         ...candidate.options,
-      });
-      return { opened: true, message: `Opened ${target} in VS Code.` };
-    } catch {
-      // Continue to next executable candidate
-    }
+      }),
+    ),
+  );
+  if (attempts.some((attempt) => attempt.status === "fulfilled")) {
+    return { opened: true, message: `Opened ${target} in VS Code.`, confirmed: true };
   }
 
   // Fallback to opening folder in system file explorer if VS Code executable is missing
-  await shell.openPath(target);
+  const { confirmed } = await openPathWithConfirmTimeout(target);
   return {
     opened: true,
     fallback: true,
+    confirmed,
     message: `VS Code binary not found in standard paths. Opened ${target} in File Explorer.`,
   };
 });

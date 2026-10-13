@@ -150,10 +150,22 @@ export class ApiClient {
   // else. It only throws when there is no cache to fall back to, so the
   // caller still has something to show the user (a retry affordance) rather
   // than an unexplained blank list.
-  async getRecommendations(opts?: RequestOptions): Promise<{ data: Issue[]; stale: boolean }> {
+  async getRecommendations(
+    filters: IssueFilters = {},
+    opts?: RequestOptions,
+  ): Promise<{ data: Issue[]; stale: boolean }> {
+    const params = new URLSearchParams();
+    if (filters.limit) params.set("limit", String(filters.limit));
+    if (filters.page) params.set("page", String(filters.page));
+    if (filters.difficulty && filters.difficulty !== "ALL") params.set("difficulty", filters.difficulty);
+    const qs = params.toString();
+    // The ETag cache is a single slot shared across every filter combo, same
+    // as the desktop client it was ported from — switching difficulty/page
+    // just means the stored ETag won't match and the server returns a fresh
+    // 200 instead of a 304, never stale data.
     const cached = loadRecommendationsCache();
     try {
-      const res = await this.raw("/recommendations", {
+      const res = await this.raw(`/recommendations${qs ? `?${qs}` : ""}`, {
         signal: opts?.signal,
         allow304: Boolean(cached),
         returnEtag: true,
