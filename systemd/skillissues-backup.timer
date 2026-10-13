@@ -1,0 +1,13 @@
+# Installed on the VPS alongside skillissues-backup.service.
+# Daily at 03:17 UTC (off the hour, to avoid piling onto other cron noise),
+# with persistence so a dump still runs after the host was off at the
+# scheduled time.
+[Unit]
+Description=Daily SkillIssues database backup
+
+[Timer]
+OnCalendar=*-*-* 03:17:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

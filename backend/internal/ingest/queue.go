@@ -134,7 +134,15 @@ func repoIDs(byID map[int]*Job) []int {
 //
 // If hasNextPage, the job (or a new "deep" job, if this was "initial")
 // goes back to pending with the new cursor. Otherwise it's marked done.
-func CompleteOrRequeue(ctx context.Context, tx pgx.Tx, job Job, newCursor string, hasNextPage bool, pagesDone int) error {
+//
+// maxPages is the disk guardrail (ingest.max_pages_per_repo, D6): once
+// pagesDone reaches it, the job is marked done regardless of what GitHub's
+// hasNextPage actually says, capping how much of the disk one
+// mega-repository's issue tracker can consume. 0 means unlimited.
+func CompleteOrRequeue(ctx context.Context, tx pgx.Tx, job Job, newCursor string, hasNextPage bool, pagesDone int, maxPages int) error {
+	if maxPages > 0 && pagesDone >= maxPages {
+		hasNextPage = false
+	}
 	// "Last successful sync time, separate from the cursor" (ingestion design
 	// §5). Written in the same transaction as the page's rows, so it can
 	// never claim a sync that was rolled back — and it is what

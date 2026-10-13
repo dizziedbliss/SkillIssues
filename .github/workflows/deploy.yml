@@ -109,3 +109,68 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/skillissues-web:${{ steps.tag.outputs.sha_tag }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/skillissues-web:latest
+
+  deploy:
+    needs: [ build-push ]
+    # Runs after a normal build (build-push succeeded) OR on a rollback
+    # dispatch (build-push was skipped because image_tag was supplied).
+    # Either way there must be an image tag to deploy.
+    if: ${{ always() && (needs.build-push.result == 'success' || needs.build-push.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve image tag to deploy
+        id: tag
+        run: |
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            tag="${{ github.event.inputs.image_tag }}"
+          else
+            tag="${{ needs.build-push.outputs.image_tag }}"
+          fi
+          if [ -z "$tag" ]; then
+            echo "no image tag resolved — nothing to deploy" >&2
+            exit 1
+          fi
+          echo "image_tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Set up SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Copy compose file, Caddyfile and deploy script to host
+        env:
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          scp -i ~/.ssh/deploy_key -P "$VPS_SSH_PORT" -o UserKnownHostsFile=~/.ssh/known_hosts \
+            compose.prod.yaml Caddyfile scripts/deploy-remote.sh \
+            "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/"
+
+      # The actual pull/up/health-wait/prune logic lives in
+      # scripts/deploy-remote.sh (committed, tested locally) rather than
+      # inline here — embedding that in an SSH heredoc from inside a GitHub
+      # Actions expression is a quoting nightmare not worth repeating.
+      - name: Run deploy script on host
+        env:
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          IMAGE_TAG: ${{ steps.tag.outputs.image_tag }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$VPS_SSH_PORT" -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "$VPS_USER@$VPS_HOST" \
+            "chmod +x $DEPLOY_PATH/deploy-remote.sh && $DEPLOY_PATH/deploy-remote.sh $IMAGE_TAG"
