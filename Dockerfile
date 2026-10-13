@@ -6,10 +6,11 @@
 # across backend/cmd/*/Dockerfile and web/Dockerfile.prod.
 #
 # Build one target at a time:
-#   docker build --target api      -t skillissues-api      .
-#   docker build --target ingestd  -t skillissues-ingestd  .
-#   docker build --target migrate  -t skillissues-migrate  .
-#   docker build --target web      -t skillissues-web      .
+#   docker build --target api        -t skillissues-api        .
+#   docker build --target ingestd    -t skillissues-ingestd    .
+#   docker build --target migrate    -t skillissues-migrate    .
+#   docker build --target web        -t skillissues-web        .
+#   docker build --target repoimport -t skillissues-repoimport .
 
 # ---------------------------------------------------------------------------
 # Shared Go builder — compiles all three backend binaries plus healthcheck.
@@ -28,7 +29,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-s -w" -o /out/migrate ./cmd/migrate && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -ldflags="-s -w" -o /out/healthcheck ./cmd/healthcheck
+    go build -ldflags="-s -w" -o /out/healthcheck ./cmd/healthcheck && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-s -w" -o /out/repoimport ./cmd/repoimport
 
 # ---------------------------------------------------------------------------
 # api — distroless, nonroot. Published images need their own HEALTHCHECK;
@@ -63,6 +66,23 @@ USER nonroot:nonroot
 ENTRYPOINT ["/migrate"]
 
 # ---------------------------------------------------------------------------
+# repoimport — one-shot, distroless, nonroot. Not part of the running stack
+# and not published by deploy.yml; run by hand against the Kaggle dataset
+# (mount it at /data/repo_metadata.json, or set IMPORT_FILE/--file to
+# another path). Resumable and idempotent — a re-run is how a refreshed
+# dataset or a loosened eligibility threshold lands (see CLAUDE.md).
+# ---------------------------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot AS repoimport
+COPY --from=go-builder /out/repoimport /repoimport
+USER nonroot:nonroot
+# cmd/repoimport's --file/IMPORT_FILE default is the relative path
+# "data/repo_metadata.json" (written for running from backend/ in dev) —
+# WORKDIR / keeps that default resolving to /data/repo_metadata.json,
+# which is where the dataset should be mounted.
+WORKDIR /
+ENTRYPOINT ["/repoimport"]
+
+# ---------------------------------------------------------------------------
 # web — built from the repo root so Vite can resolve the shared
 # ../../packages/markdown import; served by nginx.
 # ---------------------------------------------------------------------------
@@ -94,5 +114,5 @@ COPY --from=web-builder /app/web/dist /usr/share/nginx/html
 COPY web/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 HEALTHCHECK --interval=5s --timeout=3s --retries=10 --start-period=3s \
-    CMD wget -q -O- http://localhost:80/ >/dev/null 2>&1 || exit 1
+    CMD wget -q -O- http://127.0.0.1:80/ >/dev/null 2>&1 || exit 1
 CMD ["nginx", "-g", "daemon off;"]
