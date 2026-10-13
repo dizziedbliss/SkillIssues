@@ -90,9 +90,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate Docker Compose configuration (dev + prod)
+        # compose.prod.yaml requires several secrets to be set (POSTGRES_PASSWORD,
+        # TOKEN_ENCRYPTION_KEY, ...) via `:?` — CI supplies throwaway values just
+        # so `config` can resolve the file; nothing here is a real credential.
         run: |
           docker compose -f compose.yaml config --quiet
-          docker compose -f docker-compose.prod.yml config --quiet
+          POSTGRES_PASSWORD=ci DOMAIN=ci.example.com \
+          FRONTEND_URL=https://ci.example.com \
+          GITHUB_REDIRECT_URI=https://ci.example.com/api/auth/github/callback \
+          GITHUB_WEBHOOK_SECRET=ci ADMIN_SYNC_TOKEN=ci TOKEN_ENCRYPTION_KEY=ci \
+            docker compose -f compose.prod.yaml config --quiet
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Build api target

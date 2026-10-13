@@ -27,6 +27,14 @@ type Config struct {
 	RedisURL    string
 	Port        int
 
+	// DBMaxConns overrides the connection pool's max size (db.DefaultConfig
+	// otherwise defaults to 20). Pool size is fixed at creation, so changing
+	// it needs a restart regardless — it stays a bootstrap env var rather
+	// than a live `settings` row. 0 means "unset"; callers apply their own
+	// per-binary default (api and ingestd size differently against the same
+	// Postgres max_connections ceiling).
+	DBMaxConns int
+
 	// FrontendURL drives CORS and decides whether session cookies are marked
 	// Secure, so it is fixed at startup rather than reloadable.
 	FrontendURL string
@@ -81,6 +89,7 @@ func Load() (*Config, error) {
 		SyncdURL:          strEnv("SYNCD_URL", "http://ingestd:8002"),
 		RedisURL:          strEnv("REDIS_URL", "redis://localhost:6379/0"),
 		TrustedProxies:    strListEnv("TRUSTED_PROXIES", []string{"127.0.0.1/32", "::1/128"}),
+		DBMaxConns:        intEnv("DB_MAX_CONNS", 0),
 	}
 
 	var missing []string

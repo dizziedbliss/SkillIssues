@@ -57,7 +57,16 @@ func main() {
 	)
 
 	// 2. Connect to PostgreSQL
-	pool, err := db.New(ctx, db.DefaultConfig(cfg.DatabaseURL))
+	dbCfg := db.DefaultConfig(cfg.DatabaseURL)
+	if cfg.DBMaxConns > 0 {
+		dbCfg.MaxConns = int32(cfg.DBMaxConns)
+	} else {
+		// Default sized for the 4GB/2vCPU prod target: api + ingestd + the
+		// LISTEN connection each service opens must stay under Postgres's
+		// max_connections (60 in prod) with room for migrate and superuser.
+		dbCfg.MaxConns = 15
+	}
+	pool, err := db.New(ctx, dbCfg)
 	if err != nil {
 		slog.Error("database connection failed", "error", err)
 		os.Exit(1)

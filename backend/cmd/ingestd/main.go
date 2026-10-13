@@ -39,6 +39,14 @@ func main() {
 	defer stop()
 
 	dbCfg := db.DefaultConfig(cfg.DatabaseURL)
+	if cfg.DBMaxConns > 0 {
+		dbCfg.MaxConns = int32(cfg.DBMaxConns)
+	} else {
+		// Default sized for the 4GB/2vCPU prod target, same rationale as
+		// cmd/api — kept smaller here since ingestd's crawl workers are
+		// bound separately by ingest.routine_workers/ingest.priority_workers.
+		dbCfg.MaxConns = 10
+	}
 	var dbPool *db.Pool
 	for attempt := 1; attempt <= 15; attempt++ {
 		dbPool, err = db.New(ctx, dbCfg)
