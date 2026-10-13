@@ -15,44 +15,46 @@ import (
 
 // VerifyResult contains the outcome of a PR verification attempt.
 type VerifyResult struct {
-	Verified       bool                   `json:"verified"`
-	State          string                 `json:"state"`
-	AlreadyAwarded bool                   `json:"already_awarded,omitempty"`
-	EarnedXP       int                    `json:"earned_xp"`
-	TotalXP        int                    `json:"total_xp"`
-	OldLevel       int                    `json:"old_level"`
-	Level          int                    `json:"level"`
-	LevelUp        bool                   `json:"level_up"`
-	UnlockedBadges []string               `json:"unlocked_badges"`
-	AllBadges      []string               `json:"all_badges"`
-	Badges         []string               `json:"badges"`
-	NextLevelXP    int                    `json:"next_level_xp"`
-	ProgressInLvl  int                    `json:"progress_in_level"`
-	ProgressPct    int                    `json:"progress_percent"`
-	Message        string                 `json:"message"`
-	XPInfo         map[string]any         `json:"xp_info,omitempty"`
+	Verified       bool           `json:"verified"`
+	State          string         `json:"state"`
+	AlreadyAwarded bool           `json:"already_awarded,omitempty"`
+	EarnedXP       int            `json:"earned_xp"`
+	TotalXP        int            `json:"total_xp"`
+	OldLevel       int            `json:"old_level"`
+	Level          int            `json:"level"`
+	LevelUp        bool           `json:"level_up"`
+	UnlockedBadges []string       `json:"unlocked_badges"`
+	AllBadges      []string       `json:"all_badges"`
+	Badges         []string       `json:"badges"`
+	NextLevelXP    int            `json:"next_level_xp"`
+	ProgressInLvl  int            `json:"progress_in_level"`
+	ProgressPct    int            `json:"progress_percent"`
+	Message        string         `json:"message"`
+	XPInfo         map[string]any `json:"xp_info,omitempty"`
 }
 
 // VerifyContribution verifies PR merge status on GitHub using GraphQL and awards XP idempotently.
 func (s *Service) VerifyContribution(ctx context.Context, userID, contribID int, fallbackToken string) (*VerifyResult, error) {
-	// 1. Anti-exploit: Redis rate-limiting (max 5 verify attempts per user per contribution per hour)
+	// 1. Anti-exploit: cap verification attempts per user per contribution per hour.
 	if s.cache != nil {
+		quota := s.verifyAttemptsPerHour()
 		rlKey := fmt.Sprintf("verify:%d:%d", userID, contribID)
-		res := s.cache.CheckRateLimit(ctx, rlKey, 5, time.Hour)
+		res := s.cache.CheckRateLimit(ctx, rlKey, quota, time.Hour)
 		if !res.Allowed {
 			return &VerifyResult{
 				Verified: false,
-				Message:  "Rate limit exceeded: maximum 5 verification attempts per hour for this challenge.",
+				Message: fmt.Sprintf(
+					"Rate limit exceeded: maximum %d verification attempts per hour for this challenge.", quota),
 			}, nil
 		}
 	}
 
 	// 2. Fetch contribution and repository info
 	var (
-		cID, issueID, prNum, repoID int
+		cID, issueID, prNum, repoID                   int
 		prURL, state, difficulty, username, userToken string
-		skills, techs []string
-		xpAwarded bool
+		skills, techs                                 []string
+		xpAwarded                                     bool
 	)
 
 	err := s.db.QueryRow(ctx,
@@ -75,6 +77,7 @@ func (s *Service) VerifyContribution(ctx context.Context, userID, contribID int,
 	if err != nil {
 		return nil, db.ErrNotFound
 	}
+	userToken = s.decryptToken(userToken)
 
 	if prURL == "" {
 		return &VerifyResult{
@@ -99,7 +102,7 @@ func (s *Service) VerifyContribution(ctx context.Context, userID, contribID int,
 	if token == "" {
 		token = fallbackToken
 	}
-	if token == "" && username != "alex-dev" {
+	if token == "" {
 		return &VerifyResult{
 			Verified: false,
 			Message:  "Connect GitHub before verifying pull request status.",
@@ -297,13 +300,13 @@ func (s *Service) VerifyContribution(ctx context.Context, userID, contribID int,
 	}
 
 	res.XPInfo = map[string]any{
-		"merged":             true,
-		"earned_xp":          res.EarnedXP,
-		"total_xp":           res.TotalXP,
-		"level":              res.Level,
-		"level_up":           res.LevelUp,
-		"unlocked_badges":    res.UnlockedBadges,
-		"message":            res.Message,
+		"merged":          true,
+		"earned_xp":       res.EarnedXP,
+		"total_xp":        res.TotalXP,
+		"level":           res.Level,
+		"level_up":        res.LevelUp,
+		"unlocked_badges": res.UnlockedBadges,
+		"message":         res.Message,
 	}
 
 	return &res, nil

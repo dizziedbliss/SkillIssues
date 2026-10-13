@@ -17,11 +17,11 @@ func TestPRURLRegex(t *testing.T) {
 	}
 
 	invalid := []string{
-		"http://github.com/a/b/pull/123", // non-https
+		"http://github.com/a/b/pull/123",    // non-https
 		"https://github.com/a/b/issues/123", // issue not pull
-		"https://gitlab.com/a/b/pull/123", // gitlab
-		"https://github.com/a/pull/123", // missing repo
-		"https://github.com/a/b/pull/abc", // non-numeric
+		"https://gitlab.com/a/b/pull/123",   // gitlab
+		"https://github.com/a/pull/123",     // missing repo
+		"https://github.com/a/b/pull/abc",   // non-numeric
 	}
 	for _, u := range invalid {
 		if prURLRegex.MatchString(u) {

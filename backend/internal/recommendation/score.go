@@ -21,7 +21,8 @@ var TargetDifficultyMap = map[string]int{
 // ScoreCandidates ranks candidate issues for a given user profile.
 //
 // Formula:
-//   Score = LangBoost (15) + TechBoost (8) + (SkillMatch * 2) + InterestMatch + DifficultyFit + Quality
+//
+//	Score = LangBoost (15) + TechBoost (8) + (SkillMatch * 2) + InterestMatch + DifficultyFit + Quality
 //
 // Factors:
 //   - LangBoost: +15 if repository primary language matches user's preferred languages
@@ -157,7 +158,10 @@ func ScoreCandidates(u *profile.FullProfile, candidates []issue.Issue, limit int
 		}
 		interestMatch := interestOverlap
 
-		diffScore := item.DifficultyScore
+		diffScore := 0
+		if item.DifficultyScore != nil {
+			diffScore = *item.DifficultyScore
+		}
 		if diffScore <= 0 {
 			diffScore = 1
 		}

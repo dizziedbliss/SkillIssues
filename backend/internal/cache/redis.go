@@ -51,35 +51,6 @@ func (c *Client) Ping(ctx context.Context) error {
 }
 
 // ---------------------------------------------------------------------------
-// Session cache
-// ---------------------------------------------------------------------------
-
-// SetSession caches a validated session token → userID mapping.
-// TTL is set to match the database session expiry time.
-func (c *Client) SetSession(ctx context.Context, hashedToken string, userID int, ttl time.Duration) {
-	key := sessionKey(hashedToken)
-	_ = c.rdb.Set(ctx, key, userID, ttl).Err() // fail silently
-}
-
-// GetSession returns the userID for a hashed session token, or 0 if not cached.
-func (c *Client) GetSession(ctx context.Context, hashedToken string) int {
-	val, err := c.rdb.Get(ctx, sessionKey(hashedToken)).Int()
-	if err != nil {
-		return 0 // cache miss or Redis down — caller falls back to DB
-	}
-	return val
-}
-
-// DeleteSession removes a session from the cache (called on logout/purge).
-func (c *Client) DeleteSession(ctx context.Context, hashedToken string) {
-	_ = c.rdb.Del(ctx, sessionKey(hashedToken)).Err()
-}
-
-func sessionKey(hashedToken string) string {
-	return "session:" + hashedToken
-}
-
-// ---------------------------------------------------------------------------
 // Rate limiting
 // ---------------------------------------------------------------------------
 

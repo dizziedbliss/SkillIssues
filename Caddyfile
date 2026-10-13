@@ -1,0 +1,27 @@
+# Production reverse proxy for the VPS deploy (compose.prod.yaml).
+#
+# Caddy is the only service publishing ports (80/443) and the only thing
+# that terminates TLS — automatic Let's Encrypt via the ACME HTTP-01
+# challenge on port 80, no separate certbot step. Frontend and API are
+# served same-origin so the session cookie can be Secure + SameSite=Lax
+# without any cross-origin cookie handling.
+{$DOMAIN} {
+	# /api/* -> go-api, with the /api prefix stripped: the browser calls
+	# https://{$DOMAIN}/api/auth/github/callback, go-api only ever sees
+	# /auth/github/callback (its routes have no /api prefix of their own).
+	handle_path /api/* {
+		reverse_proxy go-api:8000
+	}
+
+	# Everything else is the SPA, served by the nginx `web` image.
+	handle {
+		reverse_proxy frontend:80
+	}
+
+	encode gzip
+
+	log {
+		output stdout
+		format json
+	}
+}
