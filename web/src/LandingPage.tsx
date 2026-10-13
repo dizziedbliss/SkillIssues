@@ -15,6 +15,7 @@ import {
   Download,
 } from "lucide-react";
 import "./landing.css";
+import { apiClient } from "./apiClient";
 
 interface LandingPageProps {
   onExplore: () => void;
@@ -75,8 +76,6 @@ const steps = [
   "Open a pull request",
 ];
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
 export const LandingPage: React.FC<LandingPageProps> = ({
   onExplore,
   onSignIn,
@@ -97,11 +96,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [liveIssues, setLiveIssues] = useState<IssueItem[]>(fallbackIssues);
 
   useEffect(() => {
-    // Fetch live catalog statistics from API
-    fetch(`${API}/health/detail`)
-      .then((res) => (res.ok ? res.json() : null))
+    // Fetch live catalog statistics from API. Best-effort: the landing page
+    // already has sane hardcoded fallbacks above (`stats`, `fallbackIssues`)
+    // for a guest who hasn't signed in yet, so a failure here just means the
+    // hero keeps showing those instead of blocking the page.
+    apiClient
+      .getHealthDetail()
       .then((data) => {
-        if (data && typeof data.issues === "number") {
+        if (typeof data.issues === "number") {
           setStats({
             issues: data.issues,
             repositories: data.repositories || 444882,
@@ -111,12 +113,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       })
       .catch(() => {});
 
-    // Fetch sample live issues directly from database
-    fetch(`${API}/issues?page=1&per_page=12`)
-      .then((res) => (res.ok ? res.json() : null))
+    // Fetch sample live issues directly from the catalog. Previously sent
+    // `per_page`, a param name the backend doesn't read (it reads `limit`),
+    // so this silently always fell back to the unpaginated default and
+    // never actually applied a 12-item cap.
+    apiClient
+      .getIssues({ page: 1, limit: 12 })
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
-          const mapped: IssueItem[] = data.map((item: any) => {
+          const mapped: IssueItem[] = data.map((item) => {
             const rawDiff = String(item.difficulty || "BEGINNER").toUpperCase();
             const level: "BEGINNER" | "INTERMEDIATE" | "ADVANCED" =
               rawDiff === "ADVANCED"
