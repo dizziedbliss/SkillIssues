@@ -3,7 +3,10 @@ package main
 import (
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/auth"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
@@ -56,6 +59,35 @@ func (h *handlers) webhookGitHub(w http.ResponseWriter, r *http.Request) {
 		if err := json.Unmarshal(body, &payload); err == nil {
 			if payload.PullRequest.Merged && payload.PullRequest.HTMLURL != "" {
 				_, _ = h.contribSvc.ApplyMergedPRByUrl(r.Context(), payload.PullRequest.HTMLURL, h.cfg.GitHubToken)
+			}
+		}
+	}
+
+	// D2a: free closed/reopened signal for repos where the App is
+	// installed — no API call needed, unlike the on-demand freshness check.
+	if insertedDelivery != "" && eventName == "issues" {
+		var payload struct {
+			Action string `json:"action"`
+			Issue  struct {
+				Number    int    `json:"number"`
+				State     string `json:"state"`
+				UpdatedAt string `json:"updated_at"`
+			} `json:"issue"`
+			Repository struct {
+				FullName string `json:"full_name"`
+			} `json:"repository"`
+		}
+		if err := json.Unmarshal(body, &payload); err != nil {
+			slog.Warn("webhook: failed to parse issues event", "delivery_id", delivery, "error", err)
+		} else if payload.Action == "closed" || payload.Action == "reopened" {
+			updatedAt, err := time.Parse(time.RFC3339, payload.Issue.UpdatedAt)
+			if err != nil {
+				slog.Warn("webhook: failed to parse issue updated_at", "delivery_id", delivery, "error", err)
+			} else {
+				state := strings.ToUpper(payload.Issue.State)
+				if err := h.issueSvc.SetStateByRepoAndNumber(r.Context(), payload.Repository.FullName, payload.Issue.Number, state, updatedAt); err != nil {
+					slog.Warn("webhook: failed to persist issue state", "delivery_id", delivery, "repository", payload.Repository.FullName, "number", payload.Issue.Number, "error", err)
+				}
 			}
 		}
 	}
