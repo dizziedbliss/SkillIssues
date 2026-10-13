@@ -29,11 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [3.0.0] - 2026-10-13
+## [1.0.0] - 2026-10-13
 
 ### 🚀 Production Deployment & Unified Client Architecture
 
-3.0.0 is the release where SkillIssues actually went live, and where the web and desktop
+1.0.0 is the release where SkillIssues actually went live, and where the web and desktop
 clients stopped drifting apart. The app now runs on a real VPS behind CI-gated deploys, and
 both clients share one typed API layer and one set of UI components instead of reimplementing
 the product twice.
