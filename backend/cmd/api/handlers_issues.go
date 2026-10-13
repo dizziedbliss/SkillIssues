@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/cache"
+	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/issue"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
 	"github.com/dizziedbliss/skillissues/internal/settings"
@@ -233,12 +234,63 @@ func (h *handlers) getIssueBody(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondJSON(w, http.StatusOK, map[string]string{"body": body})
 }
 
-// checkIssueFreshness handles POST /issues/{id}/freshness (D16) — a live
-// GitHub state check made only at the moment a user commits to an issue
-// (fork/clone), never on list render or detail open, using the user's own
-// GitHub authorization rather than the server's. If GitHub reports the
-// issue closed, this enqueues a priority resync so the catalog catches up
-// and tells the caller to block the action with an explanation.
+// freshnessResult is the per-issue response shape shared by the single-issue
+// and batch freshness endpoints (D2a).
+type freshnessResult struct {
+	State           string `json:"state"` // "open" or "closed"
+	RefreshEnqueued bool   `json:"refresh_enqueued,omitempty"`
+}
+
+// checkOneFreshness performs the live, on-demand GitHub state check (D16)
+// for one issue using the caller's own GitHub authorization. If GitHub
+// reports the issue closed, it persists that (D2a — GitHub's own updatedAt,
+// never now()) so the saved/working lists catch up without waiting on the
+// crawl, and enqueues a priority resync so the full catalog entry catches up
+// too.
+func (h *handlers) checkOneFreshness(ctx context.Context, issueID int, token string) (*freshnessResult, error) {
+	it, err := h.issueSvc.GetIssue(ctx, issueID)
+	if err != nil {
+		return nil, err
+	}
+	owner, name, ok := strings.Cut(it.Repository, "/")
+	if !ok {
+		return nil, fmt.Errorf("malformed repository reference for issue %d", issueID)
+	}
+
+	state, err := h.ghClient.FetchIssueState(ctx, token, owner, name, it.Number)
+	if err != nil {
+		return nil, fmt.Errorf("check issue state on github: %w", err)
+	}
+
+	if state.State != "CLOSED" {
+		return &freshnessResult{State: "open"}, nil
+	}
+
+	if err := h.issueSvc.SetState(ctx, issueID, "CLOSED", state.UpdatedAt); err != nil {
+		// Never blocks the caller over this — it already has the live
+		// answer — but a silent DB write failure here is exactly the kind
+		// CLAUDE.md requires stay observable.
+		slog.Warn("freshness check: failed to persist closed state", "issue_id", issueID, "error", err)
+	}
+
+	result := &freshnessResult{State: "closed"}
+	if repoID, err := h.issueSvc.GetRepositoryID(ctx, issueID); err == nil {
+		// Best-effort: the caller already has what it needs to block the
+		// action and explain why, regardless of whether this nudge lands.
+		go func(repoID int) {
+			bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := h.enqueueResync(bgCtx, repoID); err != nil {
+				slog.Warn("freshness check: failed to enqueue resync", "repository_id", repoID, "error", err)
+			}
+		}(repoID)
+		result.RefreshEnqueued = true
+	}
+	return result, nil
+}
+
+// checkIssueFreshness handles POST /issues/{id}/freshness (D16) — made only
+// at the moment a user commits to an issue (fork/clone).
 func (h *handlers) checkIssueFreshness(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
@@ -253,44 +305,54 @@ func (h *handlers) checkIssueFreshness(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	it, err := h.issueSvc.GetIssue(r.Context(), id)
+	result, err := h.checkOneFreshness(r.Context(), id, token)
 	if err != nil {
-		middleware.RespondError(w, http.StatusNotFound, "issue not found")
-		return
-	}
-	owner, name, ok := strings.Cut(it.Repository, "/")
-	if !ok {
-		middleware.RespondError(w, http.StatusInternalServerError, "malformed repository reference")
-		return
-	}
-
-	state, err := h.ghClient.FetchIssueState(r.Context(), token, owner, name, it.Number)
-	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			middleware.RespondError(w, http.StatusNotFound, "issue not found")
+			return
+		}
 		middleware.RespondError(w, http.StatusBadGateway, "failed to check issue state on GitHub")
 		return
 	}
+	middleware.RespondJSON(w, http.StatusOK, result)
+}
 
-	if state.State != "CLOSED" {
-		middleware.RespondJSON(w, http.StatusOK, map[string]any{"state": "open"})
+// checkIssuesFreshnessBatch handles POST /issues/freshness (D2a) — a client
+// calls this once per Saved/Working render with the handful of issues it is
+// actually showing, never the whole catalog. Capped by a live setting, and
+// fails open per issue: a lookup failure for one id is dropped from the
+// response rather than failing the whole batch, so a client never loses the
+// issues it could check over the ones it couldn't.
+func (h *handlers) checkIssuesFreshnessBatch(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	token, _ := h.authSvc.GetAccessToken(r.Context(), userID)
+	if token == "" {
+		middleware.RespondError(w, http.StatusForbidden, "Connect GitHub to check issue freshness.")
 		return
 	}
 
-	refreshEnqueued := false
-	if repoID, err := h.issueSvc.GetRepositoryID(r.Context(), id); err == nil {
-		// Best-effort: the client already has what it needs to block the
-		// action and explain why, regardless of whether this nudge lands.
-		go func(repoID int) {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			if err := h.enqueueResync(ctx, repoID); err != nil {
-				slog.Warn("freshness check: failed to enqueue resync", "repository_id", repoID, "error", err)
-			}
-		}(repoID)
-		refreshEnqueued = true
+	var body struct {
+		IssueIDs []int `json:"issue_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "issue_ids is required")
+		return
 	}
 
-	middleware.RespondJSON(w, http.StatusOK, map[string]any{
-		"state":            "closed",
-		"refresh_enqueued": refreshEnqueued,
-	})
+	batchCap := h.live.Current().Int(settings.IssuesFreshnessBatchCap)
+	if len(body.IssueIDs) > batchCap {
+		body.IssueIDs = body.IssueIDs[:batchCap]
+	}
+
+	results := make(map[string]freshnessResult, len(body.IssueIDs))
+	for _, id := range body.IssueIDs {
+		result, err := h.checkOneFreshness(r.Context(), id, token)
+		if err != nil {
+			slog.Warn("batch freshness check failed for issue", "issue_id", id, "error", err)
+			continue
+		}
+		results[strconv.Itoa(id)] = *result
+	}
+
+	middleware.RespondJSON(w, http.StatusOK, map[string]any{"results": results})
 }

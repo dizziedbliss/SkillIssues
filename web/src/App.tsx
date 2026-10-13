@@ -49,6 +49,10 @@ type Issue = {
   updated_at?: string;
   author?: string;
   match_category?: string;
+  state?: string;
+  // Only populated on the saved-issues list (D2b): the caller's own latest
+  // contribution against this issue — none|working|submitted|merged.
+  lifecycle?: string;
 };
 
 type Profile = {
@@ -81,6 +85,7 @@ type Contribution = {
   state: string;
   pr_url: string | null;
   created_at: string;
+  submitted_at?: string | null;
   issue_url: string;
 };
 
@@ -284,6 +289,10 @@ function IssueCard({
           {issue.match_category && (
             <span className="pill match">Matched in {issue.match_category}</span>
           )}
+          {issue.state === "CLOSED" && <span className="pill status-pill rejected">Closed</span>}
+          {issue.lifecycle === "working" && <span className="pill purple">Working</span>}
+          {issue.lifecycle === "submitted" && <span className="pill status-pill review">Submitted</span>}
+          {issue.lifecycle === "merged" && <span className="pill status-pill accepted">Merged</span>}
           <span className="pill purple">{author}</span>
           <span className="pill purple">{daysAgo(issue.updated_at)}</span>
           <span className="pill purple">
@@ -444,11 +453,13 @@ export function App() {
   // not an error, and the empty list it falls back to is correct. Any other
   // failure (network blip, the 180/hr unauthenticated limiter, a 5xx) is a
   // real fetch failure masquerading as "you have nothing saved" unless it's
-  // surfaced separately.
-  function loadListOrFlagError<T>(path: string): Promise<T[]> {
+  // surfaced separately — and must never blank a list the user was already
+  // looking at (D2b).
+  function loadListOrFlagError<T>(path: string): Promise<T[] | null> {
     return request<T[]>(path).catch((err) => {
       if (!(err instanceof ApiError) || err.status !== 401) {
         setListsError(true);
+        return null; // keep whatever the caller already has
       }
       return [];
     });
@@ -466,9 +477,11 @@ export function App() {
       setProfile(user);
       setBio(user.bio || "");
       setSelectedLangs(user.preferred_languages || []);
-      setSavedIssues(saved || []);
-      setWorking(current || []);
-      setSubmissions((submitted || []).filter((item) => item.state !== "STARTED"));
+      if (saved !== null) setSavedIssues(saved);
+      if (current !== null) setWorking(current);
+      if (submitted !== null) {
+        setSubmissions(submitted.filter((item) => item.state !== "STARTED"));
+      }
       return user;
     } catch {
       setProfile(null);
@@ -688,6 +701,18 @@ export function App() {
 
     void refresh();
   }, []);
+
+  // View issue from a working/submission card (D2c re-solve): fetches the
+  // full issue so the same detail modal (and its "Open in Desktop App" deep
+  // link) works from Working/Submissions, not just the catalog.
+  async function viewContributionIssue(item: Contribution) {
+    try {
+      const full = await request<Issue>(`/issues/${item.issue_id}`);
+      setSelected(full);
+    } catch {
+      window.open(item.issue_url, "_blank", "noreferrer");
+    }
+  }
 
   async function handleLogout() {
     try {
@@ -1008,9 +1033,9 @@ export function App() {
           )}
 
           {view === "Working" ? (
-            <WorkingList items={working} onRefresh={refresh} />
+            <WorkingList items={working} onRefresh={refresh} onViewIssue={viewContributionIssue} />
           ) : view === "Submissions" ? (
-            <SubmissionList items={submissions} />
+            <SubmissionList items={submissions} onViewIssue={viewContributionIssue} />
           ) : (
             <>
               {isSearchActive ? (
@@ -1515,9 +1540,11 @@ export function App() {
 function WorkingList({
   items,
   onRefresh,
+  onViewIssue,
 }: {
   items: Contribution[];
   onRefresh: () => Promise<void>;
+  onViewIssue: (item: Contribution) => void;
 }) {
   return (
     <div className="issue-feed">
@@ -1544,6 +1571,12 @@ function WorkingList({
               <div className="pill-group-right">
                 <button
                   className="view-issue-btn"
+                  onClick={() => onViewIssue(item)}
+                >
+                  View issue
+                </button>
+                <button
+                  className="view-issue-btn"
                   onClick={() => void onRefresh()}
                 >
                   Refresh status
@@ -1561,7 +1594,13 @@ function WorkingList({
   );
 }
 
-function SubmissionList({ items }: { items: Contribution[] }) {
+function SubmissionList({
+  items,
+  onViewIssue,
+}: {
+  items: Contribution[];
+  onViewIssue: (item: Contribution) => void;
+}) {
   return (
     <div className="issue-feed">
       {items.length ? (
@@ -1597,8 +1636,13 @@ function SubmissionList({ items }: { items: Contribution[] }) {
                     {statusText}
                   </span>
                   <span className="pill purple">
-                    Submitted {daysAgo(item.created_at)}
+                    Started {daysAgo(item.created_at)}
                   </span>
+                  {item.submitted_at && (
+                    <span className="pill purple">
+                      Submitted {daysAgo(item.submitted_at)}
+                    </span>
+                  )}
                 </div>
                 <div className="pill-group-middle">
                   <span className="pill light">
@@ -1607,6 +1651,12 @@ function SubmissionList({ items }: { items: Contribution[] }) {
                   </span>
                 </div>
                 <div className="pill-group-right">
+                  <button
+                    className="view-issue-btn"
+                    onClick={() => onViewIssue(item)}
+                  >
+                    View issue
+                  </button>
                   {item.pr_url && (
                     <a
                       className="view-issue-btn"
