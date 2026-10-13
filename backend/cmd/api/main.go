@@ -253,7 +253,6 @@ func buildRouter(
 	// ----- GitHub integration -----
 	mux.Handle("POST /github/forks", requireAuth(authSvc, http.HandlerFunc(h.forkRepository)))
 	mux.Handle("GET /github/git-token", requireAuth(authSvc, http.HandlerFunc(h.getGitToken)))
-	mux.Handle("GET /github/co-contribution-trailer", requireAuth(authSvc, http.HandlerFunc(h.coContributionTrailer)))
 
 	// ----- Issues -----
 	mux.Handle("GET /issues", optionalAuth(authSvc, http.HandlerFunc(h.listIssues)))
