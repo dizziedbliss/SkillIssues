@@ -6,11 +6,19 @@ import (
 	"strings"
 
 	"github.com/dizziedbliss/skillissues/internal/middleware"
+	"github.com/dizziedbliss/skillissues/internal/settings"
 )
 
-// authGitHubToken handles POST /auth/github/token (Classic PAT login only)
+// authGitHubToken handles POST /auth/github/token (Classic PAT login only).
+// Both clients only expose OAuth now; this stays registered but 404s unless
+// auth.pat_login_enabled is explicitly turned on.
 // Body: {"token": "ghp_..."}
 func (h *handlers) authGitHubToken(w http.ResponseWriter, r *http.Request) {
+	if h.live == nil || !h.live.Current().Bool(settings.AuthPATLoginEnabled) {
+		middleware.RespondError(w, http.StatusNotFound, "not found")
+		return
+	}
+
 	var body struct {
 		Token string `json:"token"`
 	}

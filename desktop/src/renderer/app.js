@@ -1206,7 +1206,6 @@ let ALL_TECH_OPTIONS = [
 let userSelectedLangs = [];
 
 async function openPreferencesModal() {
-  let coContributionEnabled = false;
   try {
     const [profile, optionsRes] = await Promise.all([
       api("/me").catch(() => ({
@@ -1215,7 +1214,6 @@ async function openPreferencesModal() {
       api("/preferences/options").catch(() => null),
     ]);
     userSelectedLangs = [...(profile.preferred_languages || [])];
-    coContributionEnabled = Boolean(profile.co_contribution_enabled);
     if (
       optionsRes &&
       Array.isArray(optionsRes.options) &&
@@ -1226,8 +1224,6 @@ async function openPreferencesModal() {
   } catch {
     userSelectedLangs = ["Python", "TypeScript"];
   }
-  if (el("pref-co-contribution"))
-    el("pref-co-contribution").checked = coContributionEnabled;
   el("pref-search").value = "";
   renderPrefChips();
   el("preferences-modal").hidden = false;
@@ -1271,9 +1267,6 @@ async function savePreferences() {
       body: JSON.stringify({
         preferred_languages: userSelectedLangs,
         interests: userSelectedLangs.slice(0, 6),
-        co_contribution_enabled: Boolean(
-          el("pref-co-contribution") && el("pref-co-contribution").checked,
-        ),
       }),
     });
     el("preferences-modal").hidden = true;
@@ -1311,19 +1304,6 @@ async function confirmPushPR() {
     el("confirm-push-pr").disabled = true;
     el("confirm-push-pr").textContent = "Pushing & Submitting PR...";
     showRunnerProgress(true);
-
-    // D23: opt-in co-contribution credit, default off. The trailer text is
-    // always resolved server-side, never built here — a mis-formatted bot
-    // noreply email looks valid on a commit but never actually links.
-    try {
-      const me = await api("/me");
-      if (me && me.co_contribution_enabled) {
-        const { trailer } = await api("/github/co-contribution-trailer");
-        if (trailer) commitMsg = `${commitMsg}\n\n${trailer}`;
-      }
-    } catch {
-      /* credit is optional — never block a push over it */
-    }
 
     await window.skillIssuesDesktop.commitAndPush(
       destination,
