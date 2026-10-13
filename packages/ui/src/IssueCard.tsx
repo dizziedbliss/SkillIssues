@@ -11,7 +11,10 @@ export interface IssueCardProps {
   // Icons are injected rather than imported from a specific icon library —
   // web uses lucide-react, desktop had none at all — so this package
   // doesn't force a dependency neither client is guaranteed to want.
-  bookmarkIcon?: ReactNode;
+  // A function form lets the caller swap the icon's look (e.g. a filled vs.
+  // outline bookmark) based on this specific card's saved state, since a
+  // plain ReactNode is one fixed element shared by every card in a list.
+  bookmarkIcon?: ReactNode | ((saved: boolean) => ReactNode);
   commentIcon?: ReactNode;
 }
 
@@ -76,7 +79,7 @@ export function IssueCard({
               onToggleSave();
             }}
           >
-            {bookmarkIcon}
+            {typeof bookmarkIcon === "function" ? bookmarkIcon(saved) : bookmarkIcon}
           </button>
         </div>
       </div>

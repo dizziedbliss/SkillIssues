@@ -188,3 +188,30 @@ export interface IssueFilters {
 export interface PreferenceOptions {
   options: string[];
 }
+
+// GET /health/detail (backend/cmd/api/handlers_health.go). A component that
+// is down is reported as such (status "degraded", cache "unavailable"),
+// never silently counted as connected.
+export interface HealthDetail {
+  status: string;
+  service: string;
+  repositories: number;
+  issues: number;
+  contributions: number;
+  cache: string;
+  db_size_mb: number;
+  max_db_size_mb: number;
+  ingestion_paused: boolean;
+}
+
+// GET /auth/github (backend/cmd/api/handlers_auth_oauth.go). enabled:false
+// means GitHub OAuth isn't configured server-side — the caller must show
+// `error`, never fall back to a token-entry form (OAuth/GitHub App is the
+// only supported login path).
+export interface GithubAuthorizeResult {
+  enabled: boolean;
+  authorize_url?: string;
+  redirect_uri?: string;
+  ticket?: string;
+  error?: string;
+}
