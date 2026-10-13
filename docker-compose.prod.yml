@@ -53,8 +53,8 @@ services:
   # Schema migrations run to completion before any service starts.
   migrate:
     build:
-      context: ./backend
-      dockerfile: cmd/migrate/Dockerfile
+      context: .
+      target: migrate
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD:-skillissues_prod_secure_pw}@postgres:5432/${POSTGRES_DB:-skillissues}
     depends_on:
@@ -64,8 +64,8 @@ services:
 
   go-api:
     build:
-      context: ./backend
-      dockerfile: cmd/api/Dockerfile
+      context: .
+      target: api
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD:-skillissues_prod_secure_pw}@postgres:5432/${POSTGRES_DB:-skillissues}
@@ -106,8 +106,8 @@ services:
 
   ingestd:
     build:
-      context: ./backend
-      dockerfile: cmd/ingestd/Dockerfile
+      context: .
+      target: ingestd
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD:-skillissues_prod_secure_pw}@postgres:5432/${POSTGRES_DB:-skillissues}
@@ -141,12 +141,15 @@ services:
       start_period: 3s
 
   frontend:
+    # VITE_API_URL is a build-time arg, not a runtime env var: Vite inlines
+    # it into the static bundle at `npm run build`, and nginx serving that
+    # bundle afterwards can never see a runtime environment change.
     build:
-      context: ./web
-      dockerfile: Dockerfile.prod
+      context: .
+      target: web
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://api.skillissues.com}
     restart: unless-stopped
-    environment:
-      VITE_API_URL: ${VITE_API_URL:-https://api.skillissues.com}
     ports:
       - "80:80"
     depends_on:
