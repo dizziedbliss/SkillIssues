@@ -101,8 +101,15 @@ const STATUS_PREFIX = /^(\d{3})::([\s\S]*)$/;
 // through the existing contextBridge/ipcMain channel instead of fetch.
 export function createIpcTransport(bridge: DesktopApiBridge): Transport {
   return async (path, init = {}) => {
+    // AbortSignal cannot cross the contextBridge/ipcRenderer.invoke boundary:
+    // Electron structured-clones IPC arguments, and AbortSignal isn't
+    // cloneable, so forwarding it verbatim throws before the call is even
+    // sent. Desktop callers still get response sequencing (a request-id
+    // guard on the caller's side ignores a stale reply); true mid-flight
+    // cancellation only exists for the fetch transport.
+    const { signal: _signal, ...rest } = init;
     try {
-      const result = await bridge.apiRequest(path, init);
+      const result = await bridge.apiRequest(path, rest);
 
       if (result && typeof result === "object" && (result as { __notModified?: boolean }).__notModified) {
         return { ok: true, status: 304, notModified: true, data: null };

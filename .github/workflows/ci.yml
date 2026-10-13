@@ -88,9 +88,9 @@ jobs:
           cd desktop
           npm run check
       - name: Build
-        # electron-vite build is what actually catches the renderer's
-        # packages/markdown import breaking — npm run check (tsc --noEmit)
-        # does not cover src/renderer/app.js, which is plain JS.
+        # electron-vite build is what actually catches a renderer import
+        # breaking at the bundler level (e.g. a packages/* workspace
+        # resolution issue `tsc --noEmit` wouldn't surface).
         run: |
           cd desktop
           npm run build

@@ -114,7 +114,8 @@ body {
 }
 
 .workspace-drawer,
-.drawer-card {
+.drawer-card,
+.ui-modal-overlay {
   -webkit-app-region: no-drag;
 }
 
@@ -299,8 +300,11 @@ body {
   min-width: 0;
 }
 
-/* Segmented Tabs (Lavender Contrast & Differentiation) */
-.counts {
+/* Segmented Tabs (Lavender Contrast & Differentiation)
+   Renamed from .counts to .web-tabs: packages/ui's shared SectionTabs
+   component (D3b/D3c) renders this fixed class name so both clients style
+   the same markup instead of forking it — same look, one selector. */
+.web-tabs {
   height: 52px;
   border: 1px solid var(--border-default);
   border-radius: 14px;
@@ -312,7 +316,7 @@ body {
   gap: 5px;
 }
 
-.counts button {
+.web-tabs button {
   height: 42px;
   border: 0;
   background: transparent;
@@ -328,18 +332,18 @@ body {
   transition: all 0.15s ease;
 }
 
-.counts button:hover {
+.web-tabs button:hover {
   color: var(--text-primary);
 }
 
-.counts button.active {
+.web-tabs button.active {
   background: var(--bg-surface);
   color: var(--text-primary);
   font-weight: 700;
   box-shadow: 0 2px 8px rgba(36, 20, 66, 0.08);
 }
 
-.counts b {
+.web-tabs b {
   font-weight: 600;
   background: #ddd6fe;
   color: #5b21b6;
@@ -348,7 +352,7 @@ body {
   font-size: 12px;
 }
 
-.counts button.active b {
+.web-tabs button.active b {
   background: var(--accent-primary);
   color: #ffffff;
 }
@@ -520,6 +524,34 @@ body {
 
 .pill.status-pill.status-review,
 .tag.status-pill.status-review {
+  background: var(--status-review-bg) !important;
+  border: 1px solid var(--status-review-border) !important;
+  color: var(--status-review-text) !important;
+  font-weight: 700 !important;
+}
+
+/* packages/ui's IssueCard/WorkingList/SubmissionList (D3b/D3c) render these
+   modifiers without the "status-" prefix (matching web/src/index.css,
+   which already made this change) — same tokens, same look, just the
+   selector a shared component actually emits. */
+.pill.status-pill.accepted,
+.tag.status-pill.accepted {
+  background: var(--status-accepted-bg) !important;
+  border: 1px solid var(--status-accepted-border) !important;
+  color: var(--status-accepted-text) !important;
+  font-weight: 700 !important;
+}
+
+.pill.status-pill.rejected,
+.tag.status-pill.rejected {
+  background: var(--status-rejected-bg) !important;
+  border: 1px solid var(--status-rejected-border) !important;
+  color: var(--status-rejected-text) !important;
+  font-weight: 700 !important;
+}
+
+.pill.status-pill.review,
+.tag.status-pill.review {
   background: var(--status-review-bg) !important;
   border: 1px solid var(--status-review-border) !important;
   color: var(--status-review-text) !important;
@@ -1166,6 +1198,18 @@ a.save-icon-btn:hover {
   text-align: center;
 }
 
+/* Empty-state card for packages/ui's IssueList/WorkingList/SubmissionList
+   (ported from web/src/index.css, same tokens as .loading above). */
+.empty-feed {
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-default);
+  border-radius: 16px;
+  padding: 64px 28px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
 /* Preferences Card */
 .pref-card {
   width: min(680px, calc(100vw - 48px));
@@ -1252,6 +1296,60 @@ a.save-icon-btn:hover {
 
 .pref-save {
   width: 100%;
+}
+
+/* Danger zone (D3e) — the account-deletion control, moved out of the
+   profile rail into a collapsed section here, behind a typed-confirmation
+   ConfirmDialog instead of window.confirm. */
+.danger-zone {
+  margin-top: 28px;
+  border: 1px solid var(--status-rejected-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.danger-zone-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--status-rejected-bg);
+  color: var(--status-rejected-text);
+  border: 0;
+  padding: 14px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.danger-zone-body {
+  padding: 18px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--status-rejected-border);
+}
+
+.danger-zone-body p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 14px;
+}
+
+.danger-zone-body button {
+  background: var(--status-rejected-text);
+  color: #ffffff;
+  border: 0;
+  border-radius: 9px;
+  padding: 10px 20px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.danger-zone-body button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Push Card & Git Actions */
