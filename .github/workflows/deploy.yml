@@ -113,9 +113,18 @@ jobs:
   deploy:
     needs: [ build-push ]
     # Runs after a normal build (build-push succeeded) OR on a rollback
-    # dispatch (build-push was skipped because image_tag was supplied).
-    # Either way there must be an image tag to deploy.
-    if: ${{ always() && (needs.build-push.result == 'success' || needs.build-push.result == 'skipped') }}
+    # dispatch (image_tag supplied — ci and build-push are BOTH
+    # deliberately skipped in that case, per their own `if:` above).
+    #
+    # Checking needs.build-push.result == 'skipped' alone is wrong and was
+    # a real bug: build-push also reports 'skipped' when it never ran
+    # because its upstream `ci` job *failed* on an ordinary push — that is
+    # not a rollback, there is no tag to deploy, and this job must not run
+    # at all in that case (a run on 2026-10-13 did exactly this and only
+    # failed to actually deploy anything because the tag-resolution step
+    # below happened to catch the empty tag; this `if` is the actual fix,
+    # that guard is defense in depth, not the mechanism).
+    if: ${{ always() && (needs.build-push.result == 'success' || (github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag != '')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
