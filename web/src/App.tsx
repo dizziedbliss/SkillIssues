@@ -1,15 +1,15 @@
 /**
  * @file SkillIssues React Web Dashboard
  *
- * Root component and state container for the web dashboard:
- * - Issue catalog exploration, full-text search, and multi-filter controls (language, difficulty, sort)
- * - User profile sidebar: Level progression, XP bar, achievement badges, and bio editor
- * - Challenge bookmarks (Saved challenges tab)
- * - Active contributions and submission history
- * - GitHub Personal Access Token (PAT) authentication modal
+ * Root component and state container for the web dashboard. This is routing
+ * and web-specific glue on top of `@skillissues/api-client` (typed API
+ * calls) and `@skillissues/ui` (IssueCard/IssueList, WorkingList,
+ * SubmissionList, Modal, DifficultyTabs, SectionTabs, ProgressBar,
+ * LanguageMark, Toast) — shared with the desktop renderer so a fix to one
+ * of those doesn't have to be re-applied by hand to the other.
  */
 
-import { StrictMode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Bookmark,
@@ -27,181 +27,37 @@ import {
   User as UserIcon,
   X,
 } from "lucide-react";
+import {
+  ApiError,
+  clearRecommendationsCache,
+  type ContributionDetail,
+  type Issue,
+  type Profile,
+} from "@skillissues/api-client";
+import {
+  DifficultyTabs,
+  type DifficultyFilter,
+  IssueCard,
+  IssueList,
+  LanguageMark,
+  Modal,
+  ProgressBar,
+  SectionTabs,
+  type SectionTabItem,
+  SubmissionList,
+  ToastProvider,
+  WorkingList,
+  daysAgo,
+  useToast,
+} from "@skillissues/ui";
+import "@skillissues/ui/src/styles.css";
 import { renderMarkdown as renderIssueMarkdown } from "@skillissues/markdown";
 import "./index.css";
+import { apiClient } from "./apiClient";
 import { LandingPage } from "./LandingPage";
+import { LoginForm } from "./LoginForm";
 
-// ==============================================================================
-// Type Definitions
-// ==============================================================================
-type Issue = {
-  id: number;
-  number: number;
-  title: string;
-  difficulty: string;
-  difficulty_score: number;
-  required_skills: string[];
-  technologies: string[];
-  repository: string;
-  language: string;
-  comments: number;
-  url: string;
-  updated_at?: string;
-  author?: string;
-  match_category?: string;
-  state?: string;
-  // Only populated on the saved-issues list (D2b): the caller's own latest
-  // contribution against this issue — none|working|submitted|merged.
-  lifecycle?: string;
-};
-
-type Profile = {
-  username: string;
-  name?: string;
-  avatar_url: string;
-  bio: string;
-  experience_level?: string;
-  target_level?: string;
-  interests: string[];
-  preferred_languages: string[];
-  demonstrated_skills: string[];
-  progress_score: number;
-  completed_count: number;
-  total_xp?: number;
-  level?: number;
-  badges?: string[];
-  badge_details?: { name: string; icon: string }[];
-  progress_percent?: number;
-};
-
-type Contribution = {
-  id: number;
-  issue_id: number;
-  number: number;
-  title: string;
-  repository: string;
-  language: string;
-  difficulty?: string;
-  state: string;
-  pr_url: string | null;
-  created_at: string;
-  submitted_at?: string | null;
-  issue_url: string;
-};
-
-type View =
-  | "Overview"
-  | "SkillIssues"
-  | "Recommended"
-  | "Saved"
-  | "Working"
-  | "Submissions";
-
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-const languageIcons: Record<string, string> = {
-  Python: "python",
-  TypeScript: "typescript",
-  JavaScript: "javascript",
-  HTML: "html5",
-  CSS: "css3",
-};
-
-const languageLogoBase =
-  "https://raw.githubusercontent.com/abranhe/programming-languages-logos/master/src";
-
-// Thrown by request() so callers can branch on the HTTP status instead of
-// treating every failure — "not logged in", a network blip, a 429 — the same
-// way.
-class ApiError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
-}
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API}${path}`, {
-    ...init,
-    credentials: "include",
-    headers: {
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...init?.headers,
-    },
-  });
-  if (!response.ok) {
-    if (response.status === 401) {
-      throw new ApiError(401, "Authentication required");
-    }
-    let errorMsg = "Request failed";
-    try {
-      const payload = await response.json();
-      errorMsg = payload.error || payload.detail || errorMsg;
-    } catch {
-      // ignore
-    }
-    throw new ApiError(response.status, errorMsg);
-  }
-  return response.json();
-}
-
-// D15 — recommendations cache: localStorage + ETag revalidation. The
-// backend invalidates its own cache (and so the ETag it serves) whenever
-// preferences/XP/level/contributions change, so revalidating against the
-// stored ETag is sufficient; no separate "profile version" is tracked here.
-const RECOMMENDATIONS_CACHE_KEY = "skillissues.recommendations.v1";
-
-type RecommendationsCacheEntry = { etag: string; data: Issue[] };
-
-function loadRecommendationsCache(): RecommendationsCacheEntry | null {
-  try {
-    const raw = localStorage.getItem(RECOMMENDATIONS_CACHE_KEY);
-    return raw ? (JSON.parse(raw) as RecommendationsCacheEntry) : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveRecommendationsCache(etag: string, data: Issue[]) {
-  try {
-    localStorage.setItem(RECOMMENDATIONS_CACHE_KEY, JSON.stringify({ etag, data }));
-  } catch {
-    // storage unavailable/full — caching is a convenience, not required
-  }
-}
-
-function clearRecommendationsCache() {
-  try {
-    localStorage.removeItem(RECOMMENDATIONS_CACHE_KEY);
-  } catch {
-    // ignore
-  }
-}
-
-// Fetches /recommendations, revalidating against the cached ETag. On
-// outright failure, falls back to the stale cached copy (the caller shows
-// a "showing cached results" indicator) rather than an empty feed.
-async function fetchRecommendations(): Promise<{ data: Issue[]; stale: boolean }> {
-  const cached = loadRecommendationsCache();
-  try {
-    const response = await fetch(`${API}/recommendations`, {
-      credentials: "include",
-      headers: cached ? { "If-None-Match": cached.etag } : {},
-    });
-    if (response.status === 304 && cached) {
-      return { data: cached.data, stale: false };
-    }
-    if (!response.ok) throw new Error("Request failed");
-    const data: Issue[] = await response.json();
-    const etag = response.headers.get("etag");
-    if (etag) saveRecommendationsCache(etag, data);
-    return { data, stale: false };
-  } catch {
-    if (cached) return { data: cached.data, stale: true };
-    return { data: [], stale: false };
-  }
-}
+type View = "Overview" | "SkillIssues" | "Recommended" | "Saved" | "Working" | "Submissions";
 
 function escapeHtml(value: string): string {
   const div = document.createElement("div");
@@ -209,218 +65,30 @@ function escapeHtml(value: string): string {
   return div.innerHTML;
 }
 
-function daysAgo(value?: string) {
-  if (!value) return "recently";
-  const date = new Date(value);
-  if (isNaN(date.getTime())) return "recently";
-  const diffMs = Date.now() - date.getTime();
-  if (diffMs < 0) return "today";
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 60) return `${Math.max(1, minutes)}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return days === 0 ? "today" : `${days}d ago`;
-  const weeks = Math.floor(days / 7);
-  if (weeks < 5) return `${weeks}w ago`;
-  const months = Math.floor(days / 30);
-  return `${months}mo ago`;
-}
-
-function getXpForDifficulty(difficulty?: string) {
-  const d = (difficulty || "").toUpperCase();
-  if (d === "ADVANCED") return 250;
-  if (d === "INTERMEDIATE") return 140;
-  return 75;
-}
-
-function LanguageMark({ name }: { name: string }) {
-  const icon = languageIcons[name];
-  return icon ? (
-    <img
-      className="language-mark"
-      src={`${languageLogoBase}/${icon}/${icon}.svg`}
-      alt={`${name} logo`}
-      onError={(event) => {
-        event.currentTarget.style.display = "none";
-      }}
-    />
-  ) : (
-    <span className="language-mark text-mark">
-      {name.slice(0, 2).toUpperCase()}
-    </span>
-  );
-}
-
-function IssueCard({
-  issue,
-  saved,
-  onSelect,
-  onToggleSave,
-}: {
-  issue: Issue;
-  saved: boolean;
-  onSelect: () => void;
-  onToggleSave: () => void;
-}) {
-  const author =
-    issue.author ||
-    (issue.repository ? issue.repository.split("/")[0] : "open-source");
-  const extraTechs = (issue.technologies || [])
-    .filter(
-      (tech) =>
-        !issue.language || tech.toLowerCase() !== issue.language.toLowerCase(),
-    )
-    .slice(0, 2);
-
-  return (
-    <article
-      className="issue-card"
-      onClick={(e) => {
-        if (!(e.target as HTMLElement).closest("button")) onSelect();
-      }}
-    >
-      <h2 className="issue-card-title">
-        #{issue.number} {issue.title}
-      </h2>
-      <div className="issue-card-repo">{issue.repository}</div>
-      <div className="issue-card-bottom">
-        <div className="pill-group-left">
-          {issue.match_category && (
-            <span className="pill match">Matched in {issue.match_category}</span>
-          )}
-          {issue.state === "CLOSED" && <span className="pill status-pill rejected">Closed</span>}
-          {issue.lifecycle === "working" && <span className="pill purple">Working</span>}
-          {issue.lifecycle === "submitted" && <span className="pill status-pill review">Submitted</span>}
-          {issue.lifecycle === "merged" && <span className="pill status-pill accepted">Merged</span>}
-          <span className="pill purple">{author}</span>
-          <span className="pill purple">{daysAgo(issue.updated_at)}</span>
-          <span className="pill purple">
-            <MessageCircle size={11} /> {issue.comments || 0}
-          </span>
-        </div>
-        <div className="pill-group-middle">
-          <span className="pill light">
-            <LanguageMark name={issue.language || "Open source"} />
-            {issue.language || "Open source"}
-          </span>
-          {extraTechs.map((tech) => (
-            <span className="pill light" key={tech}>
-              {tech}
-            </span>
-          ))}
-        </div>
-        <div className="pill-group-right">
-          <button className="view-issue-btn" onClick={onSelect}>
-            View Issue
-          </button>
-          <button
-            className={`save-icon-btn ${saved ? "saved" : ""}`}
-            title={saved ? "Remove saved issue" : "Save issue"}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleSave();
-            }}
-          >
-            <Bookmark size={14} fill={saved ? "currentColor" : "none"} />
-          </button>
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function LoginForm({
-  onClose,
-  initialError,
-}: {
-  onClose?: () => void;
-  initialError?: string;
-}) {
-  const [oauthLoading, setOAuthLoading] = useState(false);
-  const [err, setErr] = useState(initialError || "");
-
-  async function handleOAuthLogin() {
-    setOAuthLoading(true);
-    setErr("");
-    try {
-      const data = await request<{
-        enabled: boolean;
-        authorize_url: string;
-        redirect_uri?: string;
-        error?: string;
-      }>("/auth/github");
-
-      if (!data.enabled || !data.authorize_url) {
-        setErr(data.error || "GitHub OAuth is not enabled on this server.");
-        setOAuthLoading(false);
-        return;
-      }
-
-      window.location.href = data.authorize_url;
-    } catch (caught) {
-      setErr(
-        caught instanceof Error ? caught.message : "Failed to initiate GitHub OAuth"
-      );
-      setOAuthLoading(false);
-    }
-  }
-
-  return (
-    <main className="center login-screen">
-      <div className="login-card">
-        {onClose && (
-          <button
-            type="button"
-            className="login-modal-close"
-            onClick={onClose}
-            title="Close login modal"
-          >
-            <X size={18} />
-          </button>
-        )}
-        <div className="wordmark">
-          <img src="/logo.png" alt="SkillIssues Logo" className="brand-logo" />
-          <div className="wordmark-text">
-            SkillIssues<span>You Have the Skills. We Have the Issues.</span>
-          </div>
-        </div>
-        <h1 className="login-title">Sign in to SkillIssues</h1>
-        <p className="login-desc">
-          Connect with your GitHub account to get personalized issue recommendations,
-          track XP progression, and verify merged pull requests.
-        </p>
-
-        {err && (
-          <div className="auth-alert-box">
-            <span>{err}</span>
-          </div>
-        )}
-
-        <button
-          type="button"
-          className="oauth-github-btn"
-          onClick={() => void handleOAuthLogin()}
-          disabled={oauthLoading}
-        >
-          <svg className="github-icon" height="20" width="20" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
-          </svg>
-          <span>{oauthLoading ? "Connecting to GitHub..." : "Continue with GitHub"}</span>
-        </button>
-      </div>
-    </main>
-  );
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof ApiError ? err.message : fallback;
 }
 
 export function App() {
+  return (
+    <ToastProvider>
+      <AppShell />
+    </ToastProvider>
+  );
+}
+
+function AppShell() {
+  const toast = useToast();
+
   const [profile, setProfile] = useState<Profile | null>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [issuesLoading, setIssuesLoading] = useState(false);
+  const [issuesError, setIssuesError] = useState(false);
   const [savedIssues, setSavedIssues] = useState<Issue[]>([]);
-  const [working, setWorking] = useState<Contribution[]>([]);
-  const [submissions, setSubmissions] = useState<Contribution[]>([]);
+  const [working, setWorking] = useState<ContributionDetail[]>([]);
+  const [submissions, setSubmissions] = useState<ContributionDetail[]>([]);
   const [view, setView] = useState<View>("Overview");
-  const [difficultyFilter, setDifficultyFilter] = useState<"ALL" | "BEGINNER" | "INTERMEDIATE" | "ADVANCED">("ALL");
+  const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>("ALL");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [selected, setSelected] = useState<Issue | null>(null);
@@ -431,7 +99,6 @@ export function App() {
   const [query, setQuery] = useState("");
   const [searchCategory, setSearchCategory] = useState<string>("ALL");
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
-  const [error, setError] = useState("");
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [oauthError, setOAuthError] = useState("");
   const [editing, setEditing] = useState(false);
@@ -441,27 +108,35 @@ export function App() {
   const [prefSearch, setPrefSearch] = useState("");
   const [recommendedIssues, setRecommendedIssues] = useState<Issue[]>([]);
   const [recommendedStale, setRecommendedStale] = useState(false);
+  const [recommendedError, setRecommendedError] = useState(false);
   const [listsError, setListsError] = useState(false);
 
   async function loadRecommended() {
-    const { data, stale } = await fetchRecommendations();
-    setRecommendedIssues(data);
-    setRecommendedStale(stale);
+    try {
+      const { data, stale } = await apiClient.getRecommendations();
+      setRecommendedIssues(data);
+      setRecommendedStale(stale);
+      setRecommendedError(false);
+    } catch {
+      // api-client already falls back to a cached copy when one exists —
+      // reaching here means there was nothing to fall back to. Keep
+      // whatever was already rendered and let the retry banner handle it,
+      // rather than blanking the tab.
+      setRecommendedError(true);
+    }
   }
 
   // A 401 on one of the per-user lists means "not logged in" — expected,
   // not an error, and the empty list it falls back to is correct. Any other
-  // failure (network blip, the 180/hr unauthenticated limiter, a 5xx) is a
+  // failure (network blip, the unauthenticated rate limiter, a 5xx) is a
   // real fetch failure masquerading as "you have nothing saved" unless it's
   // surfaced separately — and must never blank a list the user was already
-  // looking at (D2b).
-  function loadListOrFlagError<T>(path: string): Promise<T[] | null> {
-    return request<T[]>(path).catch((err) => {
-      if (!(err instanceof ApiError) || err.status !== 401) {
-        setListsError(true);
-        return null; // keep whatever the caller already has
-      }
-      return [];
+  // looking at.
+  function loadListOrFlagError<T>(fn: () => Promise<T[]>): Promise<T[] | null> {
+    return fn().catch((err) => {
+      if (err instanceof ApiError && err.isUnauthorized) return [];
+      setListsError(true);
+      return null; // keep whatever the caller already has
     });
   }
 
@@ -469,10 +144,10 @@ export function App() {
     setListsError(false);
     try {
       const [user, saved, current, submitted] = await Promise.all([
-        request<Profile>("/me"),
-        loadListOrFlagError<Issue>("/saved"),
-        loadListOrFlagError<Contribution>("/working"),
-        loadListOrFlagError<Contribution>("/contributions"),
+        apiClient.getMe(),
+        loadListOrFlagError<Issue>(() => apiClient.getSaved()),
+        loadListOrFlagError<ContributionDetail>(() => apiClient.getWorking()),
+        loadListOrFlagError<ContributionDetail>(() => apiClient.listContributions()),
       ]);
       setProfile(user);
       setBio(user.bio || "");
@@ -498,23 +173,29 @@ export function App() {
     issuesAbortRef.current?.abort();
     const controller = new AbortController();
     issuesAbortRef.current = controller;
+    setIssuesLoading(true);
     try {
       const isSearch = Boolean(searchKeyword.trim());
       const limit = isSearch ? 50 : 20;
-      let url = `/issues?limit=${limit}&page=${pageNum}`;
-      if (diff !== "ALL") {
-        url += `&difficulty=${diff}`;
-      }
-      if (isSearch) {
-        url += `&search=${encodeURIComponent(searchKeyword.trim())}`;
-      }
-      const data = await request<Issue[]>(url, { signal: controller.signal });
-      setIssues(data || []);
-      setHasMore((data || []).length === limit);
+      const data = await apiClient.getIssues(
+        {
+          limit,
+          page: pageNum,
+          difficulty: diff,
+          search: isSearch ? searchKeyword.trim() : undefined,
+        },
+        { signal: controller.signal },
+      );
+      setIssues(data);
+      setHasMore(data.length === limit);
+      setIssuesError(false);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      setIssues([]);
-      setHasMore(false);
+      // Never silently blank the catalog on a transient failure (429,
+      // network blip) — keep whatever was already on screen and flag it.
+      setIssuesError(true);
+    } finally {
+      if (issuesAbortRef.current === controller) setIssuesLoading(false);
     }
   }
 
@@ -532,7 +213,7 @@ export function App() {
     await loadIssues(1, difficultyFilter, query);
   }
 
-  function handleDifficultyChange(diff: "ALL" | "BEGINNER" | "INTERMEDIATE" | "ADVANCED") {
+  function handleDifficultyChange(diff: DifficultyFilter) {
     setDifficultyFilter(diff);
     setPage(1);
     void loadIssues(1, diff, query);
@@ -547,38 +228,26 @@ export function App() {
 
   useEffect(() => {
     if (editing && availableOptions.length === 0) {
-      request<{ options: string[] }>("/preferences/options")
+      apiClient
+        .getPreferenceOptions()
         .then((res) => {
           if (res && Array.isArray(res.options)) {
             setAvailableOptions(res.options);
           }
         })
-        .catch(() => {
+        .catch((err) => {
           setAvailableOptions([
             "Python", "TypeScript", "JavaScript", "Go", "Rust", "C++",
-            "Java", "Ruby", "PHP", "C", "C#", "Swift", "Kotlin", "HTML", "CSS"
+            "Java", "Ruby", "PHP", "C", "C#", "Swift", "Kotlin", "HTML", "CSS",
           ]);
+          toast.show(
+            `${errorMessage(err, "Couldn't load the full skill list")} — showing common defaults.`,
+            "info",
+          );
         });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing, availableOptions.length]);
-
-  useEffect(() => {
-    if (selected) {
-      document.body.style.overflow = "hidden";
-      const onKeyDown = (e: KeyboardEvent) => {
-        if (e.key === "Escape") {
-          setSelected(null);
-        }
-      };
-      window.addEventListener("keydown", onKeyDown);
-      return () => {
-        document.body.style.overflow = "";
-        window.removeEventListener("keydown", onKeyDown);
-      };
-    } else {
-      document.body.style.overflow = "";
-    }
-  }, [selected]);
 
   useEffect(() => {
     if (!selected) {
@@ -598,47 +267,28 @@ export function App() {
 
     async function fetchBody() {
       try {
-        const response = await fetch(`${API}/issues/${selected!.id}/body`, {
-          credentials: "include",
-          signal: controller.signal,
-        });
-        if (response.status === 202) {
+        const result = await apiClient.getIssueBody(selected!.id, { signal: controller.signal });
+        if ("status" in result) {
           if (attempt < backoffMs.length) {
             retryTimer = setTimeout(fetchBody, backoffMs[attempt]);
             attempt++;
           } else {
-            let reason = "";
-            try {
-              const payload = await response.json();
-              reason = payload.reason || "";
-            } catch {
-              // ignore
-            }
             setSelectedBodyError(true);
             setSelectedBodyErrorDetail(
-              reason ? `Still queued after several retries (${reason}).` : "Still queued after several retries."
+              result.reason
+                ? `Still queued after several retries (${result.reason}).`
+                : "Still queued after several retries.",
             );
           }
           return;
         }
-        if (!response.ok) {
-          let detail = `HTTP ${response.status}`;
-          try {
-            const payload = await response.json();
-            detail = payload.error || payload.detail || detail;
-          } catch {
-            // ignore
-          }
-          setSelectedBodyError(true);
-          setSelectedBodyErrorDetail(detail);
-          return;
-        }
-        const data = await response.json();
-        setSelectedBody(typeof data.body === "string" ? data.body : "");
+        setSelectedBody(result.body);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setSelectedBodyError(true);
-        setSelectedBodyErrorDetail("Network error while loading the issue body.");
+        setSelectedBodyErrorDetail(
+          errorMessage(err, "Network error while loading the issue body."),
+        );
       }
     }
 
@@ -653,6 +303,7 @@ export function App() {
     if (view === "Recommended" && profile) {
       void loadRecommended();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, profile]);
 
   useEffect(() => {
@@ -679,7 +330,7 @@ export function App() {
       window.history.replaceState({}, document.title, window.location.pathname);
       void (async () => {
         try {
-          const session = await request<{ authenticated: boolean }>("/auth/session");
+          const session = await apiClient.getSession();
           if (!session.authenticated) {
             setShowLoginModal(true);
             setOAuthError(
@@ -687,10 +338,10 @@ export function App() {
             );
             return;
           }
-        } catch {
+        } catch (err) {
           setShowLoginModal(true);
           setOAuthError(
-            "Signed in with GitHub, but checking the session failed. Check your connection and try again."
+            `Signed in with GitHub, but checking the session failed. ${errorMessage(err, "Check your connection and try again.")}`
           );
           return;
         }
@@ -700,14 +351,15 @@ export function App() {
     }
 
     void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // View issue from a working/submission card (D2c re-solve): fetches the
-  // full issue so the same detail modal (and its "Open in Desktop App" deep
+  // View issue from a working/submission card (re-solve): fetches the full
+  // issue so the same detail modal (and its "Open in Desktop App" deep
   // link) works from Working/Submissions, not just the catalog.
-  async function viewContributionIssue(item: Contribution) {
+  async function viewContributionIssue(item: ContributionDetail) {
     try {
-      const full = await request<Issue>(`/issues/${item.issue_id}`);
+      const full = await apiClient.getIssue(item.issue_id);
       setSelected(full);
     } catch {
       window.open(item.issue_url, "_blank", "noreferrer");
@@ -716,9 +368,9 @@ export function App() {
 
   async function handleLogout() {
     try {
-      await request("/auth/logout", { method: "POST" });
-    } catch {
-      // ignore
+      await apiClient.logout();
+    } catch (err) {
+      toast.show(`Sign out request failed: ${errorMessage(err, "check your connection.")}`, "error");
     }
     setProfile(null);
     setSavedIssues([]);
@@ -728,6 +380,7 @@ export function App() {
     setView("Overview");
     setRecommendedIssues([]);
     setRecommendedStale(false);
+    setRecommendedError(false);
     clearRecommendationsCache();
     void loadIssues(page, difficultyFilter, query);
   }
@@ -738,57 +391,49 @@ export function App() {
       return;
     }
     const isSaved = savedIssues.some((item) => item.id === issue.id);
-    if (isSaved) {
-      await request(`/saved/${issue.id}`, { method: "DELETE" });
-      setSavedIssues((current) =>
-        current.filter((item) => item.id !== issue.id),
+    try {
+      if (isSaved) {
+        await apiClient.unsaveIssue(issue.id);
+        setSavedIssues((current) => current.filter((item) => item.id !== issue.id));
+      } else {
+        await apiClient.saveIssue(issue.id);
+        setSavedIssues((current) => [...current, issue]);
+      }
+    } catch (err) {
+      toast.show(
+        `Couldn't ${isSaved ? "remove" : "save"} this issue: ${errorMessage(err, "check your connection.")}`,
+        "error",
       );
-    } else {
-      await request("/saved", {
-        method: "POST",
-        body: JSON.stringify({ issue_id: issue.id }),
-      });
-      setSavedIssues((current) => [...current, issue]);
     }
   }
 
   async function saveProfile() {
     if (!profile) return;
     try {
-      const updated = await request<Profile>("/profile", {
-        method: "PUT",
-        body: JSON.stringify({
-          bio,
-          experience_level: profile.experience_level || "BEGINNER",
-          target_level: profile.target_level || "INTERMEDIATE",
-          interests: profile.interests,
-          preferred_languages: selectedLangs,
-        }),
+      const updated = await apiClient.updateProfile({
+        bio,
+        experience_level: profile.experience_level || "BEGINNER",
+        target_level: profile.target_level || "INTERMEDIATE",
+        interests: profile.interests,
+        preferred_languages: selectedLangs,
       });
       setProfile(updated);
       setEditing(false);
       void loadIssues(page, difficultyFilter, query);
-    } catch {
-      setError("Profile could not be saved.");
+    } catch (err) {
+      toast.show(`Profile could not be saved: ${errorMessage(err, "check your connection.")}`, "error");
     }
   }
-
-  if (error)
-    return (
-      <main className="center">
-        <div className="login-card">
-          <h1>SkillIssues</h1>
-          <p>{error}</p>
-        </div>
-      </main>
-    );
-
 
   function renderMarkdown(md: string) {
     if (!md || !md.trim())
       return '<p class="empty-body">No issue description available.</p>';
     return renderIssueMarkdown(md);
   }
+
+  const isSaved = (issue: Issue) => savedIssues.some((item) => item.id === issue.id);
+  const bookmarkIcon = (saved: boolean) => <Bookmark size={14} fill={saved ? "currentColor" : "none"} />;
+  const commentIcon = <MessageCircle size={11} />;
 
   const displayed =
     view === "Saved" ? savedIssues : view === "Recommended" ? recommendedIssues : issues;
@@ -823,40 +468,28 @@ export function App() {
     }[] = [];
 
     if (repoMatches.length > 0) {
-      groups.push({
-        key: "repository",
-        title: "Repositories",
-        icon: <FolderGit2 size={15} />,
-        items: repoMatches,
-      });
+      groups.push({ key: "repository", title: "Repositories", icon: <FolderGit2 size={15} />, items: repoMatches });
     }
     if (langMatches.length > 0) {
-      groups.push({
-        key: "language",
-        title: "Languages & Frameworks",
-        icon: <Code2 size={15} />,
-        items: langMatches,
-      });
+      groups.push({ key: "language", title: "Languages & Frameworks", icon: <Code2 size={15} />, items: langMatches });
     }
     if (issueMatches.length > 0) {
-      groups.push({
-        key: "issue",
-        title: "Issues",
-        icon: <FileText size={15} />,
-        items: issueMatches,
-      });
+      groups.push({ key: "issue", title: "Issues", icon: <FileText size={15} />, items: issueMatches });
     }
     if (authorMatches.length > 0) {
-      groups.push({
-        key: "author",
-        title: "Authors & Organizations",
-        icon: <UserIcon size={15} />,
-        items: authorMatches,
-      });
+      groups.push({ key: "author", title: "Authors & Organizations", icon: <UserIcon size={15} />, items: authorMatches });
     }
 
     return groups;
   })();
+
+  const sectionTabs: SectionTabItem[] = [
+    { key: "SkillIssues", label: "SkillIssues", count: issues.length },
+    ...(profile ? [{ key: "Recommended", label: "Recommended", count: recommendedIssues.length }] : []),
+    { key: "Saved", label: "Saved", count: savedIssues.length },
+    { key: "Working", label: "Working", count: working.length },
+    { key: "Submissions", label: "Submissions", count: submissions.length },
+  ];
 
   return (
     <main className="web-home">
@@ -874,11 +507,7 @@ export function App() {
             </div>
           </div>
           <nav className="web-header-nav">
-            <button
-              type="button"
-              className="nav-link-btn"
-              onClick={() => setView("Overview")}
-            >
+            <button type="button" className="nav-link-btn" onClick={() => setView("Overview")}>
               Overview
             </button>
             <button
@@ -926,522 +555,475 @@ export function App() {
         />
       ) : (
         <>
-          <form
-            className="web-search"
-            onSubmit={(event) => void handleSearch(event)}
-          >
-        <Search size={16} className="search-icon" />
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search issues by language, repo, author, title, or description..."
-        />
-        {query && (
-          <button
-            type="button"
-            className="clear-button"
-            onClick={() => {
-              setQuery("");
-              setPage(1);
-              setSearchCategory("ALL");
-              setExpandedCategories({});
-              void loadIssues(1, difficultyFilter, "");
-            }}
-          >
-            clear
-          </button>
-        )}
-        <button type="submit" className="search-submit">Search</button>
-      </form>
-
-      <section className="web-grid">
-        <div className="web-feed">
-          <nav className="web-tabs">
-            {(
-              [
-                "SkillIssues",
-                ...(profile ? (["Recommended"] as View[]) : []),
-                "Saved",
-                "Working",
-                "Submissions",
-              ] as View[]
-            ).map((item) => (
-              <button
-                key={item}
-                className={view === item ? "active" : ""}
-                onClick={() => setView(item)}
-              >
-                {item}{" "}
-                <b>
-                  {item === "SkillIssues"
-                    ? issues.length
-                    : item === "Recommended"
-                      ? recommendedIssues.length
-                      : item === "Saved"
-                        ? savedIssues.length
-                        : item === "Working"
-                          ? working.length
-                          : submissions.length}
-                </b>
-              </button>
-            ))}
-          </nav>
-
-          {view === "SkillIssues" && (
-            <div className="difficulty-tabs">
-              {(["ALL", "BEGINNER", "INTERMEDIATE", "ADVANCED"] as const).map((diff) => (
-                <button
-                  key={diff}
-                  className={`difficulty-tab ${difficultyFilter === diff ? "active" : ""} ${diff.toLowerCase()}`}
-                  onClick={() => handleDifficultyChange(diff)}
-                >
-                  {diff === "ALL" ? "All Difficulties" : diff.charAt(0) + diff.slice(1).toLowerCase()}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className="feed-title">
-            <h1>{view}</h1>
-            <span>
-              {view === "SkillIssues"
-                ? isSearchActive
-                  ? `Search results for "${query}"`
-                  : "Browse the full challenge catalog"
-                : view === "Recommended"
-                  ? recommendedStale
-                    ? "Personalized for your current level and preferences (showing cached results — offline or refresh pending)"
-                    : "Personalized for your current level and preferences"
-                  : view === "Saved"
-                    ? "Challenges saved for later"
-                    : view === "Working"
-                      ? "Repositories you are actively solving"
-                      : "Pull requests submitted and completed"}
-            </span>
-          </div>
-
-          {listsError && (view === "Saved" || view === "Working" || view === "Submissions") && (
-            <div className="auth-alert-box">
-              <span>
-                Couldn't load this list — the request failed (rate limit or a
-                network error), not that it's empty.{" "}
-                <button type="button" className="token-toggle-btn" onClick={() => void refresh()}>
-                  Retry
-                </button>
-              </span>
-            </div>
-          )}
-
-          {view === "Working" ? (
-            <WorkingList items={working} onRefresh={refresh} onViewIssue={viewContributionIssue} />
-          ) : view === "Submissions" ? (
-            <SubmissionList items={submissions} onViewIssue={viewContributionIssue} />
-          ) : (
-            <>
-              {isSearchActive ? (
-                <div className="search-results-container">
-                  {searchCategoryGroups.length > 0 && (
-                    <div className="search-category-tabs">
-                      <button
-                        type="button"
-                        className={`search-category-tab ${searchCategory === "ALL" ? "active" : ""}`}
-                        onClick={() => setSearchCategory("ALL")}
-                      >
-                        <Layers size={13} />
-                        <span>All</span>
-                        <span className="search-category-badge">{displayed.length}</span>
-                      </button>
-                      {searchCategoryGroups.map((group) => (
-                        <button
-                          key={group.key}
-                          type="button"
-                          className={`search-category-tab ${searchCategory === group.key ? "active" : ""}`}
-                          onClick={() => setSearchCategory(group.key)}
-                        >
-                          {group.icon}
-                          <span>{group.title}</span>
-                          <span className="search-category-badge">{group.items.length}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {displayed.length === 0 ? (
-                    <div className="empty-feed">
-                      <p>No issues found matching "{query}". Try searching for another language, repository, or topic.</p>
-                    </div>
-                  ) : (
-                    (searchCategory === "ALL"
-                      ? searchCategoryGroups
-                      : searchCategoryGroups.filter((g) => g.key === searchCategory)
-                    ).map((group) => {
-                      const isExpanded = Boolean(expandedCategories[group.key]) || searchCategory !== "ALL";
-                      const visibleItems = isExpanded ? group.items : group.items.slice(0, 3);
-                      const hasMoreInCategory = group.items.length > 3;
-
-                      return (
-                        <div key={group.key} className="search-category-section">
-                          <div className="search-category-header">
-                            <div className="search-category-title">
-                              <span className="category-header-icon">{group.icon}</span>
-                              <h3>{group.title}</h3>
-                              <span className="category-header-count">{group.items.length}</span>
-                            </div>
-                            {hasMoreInCategory && searchCategory === "ALL" && (
-                              <button
-                                type="button"
-                                className="category-expand-btn"
-                                onClick={() =>
-                                  setExpandedCategories((prev) => ({
-                                    ...prev,
-                                    [group.key]: !prev[group.key],
-                                  }))
-                                }
-                              >
-                                {isExpanded ? (
-                                  <>
-                                    Show fewer <ChevronUp size={13} />
-                                  </>
-                                ) : (
-                                  <>
-                                    Show all {group.items.length} <ChevronDown size={13} />
-                                  </>
-                                )}
-                              </button>
-                            )}
-                          </div>
-
-                          <div className="issue-feed">
-                            {visibleItems.map((issue) => (
-                              <IssueCard
-                                key={issue.id}
-                                issue={issue}
-                                saved={savedIssues.some((item) => item.id === issue.id)}
-                                onSelect={() => setSelected(issue)}
-                                onToggleSave={() => void toggleSave(issue)}
-                              />
-                            ))}
-                          </div>
-
-                          {hasMoreInCategory && searchCategory === "ALL" && (
-                            <div className="category-footer">
-                              <button
-                                type="button"
-                                className="category-toggle-more-btn"
-                                onClick={() =>
-                                  setExpandedCategories((prev) => ({
-                                    ...prev,
-                                    [group.key]: !prev[group.key],
-                                  }))
-                                }
-                              >
-                                {isExpanded ? (
-                                  <>
-                                    Show fewer results <ChevronUp size={14} />
-                                  </>
-                                ) : (
-                                  <>
-                                    Show {group.items.length - 3} more in {group.title} <ChevronDown size={14} />
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              ) : (
-                <div className="issue-feed">
-                  {displayed.length ? (
-                    displayed.map((issue) => (
-                      <IssueCard
-                        key={issue.id}
-                        issue={issue}
-                        saved={savedIssues.some((item) => item.id === issue.id)}
-                        onSelect={() => setSelected(issue)}
-                        onToggleSave={() => void toggleSave(issue)}
-                      />
-                    ))
-                  ) : (
-                    <div className="empty-feed">
-                      <p>Nothing found here yet.</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {view === "SkillIssues" && (
-                <div className="pagination">
-                  <button
-                    type="button"
-                    className="pagination-btn"
-                    disabled={page <= 1}
-                    onClick={() => handlePageChange(page - 1)}
-                  >
-                    ← Previous
-                  </button>
-                  <span className="pagination-info">Page {page}</span>
-                  <button
-                    type="button"
-                    className="pagination-btn"
-                    disabled={!hasMore}
-                    onClick={() => handlePageChange(page + 1)}
-                  >
-                    Next →
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        <aside className="web-profile">
-          {profile ? (
-            <>
-              <img className="avatar" src={profile.avatar_url} alt={`${profile.username} profile`} />
-              <h2>{profile.name || profile.username}</h2>
-              <p className="profile-handle">@{profile.username}</p>
-              <p className="profile-quote">
-                {profile.bio || "Build your next open-source contribution."}
-              </p>
-
-              <section className="profile-section">
-                <label>
-                  Preferences{" "}
-                  <button
-                    className="edit-button"
-                    title="Edit profile preferences"
-                    onClick={() => setEditing(!editing)}
-                  >
-                    <Pencil size={12} />
-                  </button>
-                </label>
-                <div className="profile-chips">
-                  {profile.preferred_languages.map((item) => (
-                    <span key={item}>
-                      <LanguageMark name={item} />
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              </section>
-
-              {editing && (
-                <div className="profile-editor">
-                  <label className="editor-label">Bio</label>
-                  <textarea
-                    value={bio}
-                    onChange={(event) => setBio(event.target.value)}
-                    placeholder="Short bio..."
-                  />
-
-                  <label className="editor-label">Preferred Languages & Frameworks</label>
-                  {selectedLangs.length > 0 && (
-                    <div className="profile-chips" style={{ marginBottom: 6 }}>
-                      {selectedLangs.map((lang) => (
-                        <span
-                          key={lang}
-                          style={{ cursor: "pointer" }}
-                          title="Click to remove"
-                          onClick={() =>
-                            setSelectedLangs(
-                              selectedLangs.filter(
-                                (l) => l.toLowerCase() !== lang.toLowerCase(),
-                              ),
-                            )
-                          }
-                        >
-                          <LanguageMark name={lang} />
-                          {lang} ×
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <input
-                    type="text"
-                    className="pref-search-input"
-                    placeholder="Search technologies to select..."
-                    value={prefSearch}
-                    onChange={(e) => setPrefSearch(e.target.value)}
-                  />
-                  <div className="pref-chips-container">
-                    {availableOptions
-                      .filter((opt) =>
-                        opt.toLowerCase().includes(prefSearch.toLowerCase()),
-                      )
-                      .map((opt) => {
-                        const isSelected = selectedLangs.some(
-                          (l) => l.toLowerCase() === opt.toLowerCase(),
-                        );
-                        return (
-                          <div
-                            key={opt}
-                            className={`pref-chip ${isSelected ? "selected" : ""}`}
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedLangs(
-                                  selectedLangs.filter(
-                                    (l) => l.toLowerCase() !== opt.toLowerCase(),
-                                  ),
-                                );
-                              } else {
-                                setSelectedLangs([...selectedLangs, opt]);
-                              }
-                            }}
-                          >
-                            {opt} {isSelected ? "✓" : "+"}
-                          </div>
-                        );
-                      })}
-                  </div>
-
-
-                  <div className="editor-actions">
-                    <button
-                      type="button"
-                      className="cancel-btn"
-                      onClick={() => setEditing(false)}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="search-submit"
-                      onClick={() => void saveProfile()}
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <section className="profile-section">
-                <label>Contribution Badges</label>
-                <div className="profile-chips">
-                  <span>{profile.completed_count} verified</span>
-                  {profile.badge_details && profile.badge_details.length > 0
-                    ? profile.badge_details.map((b) => (
-                        <span key={b.name} title={b.name}>
-                          {b.icon} {b.name}
-                        </span>
-                      ))
-                    : (profile.badges || []).map((b) => (
-                        <span key={b} title={b}>
-                          {b}
-                        </span>
-                      ))}
-                </div>
-              </section>
-
-              <div className="profile-level">
-                <div className="profile-level-header">
-                  <span>Level {profile.level || 1}</span>
-                  <span>{profile.total_xp || 0} XP</span>
-                </div>
-                <div className="profile-level-bar">
-                  <div
-                    className="profile-level-fill"
-                    style={{
-                      width: `${profile.progress_percent ?? profile.progress_score ?? 0}%`,
-                    }}
-                  />
-                </div>
-              </div>
-
+          <form className="web-search" onSubmit={(event) => void handleSearch(event)}>
+            <Search size={16} className="search-icon" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search issues by language, repo, author, title, or description..."
+            />
+            {query && (
               <button
                 type="button"
-                className="logout-button"
-                onClick={() => void handleLogout()}
-                title="Sign out of SkillIssues"
+                className="clear-button"
+                onClick={() => {
+                  setQuery("");
+                  setPage(1);
+                  setSearchCategory("ALL");
+                  setExpandedCategories({});
+                  void loadIssues(1, difficultyFilter, "");
+                }}
               >
-                <LogOut size={14} />
-                <span>Sign out</span>
+                clear
               </button>
-            </>
-          ) : (
-            <div className="guest-sidebar-card">
-              <div className="guest-avatar-icon">
-                <svg
-                  width="36"
-                  height="36"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-              </div>
-              <h2 style={{ textAlign: "center", marginBottom: 4 }}>Guest Developer</h2>
-              <p className="profile-handle" style={{ textAlign: "center", marginBottom: 12 }}>
-                @unauthenticated
-              </p>
-              <p className="profile-quote" style={{ textAlign: "center" }}>
-                Browse open-source issues, filter by difficulty, and explore repositories.
-              </p>
+            )}
+            <button type="submit" className="search-submit">Search</button>
+          </form>
 
-              <div className="guest-card-box">
-                <h4>Sign in with GitHub</h4>
-                <p>
-                  Connect your account to save challenges, receive tailored recommendations, track XP progression, and submit pull requests.
-                </p>
-                <button
-                  type="button"
-                  className="guest-sign-in-btn"
-                  onClick={() => setShowLoginModal(true)}
-                >
-                  <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
-                  </svg>
-                  <span>Sign in with GitHub</span>
-                </button>
+          <section className="web-grid">
+            <div className="web-feed">
+              <SectionTabs items={sectionTabs} active={view} onChange={(key) => setView(key as View)} />
+
+              {view === "SkillIssues" && (
+                <DifficultyTabs value={difficultyFilter} onChange={handleDifficultyChange} />
+              )}
+
+              <div className="feed-title">
+                <h1>{view}</h1>
+                <span>
+                  {view === "SkillIssues"
+                    ? isSearchActive
+                      ? `Search results for "${query}"`
+                      : "Browse the full challenge catalog"
+                    : view === "Recommended"
+                      ? recommendedStale
+                        ? "Personalized for your current level and preferences (showing cached results — offline or refresh pending)"
+                        : "Personalized for your current level and preferences"
+                      : view === "Saved"
+                        ? "Challenges saved for later"
+                        : view === "Working"
+                          ? "Repositories you are actively solving"
+                          : "Pull requests submitted and completed"}
+                </span>
               </div>
+
+              {listsError && (view === "Saved" || view === "Working" || view === "Submissions") && (
+                <div className="auth-alert-box">
+                  <span>
+                    Couldn't load this list — the request failed (rate limit or a
+                    network error), not that it's empty.{" "}
+                    <button type="button" className="token-toggle-btn" onClick={() => void refresh()}>
+                      Retry
+                    </button>
+                  </span>
+                </div>
+              )}
+
+              {recommendedError && view === "Recommended" && (
+                <div className="auth-alert-box">
+                  <span>
+                    Couldn't load recommendations — the request failed (rate limit or a
+                    network error), not that there are none.{" "}
+                    <button type="button" className="token-toggle-btn" onClick={() => void loadRecommended()}>
+                      Retry
+                    </button>
+                  </span>
+                </div>
+              )}
+
+              {issuesError && view === "SkillIssues" && (
+                <div className="auth-alert-box">
+                  <span>
+                    Couldn't refresh the catalog — showing the last results loaded.{" "}
+                    <button
+                      type="button"
+                      className="token-toggle-btn"
+                      onClick={() => void loadIssues(page, difficultyFilter, query)}
+                    >
+                      Retry
+                    </button>
+                  </span>
+                </div>
+              )}
+
+              {view === "Working" ? (
+                <WorkingList
+                  items={working}
+                  emptyMessage="Solve an issue in the Desktop App to start tracking your workspace."
+                  renderActions={(item) => (
+                    <>
+                      <button type="button" className="view-issue-btn" onClick={() => void viewContributionIssue(item)}>
+                        View issue
+                      </button>
+                      <button type="button" className="view-issue-btn" onClick={() => void refresh()}>
+                        Refresh status
+                      </button>
+                    </>
+                  )}
+                />
+              ) : view === "Submissions" ? (
+                <SubmissionList
+                  items={submissions}
+                  renderActions={(item) => (
+                    <>
+                      <button type="button" className="view-issue-btn" onClick={() => void viewContributionIssue(item)}>
+                        View issue
+                      </button>
+                      {item.pr_url && (
+                        <a className="view-issue-btn" href={item.pr_url} target="_blank" rel="noreferrer">
+                          View PR <ExternalLink size={11} />
+                        </a>
+                      )}
+                      <a
+                        className="save-icon-btn"
+                        href={item.issue_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="View issue on GitHub"
+                      >
+                        <ExternalLink size={14} />
+                      </a>
+                    </>
+                  )}
+                />
+              ) : (
+                <>
+                  {isSearchActive ? (
+                    <div className="search-results-container">
+                      {searchCategoryGroups.length > 0 && (
+                        <div className="search-category-tabs">
+                          <button
+                            type="button"
+                            className={`search-category-tab ${searchCategory === "ALL" ? "active" : ""}`}
+                            onClick={() => setSearchCategory("ALL")}
+                          >
+                            <Layers size={13} />
+                            <span>All</span>
+                            <span className="search-category-badge">{displayed.length}</span>
+                          </button>
+                          {searchCategoryGroups.map((group) => (
+                            <button
+                              key={group.key}
+                              type="button"
+                              className={`search-category-tab ${searchCategory === group.key ? "active" : ""}`}
+                              onClick={() => setSearchCategory(group.key)}
+                            >
+                              {group.icon}
+                              <span>{group.title}</span>
+                              <span className="search-category-badge">{group.items.length}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {displayed.length === 0 ? (
+                        <div className="empty-feed">
+                          <p>No issues found matching "{query}". Try searching for another language, repository, or topic.</p>
+                        </div>
+                      ) : (
+                        (searchCategory === "ALL"
+                          ? searchCategoryGroups
+                          : searchCategoryGroups.filter((g) => g.key === searchCategory)
+                        ).map((group) => {
+                          const isExpanded = Boolean(expandedCategories[group.key]) || searchCategory !== "ALL";
+                          const visibleItems = isExpanded ? group.items : group.items.slice(0, 3);
+                          const hasMoreInCategory = group.items.length > 3;
+
+                          return (
+                            <div key={group.key} className="search-category-section">
+                              <div className="search-category-header">
+                                <div className="search-category-title">
+                                  <span className="category-header-icon">{group.icon}</span>
+                                  <h3>{group.title}</h3>
+                                  <span className="category-header-count">{group.items.length}</span>
+                                </div>
+                                {hasMoreInCategory && searchCategory === "ALL" && (
+                                  <button
+                                    type="button"
+                                    className="category-expand-btn"
+                                    onClick={() =>
+                                      setExpandedCategories((prev) => ({
+                                        ...prev,
+                                        [group.key]: !prev[group.key],
+                                      }))
+                                    }
+                                  >
+                                    {isExpanded ? (
+                                      <>Show fewer <ChevronUp size={13} /></>
+                                    ) : (
+                                      <>Show all {group.items.length} <ChevronDown size={13} /></>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+
+                              <div className="issue-feed">
+                                {visibleItems.map((issue) => (
+                                  <IssueCard
+                                    key={issue.id}
+                                    issue={issue}
+                                    saved={isSaved(issue)}
+                                    onSelect={() => setSelected(issue)}
+                                    onToggleSave={() => void toggleSave(issue)}
+                                    bookmarkIcon={bookmarkIcon}
+                                    commentIcon={commentIcon}
+                                  />
+                                ))}
+                              </div>
+
+                              {hasMoreInCategory && searchCategory === "ALL" && (
+                                <div className="category-footer">
+                                  <button
+                                    type="button"
+                                    className="category-toggle-more-btn"
+                                    onClick={() =>
+                                      setExpandedCategories((prev) => ({
+                                        ...prev,
+                                        [group.key]: !prev[group.key],
+                                      }))
+                                    }
+                                  >
+                                    {isExpanded ? (
+                                      <>Show fewer results <ChevronUp size={14} /></>
+                                    ) : (
+                                      <>Show {group.items.length - 3} more in {group.title} <ChevronDown size={14} /></>
+                                    )}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  ) : (
+                    <IssueList
+                      issues={displayed}
+                      loading={view === "SkillIssues" && issuesLoading && issues.length === 0}
+                      emptyMessage="Nothing found here yet."
+                      isSaved={isSaved}
+                      onSelect={(issue) => setSelected(issue)}
+                      onToggleSave={(issue) => void toggleSave(issue)}
+                      bookmarkIcon={bookmarkIcon}
+                      commentIcon={commentIcon}
+                    />
+                  )}
+
+                  {view === "SkillIssues" && (
+                    <div className="pagination">
+                      <button
+                        type="button"
+                        className="pagination-btn"
+                        disabled={page <= 1}
+                        onClick={() => handlePageChange(page - 1)}
+                      >
+                        ← Previous
+                      </button>
+                      <span className="pagination-info">Page {page}</span>
+                      <button
+                        type="button"
+                        className="pagination-btn"
+                        disabled={!hasMore}
+                        onClick={() => handlePageChange(page + 1)}
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-          )}
-        </aside>
-      </section>
+
+            <aside className="web-profile">
+              {profile ? (
+                <>
+                  <img className="avatar" src={profile.avatar_url} alt={`${profile.username} profile`} />
+                  <h2>{profile.name || profile.username}</h2>
+                  <p className="profile-handle">@{profile.username}</p>
+                  <p className="profile-quote">
+                    {profile.bio || "Build your next open-source contribution."}
+                  </p>
+
+                  <section className="profile-section">
+                    <label>
+                      Preferences{" "}
+                      <button
+                        className="edit-button"
+                        title="Edit profile preferences"
+                        onClick={() => setEditing(!editing)}
+                      >
+                        <Pencil size={12} />
+                      </button>
+                    </label>
+                    <div className="profile-chips">
+                      {profile.preferred_languages.map((item) => (
+                        <span key={item}>
+                          <LanguageMark name={item} />
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </section>
+
+                  {editing && (
+                    <div className="profile-editor">
+                      <label className="editor-label">Bio</label>
+                      <textarea
+                        value={bio}
+                        onChange={(event) => setBio(event.target.value)}
+                        placeholder="Short bio..."
+                      />
+
+                      <label className="editor-label">Preferred Languages & Frameworks</label>
+                      {selectedLangs.length > 0 && (
+                        <div className="profile-chips" style={{ marginBottom: 6 }}>
+                          {selectedLangs.map((lang) => (
+                            <span
+                              key={lang}
+                              style={{ cursor: "pointer" }}
+                              title="Click to remove"
+                              onClick={() =>
+                                setSelectedLangs(
+                                  selectedLangs.filter((l) => l.toLowerCase() !== lang.toLowerCase()),
+                                )
+                              }
+                            >
+                              <LanguageMark name={lang} />
+                              {lang} ×
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <input
+                        type="text"
+                        className="pref-search-input"
+                        placeholder="Search technologies to select..."
+                        value={prefSearch}
+                        onChange={(e) => setPrefSearch(e.target.value)}
+                      />
+                      <div className="pref-chips-container">
+                        {availableOptions
+                          .filter((opt) => opt.toLowerCase().includes(prefSearch.toLowerCase()))
+                          .map((opt) => {
+                            const isSelected = selectedLangs.some(
+                              (l) => l.toLowerCase() === opt.toLowerCase(),
+                            );
+                            return (
+                              <div
+                                key={opt}
+                                className={`pref-chip ${isSelected ? "selected" : ""}`}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedLangs(
+                                      selectedLangs.filter((l) => l.toLowerCase() !== opt.toLowerCase()),
+                                    );
+                                  } else {
+                                    setSelectedLangs([...selectedLangs, opt]);
+                                  }
+                                }}
+                              >
+                                {opt} {isSelected ? "✓" : "+"}
+                              </div>
+                            );
+                          })}
+                      </div>
+
+                      <div className="editor-actions">
+                        <button type="button" className="cancel-btn" onClick={() => setEditing(false)}>
+                          Cancel
+                        </button>
+                        <button type="button" className="search-submit" onClick={() => void saveProfile()}>
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <section className="profile-section">
+                    <label>Contribution Badges</label>
+                    <div className="profile-chips">
+                      <span>{profile.completed_count} verified</span>
+                      {profile.badge_details && profile.badge_details.length > 0
+                        ? profile.badge_details.map((b) => (
+                            <span key={b.name} title={b.name}>
+                              {b.icon} {b.name}
+                            </span>
+                          ))
+                        : (profile.badges || []).map((b) => (
+                            <span key={b} title={b}>
+                              {b}
+                            </span>
+                          ))}
+                    </div>
+                  </section>
+
+                  <div className="profile-level">
+                    <div className="profile-level-header">
+                      <span>Level {profile.level || 1}</span>
+                      <span>{profile.total_xp || 0} XP</span>
+                    </div>
+                    <ProgressBar percent={profile.progress_percent ?? profile.progress_score ?? 0} />
+                  </div>
+
+                  <button
+                    type="button"
+                    className="logout-button"
+                    onClick={() => void handleLogout()}
+                    title="Sign out of SkillIssues"
+                  >
+                    <LogOut size={14} />
+                    <span>Sign out</span>
+                  </button>
+                </>
+              ) : (
+                <div className="guest-sidebar-card">
+                  <div className="guest-avatar-icon">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </div>
+                  <h2 style={{ textAlign: "center", marginBottom: 4 }}>Guest Developer</h2>
+                  <p className="profile-handle" style={{ textAlign: "center", marginBottom: 12 }}>
+                    @unauthenticated
+                  </p>
+                  <p className="profile-quote" style={{ textAlign: "center" }}>
+                    Browse open-source issues, filter by difficulty, and explore repositories.
+                  </p>
+
+                  <div className="guest-card-box">
+                    <h4>Sign in with GitHub</h4>
+                    <p>
+                      Connect your account to save challenges, receive tailored recommendations, track XP progression, and submit pull requests.
+                    </p>
+                    <button type="button" className="guest-sign-in-btn" onClick={() => setShowLoginModal(true)}>
+                      <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+                      </svg>
+                      <span>Sign in with GitHub</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </aside>
+          </section>
         </>
       )}
 
-      {selected && (
-        <div
-          className="web-modal"
-          role="dialog"
-          aria-modal="true"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setSelected(null);
-          }}
-        >
-          <button
-            type="button"
-            className="web-modal-floating-back"
-            onClick={() => setSelected(null)}
-            title="Close issue and go back (or press Esc)"
-          >
-            <ArrowLeft size={14} /> Back to issues <kbd>Esc</kbd>
-          </button>
-
-          <article className="web-modal-card issue-detail">
-            <button
-              type="button"
-              className="modal-close"
-              onClick={() => setSelected(null)}
-              title="Close issue"
-            >
+      <Modal
+        open={Boolean(selected)}
+        onClose={() => setSelected(null)}
+        className="web-modal-card issue-detail"
+        labelledBy="issue-detail-title"
+      >
+        {selected && (
+          <>
+            <button type="button" className="modal-close" onClick={() => setSelected(null)} title="Close issue">
               <X size={18} />
             </button>
 
             <div className="modal-header-nav">
-              <button
-                type="button"
-                className="back-link"
-                onClick={() => setSelected(null)}
-              >
+              <button type="button" className="back-link" onClick={() => setSelected(null)}>
                 <ArrowLeft size={14} /> Back to issues
               </button>
               <span className={`difficulty ${selected.difficulty.toLowerCase()}`}>
@@ -1449,7 +1031,7 @@ export function App() {
               </span>
             </div>
 
-            <h2 className="modal-title">
+            <h2 className="modal-title" id="issue-detail-title">
               #{selected.number} {selected.title}
             </h2>
 
@@ -1458,9 +1040,7 @@ export function App() {
               <span>·</span>
               <span>{selected.language}</span>
               <span>·</span>
-              <span>
-                {selected.author || selected.repository.split("/")[0]}
-              </span>
+              <span>{selected.author || selected.repository.split("/")[0]}</span>
               <span>·</span>
               <span>{daysAgo(selected.updated_at)}</span>
               <span>·</span>
@@ -1470,9 +1050,7 @@ export function App() {
             </div>
 
             {selectedBody === null && !selectedBodyError ? (
-              <div className="detail-body markdown-body loading">
-                Loading issue description...
-              </div>
+              <div className="detail-body markdown-body loading">Loading issue description...</div>
             ) : (
               <div
                 className="detail-body markdown-body"
@@ -1495,12 +1073,7 @@ export function App() {
             </div>
 
             <div className="modal-actions">
-              <a
-                href={selected.url}
-                target="_blank"
-                rel="noreferrer"
-                className="github-link"
-              >
+              <a href={selected.url} target="_blank" rel="noreferrer" className="github-link">
                 Open issue on GitHub <ExternalLink size={13} />
               </a>
               <button
@@ -1514,178 +1087,17 @@ export function App() {
                 Open in Desktop App ↗
               </button>
             </div>
-          </article>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
-      {showLoginModal && (
-        <div
-          className="login-modal-overlay"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowLoginModal(false);
-          }}
-        >
-          <div className="login-modal-wrapper">
-            <LoginForm
-              initialError={oauthError}
-              onClose={() => setShowLoginModal(false)}
-            />
-          </div>
-        </div>
-      )}
+      <Modal
+        open={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        className="login-modal-wrapper"
+      >
+        <LoginForm initialError={oauthError} onClose={() => setShowLoginModal(false)} />
+      </Modal>
     </main>
-  );
-}
-
-function WorkingList({
-  items,
-  onRefresh,
-  onViewIssue,
-}: {
-  items: Contribution[];
-  onRefresh: () => Promise<void>;
-  onViewIssue: (item: Contribution) => void;
-}) {
-  return (
-    <div className="issue-feed">
-      {items.length ? (
-        items.map((item) => (
-          <article className="issue-card working-card" key={item.id}>
-            <h2 className="issue-card-title">
-              #{item.number} {item.title}
-            </h2>
-            <div className="issue-card-repo">{item.repository}</div>
-            <div className="issue-card-bottom">
-              <div className="pill-group-left">
-                <span className="pill purple">Working</span>
-                <span className="pill purple">
-                  Started {daysAgo(item.created_at)}
-                </span>
-              </div>
-              <div className="pill-group-middle">
-                <span className="pill light">
-                  <LanguageMark name={item.language || "Code"} />
-                  {item.language || "Code"}
-                </span>
-              </div>
-              <div className="pill-group-right">
-                <button
-                  className="view-issue-btn"
-                  onClick={() => onViewIssue(item)}
-                >
-                  View issue
-                </button>
-                <button
-                  className="view-issue-btn"
-                  onClick={() => void onRefresh()}
-                >
-                  Refresh status
-                </button>
-              </div>
-            </div>
-          </article>
-        ))
-      ) : (
-        <div className="empty-feed">
-          <p>Solve an issue in the Desktop App to start tracking your workspace.</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SubmissionList({
-  items,
-  onViewIssue,
-}: {
-  items: Contribution[];
-  onViewIssue: (item: Contribution) => void;
-}) {
-  return (
-    <div className="issue-feed">
-      {items.length ? (
-        items.map((item) => {
-          const isMerged = item.state === "PR_MERGED";
-          const isClosed = item.state === "PR_CLOSED";
-          const xpEarned = getXpForDifficulty(item.difficulty);
-
-          const statusText = isMerged
-            ? `Accepted (+${xpEarned} XP) 🎉`
-            : isClosed
-              ? "Rejected ✖"
-              : "Review required ⏳";
-
-          const statusClass = isMerged
-            ? "accepted"
-            : isClosed
-              ? "rejected"
-              : "review";
-
-          return (
-            <article
-              className="issue-card submission-card"
-              key={item.id}
-            >
-              <h2 className="issue-card-title">
-                #{item.number} {item.title}
-              </h2>
-              <div className="issue-card-repo">{item.repository}</div>
-              <div className="issue-card-bottom">
-                <div className="pill-group-left">
-                  <span className={`pill status-pill ${statusClass}`}>
-                    {statusText}
-                  </span>
-                  <span className="pill purple">
-                    Started {daysAgo(item.created_at)}
-                  </span>
-                  {item.submitted_at && (
-                    <span className="pill purple">
-                      Submitted {daysAgo(item.submitted_at)}
-                    </span>
-                  )}
-                </div>
-                <div className="pill-group-middle">
-                  <span className="pill light">
-                    <LanguageMark name={item.language || "Code"} />
-                    {item.language || "Code"}
-                  </span>
-                </div>
-                <div className="pill-group-right">
-                  <button
-                    className="view-issue-btn"
-                    onClick={() => onViewIssue(item)}
-                  >
-                    View issue
-                  </button>
-                  {item.pr_url && (
-                    <a
-                      className="view-issue-btn"
-                      href={item.pr_url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      View PR <ExternalLink size={11} />
-                    </a>
-                  )}
-                  <a
-                    className="save-icon-btn"
-                    href={item.issue_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="View issue on GitHub"
-                  >
-                    <ExternalLink size={14} />
-                  </a>
-                </div>
-              </div>
-            </article>
-          );
-        })
-      ) : (
-        <div className="empty-feed">
-          <p>Submit a pull request to see your contribution status here.</p>
-        </div>
-      )}
-    </div>
   );
 }

@@ -746,55 +746,10 @@ body {
 /* ---------------------------------------------------- */
 /* Detail Modal                                         */
 /* ---------------------------------------------------- */
-
-.web-modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(30, 19, 56, 0.45);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 28px;
-  z-index: 1000;
-  overscroll-behavior: contain;
-}
-
-.web-modal-floating-back {
-  position: fixed;
-  top: 24px;
-  left: 24px;
-  z-index: 1100;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: 12px;
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: var(--shadow-card);
-  transition: all 0.15s ease;
-}
-
-.web-modal-floating-back:hover {
-  background: var(--bg-pill-light);
-  border-color: var(--border-accent);
-  color: var(--accent-blue);
-  transform: translateY(-1px);
-}
-
-.web-modal-floating-back kbd {
-  background: var(--bg-subtle);
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  padding: 2px 6px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
+/* The overlay itself is packages/ui's shared <Modal> (.ui-modal-overlay /
+   .ui-modal-dialog, styled above) — this file only supplies the
+   issue-detail-specific look layered on top via the "web-modal-card
+   issue-detail" className Modal is given. */
 
 .web-modal-card {
   position: relative;
@@ -1465,26 +1420,36 @@ body {
 }
 
 /* ---------------------------------------------------- */
-/* Login Modal Dialog                                   */
+/* packages/ui's Modal: web's backdrop blur + per-use    */
+/* dialog overrides. Modal itself only ships the plain   */
+/* rgba(...) overlay + a generic white ui-modal-dialog    */
+/* box (packages/ui/src/styles.css) — this layers web's  */
+/* existing look on top per the "consumers import this    */
+/* alongside their own stylesheet" contract.              */
 /* ---------------------------------------------------- */
 
-.login-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(30, 19, 56, 0.55);
+.ui-modal-overlay {
   backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  z-index: 1200;
-  overscroll-behavior: contain;
 }
 
-.login-modal-wrapper {
-  position: relative;
+/* The issue-detail modal passes className="web-modal-card issue-detail" to
+   Modal — .web-modal-card already supplies a full background/padding/radius
+   below, so it simply overrides ui-modal-dialog's (same-specificity, later
+   in the cascade). No nested card, nothing further needed here. */
+
+/* LoginForm renders its own full card (.login-card) as a *child* of the
+   Modal dialog, so the dialog wrapper itself (.login-modal-wrapper) must be
+   stripped back to an invisible positioning box — otherwise the shared
+   Modal's default white/padded/rounded box would nest a second card inside
+   itself around .login-card. */
+.ui-modal-dialog.login-modal-wrapper {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
   max-width: 480px;
   width: 100%;
+  overflow: visible;
 }
 
 .login-modal-close {
