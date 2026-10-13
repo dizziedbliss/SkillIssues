@@ -1,17 +1,28 @@
 # Dev-only image: Vite dev server with HMR. Built from the repo root (see
-# compose.yaml) so the shared ../../packages/markdown import resolves —
-# a ./web-scoped context can never see packages/.
+# compose.yaml), which is also the npm workspace root (web, desktop,
+# packages/*), so @skillissues/markdown and friends resolve as real
+# workspace symlinks under node_modules — a ./web-scoped context can never
+# see packages/.
 FROM node:22-alpine
 
-WORKDIR /app/packages/markdown
-COPY packages/markdown/package.json packages/markdown/package-lock.json* ./
-RUN npm ci
-COPY packages/markdown/ .
+# Alpine's bundled npm has a known bug where `npm ci` hard-fails on an
+# unrelated optionalDependency's platform mismatch once enough workspace
+# members (desktop's electron-builder, here) pull in enough platform-
+# specific optional deps, instead of skipping it. See root Dockerfile.
+RUN npm install -g npm@11
 
-WORKDIR /app/web
-COPY web/package.json web/package-lock.json* ./
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY web/package.json web/
+COPY desktop/package.json desktop/
+COPY packages/markdown/package.json packages/markdown/
+COPY packages/api-client/package.json packages/api-client/
+COPY packages/ui/package.json packages/ui/
 RUN npm ci
-COPY web/ .
+
+COPY packages/ packages/
+COPY web/ web/
+WORKDIR /app/web
 
 EXPOSE 5173
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
