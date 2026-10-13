@@ -1,0 +1,13 @@
+# Installed on the VPS (not run in CI). Copy to
+# /etc/systemd/system/skillissues-backup.service, then enable the
+# accompanying .timer — see DEPLOYMENT.md for the full first-time setup.
+[Unit]
+Description=SkillIssues database backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+WorkingDirectory=/opt/skillissues
+ExecStart=/opt/skillissues/backup-db.sh
