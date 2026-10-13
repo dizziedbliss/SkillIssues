@@ -58,12 +58,12 @@ func (h *handlers) authPurge(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 
 func (h *handlers) setSessionCookie(w http.ResponseWriter, rawToken string) {
-	isSecure := strings.HasPrefix(h.cfg.FrontendURL, "https://")
+	isSecure := strings.HasPrefix(h.cfg.FrontendURLPrimary, "https://")
 	sameSite := http.SameSiteLaxMode
 	if isSecure {
 		sameSite = http.SameSiteNoneMode
 	}
-	http.SetCookie(w, &http.Cookie{
+	cookie := &http.Cookie{
 		Name:  "skillissues_session",
 		Value: rawToken,
 		// Must track the session TTL, or the cookie and the stored session
@@ -73,16 +73,20 @@ func (h *handlers) setSessionCookie(w http.ResponseWriter, rawToken string) {
 		Secure:   isSecure,
 		SameSite: sameSite,
 		Path:     "/",
-	})
+	}
+	if h.cfg.SessionCookieDomain != "" {
+		cookie.Domain = h.cfg.SessionCookieDomain
+	}
+	http.SetCookie(w, cookie)
 }
 
 func (h *handlers) clearSessionCookie(w http.ResponseWriter) {
-	isSecure := strings.HasPrefix(h.cfg.FrontendURL, "https://")
+	isSecure := strings.HasPrefix(h.cfg.FrontendURLPrimary, "https://")
 	sameSite := http.SameSiteLaxMode
 	if isSecure {
 		sameSite = http.SameSiteNoneMode
 	}
-	http.SetCookie(w, &http.Cookie{
+	cookie := &http.Cookie{
 		Name:     "skillissues_session",
 		Value:    "",
 		MaxAge:   -1,
@@ -90,7 +94,11 @@ func (h *handlers) clearSessionCookie(w http.ResponseWriter) {
 		Secure:   isSecure,
 		SameSite: sameSite,
 		Path:     "/",
-	})
+	}
+	if h.cfg.SessionCookieDomain != "" {
+		cookie.Domain = h.cfg.SessionCookieDomain
+	}
+	http.SetCookie(w, cookie)
 }
 
 func (h *handlers) extractToken(r *http.Request) string {

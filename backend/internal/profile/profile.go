@@ -13,38 +13,36 @@ import (
 
 // ProfileUpdate contains the fields that developers can update via PUT /profile.
 type ProfileUpdate struct {
-	Bio                   string   `json:"bio"`
-	ExperienceLevel       string   `json:"experience_level"`
-	TargetLevel           string   `json:"target_level"`
-	Interests             []string `json:"interests"`
-	PreferredLanguages    []string `json:"preferred_languages"`
-	CoContributionEnabled *bool    `json:"co_contribution_enabled,omitempty"`
+	Bio                string   `json:"bio"`
+	ExperienceLevel    string   `json:"experience_level"`
+	TargetLevel        string   `json:"target_level"`
+	Interests          []string `json:"interests"`
+	PreferredLanguages []string `json:"preferred_languages"`
 }
 
 // FullProfile represents the complete developer profile returned by GET /me and GET /profile.
 type FullProfile struct {
-	ID                    int                       `json:"id"`
-	Username              string                    `json:"username"`
-	Name                  string                    `json:"name"`
-	AvatarURL             string                    `json:"avatar_url"`
-	ExperienceLevel       string                    `json:"experience_level"`
-	TargetLevel           string                    `json:"target_level"`
-	ProgressScore         int                       `json:"progress_score"`
-	CompletedCount        int                       `json:"completed_count"`
-	Bio                   string                    `json:"bio"`
-	DemonstratedSkills    []string                  `json:"demonstrated_skills"`
-	TotalXP               int                       `json:"total_xp"`
-	Level                 int                       `json:"level"`
-	Badges                []string                  `json:"badges"`
-	Interests             []string                  `json:"interests"`
-	PreferredLanguages    []string                  `json:"preferred_languages"`
-	CoContributionEnabled bool                      `json:"co_contribution_enabled"`
-	CurrentLevelMinXP     int                       `json:"current_level_min_xp"`
-	NextLevelXP           int                       `json:"next_level_xp"`
-	ProgressInLevel       int                       `json:"progress_in_level"`
-	LevelXPRequired       int                       `json:"level_xp_required"`
-	ProgressPercent       int                       `json:"progress_percent"`
-	BadgeDetails          []progression.BadgeDetail `json:"badge_details"`
+	ID                 int                       `json:"id"`
+	Username           string                    `json:"username"`
+	Name               string                    `json:"name"`
+	AvatarURL          string                    `json:"avatar_url"`
+	ExperienceLevel    string                    `json:"experience_level"`
+	TargetLevel        string                    `json:"target_level"`
+	ProgressScore      int                       `json:"progress_score"`
+	CompletedCount     int                       `json:"completed_count"`
+	Bio                string                    `json:"bio"`
+	DemonstratedSkills []string                  `json:"demonstrated_skills"`
+	TotalXP            int                       `json:"total_xp"`
+	Level              int                       `json:"level"`
+	Badges             []string                  `json:"badges"`
+	Interests          []string                  `json:"interests"`
+	PreferredLanguages []string                  `json:"preferred_languages"`
+	CurrentLevelMinXP  int                       `json:"current_level_min_xp"`
+	NextLevelXP        int                       `json:"next_level_xp"`
+	ProgressInLevel    int                       `json:"progress_in_level"`
+	LevelXPRequired    int                       `json:"level_xp_required"`
+	ProgressPercent    int                       `json:"progress_percent"`
+	BadgeDetails       []progression.BadgeDetail `json:"badge_details"`
 }
 
 // Service manages developer profile operations.
@@ -154,8 +152,7 @@ func (s *Service) GetFullProfile(ctx context.Context, userID int) (*FullProfile,
 		`SELECT u.id, u.username, COALESCE(u.name, u.username), COALESCE(u.avatar_url, ''),
 		        p.experience_level, p.target_level, p.progress_score, p.completed_count,
 		        COALESCE(p.bio, ''), p.demonstrated_skills, p.total_xp, p.level, p.badges,
-		        COALESCE(pref.interests, '{}'), COALESCE(pref.preferred_languages, '{}'),
-		        COALESCE(pref.co_contribution_enabled, false)
+		        COALESCE(pref.interests, '{}'), COALESCE(pref.preferred_languages, '{}')
 		 FROM users u
 		 JOIN developer_profiles p ON p.user_id = u.id
 		 LEFT JOIN developer_preferences pref ON pref.user_id = u.id
@@ -166,7 +163,7 @@ func (s *Service) GetFullProfile(ctx context.Context, userID int) (*FullProfile,
 				&p.ID, &p.Username, &name, &avatarURL,
 				&p.ExperienceLevel, &p.TargetLevel, &p.ProgressScore, &p.CompletedCount,
 				&bio, &p.DemonstratedSkills, &p.TotalXP, &p.Level, &p.Badges,
-				&p.Interests, &p.PreferredLanguages, &p.CoContributionEnabled,
+				&p.Interests, &p.PreferredLanguages,
 			)
 		},
 	)
@@ -243,10 +240,9 @@ func (s *Service) UpdateProfile(ctx context.Context, userID int, update ProfileU
 	}
 
 	err = s.db.Exec(ctx,
-		`UPDATE developer_preferences SET interests = $1, preferred_languages = $2,
-		 co_contribution_enabled = COALESCE($3, co_contribution_enabled)
-		 WHERE user_id = $4`,
-		update.Interests, update.PreferredLanguages, update.CoContributionEnabled, userID,
+		`UPDATE developer_preferences SET interests = $1, preferred_languages = $2
+		 WHERE user_id = $3`,
+		update.Interests, update.PreferredLanguages, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("profile: update preferences: %w", err)

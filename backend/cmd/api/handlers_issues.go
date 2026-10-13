@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -212,8 +213,18 @@ func (h *handlers) getIssueBody(w http.ResponseWriter, r *http.Request) {
 
 	body, err := h.bodyFetcher.GetBody(r.Context(), id, userID, userToken)
 	if err != nil {
-		if err == issue.ErrBodyUnavailable {
-			middleware.RespondError(w, http.StatusAccepted, "queued, retrying — try again shortly")
+		if errors.Is(err, issue.ErrBodyUnavailable) {
+			reason := "fetching"
+			switch {
+			case errors.Is(err, issue.ErrBodyBudget):
+				reason = "budget"
+			case errors.Is(err, issue.ErrBodyNoCredential):
+				reason = "no-credential"
+			}
+			middleware.RespondJSON(w, http.StatusAccepted, map[string]string{
+				"status": "queued",
+				"reason": reason,
+			})
 			return
 		}
 		middleware.RespondError(w, http.StatusBadGateway, "failed to fetch issue body")

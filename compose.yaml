@@ -167,7 +167,9 @@ services:
       start_period: 3s
 
   frontend:
-    build: ./web
+    build:
+      context: .
+      dockerfile: web/Dockerfile
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
     ports:

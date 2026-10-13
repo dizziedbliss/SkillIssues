@@ -105,6 +105,17 @@ const languageIcons: Record<string, string> = {
 const languageLogoBase =
   "https://raw.githubusercontent.com/abranhe/programming-languages-logos/master/src";
 
+// Thrown by request() so callers can branch on the HTTP status instead of
+// treating every failure — "not logged in", a network blip, a 429 — the same
+// way.
+class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API}${path}`, {
     ...init,
@@ -116,7 +127,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     if (response.status === 401) {
-      throw new Error("Authentication required");
+      throw new ApiError(401, "Authentication required");
     }
     let errorMsg = "Request failed";
     try {
@@ -125,7 +136,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // ignore
     }
-    throw new Error(errorMsg);
+    throw new ApiError(response.status, errorMsg);
   }
   return response.json();
 }
@@ -185,6 +196,12 @@ async function fetchRecommendations(): Promise<{ data: Issue[]; stale: boolean }
     if (cached) return { data: cached.data, stale: true };
     return { data: [], stale: false };
   }
+}
+
+function escapeHtml(value: string): string {
+  const div = document.createElement("div");
+  div.textContent = value;
+  return div.innerHTML;
 }
 
 function daysAgo(value?: string) {
@@ -305,18 +322,13 @@ function IssueCard({
 }
 
 function LoginForm({
-  onLogin,
   onClose,
   initialError,
 }: {
-  onLogin: () => void;
   onClose?: () => void;
   initialError?: string;
 }) {
-  const [token, setToken] = useState("");
-  const [loading, setLoading] = useState(false);
   const [oauthLoading, setOAuthLoading] = useState(false);
-  const [showTokenLogin, setShowTokenLogin] = useState(false);
   const [err, setErr] = useState(initialError || "");
 
   async function handleOAuthLogin() {
@@ -331,12 +343,8 @@ function LoginForm({
       }>("/auth/github");
 
       if (!data.enabled || !data.authorize_url) {
-        setErr(
-          data.error ||
-            "GitHub OAuth is not enabled on this server. Check GITHUB_CLIENT_ID or use Personal Access Token below."
-        );
+        setErr(data.error || "GitHub OAuth is not enabled on this server.");
         setOAuthLoading(false);
-        setShowTokenLogin(true);
         return;
       }
 
@@ -346,25 +354,6 @@ function LoginForm({
         caught instanceof Error ? caught.message : "Failed to initiate GitHub OAuth"
       );
       setOAuthLoading(false);
-    }
-  }
-
-  async function handleTokenSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!token.trim())
-      return setErr("Please enter a GitHub Personal Access Token.");
-    setLoading(true);
-    setErr("");
-    try {
-      await request<{ authenticated: boolean }>("/auth/github/token", {
-        method: "POST",
-        body: JSON.stringify({ token: token.trim() }),
-      });
-      onLogin();
-    } catch (caught) {
-      setErr(caught instanceof Error ? caught.message : "Invalid GitHub Token");
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -410,40 +399,6 @@ function LoginForm({
           </svg>
           <span>{oauthLoading ? "Connecting to GitHub..." : "Continue with GitHub"}</span>
         </button>
-
-        <div className="auth-divider">
-          <span>or sign in with token</span>
-        </div>
-
-        {!showTokenLogin ? (
-          <button
-            type="button"
-            className="token-toggle-btn"
-            onClick={() => setShowTokenLogin(true)}
-          >
-            Use Personal Access Token (PAT) instead →
-          </button>
-        ) : (
-          <form onSubmit={(e) => void handleTokenSubmit(e)} className="login-form">
-            <input
-              type="password"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="ghp_xxxxxxxxxxxxxxxxxxxx..."
-              className="login-input"
-            />
-            <p className="login-hint">
-              Requires <code>read:user</code> and <code>repo</code> permissions.
-            </p>
-            <button
-              type="submit"
-              className="search-submit login-btn"
-              disabled={loading}
-            >
-              {loading ? "Verifying Token..." : "Sign in with Token"}
-            </button>
-          </form>
-        )}
       </div>
     </main>
   );
@@ -462,6 +417,7 @@ export function App() {
   const [selected, setSelected] = useState<Issue | null>(null);
   const [selectedBody, setSelectedBody] = useState<string | null>(null);
   const [selectedBodyError, setSelectedBodyError] = useState(false);
+  const [selectedBodyErrorDetail, setSelectedBodyErrorDetail] = useState("");
   const issuesAbortRef = useRef<AbortController | null>(null);
   const [query, setQuery] = useState("");
   const [searchCategory, setSearchCategory] = useState<string>("ALL");
@@ -476,6 +432,7 @@ export function App() {
   const [prefSearch, setPrefSearch] = useState("");
   const [recommendedIssues, setRecommendedIssues] = useState<Issue[]>([]);
   const [recommendedStale, setRecommendedStale] = useState(false);
+  const [listsError, setListsError] = useState(false);
 
   async function loadRecommended() {
     const { data, stale } = await fetchRecommendations();
@@ -483,13 +440,28 @@ export function App() {
     setRecommendedStale(stale);
   }
 
+  // A 401 on one of the per-user lists means "not logged in" — expected,
+  // not an error, and the empty list it falls back to is correct. Any other
+  // failure (network blip, the 180/hr unauthenticated limiter, a 5xx) is a
+  // real fetch failure masquerading as "you have nothing saved" unless it's
+  // surfaced separately.
+  function loadListOrFlagError<T>(path: string): Promise<T[]> {
+    return request<T[]>(path).catch((err) => {
+      if (!(err instanceof ApiError) || err.status !== 401) {
+        setListsError(true);
+      }
+      return [];
+    });
+  }
+
   async function loadUser(): Promise<Profile | null> {
+    setListsError(false);
     try {
       const [user, saved, current, submitted] = await Promise.all([
         request<Profile>("/me"),
-        request<Issue[]>("/saved").catch(() => []),
-        request<Contribution[]>("/working").catch(() => []),
-        request<Contribution[]>("/contributions").catch(() => []),
+        loadListOrFlagError<Issue>("/saved"),
+        loadListOrFlagError<Contribution>("/working"),
+        loadListOrFlagError<Contribution>("/contributions"),
       ]);
       setProfile(user);
       setBio(user.bio || "");
@@ -599,13 +571,17 @@ export function App() {
     if (!selected) {
       setSelectedBody(null);
       setSelectedBodyError(false);
+      setSelectedBodyErrorDetail("");
       return;
     }
     setSelectedBody(null);
     setSelectedBodyError(false);
+    setSelectedBodyErrorDetail("");
     const controller = new AbortController();
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
-    let retries = 0;
+    let attempt = 0;
+    // 1s, 2s, 4s, 8s, 8s, 8s — ~6 tries total before giving up.
+    const backoffMs = [1000, 2000, 4000, 8000, 8000, 8000];
 
     async function fetchBody() {
       try {
@@ -614,15 +590,34 @@ export function App() {
           signal: controller.signal,
         });
         if (response.status === 202) {
-          if (retries++ < 5) {
-            retryTimer = setTimeout(fetchBody, 1500);
+          if (attempt < backoffMs.length) {
+            retryTimer = setTimeout(fetchBody, backoffMs[attempt]);
+            attempt++;
           } else {
+            let reason = "";
+            try {
+              const payload = await response.json();
+              reason = payload.reason || "";
+            } catch {
+              // ignore
+            }
             setSelectedBodyError(true);
+            setSelectedBodyErrorDetail(
+              reason ? `Still queued after several retries (${reason}).` : "Still queued after several retries."
+            );
           }
           return;
         }
         if (!response.ok) {
+          let detail = `HTTP ${response.status}`;
+          try {
+            const payload = await response.json();
+            detail = payload.error || payload.detail || detail;
+          } catch {
+            // ignore
+          }
           setSelectedBodyError(true);
+          setSelectedBodyErrorDetail(detail);
           return;
         }
         const data = await response.json();
@@ -630,6 +625,7 @@ export function App() {
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setSelectedBodyError(true);
+        setSelectedBodyErrorDetail("Network error while loading the issue body.");
       }
     }
 
@@ -652,11 +648,41 @@ export function App() {
     const params = new URLSearchParams(window.location.search);
     const errorParam = params.get("error");
     const errorDesc = params.get("error_description");
+    const authOk = params.get("auth") === "ok";
 
     if (errorParam) {
       window.history.replaceState({}, document.title, window.location.pathname);
       setShowLoginModal(true);
       setOAuthError(errorDesc ? `${errorParam}: ${errorDesc}` : errorParam);
+      return;
+    }
+
+    if (authOk) {
+      // The backend just redirected back from a GitHub OAuth round trip and
+      // claims the session cookie is set. Confirm that before rendering the
+      // signed-in view — if the cookie didn't actually take (blocked
+      // third-party cookies, a domain mismatch), the old code silently fell
+      // through to looking logged out instead of saying why.
+      window.history.replaceState({}, document.title, window.location.pathname);
+      void (async () => {
+        try {
+          const session = await request<{ authenticated: boolean }>("/auth/session");
+          if (!session.authenticated) {
+            setShowLoginModal(true);
+            setOAuthError(
+              "Signed in with GitHub, but the session cookie was rejected. Check that cookies aren't blocked for this site, then try again."
+            );
+            return;
+          }
+        } catch {
+          setShowLoginModal(true);
+          setOAuthError(
+            "Signed in with GitHub, but checking the session failed. Check your connection and try again."
+          );
+          return;
+        }
+        await refresh();
+      })();
       return;
     }
 
@@ -968,6 +994,18 @@ export function App() {
                       : "Pull requests submitted and completed"}
             </span>
           </div>
+
+          {listsError && (view === "Saved" || view === "Working" || view === "Submissions") && (
+            <div className="auth-alert-box">
+              <span>
+                Couldn't load this list — the request failed (rate limit or a
+                network error), not that it's empty.{" "}
+                <button type="button" className="token-toggle-btn" onClick={() => void refresh()}>
+                  Retry
+                </button>
+              </span>
+            </div>
+          )}
 
           {view === "Working" ? (
             <WorkingList items={working} onRefresh={refresh} />
@@ -1415,7 +1453,9 @@ export function App() {
                 className="detail-body markdown-body"
                 dangerouslySetInnerHTML={{
                   __html: selectedBodyError
-                    ? '<p class="empty-body">Couldn\'t load the issue description. Try again shortly.</p>'
+                    ? `<p class="empty-body">Couldn't load the issue description.${
+                        selectedBodyErrorDetail ? ` ${escapeHtml(selectedBodyErrorDetail)}` : " Try again shortly."
+                      }</p>`
                     : renderMarkdown(selectedBody ?? ""),
                 }}
               />
@@ -1464,11 +1504,6 @@ export function App() {
             <LoginForm
               initialError={oauthError}
               onClose={() => setShowLoginModal(false)}
-              onLogin={() => {
-                setShowLoginModal(false);
-                setOAuthError("");
-                void refresh();
-              }}
             />
           </div>
         </div>
