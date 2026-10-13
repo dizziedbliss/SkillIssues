@@ -1,9 +1,12 @@
 package main
 
 import (
+	"log/slog"
 	"net/http"
 
+	"github.com/dizziedbliss/skillissues/internal/ingest"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
+	"github.com/dizziedbliss/skillissues/internal/settings"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -22,10 +25,13 @@ func (h *handlers) health(w http.ResponseWriter, r *http.Request) {
 }
 
 // healthDetail handles GET /health/detail
-// Returns counts of repositories, issues, and contributions.
+// Returns counts of repositories, issues, and contributions, plus the D6
+// disk guardrail state so the database-size ceiling is visible before it's
+// hit, not discovered after ingestion has already stopped.
 func (h *handlers) healthDetail(w http.ResponseWriter, r *http.Request) {
 	var repoCount, issueCount, contribCount int
-	_ = h.db.QueryRow(r.Context(),
+	status := "ok"
+	if err := h.db.QueryRow(r.Context(),
 		`SELECT
 			(SELECT COUNT(*) FROM repositories),
 			(SELECT COUNT(*) FROM issues),
@@ -34,7 +40,13 @@ func (h *handlers) healthDetail(w http.ResponseWriter, r *http.Request) {
 		func(row pgx.Row) error {
 			return row.Scan(&repoCount, &issueCount, &contribCount)
 		},
-	)
+	); err != nil {
+		// A component that is down must not be reported as connected: the
+		// counts below would otherwise silently read as zero instead of
+		// "unknown", which looks identical to an empty catalog.
+		slog.Warn("health/detail: failed to read catalog counts", "error", err)
+		status = "degraded"
+	}
 
 	cacheStatus := "unavailable"
 	if h.cache != nil {
@@ -43,12 +55,22 @@ func (h *handlers) healthDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	dbSizeMB, err := ingest.CurrentDBSizeMB(r.Context(), h.db)
+	if err != nil {
+		slog.Warn("health/detail: failed to read database size", "error", err)
+		status = "degraded"
+	}
+	maxDBSizeMB := h.live.Current().Int(settings.IngestMaxDBSizeMB)
+
 	middleware.RespondJSON(w, http.StatusOK, map[string]any{
-		"status":        "ok",
-		"service":       "api",
-		"repositories":  repoCount,
-		"issues":        issueCount,
-		"contributions": contribCount,
-		"cache":         cacheStatus,
+		"status":           status,
+		"service":          "api",
+		"repositories":     repoCount,
+		"issues":           issueCount,
+		"contributions":    contribCount,
+		"cache":            cacheStatus,
+		"db_size_mb":       dbSizeMB,
+		"max_db_size_mb":   maxDBSizeMB,
+		"ingestion_paused": maxDBSizeMB > 0 && dbSizeMB > int64(maxDBSizeMB),
 	})
 }

@@ -64,6 +64,16 @@ jobs:
         with:
           name: SkillIssues ${{ github.ref_name }}
           body: |
+            ## SkillIssues ${{ github.ref_name }} Release
+
+            **SkillIssues** — the intelligent developer issue matching and desktop contribution engine.
+
+            ### Highlights
+            - **Desktop App Suite**: Native workspace creation, automated branch handling, live Git progress tracker, and VS Code 1-click launcher.
+            - **Web-to-Desktop Deep Linking**: Browse issues on the web and immediately start solving them inside the desktop client via `skillissues://`.
+            - **Continuously Growing Catalog**: Real open-source issues from eligible repositories, crawled continuously, with difficulty ratings and author metadata.
+            - **Sandboxed Git Operations**: Workspace isolation and subprocess safeguards around every fork/clone/branch/push.
+
             ### Download Desktop Client
             Download the installer for your operating system below!
           draft: false
