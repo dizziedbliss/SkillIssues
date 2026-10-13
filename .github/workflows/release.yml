@@ -65,16 +65,15 @@ jobs:
           name: SkillIssues ${{ github.ref_name }}
           body: |
             ## SkillIssues ${{ github.ref_name }} Release
-            
-            Welcome to the official production release of **SkillIssues** — the intelligent developer issue matching and desktop contribution engine.
-            
+
+            **SkillIssues** — the intelligent developer issue matching and desktop contribution engine.
+
             ### Highlights
-            - **AWS Dark Theme**: High-contrast, crystal-clear developer interface with Inter and JetBrains Mono typography.
             - **Desktop App Suite**: Native workspace creation, automated branch handling, live Git progress tracker, and VS Code 1-click launcher.
             - **Web-to-Desktop Deep Linking**: Browse issues on the web and immediately start solving them inside the desktop client via `skillissues://`.
-            - **1,690+ Curated Issues**: Pre-indexed catalog of real open-source issues with difficulty ratings and author metadata.
-            - **Enterprise Security**: Subprocess injection protections, strict workspace sandboxing, and token digests.
-            
+            - **Continuously Growing Catalog**: Real open-source issues from eligible repositories, crawled continuously, with difficulty ratings and author metadata.
+            - **Sandboxed Git Operations**: Workspace isolation and subprocess safeguards around every fork/clone/branch/push.
+
             ### Download Desktop Client
             Download the installer for your operating system below!
           draft: false
