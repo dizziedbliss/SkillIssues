@@ -37,6 +37,11 @@ docker compose logs -f go-api ingestd
 The `migrate` service applies the schema and exits; `go-api` and `ingestd` wait for it to
 complete successfully. A fresh `up` needs **no manual SQL**.
 
+### Production (VPS, `compose.prod.yaml`)
+Pulls pre-built GHCR images; never builds on the host. Deployed by CI (`.github/workflows/deploy.yml`)
+on every push to `main` — see *Deployment* below and `DEPLOYMENT.md` for the full runbook,
+including first-time host setup, rollback and restore.
+
 ### Hybrid dev (databases in Docker, services native)
 ```bash
 docker compose up -d postgres redis
@@ -142,6 +147,15 @@ Runs **Electron 44**.
 Goose migrations, embedded into the binaries with `go:embed`. **This directory is the single
 source of truth for the schema** — there is no separate `schema.sql`.
 
+### Docker images
+One root **`Dockerfile`** with named targets (`api`, `ingestd`, `migrate`, `web`), built from
+the **repo root** — not `backend/` or `web/` — because the `web` target needs to see
+`packages/markdown`, which a narrower context can't reach. Root **`.dockerignore`** keeps the
+build context to ~16MB despite that (excludes `data/`, `.git`, `node_modules`, secrets).
+`compose.yaml` (dev) builds against these targets; `compose.prod.yaml` (prod) only ever pulls
+pre-built images from GHCR and never builds anything on the host. There is no other Dockerfile
+anywhere in the repo — don't add a per-service one back.
+
 ---
 
 ## Ingestion policy
@@ -213,6 +227,28 @@ claim and submit work to the Initial and Deep pools.
 
 ---
 
+## Deployment
+
+Single VPS, `compose.prod.yaml`, Caddy same-origin. Full runbook: `DEPLOYMENT.md`.
+
+- `.github/workflows/ci.yml` gates everything: backend (vet/gofmt/build/test), web/desktop
+  (typecheck then a real build, not just a type check), and a buildx build of all four
+  Dockerfile targets plus `docker compose config` on both compose files.
+- `.github/workflows/deploy.yml` runs on push to `main`: `ci` → `build-push` (builds and pushes
+  `ghcr.io/dizziedbliss/skillissues-{api,ingestd,migrate,web}` tagged `sha-<short>` and
+  `latest`) → `deploy` (scp + ssh, runs `scripts/deploy-remote.sh` on the host). A deploy cannot
+  happen without CI passing. Rollback is `workflow_dispatch` with an older `sha-` tag — deploys
+  always pin that, never `latest`.
+- Caddy is the only service publishing a port. `handle_path /api/*` strips the prefix before
+  proxying to `go-api` (whose routes have no `/api` prefix of their own); everything else goes
+  to the `frontend` (nginx) image. `go-api` and `ingestd` have no published ports in prod.
+- Two disk guardrails exist specifically because the host is 40GB: `ingest.max_db_size_mb`
+  (coordinator stops enqueuing/claiming once `pg_database_size()` exceeds it) and
+  `ingest.max_pages_per_repo` (caps the Deep Diver per repository regardless of `hasNextPage`).
+  Both are live settings — see *Configuration* below.
+
+---
+
 ## Conventions
 
 These encode decisions already made. Please do not quietly reverse them.
@@ -231,7 +267,8 @@ interval, a batch size, a page size, a worker count, a cap — it is a setting, 
 The precedent is `ingest.eligibility.min_stars`, `ingest.eligibility.pushed_within_days`,
 `ingest.eligibility.recheck_seconds`, `ingest.freshness_interval_seconds`,
 `ingest.enqueue_batch_size`, `ingest.graphql_page_size`, `ingest.sync_interval_seconds`,
-`ingest.routine_workers`, `ingest.priority_workers`, `ingest.rate_limit_floor`.
+`ingest.routine_workers`, `ingest.priority_workers`, `ingest.rate_limit_floor`,
+`ingest.max_pages_per_repo`, `ingest.max_db_size_mb`.
 
 - **Never hardcode an operational value.** Add a key to `settings.Registry` **and** a seeded
   row in a migration. A key in one but not the other falls back to its default and is logged
