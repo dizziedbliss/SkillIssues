@@ -57,7 +57,8 @@ export GITHUB_TOKEN="ghp_your_token_here"
 export PORT=8000
 go run ./cmd/api
 
-cd web && npm ci && npm run dev
+npm ci            # root install — see *Web (React + TypeScript)* below
+cd web && npm run dev
 ```
 
 ### Repository metadata import
@@ -80,9 +81,12 @@ go fmt ./... && go vet ./...
 ```
 
 ### Web (React + TypeScript)
+`web`, `desktop` and `packages/*` are one npm workspace (root `package.json`) — `npm ci`
+(never `npm install` — dependencies are pinned) runs **once, at the repo root**, not inside
+`web/` or `desktop/`. There is one lockfile for the whole tree, not one per package.
 ```bash
+npm ci            # repo root — not `npm install`, and not inside web/
 cd web
-npm ci            # not `npm install` — dependencies are pinned
 npm run dev       # Vite dev server
 npm run build     # tsc -b && vite build
 npm run typecheck # tsc --noEmit
@@ -90,8 +94,8 @@ npm run typecheck # tsc --noEmit
 
 ### Desktop (Electron)
 ```bash
+# npm ci already ran at the repo root above.
 cd desktop
-npm ci
 npm run dev       # electron-vite dev server, renderer HMR
 npm run build && npm start   # build then run the built app (no HMR)
 npm run check     # tsc --noEmit over src/main, src/preload
@@ -123,6 +127,24 @@ have no browser callers).
 Use `pgxpool` for all database access — never open individual connections. Always thread
 `ctx context.Context` through to database, Redis and HTTP calls.
 
+### Shared packages (`packages/`)
+npm workspace members, imported by both clients as `@skillissues/*` (a real `node_modules`
+symlink, not a relative path reaching outside the importing project):
+- **`packages/markdown`** — sanitised Markdown rendering (`markdown-it` + DOMPurify). Issue
+  bodies are attacker-controlled; never hand-roll rendering in either client.
+- **`packages/api-client`** — one typed client for every API endpoint: the `Issue` /
+  `Contribution` / `Profile` types, `ApiError` (keeps `status` + `detail`, so 401 ≠ 429 ≠
+  network), `AbortController` support, and the recommendations ETag/localStorage
+  revalidation. Pluggable `Transport`: `createFetchTransport` (web) and `createIpcTransport`
+  (desktop, routed through the existing preload bridge).
+- **`packages/ui`** — shared React components: `Modal` (body scroll lock, Escape-to-close,
+  focus trap, backdrop click — fixes the "background scrolls behind the popup" bug for every
+  overlay in both clients), `ConfirmDialog`, `Toast`, `IssueCard`/`IssueList`,
+  `WorkingList`/`SubmissionList`, `DifficultyTabs`, `SectionTabs`, `Badge`, `ProgressBar`,
+  `Skeleton`. Platform differences (desktop's fork/clone/editor buttons, web's "Open in
+  Desktop App" deep link) come in as props/slots passed to these, never as a forked copy of
+  the component.
+
 ### Web (`web/src/`)
 - **`App.tsx`** — top-level router and most of the UI. Guests see `LandingPage`;
   authenticated users get the challenge catalog.
@@ -131,15 +153,15 @@ Use `pgxpool` for all database access — never open individual connections. Alw
   `#1e1338` / `#241442` deep violet, `#7c3aed` accent.
 - Avoid `any`; declare interfaces for API payloads.
 
-Runs **React 19**. Dependencies are pinned to exact versions, so use `npm ci`.
+Runs **React 19**.
 
 ### Desktop (`desktop/`)
 `electron-vite` layout: `src/main/index.ts` (windows, IPC, git — TypeScript, non-strict),
 `src/preload/index.ts` (context bridge — `contextIsolation: true` is mandatory),
-`src/renderer/` (plain-JS `app.js`, `index.html`, `app.css`, bundled by Vite). Builds to
-`out/main`, `out/preload`, `out/renderer`. The renderer imports the shared
-`packages/markdown` source directly (Vite bundles it) — there is no checked-in vendor
-bundle. Git operations run as async child processes so the UI never blocks.
+`src/renderer/` (currently plain-JS `app.js`, `index.html`, `app.css`, bundled by Vite — a
+React + TS rewrite onto `packages/ui`/`packages/api-client` is in progress). Builds to
+`out/main`, `out/preload`, `out/renderer`. Git operations run as async child processes so
+the UI never blocks.
 
 Runs **Electron 44**.
 
@@ -148,13 +170,15 @@ Goose migrations, embedded into the binaries with `go:embed`. **This directory i
 source of truth for the schema** — there is no separate `schema.sql`.
 
 ### Docker images
-One root **`Dockerfile`** with named targets (`api`, `ingestd`, `migrate`, `web`), built from
-the **repo root** — not `backend/` or `web/` — because the `web` target needs to see
-`packages/markdown`, which a narrower context can't reach. Root **`.dockerignore`** keeps the
-build context to ~16MB despite that (excludes `data/`, `.git`, `node_modules`, secrets).
-`compose.yaml` (dev) builds against these targets; `compose.prod.yaml` (prod) only ever pulls
-pre-built images from GHCR and never builds anything on the host. There is no other Dockerfile
-anywhere in the repo — don't add a per-service one back.
+One root **`Dockerfile`** with named targets (`api`, `ingestd`, `migrate`, `web`, `repoimport`),
+built from the **repo root** — not `backend/` or `web/` — because the `web` target needs to
+see the npm workspace (`packages/*`), which a narrower context can't reach. Root
+**`.dockerignore`** keeps the build context small despite that (excludes `data/`, `.git`,
+`node_modules`, secrets). `compose.prod.yaml` (prod) only ever pulls pre-built images from
+GHCR and never builds anything on the host; the deploy pipeline builds against these targets.
+**`web/Dockerfile`** is the one exception — a dev-only Vite HMR image used by `compose.yaml`'s
+`frontend` service, also built from the repo root for the same workspace reason. Don't add a
+third one back.
 
 ---
 

@@ -83,25 +83,39 @@ WORKDIR /
 ENTRYPOINT ["/repoimport"]
 
 # ---------------------------------------------------------------------------
-# web — built from the repo root so Vite can resolve the shared
-# ../../packages/markdown import; served by nginx.
+# web — built from the repo root, which is also the npm workspace root
+# (web, desktop, packages/*), so @skillissues/markdown and friends resolve
+# as real workspace symlinks under node_modules instead of a relative
+# import reaching outside web/; served by nginx.
 # ---------------------------------------------------------------------------
 FROM node:22-alpine AS web-builder
+# Alpine's bundled npm 10.9.9 has a known bug (npm/cli#7708-class) where
+# `npm ci` hard-fails on an unrelated optionalDependency's platform
+# mismatch (e.g. @esbuild/aix-ppc64 on linux/amd64) instead of skipping it,
+# once a lockfile has enough workspace members pulling in enough
+# platform-specific optional deps (electron-builder's, here). Newer npm
+# doesn't have the bug.
+RUN npm install -g npm@11
+WORKDIR /app
 
-# Shared markdown package needs to exist at ../../packages/markdown relative
-# to web/, at the same relative path, with its own dependencies installed —
-# TS module resolution walks up from the importing file's own directory, not
-# web/'s, so web's node_modules alone can never satisfy this import.
-WORKDIR /app/packages/markdown
-COPY packages/markdown/package.json packages/markdown/package-lock.json* ./
+# Manifests only, so `npm ci` gets its own cache layer independent of
+# source changes. `npm ci` installs every workspace's dependencies from the
+# one root lockfile — there is no partial per-workspace install with `ci` —
+# so desktop's devDependencies (Electron) are pulled down here too even
+# though this image only builds web. That cost is this intermediate
+# stage's build time/bandwidth, never the final nginx image, which only
+# ever copies web/dist.
+COPY package.json package-lock.json ./
+COPY web/package.json web/
+COPY desktop/package.json desktop/
+COPY packages/markdown/package.json packages/markdown/
+COPY packages/api-client/package.json packages/api-client/
+COPY packages/ui/package.json packages/ui/
 RUN npm ci
-COPY packages/markdown/ .
 
+COPY packages/ packages/
+COPY web/ web/
 WORKDIR /app/web
-COPY web/package.json web/package-lock.json* ./
-RUN npm ci
-
-COPY web/ .
 
 # Same-origin deployment: Caddy proxies /api/* to go-api, so the SPA never
 # needs an absolute API origin baked in at build time.
