@@ -29,6 +29,12 @@ const (
 	IssuesSearchPageSize  Key = "api.issues.search_page_size"
 	SearchPerCategoryCap  Key = "api.search.per_category_cap"
 
+	// IssuesFreshnessBatchCap bounds POST /issues/freshness (D2a): a client
+	// calls this once per Saved/Working render with the handful of issues it
+	// is actually showing, never the whole catalog, so this caps that
+	// request rather than the crawl.
+	IssuesFreshnessBatchCap Key = "api.issues.freshness_batch_cap"
+
 	SessionTTLHours Key = "api.session.ttl_hours"
 
 	CacheHotIssuesTTLSeconds      Key = "api.cache.hot_issues_ttl_seconds"
@@ -126,9 +132,10 @@ var Registry = map[Key]Spec{
 	RateLimitAuthPerHour:   intSpec(1000, 1, 1000000, "Requests per window allowed for authenticated callers."),
 	RateLimitWindowSeconds: intSpec(3600, 60, 86400, "Length of the rate-limit window."),
 
-	IssuesDefaultPageSize: intSpec(20, 1, 100, "Issues returned when the catalog is browsed without a search term."),
-	IssuesSearchPageSize:  intSpec(50, 1, 200, "Issues returned for a search query."),
-	SearchPerCategoryCap:  intSpec(25, 1, 100, "Maximum results per match category, so one category cannot flood the rest."),
+	IssuesDefaultPageSize:   intSpec(20, 1, 100, "Issues returned when the catalog is browsed without a search term."),
+	IssuesSearchPageSize:    intSpec(50, 1, 200, "Issues returned for a search query."),
+	SearchPerCategoryCap:    intSpec(25, 1, 100, "Maximum results per match category, so one category cannot flood the rest."),
+	IssuesFreshnessBatchCap: intSpec(25, 1, 100, "Maximum issue ids accepted by one POST /issues/freshness call."),
 
 	SessionTTLHours: intSpec(168, 1, 8760, "Session lifetime. Applies to newly issued sessions only."),
 

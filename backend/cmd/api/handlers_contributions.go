@@ -185,15 +185,21 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var updated contribution.Contribution
-	_ = h.db.QueryRow(r.Context(),
-		`UPDATE contributions SET pr_url = $1, pr_number = $2, state = 'PR_OPEN', updated_at = now()
+	err = h.db.QueryRow(r.Context(),
+		`UPDATE contributions
+		 SET pr_url = $1, pr_number = $2, state = 'PR_OPEN', updated_at = now(),
+		     submitted_at = COALESCE(submitted_at, now())
 		 WHERE id = $3
-		 RETURNING id, user_id, issue_id, pr_url, pr_number, state, xp_awarded, created_at, updated_at, merged_at`,
+		 RETURNING id, user_id, issue_id, pr_url, pr_number, state, xp_awarded, created_at, updated_at, merged_at, submitted_at`,
 		[]any{prURL, prNum, id},
 		func(row pgx.Row) error {
-			return row.Scan(&updated.ID, &updated.UserID, &updated.IssueID, &updated.PRURL, &updated.PRNumber, &updated.State, &updated.XPAwarded, &updated.CreatedAt, &updated.UpdatedAt, &updated.MergedAt)
+			return row.Scan(&updated.ID, &updated.UserID, &updated.IssueID, &updated.PRURL, &updated.PRNumber, &updated.State, &updated.XPAwarded, &updated.CreatedAt, &updated.UpdatedAt, &updated.MergedAt, &updated.SubmittedAt)
 		},
 	)
+	if err != nil {
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to record submitted pull request")
+		return
+	}
 
 	middleware.RespondJSON(w, http.StatusOK, map[string]any{
 		"contribution": updated,
