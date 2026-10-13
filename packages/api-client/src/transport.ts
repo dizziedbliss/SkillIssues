@@ -39,9 +39,17 @@ function parseJson(text: string): unknown {
 }
 
 function detailOf(data: unknown, raw: string): string | undefined {
-  if (data && typeof data === "object" && "detail" in data) {
-    const detail = (data as { detail?: unknown }).detail;
-    if (typeof detail === "string" && detail) return detail;
+  if (data && typeof data === "object") {
+    // The Go API's middleware.RespondError always encodes {"error": msg}
+    // (backend/internal/middleware/middleware.go's respondError), never
+    // {"detail": ...} — checking only "detail" here meant every real error
+    // (401s, 429s, 5xxs) fell through to the raw response text, which for a
+    // JSON error body is the literal '{"error":"..."}' string shown to the
+    // user. "detail" is still checked first for forward compatibility with
+    // any handler that does use that key.
+    const obj = data as Record<string, unknown>;
+    if (typeof obj.detail === "string" && obj.detail) return obj.detail;
+    if (typeof obj.error === "string" && obj.error) return obj.error;
   }
   return raw || undefined;
 }

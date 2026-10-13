@@ -5,6 +5,8 @@ import type {
   ContributionDetail,
   FreshnessBatchResult,
   FreshnessResult,
+  GithubAuthorizeResult,
+  HealthDetail,
   Issue,
   IssueBodyPending,
   IssueBodyResult,
@@ -59,6 +61,18 @@ function saveRecommendationsCache(etag: string, data: Issue[]) {
   } catch {
     // Storage can be full or disabled (private mode) — the cache is a pure
     // speed optimization, never required for correctness.
+  }
+}
+
+// Exported so callers can drop the cache on sign-out — recommendations are
+// per-user, and leaving a signed-out browser holding the previous user's
+// cached feed would (briefly, until the next ETag mismatch) be the wrong
+// person's data in localStorage.
+export function clearRecommendationsCache(): void {
+  try {
+    localStorage.removeItem(RECOMMENDATIONS_CACHE_KEY);
+  } catch {
+    // ignore — same reasoning as above
   }
 }
 
@@ -129,25 +143,39 @@ export class ApiClient {
 
   // ----- Recommendations -----
 
+  // On a genuine failure (network blip, 5xx, the unauthenticated rate
+  // limiter) this falls back to the last cached copy and reports it as
+  // `stale` rather than throwing straight into an empty feed — the same
+  // "keep previous data, flag it, never silently empty" rule as everywhere
+  // else. It only throws when there is no cache to fall back to, so the
+  // caller still has something to show the user (a retry affordance) rather
+  // than an unexplained blank list.
   async getRecommendations(opts?: RequestOptions): Promise<{ data: Issue[]; stale: boolean }> {
     const cached = loadRecommendationsCache();
-    const res = await this.raw("/recommendations", {
-      signal: opts?.signal,
-      allow304: Boolean(cached),
-      returnEtag: true,
-      headers: cached ? { "If-None-Match": cached.etag } : undefined,
-    });
+    try {
+      const res = await this.raw("/recommendations", {
+        signal: opts?.signal,
+        allow304: Boolean(cached),
+        returnEtag: true,
+        headers: cached ? { "If-None-Match": cached.etag } : undefined,
+      });
 
-    if (!res.ok) {
-      throw new ApiError(res.status, res.detail ?? "");
-    }
-    if (res.notModified && cached) {
-      return { data: cached.data, stale: false };
-    }
+      if (!res.ok) {
+        throw new ApiError(res.status, res.detail ?? "");
+      }
+      if (res.notModified && cached) {
+        return { data: cached.data, stale: false };
+      }
 
-    const data = res.data as Issue[];
-    if (res.etag) saveRecommendationsCache(res.etag, data);
-    return { data, stale: false };
+      const data = res.data as Issue[];
+      if (res.etag) saveRecommendationsCache(res.etag, data);
+      return { data, stale: false };
+    } catch (err) {
+      if (cached) {
+        return { data: cached.data, stale: true };
+      }
+      throw err;
+    }
   }
 
   // ----- Profile -----
@@ -230,12 +258,25 @@ export class ApiClient {
     return this.send<SessionInfo>("/auth/session", { signal: opts?.signal });
   }
 
+  // GET /auth/github — begins the OAuth/GitHub App login flow. enabled:false
+  // means the server has no GITHUB_CLIENT_ID configured; callers must show
+  // `error`, never fall back to a token-entry form.
+  async getGithubAuthorize(opts?: RequestOptions): Promise<GithubAuthorizeResult> {
+    return this.send<GithubAuthorizeResult>("/auth/github", { signal: opts?.signal });
+  }
+
   async logout(opts?: RequestOptions): Promise<void> {
     await this.send("/auth/logout", { method: "POST", signal: opts?.signal });
   }
 
   async purgeAccount(opts?: RequestOptions): Promise<void> {
     await this.send("/auth/purge", { method: "POST", signal: opts?.signal });
+  }
+
+  // ----- Health -----
+
+  async getHealthDetail(opts?: RequestOptions): Promise<HealthDetail> {
+    return this.send<HealthDetail>("/health/detail", { signal: opts?.signal });
   }
 }
 
