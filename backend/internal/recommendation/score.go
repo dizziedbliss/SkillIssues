@@ -21,7 +21,8 @@ var TargetDifficultyMap = map[string]int{
 // ScoreCandidates ranks candidate issues for a given user profile.
 //
 // Formula:
-//   Score = LangBoost (15) + TechBoost (8) + (SkillMatch * 2) + InterestMatch + DifficultyFit + Quality
+//
+//	Score = LangBoost (15) + TechBoost (8) + (SkillMatch * 2) + InterestMatch + DifficultyFit + Quality
 //
 // Factors:
 //   - LangBoost: +15 if repository primary language matches user's preferred languages

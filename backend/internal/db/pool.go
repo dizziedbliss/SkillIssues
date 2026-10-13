@@ -23,9 +23,9 @@ func (p *Pool) Raw() *pgxpool.Pool { return p.pool }
 
 // Config holds pool configuration parameters.
 type Config struct {
-	URL            string
-	MaxConns       int32
-	MinConns       int32
+	URL             string
+	MaxConns        int32
+	MinConns        int32
 	MaxConnLifetime time.Duration
 	MaxConnIdleTime time.Duration
 }

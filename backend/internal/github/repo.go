@@ -143,4 +143,3 @@ func (c *Client) GetDefaultBranch(ctx context.Context, token, owner, name string
 	}
 	return "main", nil
 }
-

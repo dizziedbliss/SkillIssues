@@ -15,22 +15,22 @@ import (
 
 // VerifyResult contains the outcome of a PR verification attempt.
 type VerifyResult struct {
-	Verified       bool                   `json:"verified"`
-	State          string                 `json:"state"`
-	AlreadyAwarded bool                   `json:"already_awarded,omitempty"`
-	EarnedXP       int                    `json:"earned_xp"`
-	TotalXP        int                    `json:"total_xp"`
-	OldLevel       int                    `json:"old_level"`
-	Level          int                    `json:"level"`
-	LevelUp        bool                   `json:"level_up"`
-	UnlockedBadges []string               `json:"unlocked_badges"`
-	AllBadges      []string               `json:"all_badges"`
-	Badges         []string               `json:"badges"`
-	NextLevelXP    int                    `json:"next_level_xp"`
-	ProgressInLvl  int                    `json:"progress_in_level"`
-	ProgressPct    int                    `json:"progress_percent"`
-	Message        string                 `json:"message"`
-	XPInfo         map[string]any         `json:"xp_info,omitempty"`
+	Verified       bool           `json:"verified"`
+	State          string         `json:"state"`
+	AlreadyAwarded bool           `json:"already_awarded,omitempty"`
+	EarnedXP       int            `json:"earned_xp"`
+	TotalXP        int            `json:"total_xp"`
+	OldLevel       int            `json:"old_level"`
+	Level          int            `json:"level"`
+	LevelUp        bool           `json:"level_up"`
+	UnlockedBadges []string       `json:"unlocked_badges"`
+	AllBadges      []string       `json:"all_badges"`
+	Badges         []string       `json:"badges"`
+	NextLevelXP    int            `json:"next_level_xp"`
+	ProgressInLvl  int            `json:"progress_in_level"`
+	ProgressPct    int            `json:"progress_percent"`
+	Message        string         `json:"message"`
+	XPInfo         map[string]any `json:"xp_info,omitempty"`
 }
 
 // VerifyContribution verifies PR merge status on GitHub using GraphQL and awards XP idempotently.
@@ -51,10 +51,10 @@ func (s *Service) VerifyContribution(ctx context.Context, userID, contribID int,
 
 	// 2. Fetch contribution and repository info
 	var (
-		cID, issueID, prNum, repoID int
+		cID, issueID, prNum, repoID                   int
 		prURL, state, difficulty, username, userToken string
-		skills, techs []string
-		xpAwarded bool
+		skills, techs                                 []string
+		xpAwarded                                     bool
 	)
 
 	err := s.db.QueryRow(ctx,
@@ -300,13 +300,13 @@ func (s *Service) VerifyContribution(ctx context.Context, userID, contribID int,
 	}
 
 	res.XPInfo = map[string]any{
-		"merged":             true,
-		"earned_xp":          res.EarnedXP,
-		"total_xp":           res.TotalXP,
-		"level":              res.Level,
-		"level_up":           res.LevelUp,
-		"unlocked_badges":    res.UnlockedBadges,
-		"message":            res.Message,
+		"merged":          true,
+		"earned_xp":       res.EarnedXP,
+		"total_xp":        res.TotalXP,
+		"level":           res.Level,
+		"level_up":        res.LevelUp,
+		"unlocked_badges": res.UnlockedBadges,
+		"message":         res.Message,
 	}
 
 	return &res, nil
