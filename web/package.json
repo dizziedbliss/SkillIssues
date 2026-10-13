@@ -13,7 +13,9 @@
     "typescript": "7.0.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "lucide-react": "1.43.0"
+    "lucide-react": "1.43.0",
+    "markdown-it": "15.0.2",
+    "dompurify": "3.4.16"
   },
   "devDependencies": {
     "@types/react": "19.3.0",
