@@ -27,10 +27,23 @@ const userReserve = 500
 // lane is a separate budget row so a saturated crawl can't block reads.
 const installationInteractiveFloor = 100
 
-// ErrBodyUnavailable means both the user's token and the installation's
-// interactive lane are out of budget. Callers should respond 202 and let
-// the client retry with backoff — never hand back a blank body.
+// ErrBodyUnavailable is the base sentinel for "body not available right now,
+// retry later" — callers match it with errors.Is to catch every case below
+// uniformly and respond 202. ErrBodyBudget and ErrBodyNoCredential wrap it
+// to additionally say *why*, for callers that want to tell a client the
+// difference (a transient rate limit vs. a configuration problem).
 var ErrBodyUnavailable = fmt.Errorf("issue: body temporarily unavailable, retry later")
+
+// ErrBodyBudget means the GraphQL point budget (the user's own reserve, or
+// the installation's interactive lane) is exhausted right now. It recovers
+// on its own as the rate-limit window rolls over.
+var ErrBodyBudget = fmt.Errorf("%w: rate limit budget exhausted", ErrBodyUnavailable)
+
+// ErrBodyNoCredential means no GitHub credential is available to make the
+// call at all — no GitHub App installation token configured, or the
+// installation token call itself failed. Retrying immediately won't help;
+// this needs an operator fix, not backoff.
+var ErrBodyNoCredential = fmt.Errorf("%w: no usable GitHub credential", ErrBodyUnavailable)
 
 // BodyFetcher implements the on-demand issue body read path (plan §3.1):
 // Postgres cache first, then a single-flight-coalesced GraphQL call
@@ -140,15 +153,15 @@ func (b *BodyFetcher) fetchAndCache(ctx context.Context, issueID, userID int, us
 
 	// Tier 3b: the installation token's interactive lane.
 	if b.installationToken == nil {
-		return "", ErrBodyUnavailable
+		return "", ErrBodyNoCredential
 	}
 	proceed, _ := ingest.CanProceed(ctx, b.db, ingest.LaneInteractive, "installation", installationInteractiveFloor)
 	if !proceed {
-		return "", ErrBodyUnavailable
+		return "", ErrBodyBudget
 	}
 	instToken, err := b.installationToken(ctx)
 	if err != nil || instToken == "" {
-		return "", ErrBodyUnavailable
+		return "", ErrBodyNoCredential
 	}
 	result, err := b.github.FetchIssueBody(ctx, instToken, owner, name, number)
 	if err != nil {

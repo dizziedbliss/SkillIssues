@@ -230,10 +230,15 @@ func isAllowedOrigin(origin, frontendURL string) bool {
 // CORS sets the appropriate CORS headers for the incoming request origin.
 // Credentials are enabled to support cookie-based and header session authentication.
 func CORS(frontendURL string) func(http.Handler) http.Handler {
+	// frontendURL may be a comma-separated list (multiple allowed origins).
+	// The fallback below must still name exactly one origin — a browser
+	// rejects a comma-joined Access-Control-Allow-Origin on a credentialed
+	// request — so it uses only the first entry.
+	primaryOrigin := strings.TrimSpace(strings.SplitN(frontendURL, ",", 2)[0])
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
-			allowedOrigin := frontendURL
+			allowedOrigin := primaryOrigin
 			if isAllowedOrigin(origin, frontendURL) {
 				allowedOrigin = origin
 			}

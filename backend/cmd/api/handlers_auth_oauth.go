@@ -62,10 +62,7 @@ func (h *handlers) authGitHubCallback(w http.ResponseWriter, r *http.Request) {
 	errParam := r.URL.Query().Get("error")
 	errDesc := r.URL.Query().Get("error_description")
 
-	frontendURL := h.cfg.FrontendURL
-	if frontendURL == "" {
-		frontendURL = "http://localhost:5173"
-	}
+	frontendURL := h.cfg.FrontendURLPrimary
 
 	var ticket string
 	if stateVal, ok := h.stateTickets.LoadAndDelete(state); ok {
@@ -343,8 +340,14 @@ func (h *handlers) authGitHubCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Web flow: the session cookie was already set above; redirect back to the
 	// frontend without putting the token in the URL (it would leak via browser
-	// history and the Referer header).
-	http.Redirect(w, r, frontendURL, http.StatusFound)
+	// history and the Referer header). ?auth=ok tells the SPA an OAuth round
+	// trip just finished, so it can report a real error instead of silently
+	// rendering logged-out if the cookie didn't actually take.
+	sep := "?"
+	if strings.Contains(frontendURL, "?") {
+		sep = "&"
+	}
+	http.Redirect(w, r, frontendURL+sep+"auth=ok", http.StatusFound)
 }
 
 // authGitHubPoll handles GET /auth/github/poll?ticket=...
