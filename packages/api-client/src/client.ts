@@ -1,0 +1,244 @@
+import { ApiError } from "./errors";
+import type { Transport, TransportInit, TransportResponse } from "./transport";
+import type {
+  Contribution,
+  ContributionDetail,
+  FreshnessBatchResult,
+  FreshnessResult,
+  Issue,
+  IssueBodyPending,
+  IssueBodyResult,
+  IssueFilters,
+  PreferenceOptions,
+  Profile,
+  ProfileUpdate,
+  SessionInfo,
+  SubmitContributionResult,
+  VerifyResult,
+} from "./types";
+
+export interface RequestOptions {
+  signal?: AbortSignal;
+}
+
+function jsonInit(body: unknown, init?: RequestOptions): TransportInit {
+  return {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: init?.signal,
+  };
+}
+
+// D15 — recommendations cache: localStorage + ETag revalidation. Both
+// renderers run in a Chromium context (web directly, desktop's renderer
+// process), so this is safe to share verbatim instead of duplicating it per
+// client. The backend already invalidates its own cache (and so the ETag it
+// serves) on preference/XP/level/contribution changes
+// (InvalidateRecommendations), so revalidating against the stored ETag is
+// sufficient — no separate "profile version" needs tracking client-side.
+const RECOMMENDATIONS_CACHE_KEY = "skillissues.recommendations.v1";
+
+interface RecommendationsCacheEntry {
+  etag: string;
+  data: Issue[];
+}
+
+function loadRecommendationsCache(): RecommendationsCacheEntry | null {
+  try {
+    const raw = localStorage.getItem(RECOMMENDATIONS_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as RecommendationsCacheEntry) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveRecommendationsCache(etag: string, data: Issue[]) {
+  try {
+    localStorage.setItem(RECOMMENDATIONS_CACHE_KEY, JSON.stringify({ etag, data }));
+  } catch {
+    // Storage can be full or disabled (private mode) — the cache is a pure
+    // speed optimization, never required for correctness.
+  }
+}
+
+export class ApiClient {
+  private readonly transport: Transport;
+
+  constructor(transport: Transport) {
+    this.transport = transport;
+  }
+
+  // raw exposes the transport response directly — for the handful of
+  // callers (recommendations' ETag revalidation) that need status/etag
+  // alongside the body rather than just the typed payload.
+  async raw(path: string, init?: TransportInit): Promise<TransportResponse> {
+    return this.transport(path, init);
+  }
+
+  private async send<T>(path: string, init?: TransportInit): Promise<T> {
+    const res = await this.transport(path, init);
+    if (!res.ok) {
+      throw new ApiError(res.status, res.detail ?? "");
+    }
+    return res.data as T;
+  }
+
+  // ----- Issues -----
+
+  async getIssues(filters: IssueFilters = {}, opts?: RequestOptions): Promise<Issue[]> {
+    const params = new URLSearchParams();
+    if (filters.limit) params.set("limit", String(filters.limit));
+    if (filters.page) params.set("page", String(filters.page));
+    if (filters.difficulty && filters.difficulty !== "ALL") params.set("difficulty", filters.difficulty);
+    if (filters.language) params.set("language", filters.language);
+    if (filters.search) params.set("search", filters.search);
+    const qs = params.toString();
+    return this.send<Issue[]>(`/issues${qs ? `?${qs}` : ""}`, { signal: opts?.signal });
+  }
+
+  async getIssue(id: number, opts?: RequestOptions): Promise<Issue> {
+    return this.send<Issue>(`/issues/${id}`, { signal: opts?.signal });
+  }
+
+  async getIssueBody(id: number, opts?: RequestOptions): Promise<IssueBodyResult | IssueBodyPending> {
+    return this.send<IssueBodyResult | IssueBodyPending>(`/issues/${id}/body`, { signal: opts?.signal });
+  }
+
+  async checkIssueFreshness(id: number, opts?: RequestOptions): Promise<FreshnessResult> {
+    return this.send<FreshnessResult>(`/issues/${id}/freshness`, { method: "POST", signal: opts?.signal });
+  }
+
+  async checkIssuesFreshnessBatch(issueIds: number[], opts?: RequestOptions): Promise<FreshnessBatchResult> {
+    return this.send<FreshnessBatchResult>("/issues/freshness", jsonInit({ issue_ids: issueIds }, opts));
+  }
+
+  // ----- Saved issues -----
+
+  async getSaved(opts?: RequestOptions): Promise<Issue[]> {
+    return this.send<Issue[]>("/saved", { signal: opts?.signal });
+  }
+
+  async saveIssue(issueId: number, opts?: RequestOptions): Promise<void> {
+    await this.send("/saved", jsonInit({ issue_id: issueId }, opts));
+  }
+
+  async unsaveIssue(issueId: number, opts?: RequestOptions): Promise<void> {
+    await this.send(`/saved/${issueId}`, { method: "DELETE", signal: opts?.signal });
+  }
+
+  // ----- Recommendations -----
+
+  async getRecommendations(opts?: RequestOptions): Promise<{ data: Issue[]; stale: boolean }> {
+    const cached = loadRecommendationsCache();
+    const res = await this.raw("/recommendations", {
+      signal: opts?.signal,
+      allow304: Boolean(cached),
+      returnEtag: true,
+      headers: cached ? { "If-None-Match": cached.etag } : undefined,
+    });
+
+    if (!res.ok) {
+      throw new ApiError(res.status, res.detail ?? "");
+    }
+    if (res.notModified && cached) {
+      return { data: cached.data, stale: false };
+    }
+
+    const data = res.data as Issue[];
+    if (res.etag) saveRecommendationsCache(res.etag, data);
+    return { data, stale: false };
+  }
+
+  // ----- Profile -----
+
+  async getMe(opts?: RequestOptions): Promise<Profile> {
+    return this.send<Profile>("/me", { signal: opts?.signal });
+  }
+
+  async updateProfile(update: ProfileUpdate, opts?: RequestOptions): Promise<Profile> {
+    return this.send<Profile>("/profile", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(update),
+      signal: opts?.signal,
+    });
+  }
+
+  async getPreferenceOptions(opts?: RequestOptions): Promise<PreferenceOptions> {
+    return this.send<PreferenceOptions>("/preferences/options", { signal: opts?.signal });
+  }
+
+  // ----- Contributions -----
+
+  async startContribution(issueId: number, opts?: RequestOptions): Promise<Contribution> {
+    return this.send<Contribution>("/contributions", jsonInit({ issue_id: issueId }, opts));
+  }
+
+  async listContributions(opts?: RequestOptions): Promise<ContributionDetail[]> {
+    return this.send<ContributionDetail[]>("/contributions", { signal: opts?.signal });
+  }
+
+  async getWorking(opts?: RequestOptions): Promise<ContributionDetail[]> {
+    return this.send<ContributionDetail[]>("/working", { signal: opts?.signal });
+  }
+
+  async getContribution(id: number, opts?: RequestOptions): Promise<Contribution> {
+    return this.send<Contribution>(`/contributions/${id}`, { signal: opts?.signal });
+  }
+
+  async attachPullRequest(
+    id: number,
+    prUrl: string,
+    prNumber: number,
+    opts?: RequestOptions,
+  ): Promise<Contribution> {
+    return this.send<Contribution>(`/contributions/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pr_url: prUrl, pr_number: prNumber }),
+      signal: opts?.signal,
+    });
+  }
+
+  async submitContribution(
+    id: number,
+    branch: string,
+    base?: string,
+    opts?: RequestOptions,
+  ): Promise<SubmitContributionResult> {
+    return this.send<SubmitContributionResult>(`/contributions/${id}/submit`, jsonInit({ branch, base }, opts));
+  }
+
+  async verifyContribution(id: number, opts?: RequestOptions): Promise<VerifyResult> {
+    return this.send<VerifyResult>(`/contributions/${id}/verify`, { method: "POST", signal: opts?.signal });
+  }
+
+  // ----- GitHub -----
+
+  async forkRepository(repository: string, opts?: RequestOptions): Promise<Record<string, unknown>> {
+    return this.send(`/github/forks`, jsonInit({ repository }, opts));
+  }
+
+  async getGitToken(opts?: RequestOptions): Promise<{ token: string }> {
+    return this.send<{ token: string }>("/github/git-token", { signal: opts?.signal });
+  }
+
+  // ----- Session -----
+
+  async getSession(opts?: RequestOptions): Promise<SessionInfo> {
+    return this.send<SessionInfo>("/auth/session", { signal: opts?.signal });
+  }
+
+  async logout(opts?: RequestOptions): Promise<void> {
+    await this.send("/auth/logout", { method: "POST", signal: opts?.signal });
+  }
+
+  async purgeAccount(opts?: RequestOptions): Promise<void> {
+    await this.send("/auth/purge", { method: "POST", signal: opts?.signal });
+  }
+}
+
+export function createApiClient(transport: Transport): ApiClient {
+  return new ApiClient(transport);
+}

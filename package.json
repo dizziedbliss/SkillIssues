@@ -1,0 +1,10 @@
+{
+  "name": "skillissues",
+  "private": true,
+  "description": "Workspace root — see CLAUDE.md. `npm ci` here installs web, desktop and packages/* together so the shared packages/* resolve as real node_modules symlinks instead of the previous per-package relative-import hack.",
+  "workspaces": [
+    "web",
+    "desktop",
+    "packages/*"
+  ]
+}

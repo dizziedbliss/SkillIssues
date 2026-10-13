@@ -27,7 +27,7 @@ import {
   User as UserIcon,
   X,
 } from "lucide-react";
-import { renderMarkdown as renderIssueMarkdown } from "../../packages/markdown/src/index";
+import { renderMarkdown as renderIssueMarkdown } from "@skillissues/markdown";
 import "./index.css";
 import { LandingPage } from "./LandingPage";
 
