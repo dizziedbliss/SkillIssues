@@ -26,21 +26,6 @@ if [ ! -f .env ]; then
 	exit 1
 fi
 
-# Export host env so fallback interpolation can use existing required secrets.
-set -a
-# shellcheck disable=SC1091
-source .env
-set +a
-
-# Backward-compatible fallbacks for hosts whose .env predates monitoring vars.
-# Keep them in-process only; don't rewrite the host .env.
-if [ -z "${METRICS_DB_PASSWORD:-}" ] && [ -n "${POSTGRES_PASSWORD:-}" ]; then
-	export METRICS_DB_PASSWORD="$POSTGRES_PASSWORD"
-fi
-if [ -z "${GRAFANA_ADMIN_PASSWORD:-}" ] && [ -n "${ADMIN_SYNC_TOKEN:-}" ]; then
-	export GRAFANA_ADMIN_PASSWORD="$ADMIN_SYNC_TOKEN"
-fi
-
 COMPOSE=(docker compose -f compose.prod.yaml --env-file .env)
 
 "${COMPOSE[@]}" pull
