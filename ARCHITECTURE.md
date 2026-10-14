@@ -1,229 +1,176 @@
-# SkillIssues — Architecture & Under the Hood
+# Architecture
 
-> **How we turned GitHub's overwhelming issue pile into a curated, verified questline without catching on fire.**
+How SkillIssues is put together, as of the code in this repository. For the rules contributors
+must follow, see [CLAUDE.md](CLAUDE.md); for running it in production, [DEPLOYMENT.md](DEPLOYMENT.md).
 
----
-
-## 1. The High-Altitude View
-
-SkillIssues is designed to solve a simple problem: **GitHub has infinite open issues, but almost no signal on what you should actually work on next.**
-
-To make discovery fast, accurate, and fun, we built a high-concurrency microservices backend in Go, backed by PostgreSQL 16 and Redis 7, paired with two frontends: a React 18 web dashboard for exploring challenges, and an Electron native desktop app for prepping real workspaces in one click.
-
-Here is how the pieces talk to each other:
+## 1. Components
 
 ```mermaid
-flowchart TB
-    subgraph Clients["The Front Doors"]
-        Web["Web Dashboard (React 18 + Vite + TS)\n• 3D Flowchart Hero\n• Categorized Search\n• Port :5173"]
-        Desktop["Desktop Companion (Electron 30)\n• Frameless Custom Window\n• Sandboxed Git Engine\n• 1-Click VS Code Launch"]
+flowchart LR
+    subgraph Clients
+        Web["web — React 19 + Vite"]
+        Desktop["desktop — Electron 44<br/>React renderer"]
     end
 
-    subgraph Gateway["Go API Gateway (:8000)"]
-        Router["Chi Router & Middleware\n• Sliding-Window Rate Limiter\n• Unified Account Linker (PAT + OAuth)\n• Prometheus Metrics (/metrics)"]
-        SearchEng["Multi-Category Search Engine\n(Window CTE Partitioning)"]
-        ProgEng["Progression Engine\n(PR Merge Verification & XP)"]
+    subgraph Edge["production only"]
+        Caddy["Caddy — TLS, /api/* → go-api, /* → web"]
     end
 
-    subgraph Storage["The State Keepers"]
-        DB[(PostgreSQL 16\n• Migrations 001-006\n• pgxpool Connection Pool\n• Port :5432)]
-        RedisCache[(Redis 7 Cache\n• Sliding-Window Token Bucket\n• Session Store & Ingestion Locks\n• Port :6379)]
-    end
+    API["go-api :8000<br/>stdlib ServeMux"]
+    Ingestd["ingestd :8002<br/>coordinator + worker pools"]
+    PG[("PostgreSQL 16<br/>data, sessions, job queue, settings")]
+    Redis[("Redis 7<br/>rate limits, response cache")]
+    GH["GitHub GraphQL + REST"]
+    Import["repoimport<br/>(run by hand)"]
+    Kaggle[/"Kaggle repository<br/>metadata dataset"/]
 
-    subgraph Ingestion["The Crawlers & Ingestion Engine"]
-        Syncd["Go ingestd Daemon (:8002)\n• GitHub GraphQL Sync\n• Rate-Limit Awareness\n• Difficulty Scoring Heuristics"]
-        Worker["Go worker Daemon\n• Priority Catalog Refresher"]
-        Kaggle["Kaggle ETL CLI\n• Bulk Offline Dataset Importer"]
-    end
-
-    subgraph OutsideWorld["The Outside World"]
-        GitHubAPI["GitHub API (REST & GraphQL)\n• OAuth Handshake & Token Check\n• PR Merge State Validation"]
-        DevFS["Developer Filesystem\n• User-Selected Workspace Folder"]
-        VSCode["VS Code (code .)"]
-    end
-
-    Web -->|HTTP / REST| Router
-    Desktop -->|HTTP / REST| Router
-    Desktop -->|Sandboxed Git Runner| DevFS
-    Desktop -->|1-Click Launch| VSCode
-
-    Router --> SearchEng
-    Router --> ProgEng
-    Router -->|pgxpool SQL| DB
-    Router -->|Token Bucket & Cache| RedisCache
-    Router -->|OAuth Handshake| GitHubAPI
-
-    Syncd -->|GraphQL Queries| GitHubAPI
-    Syncd -->|Batch Upsert| DB
-    Syncd -->|Locks & Cursor| RedisCache
-
-    Worker -->|Heartbeat & Trigger| Syncd
-    Kaggle -->|Offline Batch Ingest| DB
-    ProgEng -->|Verify PR Merge State| GitHubAPI
+    Web --> Caddy --> API
+    Desktop -->|via preload IPC| API
+    Desktop -->|git, with the user's token| GH
+    API --> PG
+    API --> Redis
+    API -->|verify PRs, forks, issue bodies| GH
+    API -->|admin: crawl one repo| Ingestd
+    Ingestd --> PG
+    Ingestd -->|crawl open issues| GH
+    Kaggle --> Import --> PG
 ```
 
----
+| Binary (`backend/cmd/`) | Role |
+|---|---|
+| `api` | The HTTP API ([route list](docs/api.md)). Go standard-library `http.ServeMux` with method patterns; no third-party router. |
+| `ingestd` | GitHub crawler. One coordinator loop plus two worker pools (Initial, Deep Diver). Uses Postgres only — not Redis. |
+| `migrate` | Applies the embedded goose migrations and exits. Compose runs it before anything else starts. |
+| `repoimport` | Streams the ~4.2M-record Kaggle dataset, stores the ~288k eligible repositories. Resumable, idempotent. |
+| `healthcheck` | Tiny binary used as the containers' Docker `HEALTHCHECK`. |
 
-## 2. The End-to-End Contribution Lifecycle
+The schema lives only in `backend/internal/migrate/migrations/`, embedded into the binaries.
 
-How does a developer go from *"what do I work on?"* to *"PR merged, level up!"*?
+## 2. Ingestion
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Dev as Developer
-    participant UI as Desktop / Web App
-    participant API as Go API Gateway (:8000)
-    participant Redis as Redis Cache
-    participant DB as PostgreSQL DB
-    participant Git as Desktop Git Engine
-    participant GH as GitHub API
-
-    Dev->>UI: Sign in (Browser OAuth or Personal Access Token)
-    UI->>API: Authenticate (/auth/github/token or OAuth redirect)
-    API->>GH: Validate token & fetch profile
-    API->>DB: UpsertUser (Unified Account Link: matches github_id OR username)
-    API->>Redis: Cache active session
-    API-->>UI: Return Profile (XP, Level, Badges)
-
-    Dev->>UI: Search challenges (e.g. "go", "beginner")
-    UI->>API: GET /issues?search=go&difficulty=BEGINNER
-    API->>DB: Run Window CTE Partitioned Search
-    DB-->>API: Interleaved results (Repos, Languages, Issues, Authors)
-    API-->>UI: Balanced categorized search payload
-
-    Dev->>UI: Click "Start Challenge"
-    UI->>API: POST /contributions (state: STARTED)
-    UI->>Git: Fork repository via GitHub API
-    UI->>Git: Clone repo into chosen local folder
-    UI->>Git: Detect default branch (main/master/develop)
-    UI->>Git: Checkout branch skillissues/issue-<id>
-    UI->>Dev: Open project in VS Code
-
-    Note over Dev,Git: Developer writes code, passes tests, pushes commits to origin
-
-    Dev->>UI: Submit PR URL on GitHub
-    Dev->>UI: Click "Verify PR"
-    UI->>API: POST /contributions/<id>/verify
-    API->>GH: Inspect PR author attribution & merge status
-    alt PR Merged and Author Matches
-        API->>DB: Mark status MERGED
-        API->>DB: Award XP (75 / 140 / 250) & recalculate Level
-        API->>DB: Check and unlock eligible Badges
-        API-->>UI: SUCCESS! XP awarded & badges unlocked
-    else PR Open / Pending Merge
-        API-->>UI: Status PENDING (Wait for maintainers to merge!)
-    end
+```text
+Kaggle dataset ──repoimport──▶ repositories (eligible only)
+                                   │ coordinator, every 5s
+                                   ▼
+                     Initial: first page of open issues
+                                   │ hasNextPage?
+                                   ▼
+                     Deep Diver: next page from stored cursor, until done
+                                   │
+                     Freshness: re-fetch page one once the last sync is stale
 ```
 
----
+- **Every eligible repository is crawled.** There is no ranking or priority anywhere in the
+  crawl path: jobs are FIFO on `next_retry_at`. Eligibility (`ingest.eligibility.*`) is abuse
+  control — anyone can open issues on a throwaway repo — not a quality judgement.
+- **Postgres is the queue.** `ingest_jobs` rows are claimed with `FOR UPDATE SKIP LOCKED` and a
+  lease. A page's issues, its cursor and `last_synced_at` commit in one transaction, so a crash
+  can only cause a page to be fetched twice, never skipped.
+- **One shared GitHub budget.** Both lanes (`crawler`, `interactive`) record GitHub's rate-limit
+  telemetry in `github_budget`; the crawler stops below `ingest.rate_limit_floor`.
+- **Failures are isolated.** `NOT_FOUND` marks the repository unavailable;
+  `RESOURCE_LIMITS_EXCEEDED` halves the page size and retries down to 1; rate limits pause the
+  lane for a minute; other errors back off exponentially and land in `failed` after
+  `ingest.max_attempts`.
+- **Disk guardrails.** `ingest.max_pages_per_repo` caps how deep one repository goes;
+  `ingest.max_db_size_mb` pauses new work when the database grows past it.
 
-## 3. The Services
+Design rationale and what is not built yet (the Discovery Sweeper): [docs/ingestion-architecture.md](docs/ingestion-architecture.md).
 
-### 3.1 Go API Gateway (`backend/cmd/api/`)
-- **Listening on**: `:8000`
-- **What it does**: The central brain. It exposes 28 REST endpoints for authentication, profile customization, challenge discovery, bookmarks, workspace tracking, and PR verification.
-- **Why Go?**: Sub-millisecond response times, minimal memory footprint, and bulletproof concurrency using Go 1.23 standard idioms and Chi.
-- **Distroless Runtime**: Packaged in Google's static Distroless container image without shells or package managers.
+## 3. Data model (main tables)
 
-### 3.2 Go Ingestion Engine (`backend/cmd/ingestd/`)
-- **Listening on**: `:8002`
-- **What it does**: Crawls GitHub's GraphQL API to discover active, open issues across top open-source repositories.
-- **Good citizen behavior**: Respects GitHub secondary rate limits with exponential backoff and worker pools.
-- **Heuristic extraction**: Parses descriptions, pulls out relevant technology tags, strips bot noise, and computes difficulty vectors.
+| Table | Holds |
+|---|---|
+| `repositories` | Imported metadata: stars, language, topics, pushed date, `is_eligible`, `last_synced_at` |
+| `issues` | One row per `(repository_id, number)`; raw GitHub `labels` kept as-is; `updated_at` is GitHub's |
+| `issue_body_cache` | Bounded LRU of issue bodies, fetched on demand (bodies are not crawled) |
+| `users`, `auth_sessions` | Accounts; sessions stored as SHA-256 hashes of the cookie token |
+| `developer_profiles`, `developer_preferences` | XP, level, badges; languages, interests, target level |
+| `contributions`, `contribution_audit_log` | One attempt at an issue and its state history |
+| `saved_issues` | Bookmarks |
+| `ingest_jobs`, `github_budget`, `import_skipped` | Crawl queue, shared rate-limit budget, import skip ledger |
+| `settings`, `settings_audit` | Live configuration and every change to it |
+| `webhook_events` | GitHub delivery ids, for deduplication |
 
-### 3.3 Migration Runner (`backend/cmd/migrate/`)
-- **What it does**: Applies the embedded goose schema migrations and exits. Docker Compose
-  runs it to completion before `go-api` and `ingestd` start, so a fresh environment needs no
-  manual SQL.
+## 4. How the product logic works
 
----
+**Difficulty** (`internal/sync/classify.go`) comes from labels only. Beginner-style labels
+(`good first issue`, `difficulty/easy`, `size/xs`, `effort/low`, …) → `BEGINNER`; medium →
+`INTERMEDIATE`; hard/expert/large → `ADVANCED`. Anything else is `UNCLASSIFIED` with a NULL
+score. There is no text or comment-count heuristic.
 
-## 4. Database Schema & Migration Lore
+**Search** (`internal/issue/search.go`). Each match is put in one category — Repository, Title
+(Postgres full-text), Language (language, technologies, tags, skills) or Author — and a
+`ROW_NUMBER() OVER (PARTITION BY category)` CTE keeps at most `api.search.per_category_cap`
+results per category, so one category cannot flood the page.
 
-Our database lives in PostgreSQL 16. The schema is defined by goose migrations in
-`backend/internal/migrate/migrations/`, embedded into the binaries with `go:embed` and applied
-by the one-shot `migrate` service. The table below is the historical record of how the schema
-was built up; those original migration pairs have since been consolidated into
-`00001_initial_schema.sql`.
+**Recommendations** (`internal/recommendation/score.go`):
+`15 × language match + 8 × technology match + 2 × shared skills + shared interests +
+max(0, 5 − |difficulty − target|) + min(3, stars / 25000 + 1)`.
 
-| Migration | What it added | Why it exists |
-| :--- | :--- | :--- |
-| `001_initial_schema` | Users, profiles, repos, issues, contributions, badges, bookmarks | The bedrock tables. |
-| `002_add_author_to_issues` | `author` column and indexing on issues | Enables searching issues by creator/maintainer. |
-| `003_add_check_constraints` | State checks (`STARTED`, `SUBMITTED`, `MERGED`, `CLOSED`) | Ensures invalid lifecycle states cannot be written. |
-| `004_sync_state_and_audit_log` | Ingestion sync telemetry and audit logging | Tracks sync health and historical runs. |
-| `005_allow_multiple_contributions_per_issue` | Relaxes unique constraint on `(user_id, issue_id)` | Lets developers re-attempt challenges with new PRs. |
-| `006_link_users_by_username_and_github_id` | Case-insensitive `lower(username)` index | **Unified Account Linking**: Prevents duplicate accounts if you log in via PAT vs OAuth. |
+**Progression** (`internal/progression/xp.go`). XP is awarded once, only after GitHub reports
+the PR merged *and* its author matches the user — via `POST /contributions/{id}/verify` or the
+`pull_request` webhook. Base 75 / 140 / 250 by difficulty (an `UNCLASSIFIED` issue counts as
+75), plus 25 for the merge, 15 for a first or second merge in that repository, 10 for an issue
+spanning several skills or technologies. Level *n*+1 costs 150 + 150·*n* XP more than level
+*n* (300, 750, 1350, 2100, …). Badges are recomputed from merge, repository and language counts.
 
----
+## 5. Auth and credentials
 
-## 5. Under the Hood: Algorithms & Heuristics
+- **Login** is GitHub OAuth App or GitHub App, through the browser; the desktop app polls
+  `/auth/github/poll` until the browser flow completes. PAT login exists but is off
+  (`auth.pat_login_enabled`).
+- **Sessions** live in Postgres, so they survive a Redis outage. The cookie is `HttpOnly`;
+  over HTTPS it is `Secure` with `SameSite=None`, otherwise `SameSite=Lax`.
+- **Accounts link** by GitHub id or case-insensitive username, so OAuth and PAT logins are one
+  user.
+- **Whose token does what:** crawling and on-demand reads use the server credential (GitHub App
+  installation token, or `GITHUB_TOKEN`). Forks, pushes and PRs use **the user's own**
+  authorization and never fall back to the server's — that would attribute their contribution to
+  the server. User tokens are encrypted at rest with `TOKEN_ENCRYPTION_KEY`.
+- **Webhooks** are HMAC-SHA256 verified. **Admin** routes take a bearer token compared in
+  constant time.
 
-### 5.1 Difficulty Scoring
-Issues aren't assigned difficulty based on vibes. We score them using a multi-factor heuristic:
+## 6. Rate limiting and caching
 
-$$\text{Score} = w_{\text{body}} \cdot f(\text{len}_{\text{body}}) + w_{\text{comments}} \cdot \ln(1 + C) + w_{\text{labels}} \cdot L + w_{\text{skills}} \cdot S$$
+A Redis counter per signed-in user or per client IP (`X-Forwarded-For` honoured only from
+`TRUSTED_PROXIES`). Defaults are 180 requests per window signed out and 1,000 signed in, window
+3600s — all live settings. The key's expiry is refreshed on every request, so the count resets
+only after a full window with no requests. `/health`, `/health/detail` and `/metrics` are exempt;
+login is not. Redis also caches the default catalog page, unauthenticated searches and
+recommendations. If Redis is down, limiting fails open and caching is skipped — nothing else
+depends on it.
 
-- **`BEGINNER` (0–35 points, 75 XP)**: Labelled `good first issue` or `beginner-friendly`, concise description, clear reproduction.
-- **`INTERMEDIATE` (36–70 points, 140 XP)**: Multi-file changes, moderate discussion thread, feature enhancements.
-- **`ADVANCED` (71–100 points, 250 XP)**: Performance overhauls, architectural refactors, concurrency, deep dependency trees.
+## 7. Configuration
 
-### 5.2 Balanced Multi-Category Search (Window CTE)
-When you search for `"go"`, a naive database query would return 50 Go issues and bury official repositories like `golang/go`. 
+Three layers: bootstrap env (`DATABASE_URL`, `REDIS_URL`, `PORT`, `FRONTEND_URL`), secrets in
+env, and **everything operational in the `settings` table**, changeable live and validated by a
+database trigger. Full list: [docs/settings.md](docs/settings.md).
 
-We solve this using a PostgreSQL Window CTE:
+## 8. Observability
 
-```sql
-WITH categorized AS (
-    SELECT id, number, title, body, difficulty, repository, language, comments, url, author,
-           match_category,
-           ROW_NUMBER() OVER (
-               PARTITION BY match_category
-               ORDER BY
-                   CASE WHEN match_category = 'Repository' AND lower(repository) = lower($1) THEN 0
-                        WHEN match_category = 'Repository' AND lower(repository) LIKE lower($1) || '%' THEN 1
-                        ELSE 2 END ASC,
-                   difficulty_score DESC
-           ) as cat_rank
-    FROM issue_search_matches
-)
-SELECT * FROM categorized
-WHERE cat_rank <= 15
-ORDER BY cat_rank ASC, match_category ASC;
-```
+Both Go services serve Prometheus metrics at `/metrics`: HTTP traffic and latency by route
+pattern, outbound GitHub calls, ingest job outcomes, queue depth, repository coverage, the GitHub
+budget per lane, worker pools, connection pools, and Go runtime stats. The compose stacks run
+Prometheus, Grafana (six provisioned dashboards), node-exporter, cAdvisor and Postgres/Redis
+exporters. Product panels query Postgres as `metrics_ro`, a read-only role that cannot see token
+columns. See DEPLOYMENT.md → *Monitoring*.
 
-This guarantees an equal slice of **Repositories**, **Languages**, **Issues**, and **Authors**, while boosting exact repo matches to the very top.
+## 9. Clients
 
-### 5.3 Progression & Levels
+Both clients share three npm workspace packages: `@skillissues/api-client` (typed client,
+`ApiError` with status and detail, pluggable fetch or IPC transport), `@skillissues/ui` (Modal
+with focus trap and scroll lock, issue and contribution lists, …) and `@skillissues/markdown`
+(markdown-it + DOMPurify — issue bodies are attacker-controlled).
 
-| Level | Title | Required XP | What it represents |
-| :---: | :--- | :---: | :--- |
-| **1** | `Novice Contributor` | 0 XP | Getting started, setting up your environment |
-| **2** | `Junior Contributor` | 250 XP | First few verified contributions under your belt |
-| **3** | `Open Source Contributor` | 750 XP | Comfortable navigating foreign codebases |
-| **4** | `Senior Contributor` | 1,750 XP | Consistent, verified problem solver across ecosystems |
-| **5** | `Staff Contributor` | 3,500+ XP | Veteran open-source contributor |
+**Web** (`web/`): React 19 single-page app. Signed-out visitors get `LandingPage`; signed-in
+users get the catalog.
 
----
-
-## 6. The Clients
-
-### 6.1 Native Desktop App (Electron 30)
-- **Frameless Window**: Custom titlebar with minimize, maximize, and close controls tailored to our lavender design palette.
-- **Workspace Selector**: Choose where cloned repos live on your disk, and change it anytime.
-- **Streaming Git Runner**: Spawns async child processes with non-blocking stdout streams, avoiding buffer overflows on giant repos.
-- **Dynamic Branch Detection**: Queries the remote to find the true default branch (`main`, `master`, `trunk`) instead of guessing.
-
-### 6.2 Web Dashboard (React 18 + Vite)
-- **3D Flowchart Hero (`LandingPage.tsx`)**: Interactive CSS 3D perspective with cursor tilt tracking that explains the contribution lifecycle visually.
-- **Smart Routing**: Guests land on the promotional overview; authenticated users jump straight to challenges.
-- **Modal Navigation**: Press `Esc` or click outside to dismiss challenge cards; background scrolling is cleanly locked.
-
----
-
-## 7. Security & Observability
-
-- **Rate Limiting**: Sliding-window Redis limiter (180 req/hr for unauthenticated guests, 1,000 req/hr for authenticated devs). Internal health checks and metrics are exempt.
-- **Account Linking**: Logging in via a GitHub PAT or browser OAuth links to the exact same account record by matching `github_id` OR `lower(username)`. No split XP.
-- **Prometheus Telemetry**: Live metrics exposed at `/metrics` for scraping by Prometheus or Grafana.
+**Desktop** (`desktop/`, electron-vite): the renderer runs with `contextIsolation`, `sandbox`
+and no Node integration, behind a Content Security Policy, and reaches the API only through the
+preload bridge. The main process holds a single-instance lock, opens only allow-listed GitHub
+URLs, and registers the `skillissues://` protocol. Workspace flow: fork with the user's token,
+clone into the chosen workspace folder (default `~/Documents/SkillIssues`; git commands refuse
+to run outside it), point `origin` at the fork and `upstream` at the original, create a branch,
+push, open VS Code. Git runs as async child processes and every command is logged to
+`.skillissues/commands.log` in the clone. Cloned code is never executed.

@@ -1,0 +1,73 @@
+# Live settings
+
+Every operational value lives in the `settings` table and can be changed on a running system —
+no restart, no redeploy. The keys, defaults and bounds below come from
+`backend/internal/settings/registry.go`; the bounds are enforced by a database trigger, so a
+bad value is rejected whether it arrives through the API or `psql`. Every change is recorded in
+`settings_audit`.
+
+```bash
+# read everything
+curl localhost:8000/admin/config -H "Authorization: Bearer $ADMIN_SYNC_TOKEN"
+# change one value
+curl -XPUT localhost:8000/admin/config/ingest.routine_workers \
+     -H "Authorization: Bearer $ADMIN_SYNC_TOKEN" -d '{"value": 4}'
+```
+
+In production the API is under `https://<domain>/api/…`. Secrets never go in this table — it is
+readable through the endpoint above and copied into backups.
+
+## API
+
+| Key | Default | Bounds | What it does |
+|---|---:|---|---|
+| `api.rate_limit.unauth_per_hour` | 180 | 1–100000 | Requests per window for unauthenticated callers (per IP) |
+| `api.rate_limit.auth_per_hour` | 1000 | 1–1000000 | Requests per window for signed-in users (per user) |
+| `api.rate_limit.window_seconds` | 3600 | 60–86400 | Rate-limit window length |
+| `api.issues.default_page_size` | 20 | 1–100 | Issues per page when browsing without a search term |
+| `api.issues.search_page_size` | 50 | 1–200 | Issues returned for a search query |
+| `api.search.per_category_cap` | 25 | 1–100 | Maximum search results per match category |
+| `api.issues.freshness_batch_cap` | 25 | 1–100 | Maximum issue ids in one `POST /issues/freshness` |
+| `api.session.ttl_hours` | 168 | 1–8760 | Session lifetime; applies to newly issued sessions |
+| `api.cache.hot_issues_ttl_seconds` | 120 | 0–3600 | Cache for the default unauthenticated catalog page (0 = off) |
+| `api.cache.search_ttl_seconds` | 60 | 0–3600 | Cache for unauthenticated search results (0 = off) |
+| `api.cache.recommendations_ttl_seconds` | 300 | 0–3600 | Cache for per-user recommendations (0 = off) |
+| `api.contribution.verify_per_hour` | 5 | 1–1000 | PR verification attempts per user per contribution per hour |
+| `auth.pat_login_enabled` | false | bool | Whether `POST /auth/github/token` (PAT login) is reachable |
+
+## Ingestion
+
+| Key | Default | Bounds | What it does |
+|---|---:|---|---|
+| `ingest.eligibility.min_stars` | 25 | 0–100000 | Minimum stars to be crawled (abuse control, not ranking) |
+| `ingest.eligibility.pushed_within_days` | 730 | 1–3650 | Repository must have been pushed within this many days |
+| `ingest.eligibility.recheck_seconds` | 3600 | 60–86400 | How often stored repositories are re-tested against the thresholds |
+| `ingest.routine_workers` | 2 | 1–64 | Concurrent Initial/Freshness workers |
+| `ingest.priority_workers` | 1 | 1–64 | Concurrent Deep Diver workers |
+| `ingest.graphql_page_size` | 50 | 1–100 | Issues per GraphQL page |
+| `ingest.rate_limit_floor` | 100 | 0–5000 | Crawler stops below this many remaining GitHub points |
+| `ingest.max_attempts` | 3 | 1–10 | Attempts before a job is left `failed` |
+| `ingest.backoff_base_seconds` | 1 | 1–60 | Base of the exponential retry backoff |
+| `ingest.freshness_interval_seconds` | 86400 | 300–2592000 | Age of a repository's last sync before page one is re-fetched |
+| `ingest.enqueue_batch_size` | 500 | 1–50000 | Jobs enqueued per coordinator cycle |
+| `ingest.max_pages_per_repo` | 100 | 0–100000 | Deep Diver page cap per repository (0 = no cap) |
+| `ingest.max_db_size_mb` | 30000 | 0–1000000 | Pause new ingestion work above this database size (0 = no cap) |
+| `ingest.metrics_refresh_seconds` | 30 | 5–3600 | How often ingestd refreshes its Postgres-backed `/metrics` gauges |
+
+Raising the eligibility thresholds takes effect on the next recheck. **Lowering** them only
+affects repositories already stored — anything that failed the old threshold was never imported,
+so re-run `cmd/repoimport` (see `README.md`).
+
+## Registered but not read by any code
+
+| Key | Default | Note |
+|---|---:|---|
+| `ingest.sync_interval_seconds` | 900 | Nothing reads it; changing it has no effect. |
+| `ingest.ondemand_workers` | 1 | Reserved for the on-demand issue-body path; not wired up. |
+
+## Adding a setting
+
+Add the key to `settings.Registry` **and** seed it in a new migration (see
+`00016_ingest_metrics_refresh_setting.sql`). A key in one but not the other falls back to its
+default and is logged as drift at startup. Read values through `live.Current()` and hold the
+snapshot for the duration of an operation.

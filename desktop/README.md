@@ -1,26 +1,48 @@
 # SkillIssues Desktop
 
-The Electron client currently has the home view, issue-details view, and submissions view. It loads live issue recommendations, supports search and saved state, shows the signed-in profile data when available, opens issue details first, and only reveals local clone controls after the user explicitly presses `Start challenge`. Clones are restricted to `Documents/SkillIssues`; no filesystem chooser is used. It does not receive backend secrets, execute cloned code, or expose unrestricted filesystem access.
+Electron 44 app (electron-vite) with a React + TypeScript renderer built on the shared
+`@skillissues/ui` and `@skillissues/api-client` packages.
 
-Install dependencies with `npm install` inside this directory, then run `npm run dev` (electron-vite, with renderer HMR) while the API is available. `npm start` instead runs the already-built app (`npm run build` first) via `electron-vite preview` — closer to what a packaged release behaves like, without HMR.
+It does what the web app does — browse, search, recommendations, saved issues, contributions —
+plus the local workspace flow: inspect an issue, press **Start challenge**, and it forks the
+repository with your own GitHub account, clones it into your workspace folder, points `origin`
+at your fork and `upstream` at the original, lets you create a branch and push it, and opens
+the folder in VS Code.
 
-The desktop flow lets a user inspect an issue before starting, clone a public GitHub repository into a selected workspace path (defaulting to `Documents/SkillIssues/<repository>`), and inspect Git status. The submissions tab reads contribution state from `/contributions`. Clone and Git inspection commands are appended to `.skillissues/commands.log` inside the cloned repository. After cloning, the user can explicitly create a validated branch, push it to the repository remote, and open the workspace. The preload bridge exposes only the narrow workspace actions; backend credentials never enter the renderer.
+## Run it
+
+Dependencies are installed once at the **repo root** (`web`, `desktop` and `packages/*` share
+one lockfile):
 
 ```bash
+npm ci                 # repo root
 cd desktop
-npm install
-npm run dev
+npm run dev            # hot reload; expects the API at http://localhost:8000
 ```
 
-## Release build
+`npm run build && npm start` runs the built app without hot reload (`electron-vite preview`),
+which is closer to a packaged release.
 
-Run the source checks before packaging:
+## Checks and release builds
 
 ```bash
-npm run check
-npm run dist:mac
+npm run check          # tsc over main, preload and renderer
+npm run build
+npm run dist:mac       # or dist:linux, dist:win, or dist for all three
 ```
 
-The release configuration also defines `dist:linux` and `dist:win` for their respective build environments. Artifacts are written to `desktop/dist/`. macOS signing and notarization are intentionally controlled by the release environment; set the standard electron-builder signing variables there rather than committing certificates or secrets.
+Artifacts go to `desktop/dist/`. Signing and notarization come from the release environment's
+standard electron-builder variables; never commit certificates. `.github/workflows/release.yml`
+builds releases.
 
-The main process uses a single-instance lock, a restrictive Content Security Policy, an allowlist for external GitHub navigation, bounded Git command execution, and a fixed `Documents/SkillIssues` workspace root. Cloned repositories are never executed automatically.
+## Security model
+
+- The renderer runs with `contextIsolation`, `sandbox` and no Node integration, behind a
+  Content Security Policy. It reaches the API only through a narrow preload bridge (`api:request`
+  and a fixed set of workspace actions) — backend secrets never enter it.
+- A single-instance lock; only allow-listed GitHub URLs open externally; the `skillissues://`
+  protocol is registered for deep links from the web app.
+- The workspace folder defaults to `~/Documents/SkillIssues` and can be changed in the app. Git
+  commands refuse to run outside it, run as bounded async child processes, and are logged to
+  `.skillissues/commands.log` inside each clone.
+- Cloned code is never executed.

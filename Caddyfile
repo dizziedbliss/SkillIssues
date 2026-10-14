@@ -3,8 +3,8 @@
 # Caddy is the only service publishing ports (80/443) and the only thing
 # that terminates TLS — automatic Let's Encrypt via the ACME HTTP-01
 # challenge on port 80, no separate certbot step. Frontend and API are
-# served same-origin so the session cookie can be Secure + SameSite=Lax
-# without any cross-origin cookie handling.
+# served same-origin, so the browser sends the session cookie without any
+# cross-origin cookie handling.
 {
 	# Per-host request/latency/status metrics, served by the :9180 block below.
 	metrics

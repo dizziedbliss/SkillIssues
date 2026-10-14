@@ -2,117 +2,64 @@
 
 > **You have the skills. We have the issues.**
 
-SkillIssues curates real open-source GitHub issues and helps you sort through the chaos.
+SkillIssues collects open issues from real GitHub repositories, sorts them by difficulty,
+language and skills, and helps you go from "what should I work on?" to a merged pull request —
+with XP, levels and badges awarded only after GitHub confirms the merge.
 
-[Architecture](ARCHITECTURE.md) · [Deployment](DEPLOYMENT.md) · [Contributing](CONTRIBUTING.md) · [Code of Conduct](CODE_OF_CONDUCT.md)
-
----
-
-## What is this?
-
-GitHub has more issues than anyone has time to read. SkillIssues pulls that work into one place and helps you find the issues that fit what you already know — or what you are curious enough to wrestle with next.
-
-It is not another tutorial platform. It is not trying to teach you software development from scratch. It is a curated issue browser with useful sorting, matching, workspace setup, and contribution tracking.
-
-In other words:
-
-```text
-GitHub's issue chaos
-        ↓
-curated, categorized challenges
-        ↓
-filters that actually help
-        ↓
-a real repository and a real pull request
-```
+[Architecture](ARCHITECTURE.md) · [Deployment](DEPLOYMENT.md) · [Contributing](CONTRIBUTING.md) · [API](docs/api.md) · [Settings](docs/settings.md) · [Code of Conduct](CODE_OF_CONDUCT.md)
 
 ---
 
-## Why SkillIssues?
+## What it does
 
-Because “good first issue” is helpful, but it is not exactly a personality test.
+- **Collects issues** from about 288k eligible public repositories (at least 25 stars, pushed
+  within two years) — open issues only, most recently updated first.
+- **Classifies difficulty from labels.** `good first issue`, `difficulty/easy`, `size/xs` and
+  similar become `BEGINNER`; medium and hard labels become `INTERMEDIATE` and `ADVANCED`. An
+  issue with no difficulty label is `UNCLASSIFIED` — unknown, not easy.
+- **Search and filter** by repository, title, language/technology and author. Search results
+  are balanced across those categories so one can't drown out the rest.
+- **Recommends issues** from your profile: preferred languages, skills, interests and target
+  level.
+- **Sets up a workspace** from the desktop app: forks with your own GitHub account, clones into
+  your workspace folder, creates a branch, pushes, and opens VS Code.
+- **Verifies the pull request** on GitHub — merged, and authored by you — before awarding XP.
 
-SkillIssues looks at open-source issues and organizes them by things like:
-- language and framework;
-- difficulty and expected effort;
-- repository and issue metadata;
-- required skills and contributor preferences;
-- issue category, author, and organization.
+### XP and levels
 
-Then it gives you somewhere less overwhelming to start looking.
-
----
-
-## What it can do
-
-- **Curate issues** from real open-source repositories.
-- **Sort and filter** by skills, languages, frameworks, difficulty, and categories.
-- **Recommend challenges** based on your developer profile.
-- **Set up workspaces** through the Electron desktop app: fork, clone, configure remotes, create a branch, and open VS Code in one click.
-- **Track contributions** from workspace setup to pull request.
-- **Verify pull requests** through GitHub before awarding progression.
-- **Add a little game layer** with XP, levels, and badges — because spreadsheets are not emotionally rewarding.
-
----
-
-## How it works
-
-1. `ingestd` collects and qualifies GitHub issues.
-2. SkillIssues categorizes and scores them.
-3. You search, filter, or browse the catalog.
-4. You pick an issue that looks interesting — or at least survivable.
-5. The desktop app can prepare a local workspace for you.
-6. You work in the actual repository and open a pull request.
-7. GitHub verifies the contribution and SkillIssues updates your progress.
-
-### XP currently looks like this
-
-| Difficulty | XP |
-| :--- | :--- |
+| Difficulty | Base XP |
+| :--- | ---: |
 | `BEGINNER` | 75 |
 | `INTERMEDIATE` | 140 |
 | `ADVANCED` | 250 |
 
-No XP for clicking a shiny button. No XP for saying “I will definitely start this tomorrow.” Verified work only.
+Every merged PR adds **+25**, **+15** for your first or second merge in that repository, and
+**+10** if the issue spans more than one skill or technology — so a beginner issue can be worth
+up to 125. Levels get steadily more expensive: level 2 at 300 XP, 3 at 750, 4 at 1,350, 5 at
+2,100 (each level costs 150 more than the last). Badges: *First Blood* (1 merge), *Bug Wrangler*
+(3), *Touch Grass* (5), *Polyglot* (2 languages), *World Traveller* (2 repositories).
 
 ---
 
-## Architecture
-
-```text
-  React + Vite web app           Electron desktop app
-         \                                /
-          \        HTTP / REST           /
-           v                            v
-              Go API Gateway :8000
-                 |            |
-                 v            v
-            PostgreSQL      Redis
-                 ^            ^
-                 |            |
-                 ingestd :8002
-                       ^
-                       |
-                   GitHub API
-```
-
-The main pieces are:
+## Repository layout
 
 ```text
 SkillIssues/
-├── backend/          # Go API, sync coordinator, worker, and ETL
-├── web/              # React + Vite + TypeScript app
-├── desktop/          # Electron workspace companion
-├── database/         # PostgreSQL schema and migrations
-├── k8s/              # Kubernetes manifests
-├── compose.yaml      # Local development stack
-├── ARCHITECTURE.md   # Architectural deep-dive
-├── DEPLOYMENT.md     # Production deployment instructions
-├── CONTRIBUTING.md   # Dev setup & pull request guide
-└── CODE_OF_CONDUCT.md # Community ground rules
+├── backend/        Go: cmd/{api,ingestd,migrate,repoimport,healthcheck}, internal/*
+│                   schema = backend/internal/migrate/migrations (goose, embedded)
+├── web/            React 19 + Vite + TypeScript web app
+├── desktop/        Electron 44 app (React + TypeScript renderer)
+├── packages/       shared npm workspaces: api-client, ui, markdown
+├── monitoring/     Prometheus config, Grafana provisioning and dashboards
+├── scripts/        deploy-remote.sh (run on the VPS), backup-db.sh
+├── systemd/        daily backup timer for the VPS
+├── benchmark/      Python v6 ingestion prototype and its benchmark data (historical)
+├── docs/           API reference, live settings, ingestion design
+├── compose.yaml        local stack (builds from source)
+├── compose.prod.yaml   production stack (pulls images from GHCR)
+├── Caddyfile           production reverse proxy / TLS
+└── Dockerfile          one file, targets: api, ingestd, migrate, web, repoimport
 ```
-
-For the full technical tour, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
@@ -120,87 +67,80 @@ For the full technical tour, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ### Prerequisites
 
-- [Git](https://git-scm.com/)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) 24+ with Compose
-- [Go](https://go.dev/dl/) 1.23+
-- [Node.js](https://nodejs.org/) 20+ and npm
-- A GitHub account
-- A GitHub token with `read:user` and `repo` scopes for authenticated local flows
+- Docker with Compose v2
+- Go 1.26, Node.js 22 and npm 11 (only for running services natively or working on the clients)
+- A GitHub token for `GITHUB_TOKEN` — the crawler only reads public data, so a token with no
+  scopes is enough
 
-### Start the stack
+### 1. Start the stack
 
 ```bash
 git clone https://github.com/dizziedbliss/SkillIssues.git
 cd SkillIssues
-cp .env.example .env
-# Add the GitHub credentials you need to .env
+cp .env.example .env          # set GITHUB_TOKEN; everything else has a dev default
 docker compose up -d --build
-docker compose ps
+docker compose ps             # migrate and metrics-role exit 0; everything else running
 ```
 
-Open:
-- **Web app**: [http://localhost:5173](http://localhost:5173)
-- **API**: [http://localhost:8000](http://localhost:8000)
-- **Metrics**: [http://localhost:8000/metrics](http://localhost:8000/metrics)
-- **Sync coordinator**: [http://localhost:8002](http://localhost:8002)
+### 2. Load repositories
 
-See live service logs with:
+The catalog starts empty. Repositories come from the Kaggle dataset
+*github-repository-metadata-with-5-stars* (`repo_metadata.json`, ~3 GB). Put it at
+`data/repo_metadata.json`, then:
+
+```bash
+cd backend
+DATABASE_URL=postgresql://skillissues:skillissues@localhost:5432/skillissues \
+  go run ./cmd/repoimport --file ../data/repo_metadata.json
+```
+
+Only eligible repositories are stored. A full pass takes about 16 minutes and is safe to re-run.
+`ingestd` then starts crawling their issues on its own.
+
+### 3. Open it
+
+| What | URL |
+|---|---|
+| Web app | http://localhost:5173 |
+| API | http://localhost:8000 (`/health`, `/metrics`) |
+| ingestd | http://localhost:8002/sync/status |
+| Grafana | http://localhost:3000 — `admin` / `admin` unless `GRAFANA_ADMIN_PASSWORD` is set |
+| Prometheus | http://localhost:9090 |
+
 ```bash
 docker compose logs -f go-api ingestd
 ```
 
-### Start the desktop app
+### Desktop app
 
 ```bash
+npm ci              # once, at the repo root — web, desktop and packages share one lockfile
 cd desktop
-npm install
-npm start
+npm run dev         # expects the API at http://localhost:8000
 ```
 
-The desktop client expects the API at `http://localhost:8000`.
-
-### Useful checks
+### Checks (what CI runs)
 
 ```bash
-cd backend && go test -v ./...
-cd backend && go fmt ./... && go vet ./...
-cd web && npm run build
-cd desktop && npm run check
+cd backend && go vet ./... && gofmt -l . && go build ./... && go test -short ./...
+cd web && npm run typecheck && npm run build
+cd desktop && npm run check && npm run build
 ```
 
-For native development, environment details, and production deployment, see [CONTRIBUTING.md](CONTRIBUTING.md) and [DEPLOYMENT.md](DEPLOYMENT.md).
+More detail — native (non-Docker) development, branch and commit conventions — is in
+[CONTRIBUTING.md](CONTRIBUTING.md). Production is in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ---
 
 ## Contributing
 
-Found a bug? Have a better way to sort the issue pile? Want to make the desktop flow less cursed?
+Bug reports, fixes, docs, tests and accessibility improvements are all welcome. Read
+[CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md), then open an
+issue or a pull request.
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md), then open an issue or send a pull request. Documentation fixes, UI polish, tests, accessibility improvements, and “this error message made me lose five minutes of my life” fixes are all welcome.
-
-New to the repository is fine. Nobody loads a large codebase into their brain on the first clone.
-
-Please also read our [Code of Conduct](CODE_OF_CONDUCT.md). Be curious, be kind, and keep the issue tracker useful for the next person.
-
----
-
-## Project status
-
-SkillIssues is actively evolving. Some parts are production-minded; some parts are still wearing a tiny TODO sticker. APIs and UI details may change while the project settles.
-
-If something breaks, [open an issue](https://github.com/dizziedbliss/SkillIssues/issues) with:
-- what you expected;
-- what happened;
-- steps to reproduce;
-- logs or screenshots with secrets removed;
-- your OS and relevant tool versions.
-
----
+When reporting a bug, include what you expected, what happened, steps to reproduce, logs with
+secrets removed, and your OS and tool versions.
 
 ## License
 
-SkillIssues is released under the [MIT License](LICENSE).
-
----
-
-⭐ Star it. Try it. Sort the chaos. Send a pull request.
+[MIT](LICENSE).
