@@ -371,6 +371,9 @@ Every key with its default and bounds: `docs/settings.md`.
 - Issue identity is `UNIQUE(repository_id, number)`. Upserts must conflict on that, not on
   `github_id`.
 - Issue `updated_at` comes from GitHub's `updatedAt`, never from import time or a DB default.
+  When *we* fetched it is separate: `first_seen_at` (set on insert, never changed) and
+  `last_synced_at` (every write of GitHub data to the row — crawl, on-demand check, webhook).
+  Both are NULL for rows that predate migration 00019; that means unknown.
 - **Unlabeled issues are not `BEGINNER`.** Absence of a difficulty label is `UNCLASSIFIED` —
   unknown difficulty, not easy difficulty — and `difficulty_score` is NULL for it.
 - Preserve raw GitHub labels; derived tags are not a substitute.

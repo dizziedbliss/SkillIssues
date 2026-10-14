@@ -69,6 +69,7 @@ func UpsertIssueTx(ctx context.Context, tx pgx.Tx, repoID int, issue github.Grap
 			comments                     = EXCLUDED.comments,
 			has_difficulty_label         = EXCLUDED.has_difficulty_label,
 			updated_at                   = EXCLUDED.updated_at,
+			last_synced_at               = now(),
 			author                       = EXCLUDED.author`,
 		issue.DatabaseID, repoID, issue.Number, SanitizeText(issue.Title), issue.URL, issue.State,
 		difficultyScore, difficulty, skills, tech, tags,

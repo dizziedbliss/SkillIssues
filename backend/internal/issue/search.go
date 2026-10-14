@@ -450,7 +450,7 @@ func (s *Service) GetSavedIssues(ctx context.Context, userID int) ([]Issue, erro
 // never from the crawl path, which always writes OPEN.
 func (s *Service) SetState(ctx context.Context, issueID int, state string, updatedAt time.Time) error {
 	return s.db.Exec(ctx,
-		`UPDATE issues SET state = $2, updated_at = $3 WHERE id = $1`,
+		`UPDATE issues SET state = $2, updated_at = $3, last_synced_at = now() WHERE id = $1`,
 		issueID, state, updatedAt,
 	)
 }
@@ -460,7 +460,7 @@ func (s *Service) SetState(ctx context.Context, issueID int, state string, updat
 // issue was never crawled — that repository/issue simply isn't in scope.
 func (s *Service) SetStateByRepoAndNumber(ctx context.Context, repoFullName string, number int, state string, updatedAt time.Time) error {
 	return s.db.Exec(ctx,
-		`UPDATE issues i SET state = $3, updated_at = $4
+		`UPDATE issues i SET state = $3, updated_at = $4, last_synced_at = now()
 		 FROM repositories r
 		 WHERE r.id = i.repository_id AND r.full_name = $1 AND i.number = $2`,
 		repoFullName, number, state, updatedAt,
