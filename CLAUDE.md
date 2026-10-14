@@ -284,7 +284,10 @@ Single VPS, `compose.prod.yaml`, Caddy same-origin. Full runbook: `DEPLOYMENT.md
 - `.github/workflows/ci.yml` gates everything: backend (vet/gofmt/build/test), web/desktop
   (typecheck then a real build, not just a type check), and a buildx build of the four
   deployed Dockerfile targets (`api`, `ingestd`, `migrate`, `web` — not `repoimport`) plus
-  `docker compose config` on both compose files.
+  `docker compose config` on both compose files. It runs on pull requests and as the deploy
+  gate, not on plain pushes, and a `changes` job (`dorny/paths-filter`) skips any job whose
+  paths did not change. A skipped job counts as passing, so when adding a job, add its paths
+  to the filter. `workflow_dispatch` runs everything.
 - `.github/workflows/deploy.yml` runs on push to `main`: `ci` → `build-push` (builds and pushes
   `ghcr.io/dizziedbliss/skillissues-{api,ingestd,migrate,web}` tagged `sha-<short>` and
   `latest`) → `deploy` (scp + ssh, runs `scripts/deploy-remote.sh` on the host). A deploy cannot
