@@ -32,6 +32,8 @@ func (h *handlers) proxyToSyncd(w http.ResponseWriter, r *http.Request, path str
 		middleware.RespondError(w, http.StatusInternalServerError, "failed to create sync request")
 		return
 	}
+	// ingestd's write triggers take the same admin token as /admin/*.
+	req.Header.Set("Authorization", "Bearer "+h.cfg.AdminSyncToken)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		middleware.RespondError(w, http.StatusBadGateway, "ingestion service unavailable")

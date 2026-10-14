@@ -56,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   GitHub".
 
 ### Removed
+- `REDIS_URL` and the Redis dependency from the ingestd service; ingestd never used Redis.
 - Settings `ingest.sync_interval_seconds` and `ingest.ondemand_workers`, which no code read.
 
 ### Security
@@ -65,6 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   monitoring passwords.
 - The session cookie is `SameSite=Lax` in every deployment; it was `None` over HTTPS.
 - The contribution audit log's JSON was built with `Sprintf` around an unescaped PR URL.
+- ingestd's `POST /sync/issues` and `POST /sync/priority/{id}` were unauthenticated, reachable
+  from every container on the network (and the LAN in dev); they now require the admin token.
 
 ---
 
