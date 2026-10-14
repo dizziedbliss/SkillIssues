@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of failing mid-deploy.
 
 ### Fixed
+- Deploys never applied Caddyfile or `prometheus.yml` changes: `compose up` leaves an unchanged
+  container running with the config it loaded at start. The deploy now reloads Caddy and
+  Prometheus. Until this ships, `/api/metrics` and `/api/health/detail` were still public in
+  production despite the edge 404 rule.
 - Seven of the eight exported metrics were never set and always read 0.
 - A failed webhook delivery-record insert returned 200, so GitHub never redelivered and the
   merged PR was never credited; it now returns 500.
