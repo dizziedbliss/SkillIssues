@@ -40,6 +40,15 @@ fi
 "${COMPOSE[@]}" pull
 "${COMPOSE[@]}" up -d --remove-orphans
 
+# `up` only recreates containers whose image or compose config changed. Caddy
+# and Prometheus read bind-mounted config files the scp step just replaced,
+# and an unchanged container keeps serving the config it loaded at start —
+# so a Caddyfile or prometheus.yml change would otherwise never go live.
+# Caddy validates before applying and keeps the old config on error; the
+# non-zero exit fails the deploy so the error is seen.
+"${COMPOSE[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+"${COMPOSE[@]}" kill -s SIGHUP prometheus
+
 # Wait for go-api to report healthy before declaring success — a container
 # that's merely "Up" may still be failing its startup DB/Redis connection.
 healthy=""
