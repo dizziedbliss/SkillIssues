@@ -149,14 +149,22 @@ export interface PullRequestSummary {
   html_url: string;
   number: number;
   base: string;
-  manual_compare?: boolean;
 }
 
-export interface SubmitContributionResult {
-  contribution: Contribution;
-  pull_request: PullRequestSummary;
-  web_url: string;
+/** GitHub refused to open the PR with the user's token; html_url is the compare page. */
+export interface ManualComparePullRequest {
+  html_url: string;
+  base: string;
+  manual_compare: true;
 }
+
+/**
+ * Either the PR was opened and the contribution is now PR_OPEN, or no PR
+ * exists yet and the contribution is unchanged (no `contribution` field).
+ */
+export type SubmitContributionResult =
+  | { contribution: Contribution; pull_request: PullRequestSummary; web_url: string }
+  | { pull_request: ManualComparePullRequest; web_url: string };
 
 export interface VerifyResult {
   verified: boolean;

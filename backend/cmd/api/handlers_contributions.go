@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -111,11 +113,11 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		issueID, issueNum                    int
-		username, userToken, title, repoFull string
+		issueID, issueNum         int
+		username, title, repoFull string
 	)
 	err = h.db.QueryRow(r.Context(),
-		`SELECT c.issue_id, u.username, COALESCE(u.github_access_token, ''),
+		`SELECT c.issue_id, u.username,
 		        i.title, i.number, r.full_name
 		 FROM contributions c
 		 JOIN users u ON u.id = c.user_id
@@ -124,17 +126,23 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 		 WHERE c.id = $1 AND c.user_id = $2`,
 		[]any{id, userID},
 		func(row pgx.Row) error {
-			return row.Scan(&issueID, &username, &userToken, &title, &issueNum, &repoFull)
+			return row.Scan(&issueID, &username, &title, &issueNum, &repoFull)
 		},
 	)
-	if err != nil {
+	if errors.Is(err, db.ErrNotFound) {
 		middleware.RespondError(w, http.StatusNotFound, "contribution not found")
 		return
 	}
+	if err != nil {
+		slog.Error("submit contribution: load contribution", "contribution_id", id, "user_id", userID, "error", err)
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to load contribution")
+		return
+	}
 
-	token := h.authSvc.DecryptAccessToken(userToken)
-	if token == "" {
-		middleware.RespondError(w, http.StatusForbidden, "Connect GitHub before submitting a pull request.")
+	// GetAccessToken, not a raw decrypt: a GitHub App user token expires
+	// after 8 hours and only GetAccessToken refreshes it.
+	token, ok := h.userGitHubToken(w, r, userID, "Connect GitHub before submitting a pull request.")
+	if !ok {
 		return
 	}
 
@@ -142,46 +150,43 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 	prTitle := title
 	prBody := fmt.Sprintf("SkillIssues contribution for issue #%d", issueNum)
 
-	// Dynamically determine target repository default branch (e.g. 'main', 'master', 'develop')
+	// The PR's base is the repository's default branch unless the client
+	// named one. A failed lookup is an error, not a guess: a wrong base makes
+	// the PR (or the compare page) target a branch that may not exist.
 	baseBranch := strings.TrimSpace(body.Base)
 	if baseBranch == "" {
-		if defBranch, err := h.ghClient.GetDefaultBranch(r.Context(), token, owner, name); err == nil && defBranch != "" {
-			baseBranch = defBranch
-		} else {
-			baseBranch = "main"
+		defBranch, err := h.ghClient.GetDefaultBranch(r.Context(), token, owner, name)
+		if err != nil || defBranch == "" {
+			slog.Error("submit contribution: look up default branch", "contribution_id", id, "repository", repoFull, "error", err)
+			middleware.RespondError(w, http.StatusBadGateway, "Could not read the repository's default branch from GitHub. Please try again.")
+			return
 		}
+		baseBranch = defBranch
 	}
 
-	var prURL string
-	var prNum int
-	var pullRequest map[string]any
-
-	{
-		head := body.Branch
-		if username != "" {
-			head = fmt.Sprintf("%s:%s", username, body.Branch)
-		}
-		res, err := h.ghClient.CreatePullRequest(r.Context(), token, owner, name, prTitle, head, baseBranch, prBody)
-		if err == nil {
-			prURL = res.HTMLURL
-			prNum = res.Number
-			pullRequest = map[string]any{"html_url": prURL, "number": prNum, "base": baseBranch}
-		}
+	head := body.Branch
+	if username != "" {
+		head = fmt.Sprintf("%s:%s", username, body.Branch)
 	}
-
-	if prURL == "" {
-		if username != "" {
-			prURL = fmt.Sprintf("https://github.com/%s/%s/compare/%s...%s:%s?expand=1", owner, name, baseBranch, username, body.Branch)
-		} else {
-			prURL = fmt.Sprintf("https://github.com/%s/%s", owner, name)
-		}
-		prNum = issueNum
-		pullRequest = map[string]any{
-			"html_url":       prURL,
-			"number":         prNum,
-			"base":           baseBranch,
-			"manual_compare": true,
-		}
+	res, err := h.ghClient.CreatePullRequest(r.Context(), token, owner, name, prTitle, head, baseBranch, prBody)
+	if err != nil {
+		// Typically a token without permission to open PRs on the upstream
+		// (classic PATs). Hand the user GitHub's compare page so they can
+		// open it themselves. The contribution is not marked PR_OPEN: there
+		// is no PR yet, and a compare URL could never be verified or matched
+		// by the merge webhook. They attach the real PR with
+		// PUT /contributions/{id} once it exists.
+		slog.Warn("submit contribution: create pull request failed; returning compare page", "contribution_id", id, "repository", repoFull, "error", err)
+		compareURL := fmt.Sprintf("https://github.com/%s/%s/compare/%s...%s?expand=1", owner, name, baseBranch, head)
+		middleware.RespondJSON(w, http.StatusOK, map[string]any{
+			"pull_request": map[string]any{
+				"html_url":       compareURL,
+				"base":           baseBranch,
+				"manual_compare": true,
+			},
+			"web_url": compareURL,
+		})
+		return
 	}
 
 	var updated contribution.Contribution
@@ -191,16 +196,20 @@ func (h *handlers) submitContribution(w http.ResponseWriter, r *http.Request) {
 		     submitted_at = COALESCE(submitted_at, now())
 		 WHERE id = $3
 		 RETURNING id, user_id, issue_id, pr_url, pr_number, state, xp_awarded, created_at, updated_at, merged_at, submitted_at`,
-		[]any{prURL, prNum, id},
+		[]any{res.HTMLURL, res.Number, id},
 		func(row pgx.Row) error {
 			return row.Scan(&updated.ID, &updated.UserID, &updated.IssueID, &updated.PRURL, &updated.PRNumber, &updated.State, &updated.XPAwarded, &updated.CreatedAt, &updated.UpdatedAt, &updated.MergedAt, &updated.SubmittedAt)
 		},
 	)
 	if err != nil {
-		middleware.RespondError(w, http.StatusInternalServerError, "failed to record submitted pull request")
+		// The PR exists on GitHub; only our record of it failed.
+		slog.Error("submit contribution: record pull request", "contribution_id", id, "pr_url", res.HTMLURL, "error", err)
+		middleware.RespondError(w, http.StatusInternalServerError, "The pull request was opened, but recording it failed: "+res.HTMLURL)
 		return
 	}
 
+	prURL := res.HTMLURL
+	pullRequest := map[string]any{"html_url": prURL, "number": res.Number, "base": baseBranch}
 	middleware.RespondJSON(w, http.StatusOK, map[string]any{
 		"contribution": updated,
 		"pull_request": pullRequest,
