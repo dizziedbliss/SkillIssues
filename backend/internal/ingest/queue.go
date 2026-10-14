@@ -2,11 +2,13 @@ package ingest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // JobType distinguishes the two pagination roles. Initial and Freshness
@@ -31,18 +33,44 @@ type Job struct {
 	PagesDone     int
 	AttemptCount  int
 	LastSyncSince *time.Time
+
+	// LeaseOwner is the coordinator that claimed this job. Every write that
+	// finishes the job is fenced on it: once the lease has expired and been
+	// reclaimed, a late write from the old owner changes nothing and returns
+	// ErrLeaseLost instead of overwriting the new owner's cursor.
+	LeaseOwner string
 }
 
-// defaultLeaseDuration bounds how long a claimed job can run before another
-// worker is allowed to reclaim it — the self-healing half of plan §7's
-// "leases expire, so a crash self-heals."
-const defaultLeaseDuration = 5 * time.Minute
+// ErrLeaseLost means the job's lease expired and was reclaimed (or the job
+// was otherwise finished) before this worker wrote its result. The write was
+// not applied; within a transaction the caller must roll back.
+var ErrLeaseLost = errors.New("ingest: job lease lost")
+
+// fenceJob is the WHERE clause every job-finishing write shares: the job is
+// still running under the lease this worker was given.
+const fenceJob = `id = $1 AND status = 'running' AND lease_owner = $2`
+
+// execFenced runs a fenced job update and turns "no row matched" into
+// ErrLeaseLost.
+func execFenced(ctx context.Context, exec func(context.Context, string, ...any) (pgconn.CommandTag, error), sql string, args ...any) error {
+	tag, err := exec(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrLeaseLost
+	}
+	return nil
+}
 
 // ClaimJobs atomically claims up to limit pending-or-due jobs of the given
 // type via SELECT ... FOR UPDATE SKIP LOCKED, so two workers (in this
 // process or another) can never claim the same job. FIFO on next_retry_at —
 // no priority score (plan §7, D1/D9).
-func ClaimJobs(ctx context.Context, pool *db.Pool, jobType JobType, limit int, owner string) ([]Job, error) {
+//
+// lease bounds how long the job may sit queued and run before
+// ReclaimExpiredLeases may hand it to someone else (ingest.lease_seconds).
+func ClaimJobs(ctx context.Context, pool *db.Pool, jobType JobType, limit int, owner string, lease time.Duration) ([]Job, error) {
 	if limit <= 0 {
 		limit = 1
 	}
@@ -60,7 +88,7 @@ func ClaimJobs(ctx context.Context, pool *db.Pool, jobType JobType, limit int, o
 		 ) claimed
 		 WHERE j.id = claimed.id
 		 RETURNING j.id, j.repository_id, j.cursor, j.pages_done, j.attempt_count, j.job_type`,
-		owner, defaultLeaseDuration.Seconds(), string(jobType), limit,
+		owner, lease.Seconds(), string(jobType), limit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("ingest: claim jobs: %w", err)
@@ -70,7 +98,7 @@ func ClaimJobs(ctx context.Context, pool *db.Pool, jobType JobType, limit int, o
 	var ids []int
 	byID := map[int]*Job{}
 	for rows.Next() {
-		j := &Job{}
+		j := &Job{LeaseOwner: owner}
 		var jt string
 		if err := rows.Scan(&j.ID, &j.RepositoryID, &j.Cursor, &j.PagesDone, &j.AttemptCount, &jt); err != nil {
 			return nil, fmt.Errorf("ingest: scan claimed job: %w", err)
@@ -155,36 +183,34 @@ func CompleteOrRequeue(ctx context.Context, tx pgx.Tx, job Job, newCursor string
 	}
 
 	if !hasNextPage {
-		_, err := tx.Exec(ctx,
-			`UPDATE ingest_jobs SET status = 'done', cursor = $2, pages_done = $3,
+		return execFenced(ctx, tx.Exec,
+			`UPDATE ingest_jobs SET status = 'done', cursor = $3, pages_done = $4,
 			    has_next_page = false, lease_owner = NULL, lease_expires_at = NULL,
 			    next_retry_at = NULL, updated_at = now()
-			 WHERE id = $1`,
-			job.ID, newCursor, pagesDone,
+			 WHERE `+fenceJob,
+			job.ID, job.LeaseOwner, newCursor, pagesDone,
 		)
-		return err
 	}
 
 	if job.JobType == JobDeep {
-		_, err := tx.Exec(ctx,
-			`UPDATE ingest_jobs SET status = 'pending', cursor = $2, pages_done = $3,
+		return execFenced(ctx, tx.Exec,
+			`UPDATE ingest_jobs SET status = 'pending', cursor = $3, pages_done = $4,
 			    has_next_page = true, lease_owner = NULL, lease_expires_at = NULL,
 			    next_retry_at = now(), attempt_count = 0, updated_at = now()
-			 WHERE id = $1`,
-			job.ID, newCursor, pagesDone,
+			 WHERE `+fenceJob,
+			job.ID, job.LeaseOwner, newCursor, pagesDone,
 		)
-		return err
 	}
 
 	// An "initial" job's role ends after its one page: mark it done and
 	// hand off pagination to a new "deep" job, per the Initial/Freshness
 	// vs. Deep Diver split.
-	if _, err := tx.Exec(ctx,
-		`UPDATE ingest_jobs SET status = 'done', cursor = $2, pages_done = $3,
+	if err := execFenced(ctx, tx.Exec,
+		`UPDATE ingest_jobs SET status = 'done', cursor = $3, pages_done = $4,
 		    has_next_page = true, lease_owner = NULL, lease_expires_at = NULL,
 		    next_retry_at = NULL, updated_at = now()
-		 WHERE id = $1`,
-		job.ID, newCursor, pagesDone,
+		 WHERE `+fenceJob,
+		job.ID, job.LeaseOwner, newCursor, pagesDone,
 	); err != nil {
 		return err
 	}
@@ -201,11 +227,11 @@ func CompleteOrRequeue(ctx context.Context, tx pgx.Tx, job Job, newCursor string
 // failed attempt — used when the worker never actually tried GitHub (e.g.
 // the shared budget was exhausted before the call was made).
 func ReleaseJob(ctx context.Context, pool *db.Pool, job Job, retryAfter time.Duration) error {
-	return pool.Exec(ctx,
+	return execFenced(ctx, pool.Raw().Exec,
 		`UPDATE ingest_jobs SET status = 'pending', lease_owner = NULL, lease_expires_at = NULL,
-		    next_retry_at = now() + ($2 * interval '1 second'), updated_at = now()
-		 WHERE id = $1`,
-		job.ID, retryAfter.Seconds(),
+		    next_retry_at = now() + ($3 * interval '1 second'), updated_at = now()
+		 WHERE `+fenceJob,
+		job.ID, job.LeaseOwner, retryAfter.Seconds(),
 	)
 }
 
@@ -216,41 +242,47 @@ func ReleaseJob(ctx context.Context, pool *db.Pool, job Job, retryAfter time.Dur
 func FailJob(ctx context.Context, pool *db.Pool, job Job, errClass, errDetail string, backoffBase time.Duration, maxAttempts int) error {
 	attempt := job.AttemptCount + 1
 	if attempt >= maxAttempts {
-		return pool.Exec(ctx,
-			`UPDATE ingest_jobs SET status = 'failed', attempt_count = $2,
-			    last_error_class = $3, last_error_detail = $4,
+		return execFenced(ctx, pool.Raw().Exec,
+			`UPDATE ingest_jobs SET status = 'failed', attempt_count = $3,
+			    last_error_class = $4, last_error_detail = $5,
 			    lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
-			 WHERE id = $1`,
-			job.ID, attempt, errClass, errDetail,
+			 WHERE `+fenceJob,
+			job.ID, job.LeaseOwner, attempt, errClass, errDetail,
 		)
 	}
 	backoff := backoffBase * time.Duration(1<<uint(attempt))
-	return pool.Exec(ctx,
-		`UPDATE ingest_jobs SET status = 'pending', attempt_count = $2,
-		    last_error_class = $3, last_error_detail = $4,
+	return execFenced(ctx, pool.Raw().Exec,
+		`UPDATE ingest_jobs SET status = 'pending', attempt_count = $3,
+		    last_error_class = $4, last_error_detail = $5,
 		    lease_owner = NULL, lease_expires_at = NULL,
-		    next_retry_at = now() + ($5 * interval '1 second'), updated_at = now()
-		 WHERE id = $1`,
-		job.ID, attempt, errClass, errDetail, backoff.Seconds(),
+		    next_retry_at = now() + ($6 * interval '1 second'), updated_at = now()
+		 WHERE `+fenceJob,
+		job.ID, job.LeaseOwner, attempt, errClass, errDetail, backoff.Seconds(),
 	)
 }
 
 // MarkUnavailable isolates a poisoned repository (e.g. GitHub returns
 // NOT_FOUND) permanently rather than retrying it forever, and flags the
 // repository itself so other code stops treating it as ingestible.
+//
+// Both updates commit together: a job marked failed always has its
+// repository flagged, and a lost lease changes neither.
 func MarkUnavailable(ctx context.Context, pool *db.Pool, job Job, reason string) error {
-	if err := pool.Exec(ctx,
-		`UPDATE ingest_jobs SET status = 'failed', last_error_class = 'not_found', last_error_detail = $2,
-		    lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
-		 WHERE id = $1`,
-		job.ID, reason,
-	); err != nil {
+	return pool.InTx(ctx, func(tx pgx.Tx) error {
+		if err := execFenced(ctx, tx.Exec,
+			`UPDATE ingest_jobs SET status = 'failed', last_error_class = 'not_found', last_error_detail = $3,
+			    lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
+			 WHERE `+fenceJob,
+			job.ID, job.LeaseOwner, reason,
+		); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx,
+			`UPDATE repositories SET is_eligible = false, eligibility_reason = $2 WHERE id = $1`,
+			job.RepositoryID, reason,
+		)
 		return err
-	}
-	return pool.Exec(ctx,
-		`UPDATE repositories SET is_eligible = false, eligibility_reason = $2 WHERE id = $1`,
-		job.RepositoryID, reason,
-	)
+	})
 }
 
 // EnqueueInitialJobs inserts a pending "initial" job for every eligible

@@ -79,10 +79,14 @@ func main() {
 	metrics.RegisterDBPool(pool.Raw())
 
 	// 3. Connect to Redis (non-fatal: cache operates in degraded mode if unavailable)
-	cacheClient, err := cache.New(ctx, cfg.RedisURL)
+	cacheClient, err := cache.New(cfg.RedisURL)
 	if err != nil {
-		slog.Warn("redis connection failed — operating without cache", "error", err)
+		slog.Warn("invalid REDIS_URL — operating without cache or rate limiting", "error", err)
 		cacheClient = nil
+	} else if err := cacheClient.Ping(ctx); err != nil {
+		// Keep the client: it reconnects on its own once Redis is up, and
+		// until then every call fails open and counts in cache_errors_total.
+		slog.Warn("redis unreachable at startup — cache and rate limiting fail open until it is", "error", err)
 	} else {
 		slog.Info("redis connected")
 	}
@@ -152,8 +156,8 @@ func main() {
 	if ghApp != nil {
 		installationTokenFn = ghApp.InstallationToken
 	}
-	bodyFetcher := issue.NewBodyFetcher(pool, ghClient, installationTokenFn)
-	go pruneBodyCacheLoop(ctx, pool)
+	bodyFetcher := issue.NewBodyFetcher(pool, ghClient, installationTokenFn, live.Current)
+	go pruneBodyCacheLoop(ctx, pool, live.Current)
 
 	contribSvc := contribution.New(pool, cacheClient, ghClient, func() int {
 		return live.Current().Int(settings.ContributionVerifyPerHour)
@@ -341,20 +345,27 @@ func group(handler http.Handler, mw ...func(http.Handler) http.Handler) http.Han
 // Middleware helper functions (thin wrappers around middleware package)
 // ---------------------------------------------------------------------------
 
-// pruneBodyCacheLoop periodically trims issue_body_cache back to its row
-// cap (plan §3.1 — a bounded LRU, not unbounded storage).
-func pruneBodyCacheLoop(ctx context.Context, pool *db.Pool) {
-	ticker := time.NewTicker(10 * time.Minute)
+// pruneBodyCacheLoop periodically trims issue_body_cache back to
+// api.issue_body.cache_max_rows (plan §3.1 — a bounded LRU, not unbounded
+// storage), every api.issue_body.prune_interval_seconds.
+func pruneBodyCacheLoop(ctx context.Context, pool *db.Pool, live func() *settings.Snapshot) {
+	interval := live().Seconds(settings.IssueBodyPruneIntervalSeconds)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if n, err := issue.PruneBodyCache(ctx, pool); err != nil {
+			snap := live()
+			if n, err := issue.PruneBodyCache(ctx, pool, snap.Int(settings.IssueBodyCacheMaxRows)); err != nil {
 				slog.Warn("failed to prune issue body cache", "error", err)
 			} else if n > 0 {
 				slog.Info("pruned issue body cache", "rows_removed", n)
+			}
+			if next := snap.Seconds(settings.IssueBodyPruneIntervalSeconds); next != interval {
+				interval = next
+				ticker.Reset(interval)
 			}
 		}
 	}

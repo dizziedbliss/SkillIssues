@@ -65,11 +65,16 @@ var (
 		Name: "github_budget_errors_total",
 		Help: "Failures reading or writing the shared github_budget table, by operation and lane.",
 	}, []string{"op", "lane"})
+
+	CacheErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "cache_errors_total",
+		Help: "Failed Redis calls by operation (get, set, del, rate_limit). Cache misses are not errors. The API fails open on each.",
+	}, []string{"op"})
 )
 
 // RegisterAPI registers the families go-api produces.
 func RegisterAPI() {
-	Registry.MustRegister(HTTPRequests, HTTPDuration, HTTPResponseBytes, ContributionVerifications, BudgetErrors)
+	Registry.MustRegister(HTTPRequests, HTTPDuration, HTTPResponseBytes, ContributionVerifications, BudgetErrors, CacheErrors)
 }
 
 // ---------------------------------------------------------------------------
@@ -121,7 +126,12 @@ var (
 
 	IngestStuckLeases = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "ingest_stuck_leases",
-		Help: "Running jobs whose lease has expired.",
+		Help: "Running jobs whose lease has expired and not yet been reclaimed.",
+	})
+
+	IngestLeasesReclaimed = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "ingest_leases_reclaimed_total",
+		Help: "Running jobs returned to pending because their lease expired.",
 	})
 
 	IngestDBSizeBytes = prometheus.NewGauge(prometheus.GaugeOpts{
@@ -169,7 +179,7 @@ var (
 func RegisterIngest() {
 	Registry.MustRegister(
 		IngestJobOutcomes, IngestIssuesUpserted, IngestCycleErrors,
-		IngestJobs, IngestStuckLeases, IngestDBSizeBytes, IngestPaused, RepositoriesEligible,
+		IngestJobs, IngestStuckLeases, IngestLeasesReclaimed, IngestDBSizeBytes, IngestPaused, RepositoriesEligible,
 		GitHubBudgetRemaining, GitHubBudgetLimit, GitHubBudgetResetSeconds, GitHubSecondaryPaused,
 		WorkerPool, BudgetErrors,
 	)

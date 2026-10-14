@@ -17,11 +17,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   node-exporter, cAdvisor, Postgres and Redis exporters — reachable only over an SSH tunnel in
   production.
 - `metrics_ro`, a read-only, column-restricted database role for dashboards.
-- Live setting `ingest.metrics_refresh_seconds`.
+- Live settings `ingest.metrics_refresh_seconds`, `ingest.claim_interval_seconds`,
+  `ingest.lease_seconds`, `ingest.lease_reclaim_interval_seconds`,
+  `ingest.rate_limit_pause_seconds` and `api.issue_body.*` (cache size, prune interval, fetch
+  concurrency, installation floor), replacing values that were hardcoded.
+- Expired ingest leases are reclaimed continuously, not only when ingestd starts
+  (`ingest_leases_reclaimed_total`).
+- CI runs the database and Redis tests against service containers.
 - `docs/api.md` and `docs/settings.md`; the ingestion design doc moved to
   `docs/ingestion-architecture.md` with an implementation-status table.
 
 ### Changed
+- Every ingest job write is fenced on its lease owner. A worker whose lease was reclaimed gets
+  `ErrLeaseLost` (outcome `lease_lost`) instead of overwriting the new owner's cursor.
 - The deploy script validates `.env` before pulling and stops, naming the missing key, instead
   of failing mid-deploy.
 
@@ -31,12 +39,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   merged PR was never credited; it now returns 500.
 - Errors from merged-PR application, GitHub budget reads/writes and job release were
   discarded; they are now logged and counted. A data race on ingestd's `/sync/status` is fixed.
+- The rate-limit window slid forward on every request, so a steady client's count never reset;
+  it is now a fixed window.
+- GitHub App users could not open a pull request once their 8-hour token expired: PR submit
+  skipped the token refresh.
+- When GitHub refused to open a PR, the contribution was marked `PR_OPEN` with a compare-page
+  URL and the issue number as the PR number, which could never be verified. It is now left
+  unchanged and the compare page is returned. A failed default-branch lookup no longer guesses
+  `main`.
+- A failed profile read, prior-merge count, badge count or audit-log insert during verification
+  was ignored, so a merge could be marked awarded with the XP lost. Each now aborts the award.
+- The API logged "redis connected" even when Redis was unreachable. Redis failures now count in
+  `cache_errors_total` and are logged when Redis goes down and when it recovers.
+- Errors loading or refreshing a user's GitHub token, and from the issue-body cache, were
+  discarded; they are now logged, and a retryable failure returns 502 instead of "connect
+  GitHub".
+
+### Removed
+- `REDIS_URL` and the Redis dependency from the ingestd service; ingestd never used Redis.
+- Settings `ingest.sync_interval_seconds` and `ingest.ondemand_workers`, which no code read.
 
 ### Security
 - `/api/metrics` and `/api/health/detail` were publicly reachable through Caddy; they now
   return 404 at the edge.
 - Reverted a deploy fallback that reused `POSTGRES_PASSWORD` and `ADMIN_SYNC_TOKEN` as the
   monitoring passwords.
+- The session cookie is `SameSite=Lax` in every deployment; it was `None` over HTTPS.
+- The contribution audit log's JSON was built with `Sprintf` around an unescaped PR URL.
+- ingestd's `POST /sync/issues` and `POST /sync/priority/{id}` were unauthenticated, reachable
+  from every container on the network (and the LAN in dev); they now require the admin token.
 
 ---
 

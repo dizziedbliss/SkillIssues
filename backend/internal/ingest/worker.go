@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -38,6 +39,12 @@ func NewWorker(pool *db.Pool, ghClient *github.Client, token func() string, live
 // only in where their cursor starts and what ClaimJobs fed in.
 func (w *Worker) ProcessJob(ctx context.Context, job Job) error {
 	outcome, err := w.processJob(ctx, job)
+	if errors.Is(err, ErrLeaseLost) {
+		// The lease expired and the job was reclaimed while this worker
+		// held it; nothing it wrote was applied. Raise ingest.lease_seconds
+		// if this is frequent.
+		outcome = "lease_lost"
+	}
 	metrics.IngestJobOutcomes.WithLabelValues(string(job.JobType), outcome).Inc()
 	return err
 }
@@ -64,7 +71,7 @@ func (w *Worker) processJob(ctx context.Context, job Job) (string, error) {
 		slog.Warn("budget check failed, proceeding cautiously", "error", err)
 	} else if !proceed {
 		// Not the job's fault — release it rather than counting an attempt.
-		if err := ReleaseJob(ctx, w.pool, job, time.Minute); err != nil {
+		if err := ReleaseJob(ctx, w.pool, job, snap.Seconds(settings.IngestRateLimitPauseSeconds)); err != nil {
 			return "persist_error", fmt.Errorf("release job: %w", err)
 		}
 		return "budget_deferred", nil
@@ -171,7 +178,7 @@ func (w *Worker) handleFetchError(ctx context.Context, job Job, err error) (stri
 	}
 
 	if strings.Contains(msg, "rate limit exceeded") || strings.Contains(msg, "HTTP 403") || strings.Contains(msg, "HTTP 429") {
-		until := time.Now().Add(time.Minute)
+		until := time.Now().Add(snap.Seconds(settings.IngestRateLimitPauseSeconds))
 		if err := MarkSecondaryLimit(ctx, w.pool, LaneCrawler, installationIdentity, until); err != nil {
 			metrics.BudgetErrors.WithLabelValues("write", string(LaneCrawler)).Inc()
 			slog.Warn("failed to record secondary rate limit pause", "error", err)

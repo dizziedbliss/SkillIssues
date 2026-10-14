@@ -32,6 +32,8 @@ func (h *handlers) proxyToSyncd(w http.ResponseWriter, r *http.Request, path str
 		middleware.RespondError(w, http.StatusInternalServerError, "failed to create sync request")
 		return
 	}
+	// ingestd's write triggers take the same admin token as /admin/*.
+	req.Header.Set("Authorization", "Bearer "+h.cfg.AdminSyncToken)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		middleware.RespondError(w, http.StatusBadGateway, "ingestion service unavailable")
@@ -209,7 +211,13 @@ func (h *handlers) getIssueBody(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	var userToken string
 	if userID != 0 {
-		userToken, _ = h.authSvc.GetAccessToken(r.Context(), userID)
+		// Optional here: a read can use the server credential, so a user
+		// whose token is unusable still gets the body — but say why.
+		userToken, err = h.authSvc.GetAccessToken(r.Context(), userID)
+		if err != nil {
+			slog.Warn("issue body: user GitHub token unavailable, using server credential", "user_id", userID, "error", err)
+			userToken = ""
+		}
 	}
 
 	body, err := h.bodyFetcher.GetBody(r.Context(), id, userID, userToken)
@@ -299,9 +307,8 @@ func (h *handlers) checkIssueFreshness(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := middleware.GetUserID(r.Context())
-	token, _ := h.authSvc.GetAccessToken(r.Context(), userID)
-	if token == "" {
-		middleware.RespondError(w, http.StatusForbidden, "Connect GitHub to check issue freshness.")
+	token, ok := h.userGitHubToken(w, r, userID, "Connect GitHub to check issue freshness.")
+	if !ok {
 		return
 	}
 
@@ -325,9 +332,8 @@ func (h *handlers) checkIssueFreshness(w http.ResponseWriter, r *http.Request) {
 // issues it could check over the ones it couldn't.
 func (h *handlers) checkIssuesFreshnessBatch(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
-	token, _ := h.authSvc.GetAccessToken(r.Context(), userID)
-	if token == "" {
-		middleware.RespondError(w, http.StatusForbidden, "Connect GitHub to check issue freshness.")
+	token, ok := h.userGitHubToken(w, r, userID, "Connect GitHub to check issue freshness.")
+	if !ok {
 		return
 	}
 

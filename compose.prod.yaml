@@ -163,7 +163,6 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-skillissues}
       DB_MAX_CONNS: ${INGESTD_DB_MAX_CONNS:-10}
-      REDIS_URL: redis://redis:6379/0
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:?GITHUB_WEBHOOK_SECRET must be set in production}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:?ADMIN_SYNC_TOKEN must be set in production}
@@ -182,8 +181,6 @@ services:
       - ${GITHUB_APP_PRIVATE_KEY_HOST_PATH:-/dev/null}:/run/secrets/github-app-private-key.pem:ro
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully

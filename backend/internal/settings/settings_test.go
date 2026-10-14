@@ -35,10 +35,10 @@ func TestDefaultSnapshotCoversRegistry(t *testing.T) {
 
 func TestSecondsAndHours(t *testing.T) {
 	s := newSnapshot(map[Key]any{
-		IngestSyncIntervalSeconds: 90,
-		SessionTTLHours:           2,
+		IngestClaimIntervalSeconds: 90,
+		SessionTTLHours:            2,
 	})
-	if got := s.Seconds(IngestSyncIntervalSeconds).String(); got != "1m30s" {
+	if got := s.Seconds(IngestClaimIntervalSeconds).String(); got != "1m30s" {
 		t.Errorf("Seconds: got %s, want 1m30s", got)
 	}
 	if got := s.Hours(SessionTTLHours).String(); got != "2h0m0s" {

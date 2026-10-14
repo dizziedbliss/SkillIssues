@@ -2,6 +2,7 @@ package contribution
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -84,7 +85,7 @@ func (s *Service) verifyContribution(ctx context.Context, userID, contribID int,
 		`SELECT c.id, c.issue_id, COALESCE(c.pr_url, ''), COALESCE(c.pr_number, 0),
 		        c.state, c.xp_awarded, i.difficulty, COALESCE(i.required_skills, '{}'),
 		        COALESCE(i.technologies, '{}'), i.repository_id, u.username,
-		        COALESCE(u.github_access_token, '')
+		        `+userReadTokenSQL+`
 		 FROM contributions c
 		 JOIN issues i ON i.id = c.issue_id
 		 JOIN users u ON u.id = c.user_id
@@ -98,9 +99,12 @@ func (s *Service) verifyContribution(ctx context.Context, userID, contribID int,
 		},
 	)
 	if err != nil {
-		return nil, db.ErrNotFound
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("contribution: load contribution %d: %w", contribID, err)
 	}
-	userToken = s.decryptToken(userToken)
+	userToken = s.readToken(userID, userToken)
 
 	if prURL == "" {
 		return &VerifyResult{
@@ -119,7 +123,10 @@ func (s *Service) verifyContribution(ctx context.Context, userID, contribID int,
 		return &VerifyResult{Verified: false, Message: "Invalid pull request URL structure."}, nil
 	}
 	owner, repo := parts[0], parts[1]
-	number, _ := strconv.Atoi(parts[3])
+	number, err := strconv.Atoi(parts[3])
+	if err != nil {
+		return &VerifyResult{Verified: false, Message: "Invalid pull request number."}, nil
+	}
 
 	token := userToken
 	if token == "" {
@@ -160,7 +167,9 @@ func (s *Service) verifyContribution(ctx context.Context, userID, contribID int,
 		if prState != "open" {
 			newState = "PR_CLOSED"
 		}
-		_ = s.db.Exec(ctx, "UPDATE contributions SET state = $1, updated_at = now() WHERE id = $2", newState, contribID)
+		if err := s.db.Exec(ctx, "UPDATE contributions SET state = $1, updated_at = now() WHERE id = $2", newState, contribID); err != nil {
+			return nil, fmt.Errorf("contribution: record state %s for %d: %w", newState, contribID, err)
+		}
 		return &VerifyResult{
 			Verified: false,
 			State:    prState,
@@ -184,11 +193,15 @@ func (s *Service) verifyContribution(ctx context.Context, userID, contribID int,
 		// Fetch current profile stats
 		var currentXP, currentLvl int
 		var currentBadges []string
-		_ = tx.QueryRow(ctx,
+		// Every user gets a profile row at sign-up. Without one, the
+		// UPDATE below would match nothing and the XP would vanish.
+		if err := tx.QueryRow(ctx,
 			`SELECT COALESCE(total_xp, 0), COALESCE(level, 1), COALESCE(badges, '{}')
 			 FROM developer_profiles WHERE user_id = $1 FOR UPDATE`,
 			userID,
-		).Scan(&currentXP, &currentLvl, &currentBadges)
+		).Scan(&currentXP, &currentLvl, &currentBadges); err != nil {
+			return fmt.Errorf("load developer profile: %w", err)
+		}
 
 		if currentXPAwarded {
 			// Idempotent: already rewarded, return current level stats
@@ -215,12 +228,14 @@ func (s *Service) verifyContribution(ctx context.Context, userID, contribID int,
 
 		// Calculate novelty count: prior merged PRs by user in this repository
 		var priorRepoMerged int
-		_ = tx.QueryRow(ctx,
+		if err := tx.QueryRow(ctx,
 			`SELECT count(*) FROM contributions c
 			 JOIN issues i ON i.id = c.issue_id
 			 WHERE c.user_id = $1 AND c.state = 'PR_MERGED' AND i.repository_id = $2`,
 			userID, repoID,
-		).Scan(&priorRepoMerged)
+		).Scan(&priorRepoMerged); err != nil {
+			return fmt.Errorf("count prior merges in repository: %w", err)
+		}
 
 		_, _, earnedXP := progression.CalculateEarnedXP(difficulty, priorRepoMerged, len(skills), len(techs))
 		newXP := currentXP + earnedXP
@@ -242,8 +257,8 @@ func (s *Service) verifyContribution(ctx context.Context, userID, contribID int,
 
 		// Re-evaluate badges
 		var totalMerged, totalRepos, totalLangs int
-		_ = tx.QueryRow(ctx,
-			`SELECT 
+		if err := tx.QueryRow(ctx,
+			`SELECT
 				count(c.id) AS total_merged,
 				count(DISTINCT r.id) AS total_repos,
 				count(DISTINCT lower(r.language)) AS total_languages
@@ -252,7 +267,9 @@ func (s *Service) verifyContribution(ctx context.Context, userID, contribID int,
 			JOIN repositories r ON r.id = i.repository_id
 			WHERE c.user_id = $1 AND c.state = 'PR_MERGED'`,
 			userID,
-		).Scan(&totalMerged, &totalRepos, &totalLangs)
+		).Scan(&totalMerged, &totalRepos, &totalLangs); err != nil {
+			return fmt.Errorf("count merges for badges: %w", err)
+		}
 
 		earnedBadges := progression.EvaluateBadges(progression.StatsForBadges{
 			TotalMerged:    totalMerged,
@@ -286,13 +303,23 @@ func (s *Service) verifyContribution(ctx context.Context, userID, contribID int,
 			return err
 		}
 
-		// 5. Anti-exploit audit log entry
-		_, _ = tx.Exec(ctx,
+		// 5. Anti-exploit audit log entry. Part of the award: if it cannot
+		// be written, no XP is granted.
+		metadata, err := json.Marshal(map[string]any{
+			"earned_xp": earnedXP,
+			"total_xp":  newXP,
+			"pr_url":    prURL,
+		})
+		if err != nil {
+			return fmt.Errorf("encode audit metadata: %w", err)
+		}
+		if _, err := tx.Exec(ctx,
 			`INSERT INTO contribution_audit_log (contribution_id, user_id, from_state, to_state, event, metadata)
 			 VALUES ($1, $2, $3, 'PR_MERGED', 'VERIFIED_MERGED', $4)`,
-			cID, userID, state,
-			fmt.Sprintf(`{"earned_xp": %d, "total_xp": %d, "pr_url": "%s"}`, earnedXP, newXP, prURL),
-		)
+			cID, userID, state, metadata,
+		); err != nil {
+			return fmt.Errorf("write audit log: %w", err)
+		}
 
 		msg := fmt.Sprintf("+%d XP!", earnedXP)
 		if levelUp {

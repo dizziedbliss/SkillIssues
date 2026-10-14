@@ -157,7 +157,10 @@ func (a *App) InstallationToken(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("githubapp: mint installation token: %w", err)
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("githubapp: read installation token response: %w", err)
+	}
 	if resp.StatusCode != http.StatusCreated {
 		return "", fmt.Errorf("githubapp: mint installation token: HTTP %d: %s", resp.StatusCode, body)
 	}
@@ -192,7 +195,10 @@ func (a *App) discoverInstallationID(ctx context.Context) (int64, error) {
 		return 0, fmt.Errorf("githubapp: list installations: %w", err)
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, fmt.Errorf("githubapp: read installations response: %w", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("githubapp: list installations: HTTP %d: %s", resp.StatusCode, body)
 	}
@@ -251,6 +257,11 @@ func (a *App) ExchangeCode(ctx context.Context, code string) (*UserToken, error)
 	})
 }
 
+// ErrTokenRejected wraps an OAuth error response from GitHub's token
+// endpoint (e.g. bad_refresh_token): GitHub answered and refused, so retrying
+// will not help and the user has to authorize again.
+var ErrTokenRejected = errors.New("githubapp: token rejected by GitHub")
+
 // RefreshUserToken mints a new access token from a still-valid refresh token.
 func (a *App) RefreshUserToken(ctx context.Context, refreshToken string) (*UserToken, error) {
 	return a.tokenRequest(ctx, url.Values{
@@ -275,7 +286,10 @@ func (a *App) tokenRequest(ctx context.Context, form url.Values) (*UserToken, er
 		return nil, fmt.Errorf("githubapp: token request: %w", err)
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("githubapp: read token response: %w", err)
+	}
 
 	var result struct {
 		AccessToken           string `json:"access_token"`
@@ -290,12 +304,14 @@ func (a *App) tokenRequest(ctx context.Context, form url.Values) (*UserToken, er
 	}
 	if result.Error != "" {
 		if result.ErrorDescription != "" {
-			return nil, fmt.Errorf("githubapp: %s (%s)", result.Error, result.ErrorDescription)
+			return nil, fmt.Errorf("%w: %s (%s)", ErrTokenRejected, result.Error, result.ErrorDescription)
 		}
-		return nil, fmt.Errorf("githubapp: %s", result.Error)
+		return nil, fmt.Errorf("%w: %s", ErrTokenRejected, result.Error)
 	}
 	if result.AccessToken == "" {
-		return nil, fmt.Errorf("githubapp: token response had no access_token: %s", body)
+		// The body is not echoed: a malformed success response could still
+		// carry a refresh token.
+		return nil, fmt.Errorf("githubapp: token response had no access_token (HTTP %d)", resp.StatusCode)
 	}
 
 	now := time.Now()
