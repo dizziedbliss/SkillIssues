@@ -37,6 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of failing mid-deploy.
 
 ### Fixed
+- Grafana was stuck in an out-of-memory restart loop in production (160m limit, 17 plugins each
+  running as a process). It now loads only the Prometheus and Postgres datasources it uses,
+  installs both synchronously, and has a 384m limit.
 - Deploys never applied Caddyfile or `prometheus.yml` changes: `compose up` leaves an unchanged
   container running with the config it loaded at start. The deploy now reloads Caddy and
   Prometheus. Until this ships, `/api/metrics` and `/api/health/detail` were still public in
