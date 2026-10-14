@@ -220,12 +220,16 @@ services:
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_NEWS_NEWS_FEED_ENABLED: "false"
-      # Grafana 13 no longer bundles the Prometheus datasource; it downloads it
-      # in the background at startup, so panels fail until it lands. Install it
-      # pinned and synchronously, before the server starts. (Grafana still
-      # background-fetches its default plugin list once into grafana_data;
-      # PREINSTALL_DISABLED would stop that but also disables this sync install.)
-      GF_PLUGINS_PREINSTALL_SYNC: prometheus@13.2.3
+      # Grafana 13 no longer bundles its datasources; it downloads them in the
+      # background at startup, so panels fail until they land. Install the two
+      # the dashboards use, pinned and synchronously, before the server starts.
+      GF_PLUGINS_PREINSTALL_SYNC: prometheus@13.2.3,grafana-postgresql-datasource@13.0.4
+      # Grafana also fetches its default plugin bundle into grafana_data, and
+      # every backend plugin in it runs as its own process. Loading all 17
+      # pushed Grafana past 160m and into an OOM restart loop. Only the two
+      # above are used, so the rest are installed but never loaded.
+      # (PREINSTALL_DISABLED would skip the bundle but also the sync install.)
+      GF_PLUGINS_DISABLE_PLUGINS: elasticsearch,influxdb,jaeger,loki,mssql,mysql,opentsdb,tempo,zipkin,grafana-pyroscope-datasource,grafana-advisor-app,grafana-exploretraces-app,grafana-lokiexplore-app,grafana-metricsdrilldown-app,grafana-pyroscope-app
       POSTGRES_DB: skillissues
       METRICS_DB_PASSWORD: ${METRICS_DB_PASSWORD:-metrics_ro_dev}
     ports:
