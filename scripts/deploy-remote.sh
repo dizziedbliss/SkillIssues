@@ -28,6 +28,15 @@ fi
 
 COMPOSE=(docker compose -f compose.prod.yaml --env-file .env)
 
+# Fail before touching anything if .env lacks a required secret. Compose's
+# own error names the key; never fall back to reusing another secret.
+if ! "${COMPOSE[@]}" config --quiet; then
+	echo "compose.prod.yaml does not resolve against .env — add the key named above." >&2
+	echo "Nothing was changed; production is still on the previous release." >&2
+	echo "See DEPLOYMENT.md, 'First-time host setup' step 2, for every required key." >&2
+	exit 1
+fi
+
 "${COMPOSE[@]}" pull
 "${COMPOSE[@]}" up -d --remove-orphans
 

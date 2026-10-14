@@ -245,6 +245,18 @@ invisible to dashboards until a migration grants it.
 Prometheus keeps `PROMETHEUS_RETENTION_TIME` (15d) or `PROMETHEUS_RETENTION_SIZE` (2GB),
 whichever is hit first. No alerting is configured yet.
 
+**Rotating the monitoring secrets.** `METRICS_DB_PASSWORD` is re-applied by `metrics-role` on
+every deploy, so changing it in `.env` and redeploying is enough. `GRAFANA_ADMIN_PASSWORD` is
+only read the first time Grafana initialises its volume; to change it afterwards:
+
+```bash
+dc exec grafana grafana cli admin reset-admin-password '<new password>'
+```
+
+Every one of these must be its own value — never reuse `POSTGRES_PASSWORD` or
+`ADMIN_SYNC_TOKEN`. `scripts/deploy-remote.sh` refuses to deploy (and changes nothing) when a
+required key is missing from `.env`.
+
 **From the command line** (on the host, `cd $DEPLOY_PATH`; the api/ingestd images are
 distroless, so in-network requests go through the Caddy container's `wget`):
 
