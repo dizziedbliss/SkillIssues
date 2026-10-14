@@ -1,0 +1,11 @@
+scrape_configs:
+  - job_name: caddy
+    static_configs:
+      - targets: ["caddy:9180"]
+
+  # node-exporter runs in the host network namespace (so it sees the real
+  # NIC, not a container veth) and listens only on skillissues_prod_net's
+  # gateway address — never on the public interface.
+  - job_name: node
+    static_configs:
+      - targets: ["172.28.0.1:9100"]

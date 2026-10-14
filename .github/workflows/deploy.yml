@@ -157,15 +157,15 @@ jobs:
           printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Copy compose file, Caddyfile and deploy script to host
+      - name: Copy compose file, Caddyfile, monitoring config and deploy script to host
         env:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          scp -i ~/.ssh/deploy_key -P "$VPS_SSH_PORT" -o UserKnownHostsFile=~/.ssh/known_hosts \
-            compose.prod.yaml Caddyfile scripts/deploy-remote.sh \
+          scp -r -i ~/.ssh/deploy_key -P "$VPS_SSH_PORT" -o UserKnownHostsFile=~/.ssh/known_hosts \
+            compose.prod.yaml Caddyfile monitoring scripts/deploy-remote.sh \
             "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/"
 
       # The actual pull/up/health-wait/prune logic lives in

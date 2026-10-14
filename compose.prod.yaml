@@ -226,7 +226,161 @@ services:
       go-api:
         condition: service_healthy
 
+  # --------------------------------------------------------------------------
+  # Monitoring. Nothing here is published publicly: Grafana and Prometheus
+  # bind to 127.0.0.1 and are reached over `ssh -L` (DEPLOYMENT.md,
+  # "Monitoring"). Limits sum to ~640m on top of the ~3.0g above; actual use
+  # is well below the caps. Every limit is overridable from .env.
+  # --------------------------------------------------------------------------
+
+  # One-shot: enables login for the metrics_ro role (migration 00017) with
+  # METRICS_DB_PASSWORD. Runs after every migrate so a rotated password lands.
+  metrics-role:
+    image: postgres:16-alpine
+    mem_limit: 64m
+    cpus: 0.25
+    logging: *default-logging
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-skillissues}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-skillissues}
+      METRICS_DB_PASSWORD: ${METRICS_DB_PASSWORD:?METRICS_DB_PASSWORD must be set in production}
+    volumes:
+      - ./monitoring/metrics-role.sql:/metrics-role.sql:ro
+    command: ["psql", "-v", "ON_ERROR_STOP=1", "-q", "-f", "/metrics-role.sql"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    restart: unless-stopped
+    mem_limit: ${PROMETHEUS_MEM_LIMIT:-256m}
+    cpus: ${PROMETHEUS_CPUS:-0.25}
+    logging: *default-logging
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-15d}
+      - --storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-2GB}
+      - --web.enable-lifecycle
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/scrape.prod:/etc/prometheus/scrape.d:ro
+      - prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    restart: unless-stopped
+    mem_limit: ${GRAFANA_MEM_LIMIT:-160m}
+    cpus: ${GRAFANA_CPUS:-0.25}
+    logging: *default-logging
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set in production}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      # Grafana 13 no longer bundles the Prometheus datasource; it downloads it
+      # in the background at startup, so panels fail until it lands. Install it
+      # pinned and synchronously, before the server starts. (Grafana still
+      # background-fetches its default plugin list once into grafana_data;
+      # PREINSTALL_DISABLED would stop that but also disables this sync install.)
+      GF_PLUGINS_PREINSTALL_SYNC: prometheus@13.2.3
+      POSTGRES_DB: ${POSTGRES_DB:-skillissues}
+      METRICS_DB_PASSWORD: ${METRICS_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      metrics-role:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # Host network so it reports the real NIC; listens only on this compose
+  # network's gateway (fixed subnet above), never on the public interface.
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    restart: unless-stopped
+    mem_limit: ${NODE_EXPORTER_MEM_LIMIT:-48m}
+    cpus: ${NODE_EXPORTER_CPUS:-0.1}
+    logging: *default-logging
+    network_mode: host
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --web.listen-address=172.28.0.1:9100
+    volumes:
+      - /:/host:ro,rslave
+
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.57.0
+    restart: unless-stopped
+    mem_limit: ${CADVISOR_MEM_LIMIT:-96m}
+    cpus: ${CADVISOR_CPUS:-0.15}
+    logging: *default-logging
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=30s
+      - --store_container_labels=false
+      - --whitelisted_container_labels=com.docker.compose.service
+      - --disable_metrics=percpu,sched,tcp,udp,disk,diskIO,hugetlb,referenced_memory,cpu_topology,resctrl,memory_numa,advtcp,process
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    devices:
+      - /dev/kmsg
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.20.1
+    restart: unless-stopped
+    mem_limit: ${POSTGRES_EXPORTER_MEM_LIMIT:-48m}
+    cpus: ${POSTGRES_EXPORTER_CPUS:-0.1}
+    logging: *default-logging
+    environment:
+      DATA_SOURCE_URI: postgres:5432/${POSTGRES_DB:-skillissues}?sslmode=disable
+      DATA_SOURCE_USER: metrics_ro
+      DATA_SOURCE_PASS: ${METRICS_DB_PASSWORD}
+    depends_on:
+      metrics-role:
+        condition: service_completed_successfully
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.92.1
+    restart: unless-stopped
+    mem_limit: ${REDIS_EXPORTER_MEM_LIMIT:-32m}
+    cpus: ${REDIS_EXPORTER_CPUS:-0.1}
+    logging: *default-logging
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres_prod_data:
   caddy_data:
   caddy_config:
+  prometheus_data:
+  grafana_data:
