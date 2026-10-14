@@ -31,12 +31,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   merged PR was never credited; it now returns 500.
 - Errors from merged-PR application, GitHub budget reads/writes and job release were
   discarded; they are now logged and counted. A data race on ingestd's `/sync/status` is fixed.
+- The rate-limit window slid forward on every request, so a steady client's count never reset;
+  it is now a fixed window.
+- GitHub App users could not open a pull request once their 8-hour token expired: PR submit
+  skipped the token refresh.
+- When GitHub refused to open a PR, the contribution was marked `PR_OPEN` with a compare-page
+  URL and the issue number as the PR number, which could never be verified. It is now left
+  unchanged and the compare page is returned. A failed default-branch lookup no longer guesses
+  `main`.
+- A failed profile read, prior-merge count, badge count or audit-log insert during verification
+  was ignored, so a merge could be marked awarded with the XP lost. Each now aborts the award.
+- The API logged "redis connected" even when Redis was unreachable. Redis failures now count in
+  `cache_errors_total` and are logged when Redis goes down and when it recovers.
+- Errors loading or refreshing a user's GitHub token, and from the issue-body cache, were
+  discarded; they are now logged, and a retryable failure returns 502 instead of "connect
+  GitHub".
 
 ### Security
 - `/api/metrics` and `/api/health/detail` were publicly reachable through Caddy; they now
   return 404 at the edge.
 - Reverted a deploy fallback that reused `POSTGRES_PASSWORD` and `ADMIN_SYNC_TOKEN` as the
   monitoring passwords.
+- The session cookie is `SameSite=Lax` in every deployment; it was `None` over HTTPS.
+- The contribution audit log's JSON was built with `Sprintf` around an unescaped PR URL.
 
 ---
 

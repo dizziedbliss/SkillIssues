@@ -390,8 +390,8 @@ examples, and don't assume changing them does anything.
   PAT-login and OAuth-login into one user record.
 - **Rate limiting**: Redis `INCR` counter per user (signed in) or per IP (signed out) —
   180 / 1,000 per `api.rate_limit.window_seconds`. Only `/health`, `/health/detail` and
-  `/metrics` are exempt; `/auth/*` (login) **is** limited. The key's TTL is refreshed on every
-  request, so the window only resets after a full window of silence — a known issue. Fails open
+  `/metrics` are exempt; `/auth/*` (login) **is** limited. Fixed window: the first request sets
+  the key's expiry with `EXPIRE … NX`, so later requests never push it back. Fails open
   when Redis is down.
 - **XP**: base per difficulty (`BEGINNER` 75, `INTERMEDIATE` 140, `ADVANCED` 250) **plus**
   bonuses — `+25` merged, `+15` for the user's first or second merge in that repo, `+10`

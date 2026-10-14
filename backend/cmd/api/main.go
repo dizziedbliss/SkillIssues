@@ -79,10 +79,14 @@ func main() {
 	metrics.RegisterDBPool(pool.Raw())
 
 	// 3. Connect to Redis (non-fatal: cache operates in degraded mode if unavailable)
-	cacheClient, err := cache.New(ctx, cfg.RedisURL)
+	cacheClient, err := cache.New(cfg.RedisURL)
 	if err != nil {
-		slog.Warn("redis connection failed — operating without cache", "error", err)
+		slog.Warn("invalid REDIS_URL — operating without cache or rate limiting", "error", err)
 		cacheClient = nil
+	} else if err := cacheClient.Ping(ctx); err != nil {
+		// Keep the client: it reconnects on its own once Redis is up, and
+		// until then every call fails open and counts in cache_errors_total.
+		slog.Warn("redis unreachable at startup — cache and rate limiting fail open until it is", "error", err)
 	} else {
 		slog.Info("redis connected")
 	}
