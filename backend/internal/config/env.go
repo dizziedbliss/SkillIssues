@@ -87,12 +87,32 @@ type Config struct {
 	// TOKEN_ENCRYPTION_KEY, so operators can set any length secret) used to
 	// encrypt users.github_access_token at rest. Losing or rotating it
 	// without migrating existing rows makes stored tokens undecryptable —
-	// callers treat that as "no token", not a crash.
+	// users are then asked to reconnect GitHub (auth.ErrGitHubReauthRequired).
 	TokenEncryptionKey []byte
 }
 
-// Load reads and validates configuration from the environment.
-func Load() (*Config, error) {
+// Secret names a secret a binary needs. With ENV=production, Load refuses to
+// start while any secret the caller requires still has its development
+// placeholder value. Each binary requires only the secrets it uses, so a
+// deployment never has to hand a service a credential it has no use for.
+type Secret string
+
+const (
+	SecretWebhook         Secret = "GITHUB_WEBHOOK_SECRET"
+	SecretAdminToken      Secret = "ADMIN_SYNC_TOKEN"
+	SecretTokenEncryption Secret = "TOKEN_ENCRYPTION_KEY"
+)
+
+// placeholders are the development defaults for each Secret.
+var placeholders = map[Secret]string{
+	SecretWebhook:         "dev_local_webhook_secret",
+	SecretAdminToken:      "dev_local_admin_sync_token",
+	SecretTokenEncryption: "dev_local_token_encryption_key",
+}
+
+// Load reads and validates configuration from the environment. required
+// lists the secrets this binary uses (see Secret).
+func Load(required ...Secret) (*Config, error) {
 	cfg := &Config{
 		Port:                intEnv("PORT", 8000),
 		GitHubGraphQLURL:    strEnv("GITHUB_GRAPHQL_URL", "https://api.github.com/graphql"),
@@ -117,10 +137,10 @@ func Load() (*Config, error) {
 	}
 
 	cfg.GitHubToken = cleanToken(os.Getenv("GITHUB_TOKEN"))
-	cfg.GitHubWebhookSecret = strEnv("GITHUB_WEBHOOK_SECRET", "dev_local_webhook_secret")
+	cfg.GitHubWebhookSecret = strEnv(string(SecretWebhook), placeholders[SecretWebhook])
 	cfg.GitHubClientID = cleanToken(os.Getenv("GITHUB_CLIENT_ID"))
 	cfg.GitHubClientSecret = cleanToken(os.Getenv("GITHUB_CLIENT_SECRET"))
-	cfg.AdminSyncToken = strEnv("ADMIN_SYNC_TOKEN", "dev_local_admin_sync_token")
+	cfg.AdminSyncToken = strEnv(string(SecretAdminToken), placeholders[SecretAdminToken])
 
 	cfg.GitHubAppID = cleanToken(os.Getenv("GITHUB_APP_ID"))
 	cfg.GitHubAppClientID = cleanToken(os.Getenv("GITHUB_APP_CLIENT_ID"))
@@ -128,20 +148,22 @@ func Load() (*Config, error) {
 	cfg.GitHubAppPrivateKeyPath = cleanToken(os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH"))
 	cfg.GitHubAppCallbackURL = strEnv("GITHUB_APP_CALLBACK_URL", "http://localhost:8000/auth/github-app/callback")
 
-	tokenEncryptionSecret := strEnv("TOKEN_ENCRYPTION_KEY", "dev_local_token_encryption_key")
+	tokenEncryptionSecret := strEnv(string(SecretTokenEncryption), placeholders[SecretTokenEncryption])
 	keyHash := sha256.Sum256([]byte(tokenEncryptionSecret))
 	cfg.TokenEncryptionKey = keyHash[:]
 
-	// Refuse to start in production on the development placeholder secrets.
+	// Refuse to start in production on the development placeholder of any
+	// secret this binary uses.
 	if os.Getenv("ENV") == "production" {
-		if cfg.GitHubWebhookSecret == "dev_local_webhook_secret" {
-			missing = append(missing, "GITHUB_WEBHOOK_SECRET")
+		values := map[Secret]string{
+			SecretWebhook:         cfg.GitHubWebhookSecret,
+			SecretAdminToken:      cfg.AdminSyncToken,
+			SecretTokenEncryption: tokenEncryptionSecret,
 		}
-		if cfg.AdminSyncToken == "dev_local_admin_sync_token" {
-			missing = append(missing, "ADMIN_SYNC_TOKEN")
-		}
-		if tokenEncryptionSecret == "dev_local_token_encryption_key" {
-			missing = append(missing, "TOKEN_ENCRYPTION_KEY")
+		for _, sec := range required {
+			if values[sec] == placeholders[sec] {
+				missing = append(missing, string(sec))
+			}
 		}
 	}
 

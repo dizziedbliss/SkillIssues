@@ -57,6 +57,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - `REDIS_URL` and the Redis dependency from the ingestd service; ingestd never used Redis.
+- `GITHUB_WEBHOOK_SECRET`, `TOKEN_ENCRYPTION_KEY`, `GITHUB_APP_CLIENT_SECRET` and
+  `GITHUB_APP_CALLBACK_URL` from the ingestd service. Each binary now names the secrets it uses
+  (`config.Load(required...)`), so ingestd no longer has to be given ones it never reads.
 - Settings `ingest.sync_interval_seconds` and `ingest.ondemand_workers`, which no code read.
 
 ### Security
