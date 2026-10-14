@@ -14,6 +14,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/dizziedbliss/skillissues/internal/ingest"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
+	"github.com/dizziedbliss/skillissues/internal/settings"
 	"github.com/dizziedbliss/skillissues/internal/worker"
 	"github.com/jackc/pgx/v5"
 )
@@ -25,10 +26,6 @@ import (
 // unable to start a contribution until their window resets. Deliberately
 // not a setting — it's a safety invariant, not a tuning knob.
 const userReserve = 500
-
-// installationInteractiveFloor mirrors the crawler floor; the interactive
-// lane is a separate budget row so a saturated crawl can't block reads.
-const installationInteractiveFloor = 100
 
 // ErrBodyUnavailable is the base sentinel for "body not available right now,
 // retry later" — callers match it with errors.Is to catch every case below
@@ -59,6 +56,7 @@ type BodyFetcher struct {
 	github  *github.Client
 	sf      singleflight.Group
 	limiter *worker.Limiter // bounds total concurrent GraphQL body fetches
+	live    func() *settings.Snapshot
 
 	// installationToken mints/returns the server's own credential, read
 	// fresh per call so a rotated GitHub App token takes effect without a
@@ -68,12 +66,14 @@ type BodyFetcher struct {
 
 // NewBodyFetcher builds a BodyFetcher. installationToken may be nil if the
 // server has no crawling credential configured at all (reads then rely
-// entirely on the requesting user's own token).
-func NewBodyFetcher(pool *db.Pool, ghClient *github.Client, installationToken func(ctx context.Context) (string, error)) *BodyFetcher {
+// entirely on the requesting user's own token). live supplies the
+// api.issue_body.* settings, read on every fetch.
+func NewBodyFetcher(pool *db.Pool, ghClient *github.Client, installationToken func(ctx context.Context) (string, error), live func() *settings.Snapshot) *BodyFetcher {
 	return &BodyFetcher{
 		db:                pool,
 		github:            ghClient,
-		limiter:           worker.NewLimiter(8),
+		limiter:           worker.NewLimiter(live().Int(settings.IssueBodyMaxConcurrentFetches)),
+		live:              live,
 		installationToken: installationToken,
 	}
 }
@@ -141,6 +141,10 @@ func (b *BodyFetcher) fetchAndCache(ctx context.Context, issueID, userID int, us
 		return "", fmt.Errorf("issue: invalid repository full_name %q", fullName)
 	}
 
+	snap := b.live()
+	if n := snap.Int(settings.IssueBodyMaxConcurrentFetches); n != b.limiter.Limit() {
+		b.limiter.SetLimit(n)
+	}
 	if err := b.limiter.Acquire(ctx); err != nil {
 		return "", err
 	}
@@ -171,7 +175,9 @@ func (b *BodyFetcher) fetchAndCache(ctx context.Context, issueID, userID int, us
 	if b.installationToken == nil {
 		return "", ErrBodyNoCredential
 	}
-	proceed, err := ingest.CanProceed(ctx, b.db, ingest.LaneInteractive, "installation", installationInteractiveFloor)
+	// The interactive lane is its own budget row, so a saturated crawl can't
+	// block reads.
+	proceed, err := ingest.CanProceed(ctx, b.db, ingest.LaneInteractive, "installation", snap.Int(settings.IssueBodyInstallationFloor))
 	if err != nil {
 		metrics.BudgetErrors.WithLabelValues("read", string(ingest.LaneInteractive)).Inc()
 		return "", fmt.Errorf("issue: check installation budget: %w", err)
@@ -220,17 +226,15 @@ func (b *BodyFetcher) store(ctx context.Context, issueID int, body string) {
 	}
 }
 
-// pruneCacheCap is the bounded LRU's row cap (plan §3.1: ~50k rows ≈ 115 MB).
-const pruneCacheCap = 50000
-
-// PruneBodyCache deletes rows beyond pruneCacheCap, oldest-by-last-access
-// first. Call periodically (e.g. every few minutes) from a ticker.
-func PruneBodyCache(ctx context.Context, pool *db.Pool) (int, error) {
+// PruneBodyCache deletes rows beyond maxRows (api.issue_body.cache_max_rows;
+// ~50k rows is about 115 MB), oldest-by-last-access first. Call periodically
+// from a ticker.
+func PruneBodyCache(ctx context.Context, pool *db.Pool, maxRows int) (int, error) {
 	tag, err := pool.Raw().Exec(ctx,
 		`DELETE FROM issue_body_cache WHERE issue_id IN (
 			SELECT issue_id FROM issue_body_cache ORDER BY last_accessed_at DESC OFFSET $1
 		)`,
-		pruneCacheCap,
+		maxRows,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("issue: prune body cache: %w", err)

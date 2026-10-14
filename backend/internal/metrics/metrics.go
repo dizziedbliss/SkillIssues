@@ -126,7 +126,12 @@ var (
 
 	IngestStuckLeases = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "ingest_stuck_leases",
-		Help: "Running jobs whose lease has expired.",
+		Help: "Running jobs whose lease has expired and not yet been reclaimed.",
+	})
+
+	IngestLeasesReclaimed = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "ingest_leases_reclaimed_total",
+		Help: "Running jobs returned to pending because their lease expired.",
 	})
 
 	IngestDBSizeBytes = prometheus.NewGauge(prometheus.GaugeOpts{
@@ -174,7 +179,7 @@ var (
 func RegisterIngest() {
 	Registry.MustRegister(
 		IngestJobOutcomes, IngestIssuesUpserted, IngestCycleErrors,
-		IngestJobs, IngestStuckLeases, IngestDBSizeBytes, IngestPaused, RepositoriesEligible,
+		IngestJobs, IngestStuckLeases, IngestLeasesReclaimed, IngestDBSizeBytes, IngestPaused, RepositoriesEligible,
 		GitHubBudgetRemaining, GitHubBudgetLimit, GitHubBudgetResetSeconds, GitHubSecondaryPaused,
 		WorkerPool, BudgetErrors,
 	)

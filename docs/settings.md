@@ -33,6 +33,10 @@ readable through the endpoint above and copied into backups.
 | `api.cache.search_ttl_seconds` | 60 | 0–3600 | Cache for unauthenticated search results (0 = off) |
 | `api.cache.recommendations_ttl_seconds` | 300 | 0–3600 | Cache for per-user recommendations (0 = off) |
 | `api.contribution.verify_per_hour` | 5 | 1–1000 | PR verification attempts per user per contribution per hour |
+| `api.issue_body.cache_max_rows` | 50000 | 100–10000000 | Rows kept in `issue_body_cache`; least recently read pruned beyond it |
+| `api.issue_body.prune_interval_seconds` | 600 | 60–86400 | How often the body cache is pruned |
+| `api.issue_body.max_concurrent_fetches` | 8 | 1–64 | Concurrent GitHub fetches for issue bodies, across all users |
+| `api.issue_body.installation_floor` | 100 | 0–5000 | Server token stops serving body reads below this many remaining points |
 | `auth.pat_login_enabled` | false | bool | Whether `POST /auth/github/token` (PAT login) is reachable |
 
 ## Ingestion
@@ -53,21 +57,22 @@ readable through the endpoint above and copied into backups.
 | `ingest.max_pages_per_repo` | 100 | 0–100000 | Deep Diver page cap per repository (0 = no cap) |
 | `ingest.max_db_size_mb` | 30000 | 0–1000000 | Pause new ingestion work above this database size (0 = no cap) |
 | `ingest.metrics_refresh_seconds` | 30 | 5–3600 | How often ingestd refreshes its Postgres-backed `/metrics` gauges |
+| `ingest.claim_interval_seconds` | 5 | 1–300 | Coordinator cycle: enqueue, reclaim, claim, submit |
+| `ingest.lease_seconds` | 300 | 60–3600 | How long a claimed job may wait in a pool queue and run before it can be reclaimed |
+| `ingest.lease_reclaim_interval_seconds` | 60 | 5–3600 | How often expired leases are returned to `pending` |
+| `ingest.rate_limit_pause_seconds` | 60 | 5–3600 | Crawler pause after a GitHub rate limit; retry delay for a job released for budget |
 
 Raising the eligibility thresholds takes effect on the next recheck. **Lowering** them only
 affects repositories already stored — anything that failed the old threshold was never imported,
 so re-run `cmd/repoimport` (see `README.md`).
 
-## Registered but not read by any code
-
-| Key | Default | Note |
-|---|---:|---|
-| `ingest.sync_interval_seconds` | 900 | Nothing reads it; changing it has no effect. |
-| `ingest.ondemand_workers` | 1 | Reserved for the on-demand issue-body path; not wired up. |
+If `ingest_job_outcomes_total{outcome="lease_lost"}` climbs, jobs are outliving
+`ingest.lease_seconds` (usually a long pool queue during a GitHub slowdown) — raise it. A lost
+lease is safe: the stale worker's write is rejected, and the job is retried by its new owner.
 
 ## Adding a setting
 
 Add the key to `settings.Registry` **and** seed it in a new migration (see
 `00016_ingest_metrics_refresh_setting.sql`). A key in one but not the other falls back to its
-default and is logged as drift at startup. Read values through `live.Current()` and hold the
+default, and a key missing from the table is logged at every load. Read values through `live.Current()` and hold the
 snapshot for the duration of an operation.

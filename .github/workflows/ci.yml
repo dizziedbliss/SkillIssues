@@ -13,6 +13,25 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    # For the tests that need a real database or Redis (skipped under
+    # -short and when their *_TEST_URL is unset). Same images as compose.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: skillissues
+          POSTGRES_PASSWORD: skillissues
+          POSTGRES_DB: skillissues
+        ports: [ '5432:5432' ]
+        options: >-
+          --health-cmd "pg_isready -U skillissues"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: [ '6379:6379' ]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
@@ -36,6 +55,16 @@ jobs:
         run: |
           cd backend
           go test -short ./...
+      - name: Go test (Postgres and Redis)
+        # ./internal/... only: the root integration test needs a running API.
+        env:
+          DATABASE_URL: postgresql://skillissues:skillissues@localhost:5432/skillissues
+          TEST_DATABASE_URL: postgresql://skillissues:skillissues@localhost:5432/skillissues
+          REDIS_TEST_URL: redis://localhost:6379/15
+        run: |
+          cd backend
+          go run ./cmd/migrate
+          go test -count=1 ./internal/...
 
   web:
     runs-on: ubuntu-latest
