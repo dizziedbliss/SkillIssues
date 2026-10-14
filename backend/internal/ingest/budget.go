@@ -5,7 +5,7 @@
 // number of worker processes can claim work without double-processing a
 // repository's cursor.
 //
-// See SkillIssues_Ingestion_Architecture_Updated.md for the design this
+// See docs/ingestion-architecture.md for the design this
 // package implements, and plan §7 for the safety invariants: atomic job
 // claims, one active pagination job per repository, atomic progress (issue
 // upserts and cursor advancement commit together or not at all), and no
