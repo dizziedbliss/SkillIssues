@@ -5,12 +5,24 @@
 # challenge on port 80, no separate certbot step. Frontend and API are
 # served same-origin so the session cookie can be Secure + SameSite=Lax
 # without any cross-origin cookie handling.
+{
+	# Per-host request/latency/status metrics, served by the :9180 block below.
+	metrics
+}
+
 {$DOMAIN} {
 	# /api/* -> go-api, with the /api prefix stripped: the browser calls
 	# https://{$DOMAIN}/api/auth/github/callback, go-api only ever sees
 	# /auth/github/callback (its routes have no /api prefix of their own).
 	handle_path /api/* {
-		reverse_proxy go-api:8000
+		# Operational endpoints are scraped inside the Docker network only.
+		@internal path /metrics /metrics/* /health/detail
+		handle @internal {
+			respond 404
+		}
+		handle {
+			reverse_proxy go-api:8000
+		}
 	}
 
 	# Everything else is the SPA, served by the nginx `web` image.
@@ -24,4 +36,10 @@
 		output stdout
 		format json
 	}
+}
+
+# Prometheus scrape target. Not in `ports:`, so reachable only on the Docker
+# network; a dedicated listener avoids exposing the admin API (:2019).
+:9180 {
+	metrics
 }
