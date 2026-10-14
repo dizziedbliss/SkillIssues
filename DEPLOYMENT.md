@@ -42,7 +42,7 @@ push to main
 .github/workflows/deploy.yml
    │
    ├─ job `ci`          — uses: ./.github/workflows/ci.yml (backend/web/desktop/images)
-   ├─ job `build-push`  — needs: ci — builds all four root Dockerfile targets, pushes
+   ├─ job `build-push`  — needs: ci — builds the api/ingestd/migrate/web targets, pushes
    │                       ghcr.io/dizziedbliss/skillissues-{api,ingestd,migrate,web}
    │                       tagged sha-<short> AND latest (linux/amd64 only)
    └─ job `deploy`      — needs: build-push — scp's compose.prod.yaml, Caddyfile,

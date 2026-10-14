@@ -1,7 +1,33 @@
 # SkillIssues Ingestion Architecture
 
-**Updated:** 11 October 2026  
+**Updated:** 11 October 2026 (design) · implementation status checked 14 October 2026  
 **Purpose:** Build a broad, reliable issue dataset first. Data-science ranking and repository prioritization come later, after there is enough data to analyze.
+
+This is the design of record for `backend/internal/ingest/`. It describes intent; the table
+below says what the code actually does today. Where they differ, the code is the truth and
+this table is how you find out.
+
+## Implementation status
+
+| Design element | Status | Where / how it differs |
+|---|---|---|
+| Repository catalog seeded from the dataset | **Built** | `cmd/repoimport`; only eligible repositories are stored |
+| Eligibility (stars, pushed-within) re-checked live | **Built** | `ingest.RecomputeEligibility`, every `ingest.eligibility.recheck_seconds` |
+| Initial worker — one page per eligible repository | **Built** | `ingest.Worker`, `job_type='initial'` |
+| Freshness — re-fetch page one when stale | **Built** | re-enqueued as `job_type='initial'`, not `'freshness'` (the CHECK constraint allows it; nothing writes it) |
+| Deep Diver — remaining pages from the stored cursor | **Built** | `job_type='deep'`; capped by `ingest.max_pages_per_repo` |
+| Atomic claims with `FOR UPDATE SKIP LOCKED` + lease | **Built** | expired leases are reclaimed **only when ingestd starts**, not continuously |
+| Cursor + issues committed in one transaction | **Built** | `CompleteOrRequeue` runs in the page's transaction |
+| Shared GitHub budget (`github_budget`, crawler/interactive lanes) | **Built** | |
+| `RESOURCE_LIMITS_EXCEEDED` recovery | **Built, differently** | no GraphQL alias batching: one repository per call, and the *page size* is halved down to 1 (§4 describes splitting alias batches) |
+| Secondary rate limits | **Built, simplified** | fixed one-minute lane pause; `Retry-After` is not read |
+| `NOT_FOUND` isolates the repository | **Built** | job `failed`, repository marked ineligible |
+| NUL-byte sanitisation before persistence | **Built** | `ingest.SanitizeText` |
+| Metrics distinguishing retries from failures | **Built** | `ingest_job_outcomes_total{outcome}` on ingestd's `/metrics` |
+| Discovery Sweeper (GitHub Search over date windows) | **Not built** | new repositories arrive only from a dataset import; nothing writes `job_type='discovery'` |
+
+Sections 4 and 6 record observations from the Python v6 prototype (still in `benchmark/`);
+they are history, not a description of the Go worker.
 
 ## 1. Current goal
 
