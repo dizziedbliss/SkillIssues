@@ -11,6 +11,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +26,7 @@ type contextKey string
 const (
 	ctxUserID    contextKey = "user_id"
 	ctxRequestID contextKey = "request_id"
+	ctxRoute     contextKey = "route"
 )
 
 // ---------------------------------------------------------------------------
@@ -54,6 +56,22 @@ func GetRequestID(ctx context.Context) string {
 // Structured request logging
 // ---------------------------------------------------------------------------
 
+// routeSlot carries the matched ServeMux pattern back up to Logger. Metrics
+// are labelled by pattern, not raw path, so arbitrary scanner URLs cannot
+// grow the label set without bound.
+type routeSlot struct{ pattern string }
+
+// RecordRoute must wrap a ServeMux directly: the mux sets r.Pattern on the
+// request it receives, which the middleware above it only sees as a clone.
+func RecordRoute(mux http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mux.ServeHTTP(w, r)
+		if slot, ok := r.Context().Value(ctxRoute).(*routeSlot); ok {
+			slot.pattern = r.Pattern
+		}
+	})
+}
+
 // responseWriter wraps http.ResponseWriter to capture the status code for logging.
 type responseWriter struct {
 	http.ResponseWriter
@@ -78,14 +96,22 @@ func Logger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
+		slot := &routeSlot{}
 
-		next.ServeHTTP(rw, r)
+		next.ServeHTTP(rw, r.WithContext(context.WithValue(r.Context(), ctxRoute, slot)))
 
 		duration := time.Since(start)
-		metrics.Default.RecordHTTPRequest(r.Method, r.URL.Path, rw.status, duration)
+		route := slot.pattern
+		if route == "" {
+			route = "unmatched"
+		}
+		metrics.HTTPRequests.WithLabelValues(r.Method, route, strconv.Itoa(rw.status)).Inc()
+		metrics.HTTPDuration.WithLabelValues(r.Method, route).Observe(duration.Seconds())
+		metrics.HTTPResponseBytes.WithLabelValues(r.Method, route).Add(float64(rw.size))
 
 		slog.InfoContext(r.Context(), "request",
 			"method", r.Method,
+			"route", route,
 			"path", r.URL.Path,
 			"status", rw.status,
 			"bytes", rw.size,

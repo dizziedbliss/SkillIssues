@@ -18,6 +18,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/dizziedbliss/skillissues/internal/githubapp"
 	"github.com/dizziedbliss/skillissues/internal/ingest"
+	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/settings"
 )
 
@@ -61,6 +62,10 @@ func main() {
 		os.Exit(1)
 	}
 	defer dbPool.Close()
+
+	metrics.RegisterIngest()
+	metrics.RegisterGitHub()
+	metrics.RegisterDBPool(dbPool.Raw())
 
 	ghClient := github.NewClient(cfg.GitHubGraphQLURL)
 
@@ -123,6 +128,8 @@ func main() {
 			"time":    time.Now().UTC(),
 		})
 	})
+
+	mux.Handle("GET /metrics", metrics.Handler())
 
 	mux.HandleFunc("GET /sync/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
