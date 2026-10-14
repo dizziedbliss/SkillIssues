@@ -37,6 +37,7 @@ import {
 import {
   DifficultyTabs,
   type DifficultyFilter,
+  AttachPullRequestDialog,
   IssueCard,
   IssueList,
   LanguageMark,
@@ -87,6 +88,7 @@ function AppShell() {
   const [savedIssues, setSavedIssues] = useState<Issue[]>([]);
   const [working, setWorking] = useState<ContributionDetail[]>([]);
   const [submissions, setSubmissions] = useState<ContributionDetail[]>([]);
+  const [attachTarget, setAttachTarget] = useState<ContributionDetail | null>(null);
   const [view, setView] = useState<View>("Overview");
   const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>("ALL");
   const [page, setPage] = useState(1);
@@ -655,6 +657,9 @@ function AppShell() {
                       <button type="button" className="view-issue-btn" onClick={() => void viewContributionIssue(item)}>
                         View issue
                       </button>
+                      <button type="button" className="view-issue-btn" onClick={() => setAttachTarget(item)}>
+                        Link PR
+                      </button>
                       <button type="button" className="view-issue-btn" onClick={() => void refresh()}>
                         Refresh status
                       </button>
@@ -1009,6 +1014,18 @@ function AppShell() {
           </section>
         </>
       )}
+
+      <AttachPullRequestDialog
+        open={attachTarget !== null}
+        repository={attachTarget?.repository ?? ""}
+        onClose={() => setAttachTarget(null)}
+        onAttach={async (prUrl, prNumber) => {
+          if (!attachTarget) return;
+          await apiClient.attachPullRequest(attachTarget.id, prUrl, prNumber);
+          toast.show("Pull request linked. It now appears under Submissions.", "success");
+          await loadUser();
+        }}
+      />
 
       <Modal
         open={Boolean(selected)}

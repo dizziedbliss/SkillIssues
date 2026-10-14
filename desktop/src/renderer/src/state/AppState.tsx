@@ -647,7 +647,7 @@ export function useAppStateValue() {
       if (submitResult && "manual_compare" in submitResult.pull_request) {
         window.open(submitResult.web_url, "_blank");
         toast.show(
-          `Pushed branch ${pushBranch.trim()} to your GitHub fork, but GitHub would not open the pull request with your authorization. Opened the compare page so you can create it there.`,
+          `Pushed branch ${pushBranch.trim()} to your GitHub fork, but GitHub would not open the pull request with your authorization. Opened the compare page so you can create it there, then use Link PR on the Working card to track it.`,
           "success",
         );
       } else {
