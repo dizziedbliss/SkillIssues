@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/dizziedbliss/skillissues/internal/metrics"
 )
 
 // IssueBody is the result of an on-demand single-issue body fetch (plan
@@ -32,6 +34,7 @@ const issueBodyQuery = `query IssueBody($owner: String!, $name: String!, $number
 // responsible for single-flight coalescing and caching the result — this
 // function makes no attempt at either.
 func (c *Client) FetchIssueBody(ctx context.Context, token, owner, name string, number int) (*IssueBody, error) {
+	ctx = metrics.WithOperation(ctx, "FetchIssueBody")
 	reqBody := graphQLRequest{
 		Query: issueBodyQuery,
 		Variables: map[string]any{

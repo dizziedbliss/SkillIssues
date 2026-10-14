@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/dizziedbliss/skillissues/internal/metrics"
 )
 
 // DefaultGraphQLURL is the default GitHub GraphQL API endpoint.
@@ -30,7 +32,7 @@ func NewClient(graphqlURL string) *Client {
 		graphqlURL = DefaultGraphQLURL
 	}
 	return &Client{
-		httpClient: &http.Client{Timeout: 15 * time.Second},
+		httpClient: &http.Client{Timeout: 15 * time.Second, Transport: metrics.InstrumentedTransport{}},
 		graphqlURL: graphqlURL,
 	}
 }
@@ -70,6 +72,7 @@ type graphQLError struct {
 //	    }
 //	}
 func (c *Client) GetPullRequest(ctx context.Context, token, owner, name string, number int) (*PullRequestInfo, error) {
+	ctx = metrics.WithOperation(ctx, "GetPullRequest")
 	const query = `query GetPullRequest($owner: String!, $name: String!, $number: Int!) {
 		repository(owner: $owner, name: $name) {
 			pullRequest(number: $number) {

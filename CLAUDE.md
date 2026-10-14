@@ -127,6 +127,24 @@ have no browser callers).
 Use `pgxpool` for all database access — never open individual connections. Always thread
 `ctx context.Context` through to database, Redis and HTTP calls.
 
+### Metrics (`backend/internal/metrics/`)
+`prometheus/client_golang`, served at `GET /metrics` by **both** `api` (:8000) and `ingestd`
+(:8002). Each binary registers only the families it produces (`RegisterAPI`,
+`RegisterIngest`, `RegisterGitHub`, `RegisterDBPool`), so a process never exports another's
+gauge as a misleading zero.
+
+- HTTP metrics are labelled by the **matched `ServeMux` pattern** (`route="GET /issues/{id}"`),
+  never the raw path — `middleware.RecordRoute` must wrap each mux directly, because the mux
+  sets `r.Pattern` on a request the outer middleware only sees as a clone. Unmatched paths are
+  `route="unmatched"`.
+- Every outbound GitHub call goes through `metrics.InstrumentedTransport` on the shared
+  `github.Client`; tag new client methods with `metrics.WithOperation(ctx, "Name")`.
+- ingestd's Postgres-backed gauges (`ingest_jobs`, `repositories`,
+  `github_rate_limit_remaining{lane}`) refresh every `ingest.metrics_refresh_seconds`, not per
+  claim cycle and not per scrape.
+- A failure you log on an operational path should also increment a counter
+  (`ingest_cycle_errors_total`, `github_budget_errors_total`, …) so it shows on a dashboard.
+
 ### Shared packages (`packages/`)
 npm workspace members, imported by both clients as `@skillissues/*` (a real `node_modules`
 symlink, not a relative path reaching outside the importing project):
@@ -263,9 +281,19 @@ Single VPS, `compose.prod.yaml`, Caddy same-origin. Full runbook: `DEPLOYMENT.md
   `latest`) → `deploy` (scp + ssh, runs `scripts/deploy-remote.sh` on the host). A deploy cannot
   happen without CI passing. Rollback is `workflow_dispatch` with an older `sha-` tag — deploys
   always pin that, never `latest`.
-- Caddy is the only service publishing a port. `handle_path /api/*` strips the prefix before
-  proxying to `go-api` (whose routes have no `/api` prefix of their own); everything else goes
+- Caddy is the only service publishing a public port. `handle_path /api/*` strips the prefix
+  before proxying to `go-api` (whose routes have no `/api` prefix of their own) and returns
+  **404 for `/metrics` and `/health/detail`** — those are internal only; everything else goes
   to the `frontend` (nginx) image. `go-api` and `ingestd` have no published ports in prod.
+- Monitoring runs in both compose files: Prometheus, Grafana (six provisioned dashboards in
+  `monitoring/grafana/dashboards/`), node-exporter, cAdvisor, postgres- and redis-exporter.
+  Grafana (:3000) and Prometheus (:9090) bind to `127.0.0.1` and are reached over `ssh -L`.
+  `deploy.yml` scp's `monitoring/` alongside the compose file. Runbook: `DEPLOYMENT.md`,
+  *Monitoring*.
+- Grafana's Postgres datasource and postgres-exporter connect as **`metrics_ro`** (migration
+  00017): read-only, 15s `statement_timeout`, explicit per-table grants. **Never grant it a
+  credential column**, and a new table a dashboard needs must be granted in a new migration.
+  Its password comes from `METRICS_DB_PASSWORD` via the `metrics-role` one-shot service.
 - Two disk guardrails exist specifically because the host is 40GB: `ingest.max_db_size_mb`
   (coordinator stops enqueuing/claiming once `pg_database_size()` exceeds it) and
   `ingest.max_pages_per_repo` (caps the Deep Diver per repository regardless of `hasNextPage`).
@@ -292,7 +320,7 @@ The precedent is `ingest.eligibility.min_stars`, `ingest.eligibility.pushed_with
 `ingest.eligibility.recheck_seconds`, `ingest.freshness_interval_seconds`,
 `ingest.enqueue_batch_size`, `ingest.graphql_page_size`, `ingest.sync_interval_seconds`,
 `ingest.routine_workers`, `ingest.priority_workers`, `ingest.rate_limit_floor`,
-`ingest.max_pages_per_repo`, `ingest.max_db_size_mb`.
+`ingest.max_pages_per_repo`, `ingest.max_db_size_mb`, `ingest.metrics_refresh_seconds`.
 
 - **Never hardcode an operational value.** Add a key to `settings.Registry` **and** a seeded
   row in a migration. A key in one but not the other falls back to its default and is logged

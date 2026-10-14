@@ -178,5 +178,118 @@ services:
       go-api:
         condition: service_healthy
 
+  # --------------------------------------------------------------------------
+  # Monitoring — same stack as compose.prod.yaml. Grafana on
+  # http://localhost:3000 (admin / $GRAFANA_ADMIN_PASSWORD, default "admin"),
+  # Prometheus on http://localhost:9090.
+  # --------------------------------------------------------------------------
+  metrics-role:
+    image: postgres:16-alpine
+    environment:
+      PGHOST: postgres
+      PGUSER: skillissues
+      PGPASSWORD: skillissues
+      PGDATABASE: skillissues
+      METRICS_DB_PASSWORD: ${METRICS_DB_PASSWORD:-metrics_ro_dev}
+    volumes:
+      - ./monitoring/metrics-role.sql:/metrics-role.sql:ro
+    command: ["psql", "-v", "ON_ERROR_STOP=1", "-q", "-f", "/metrics-role.sql"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=3d
+      - --web.enable-lifecycle
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/scrape.dev:/etc/prometheus/scrape.d:ro
+      - prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      # Grafana 13 no longer bundles the Prometheus datasource; it downloads it
+      # in the background at startup, so panels fail until it lands. Install it
+      # pinned and synchronously, before the server starts. (Grafana still
+      # background-fetches its default plugin list once into grafana_data;
+      # PREINSTALL_DISABLED would stop that but also disables this sync install.)
+      GF_PLUGINS_PREINSTALL_SYNC: prometheus@13.2.3
+      POSTGRES_DB: skillissues
+      METRICS_DB_PASSWORD: ${METRICS_DB_PASSWORD:-metrics_ro_dev}
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      metrics-role:
+        condition: service_completed_successfully
+
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    command:
+      - --path.rootfs=/host
+    # No rslave propagation here (prod has it): WSL2 and Docker Desktop do not
+    # mount / as shared, and the daemon refuses the mount outright.
+    volumes:
+      - /:/host:ro
+
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.57.0
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=30s
+      - --store_container_labels=false
+      - --whitelisted_container_labels=com.docker.compose.service
+      - --disable_metrics=percpu,sched,tcp,udp,disk,diskIO,hugetlb,referenced_memory,cpu_topology,resctrl,memory_numa,advtcp,process
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    devices:
+      - /dev/kmsg
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.20.1
+    environment:
+      DATA_SOURCE_URI: postgres:5432/skillissues?sslmode=disable
+      DATA_SOURCE_USER: metrics_ro
+      DATA_SOURCE_PASS: ${METRICS_DB_PASSWORD:-metrics_ro_dev}
+    depends_on:
+      metrics-role:
+        condition: service_completed_successfully
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.92.1
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres_data:
+  prometheus_data:
+  grafana_data:

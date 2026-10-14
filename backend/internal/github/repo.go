@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/dizziedbliss/skillissues/internal/metrics"
 )
 
 // ForkResult holds repository fork information.
@@ -19,6 +21,7 @@ type ForkResult struct {
 
 // CreateFork creates or retrieves a fork of the target repository.
 func (c *Client) CreateFork(ctx context.Context, token, owner, name string) (*ForkResult, error) {
+	ctx = metrics.WithOperation(ctx, "CreateFork")
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/forks", owner, name)
 	reqBody := map[string]any{"default_branch_only": true}
 	payload, _ := json.Marshal(reqBody)
@@ -64,6 +67,7 @@ type PullRequestCreateResult struct {
 
 // CreatePullRequest opens a pull request on GitHub.
 func (c *Client) CreatePullRequest(ctx context.Context, token, owner, name, title, head, base, body string) (*PullRequestCreateResult, error) {
+	ctx = metrics.WithOperation(ctx, "CreatePullRequest")
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls", owner, name)
 	payload, _ := json.Marshal(map[string]any{
 		"title": title,
@@ -110,6 +114,7 @@ func (c *Client) CreatePullRequest(ctx context.Context, token, owner, name, titl
 
 // GetDefaultBranch retrieves the default branch name of a GitHub repository (e.g. 'main', 'master', 'develop').
 func (c *Client) GetDefaultBranch(ctx context.Context, token, owner, name string) (string, error) {
+	ctx = metrics.WithOperation(ctx, "GetDefaultBranch")
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, name)
 	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
 	if err != nil {

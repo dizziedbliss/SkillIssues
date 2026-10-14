@@ -74,6 +74,10 @@ func main() {
 	defer pool.Close()
 	slog.Info("database connected")
 
+	metrics.RegisterAPI()
+	metrics.RegisterGitHub()
+	metrics.RegisterDBPool(pool.Raw())
+
 	// 3. Connect to Redis (non-fatal: cache operates in degraded mode if unavailable)
 	cacheClient, err := cache.New(ctx, cfg.RedisURL)
 	if err != nil {
@@ -237,7 +241,7 @@ func buildRouter(
 	// ----- Health & Metrics -----
 	mux.HandleFunc("GET /health", h.health)
 	mux.HandleFunc("GET /health/detail", h.healthDetail)
-	mux.Handle("GET /metrics", metrics.Default.Handler())
+	mux.Handle("GET /metrics", metrics.Handler())
 
 	// ----- Auth -----
 	mux.HandleFunc("GET /auth/session", h.getSession)
@@ -295,7 +299,7 @@ func buildRouter(
 		requireAdmin(cfg.AdminSyncToken, http.HandlerFunc(h.adminPutConfig)))
 
 	// Public chain: RequestID → Logger → CORS → OptionalAuth → RateLimiter → mux
-	var publicHandler http.Handler = mux
+	var publicHandler http.Handler = middleware.RecordRoute(mux)
 	if cacheClient != nil {
 		trustedProxies := middleware.ParseTrustedProxies(cfg.TrustedProxies)
 		// Read limits per request so a settings change applies without a restart.
@@ -317,8 +321,8 @@ func buildRouter(
 	// have no browser callers, so they skip CORS, OptionalAuth and the browsing rate
 	// limiter — only RequestID/Logger apply.
 	top := http.NewServeMux()
-	top.Handle("/admin/", group(adminMux, middleware.Logger, middleware.RequestID))
-	top.Handle("/webhooks/", group(webhookMux, middleware.Logger, middleware.RequestID))
+	top.Handle("/admin/", group(middleware.RecordRoute(adminMux), middleware.Logger, middleware.RequestID))
+	top.Handle("/webhooks/", group(middleware.RecordRoute(webhookMux), middleware.Logger, middleware.RequestID))
 	top.Handle("/", publicHandler)
 
 	return top
