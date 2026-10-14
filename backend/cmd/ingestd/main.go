@@ -31,7 +31,9 @@ func main() {
 
 	slog.Info("starting SkillIssues ingestion daemon (ingestd)")
 
-	cfg, err := config.Load()
+	// ingestd crawls with the server credential and never touches users'
+	// tokens or webhooks; the admin token guards its POST /sync/* triggers.
+	cfg, err := config.Load(config.SecretAdminToken)
 	if err != nil {
 		slog.Error("failed to load configuration", "error", err)
 		os.Exit(1)

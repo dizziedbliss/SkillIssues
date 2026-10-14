@@ -18,9 +18,9 @@ caddy            — the only published port; automatic Let's Encrypt
    └─ /*     ──→  frontend:80     (nginx serving the Vite build)
 
 go-api:8000 ──→ postgres:5432, redis:6379, ingestd:8002 (internal network only)
-ingestd:8002 ──→ postgres:5432, redis:6379               (internal network only; no auth of
-                                                            its own on /sync/*, so it must
-                                                            never be reachable from outside)
+ingestd:8002 ──→ postgres:5432                           (internal network only; POST /sync/*
+                                                            takes ADMIN_SYNC_TOKEN; holds no
+                                                            user-token, webhook or OAuth secret)
 migrate                                                   — one-shot, runs to completion first
 
 monitoring (see "Monitoring" below):
