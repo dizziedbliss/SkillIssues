@@ -2,6 +2,7 @@ package issue
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -80,7 +81,12 @@ func NewBodyFetcher(pool *db.Pool, ghClient *github.Client, installationToken fu
 // GetBody returns issueID's body text. userID is 0 and userToken is "" for
 // an anonymous/unauthenticated caller.
 func (b *BodyFetcher) GetBody(ctx context.Context, issueID, userID int, userToken string) (string, error) {
-	if body, ok, err := b.readCache(ctx, issueID); err == nil && ok {
+	body, ok, err := b.readCache(ctx, issueID)
+	if err != nil {
+		// Not fatal — GitHub can still serve it — but a broken cache would
+		// otherwise turn every read into a GitHub call without a trace.
+		slog.Warn("issue body: cache read failed", "issue_id", issueID, "error", err)
+	} else if ok {
 		return body, nil
 	}
 
@@ -89,7 +95,10 @@ func (b *BodyFetcher) GetBody(ctx context.Context, issueID, userID int, userToke
 		// Re-check the cache inside the single-flight: a concurrent caller
 		// may have just populated it while this one was queued behind the
 		// limiter below.
-		if body, ok, err := b.readCache(ctx, issueID); err == nil && ok {
+		body, ok, err := b.readCache(ctx, issueID)
+		if err != nil {
+			slog.Warn("issue body: cache re-check failed", "issue_id", issueID, "error", err)
+		} else if ok {
 			return body, nil
 		}
 		return b.fetchAndCache(ctx, issueID, userID, userToken)
@@ -108,7 +117,7 @@ func (b *BodyFetcher) readCache(ctx context.Context, issueID int) (string, bool,
 		func(row pgx.Row) error { return row.Scan(&body) },
 	)
 	if err != nil {
-		if err == db.ErrNotFound {
+		if errors.Is(err, db.ErrNotFound) {
 			return "", false, nil
 		}
 		return "", false, err
@@ -154,6 +163,7 @@ func (b *BodyFetcher) fetchAndCache(ctx context.Context, issueID, userID int, us
 			}
 			// Falls through to the installation token on any error
 			// (expired/revoked token, transient failure, etc).
+			slog.Warn("issue body: fetch with user token failed, using installation token", "issue_id", issueID, "user_id", userID, "error", err)
 		}
 	}
 
@@ -170,7 +180,12 @@ func (b *BodyFetcher) fetchAndCache(ctx context.Context, issueID, userID int, us
 		return "", ErrBodyBudget
 	}
 	instToken, err := b.installationToken(ctx)
-	if err != nil || instToken == "" {
+	if err != nil {
+		slog.Error("issue body: installation token unavailable", "issue_id", issueID, "error", err)
+		return "", fmt.Errorf("%w: %v", ErrBodyNoCredential, err)
+	}
+	if instToken == "" {
+		slog.Error("issue body: installation token provider returned no token", "issue_id", issueID)
 		return "", ErrBodyNoCredential
 	}
 	result, err := b.github.FetchIssueBody(ctx, instToken, owner, name, number)
@@ -191,13 +206,18 @@ func (b *BodyFetcher) recordBudget(ctx context.Context, identity string, rl gith
 	}
 }
 
+// store caches a fetched body. A failure doesn't fail the read the user is
+// waiting on (they already have the body), but it is logged: every later
+// read of this issue will spend GitHub budget again.
 func (b *BodyFetcher) store(ctx context.Context, issueID int, body string) {
-	_ = b.db.Exec(ctx,
+	if err := b.db.Exec(ctx,
 		`INSERT INTO issue_body_cache (issue_id, body, fetched_at, last_accessed_at)
 		 VALUES ($1, $2, now(), now())
 		 ON CONFLICT (issue_id) DO UPDATE SET body = EXCLUDED.body, fetched_at = now(), last_accessed_at = now()`,
 		issueID, body,
-	)
+	); err != nil {
+		slog.Warn("issue body: failed to cache body", "issue_id", issueID, "error", err)
+	}
 }
 
 // pruneCacheCap is the bounded LRU's row cap (plan §3.1: ~50k rows ≈ 115 MB).
