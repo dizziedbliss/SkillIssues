@@ -52,7 +52,10 @@ push to main
 
 A deploy cannot happen without CI passing — `build-push` and `deploy` both `needs:` their way
 back to the `ci` job. `scripts/deploy-remote.sh` does the actual
-`pull && up -d --remove-orphans`, waits for `go-api`'s healthcheck, and prunes old images —
+`pull && up -d --remove-orphans`, reloads Caddy and Prometheus (an unchanged container keeps
+the config it loaded at start, so a new Caddyfile or `prometheus.yml` would otherwise never take
+effect; an invalid Caddyfile fails the deploy and Caddy keeps its old config), waits for
+`go-api`'s healthcheck, and prunes old images —
 it's a committed, independently-runnable script rather than inline SSH-heredoc logic, so it can
 also be run by hand on the host for debugging.
 
