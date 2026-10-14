@@ -65,11 +65,16 @@ var (
 		Name: "github_budget_errors_total",
 		Help: "Failures reading or writing the shared github_budget table, by operation and lane.",
 	}, []string{"op", "lane"})
+
+	CacheErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "cache_errors_total",
+		Help: "Failed Redis calls by operation (get, set, del, rate_limit). Cache misses are not errors. The API fails open on each.",
+	}, []string{"op"})
 )
 
 // RegisterAPI registers the families go-api produces.
 func RegisterAPI() {
-	Registry.MustRegister(HTTPRequests, HTTPDuration, HTTPResponseBytes, ContributionVerifications, BudgetErrors)
+	Registry.MustRegister(HTTPRequests, HTTPDuration, HTTPResponseBytes, ContributionVerifications, BudgetErrors, CacheErrors)
 }
 
 // ---------------------------------------------------------------------------

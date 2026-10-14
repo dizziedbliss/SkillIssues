@@ -121,7 +121,7 @@ spanning several skills or technologies. Level *n*+1 costs 150 + 150·*n* XP mor
   `/auth/github/poll` until the browser flow completes. PAT login exists but is off
   (`auth.pat_login_enabled`).
 - **Sessions** live in Postgres, so they survive a Redis outage. The cookie is `HttpOnly`;
-  over HTTPS it is `Secure` with `SameSite=None`, otherwise `SameSite=Lax`.
+  always `SameSite=Lax`, and `Secure` when `FRONTEND_URL` is `https://`.
 - **Accounts link** by GitHub id or case-insensitive username, so OAuth and PAT logins are one
   user.
 - **Whose token does what:** crawling and on-demand reads use the server credential (GitHub App
@@ -135,11 +135,12 @@ spanning several skills or technologies. Level *n*+1 costs 150 + 150·*n* XP mor
 
 A Redis counter per signed-in user or per client IP (`X-Forwarded-For` honoured only from
 `TRUSTED_PROXIES`). Defaults are 180 requests per window signed out and 1,000 signed in, window
-3600s — all live settings. The key's expiry is refreshed on every request, so the count resets
-only after a full window with no requests. `/health`, `/health/detail` and `/metrics` are exempt;
+3600s — all live settings. The window is fixed: it starts at a client's first request and the
+count resets one window later, however busy the client is. `/health`, `/health/detail` and `/metrics` are exempt;
 login is not. Redis also caches the default catalog page, unauthenticated searches and
 recommendations. If Redis is down, limiting fails open and caching is skipped — nothing else
-depends on it.
+depends on it. Each failed Redis call counts in `cache_errors_total{op}`, and the API logs once
+when Redis becomes unreachable and once when it recovers.
 
 ## 7. Configuration
 

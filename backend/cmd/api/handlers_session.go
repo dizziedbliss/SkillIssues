@@ -64,12 +64,17 @@ func (h *handlers) authPurge(w http.ResponseWriter, r *http.Request) {
 // Session cookie helpers
 // ---------------------------------------------------------------------------
 
+// sessionCookieSameSite is Lax in every deployment. SameSite compares
+// sites (registrable domains), not origins, so Lax covers the same-origin
+// production deploy and a frontend/API subdomain split (SESSION_COOKIE_DOMAIN)
+// alike, and still sends the cookie on the top-level GET of an OAuth
+// callback. None would only be needed across registrable domains, and would
+// expose the session to cross-site requests for no benefit. The desktop app
+// authenticates with a bearer token, not this cookie.
+const sessionCookieSameSite = http.SameSiteLaxMode
+
 func (h *handlers) setSessionCookie(w http.ResponseWriter, rawToken string) {
 	isSecure := strings.HasPrefix(h.cfg.FrontendURLPrimary, "https://")
-	sameSite := http.SameSiteLaxMode
-	if isSecure {
-		sameSite = http.SameSiteNoneMode
-	}
 	cookie := &http.Cookie{
 		Name:  "skillissues_session",
 		Value: rawToken,
@@ -78,7 +83,7 @@ func (h *handlers) setSessionCookie(w http.ResponseWriter, rawToken string) {
 		MaxAge:   int(h.sessionTTL().Seconds()),
 		HttpOnly: true,
 		Secure:   isSecure,
-		SameSite: sameSite,
+		SameSite: sessionCookieSameSite,
 		Path:     "/",
 	}
 	if h.cfg.SessionCookieDomain != "" {
@@ -89,17 +94,13 @@ func (h *handlers) setSessionCookie(w http.ResponseWriter, rawToken string) {
 
 func (h *handlers) clearSessionCookie(w http.ResponseWriter) {
 	isSecure := strings.HasPrefix(h.cfg.FrontendURLPrimary, "https://")
-	sameSite := http.SameSiteLaxMode
-	if isSecure {
-		sameSite = http.SameSiteNoneMode
-	}
 	cookie := &http.Cookie{
 		Name:     "skillissues_session",
 		Value:    "",
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   isSecure,
-		SameSite: sameSite,
+		SameSite: sessionCookieSameSite,
 		Path:     "/",
 	}
 	if h.cfg.SessionCookieDomain != "" {
