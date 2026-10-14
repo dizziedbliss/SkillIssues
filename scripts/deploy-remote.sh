@@ -26,22 +26,16 @@ if [ ! -f .env ]; then
 	exit 1
 fi
 
-# Export host env so fallback interpolation can use existing required secrets.
-set -a
-# shellcheck disable=SC1091
-source .env
-set +a
-
-# Backward-compatible fallbacks for hosts whose .env predates monitoring vars.
-# Keep them in-process only; don't rewrite the host .env.
-if [ -z "${METRICS_DB_PASSWORD:-}" ] && [ -n "${POSTGRES_PASSWORD:-}" ]; then
-	export METRICS_DB_PASSWORD="$POSTGRES_PASSWORD"
-fi
-if [ -z "${GRAFANA_ADMIN_PASSWORD:-}" ] && [ -n "${ADMIN_SYNC_TOKEN:-}" ]; then
-	export GRAFANA_ADMIN_PASSWORD="$ADMIN_SYNC_TOKEN"
-fi
-
 COMPOSE=(docker compose -f compose.prod.yaml --env-file .env)
+
+# Fail before touching anything if .env lacks a required secret. Compose's
+# own error names the key; never fall back to reusing another secret.
+if ! "${COMPOSE[@]}" config --quiet; then
+	echo "compose.prod.yaml does not resolve against .env — add the key named above." >&2
+	echo "Nothing was changed; production is still on the previous release." >&2
+	echo "See DEPLOYMENT.md, 'First-time host setup' step 2, for every required key." >&2
+	exit 1
+fi
 
 "${COMPOSE[@]}" pull
 "${COMPOSE[@]}" up -d --remove-orphans
