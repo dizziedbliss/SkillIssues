@@ -279,6 +279,10 @@ services:
     logging: *default-logging
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set in production}
+      # Encrypts the secrets Grafana stores (the metrics_ro datasource
+      # password, re-provisioned on every start). Grafana's built-in default
+      # is public. See DEPLOYMENT.md, "Rotating the monitoring secrets".
+      GF_SECURITY_SECRET_KEY: ${GRAFANA_SECRET_KEY:?GRAFANA_SECRET_KEY must be set in production}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"

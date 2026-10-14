@@ -70,6 +70,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings `ingest.sync_interval_seconds` and `ingest.ondemand_workers`, which no code read.
 
 ### Security
+- Grafana encrypts its stored secrets with `GRAFANA_SECRET_KEY` (required in production)
+  instead of its public built-in default.
 - `/api/metrics` and `/api/health/detail` were publicly reachable through Caddy; they now
   return 404 at the edge.
 - Reverted a deploy fallback that reused `POSTGRES_PASSWORD` and `ADMIN_SYNC_TOKEN` as the
