@@ -226,8 +226,9 @@ Deep Diver — every remaining page, from the stored cursor, until exhausted
 Freshness — re-fetch page one once a repository's last sync goes stale
 ```
 
-The coordinator (`internal/ingest/coordinator.go`) runs one cycle every few seconds:
-recompute eligibility (throttled), seed never-ingested repositories, re-queue stale ones, then
+The coordinator (`internal/ingest/coordinator.go`) runs one cycle every
+`ingest.claim_interval_seconds`: recompute eligibility (throttled), reclaim expired leases
+(throttled), seed never-ingested repositories, re-queue stale ones, then
 claim and submit work to the Initial and Deep pools.
 
 ### Rules
@@ -258,6 +259,11 @@ claim and submit work to the Initial and Deep pools.
 - **Workers share one GitHub budget** (`github_budget`, lanes `crawler` and `interactive`) and
   claim work atomically with `FOR UPDATE SKIP LOCKED` plus a lease. Never assume a worker owns
   the whole API budget.
+- **Every job write is fenced on its lease.** Expired leases are reclaimed continuously
+  (`ingest.lease_reclaim_interval_seconds`), so a stalled worker's job can be re-claimed while
+  it still runs. Any write that finishes a job must match `status = 'running' AND
+  lease_owner = <claimer>` and treat zero rows as `ErrLeaseLost` (rolling back the page's
+  transaction) — never a bare `WHERE id = $1`.
 - **Postgres is the queue.** `ingest_jobs` is the durable state store; Redis is not involved.
 
 ### Not built
@@ -266,9 +272,6 @@ claim and submit work to the Initial and Deep pools.
   created/pushed date windows to find repositories the dataset does not contain. Designed in
   §2 of the architecture doc, **not implemented**. New repositories currently arrive only from
   a dataset import. `ingest_jobs.job_type` already permits `'discovery'`; nothing writes it.
-- **Continuous lease reclaim** — `ReclaimExpiredLeases` runs only when ingestd starts. A job
-  whose worker dies mid-run stays `running` until the next restart; `ingest_stuck_leases` on
-  `/metrics` shows how many.
 - **Freshness job type** — stale repositories are re-queued as `job_type='initial'`; nothing
   writes `'freshness'`.
 
@@ -325,14 +328,13 @@ interval, a batch size, a page size, a worker count, a cap — it is a setting, 
 The precedent is `ingest.eligibility.min_stars`, `ingest.eligibility.pushed_within_days`,
 `ingest.eligibility.recheck_seconds`, `ingest.freshness_interval_seconds`,
 `ingest.enqueue_batch_size`, `ingest.graphql_page_size`, `ingest.routine_workers`, `ingest.priority_workers`, `ingest.rate_limit_floor`,
-`ingest.max_pages_per_repo`, `ingest.max_db_size_mb`, `ingest.metrics_refresh_seconds`.
-Every key with its default and bounds: `docs/settings.md`. Two registered keys are read by no
-code — `ingest.sync_interval_seconds` and `ingest.ondemand_workers`; don't cite them as
-examples, and don't assume changing them does anything.
+`ingest.max_pages_per_repo`, `ingest.max_db_size_mb`, `ingest.metrics_refresh_seconds`,
+`ingest.claim_interval_seconds`, `ingest.lease_seconds`, `api.issue_body.cache_max_rows`.
+Every key with its default and bounds: `docs/settings.md`.
 
 - **Never hardcode an operational value.** Add a key to `settings.Registry` **and** a seeded
-  row in a migration. A key in one but not the other falls back to its default and is logged
-  as drift at startup.
+  row in a migration. A key missing from the table falls back to its default and is logged
+  as missing on every settings load.
 - **Secrets never go in the `settings` table.** It is readable through an admin endpoint and
   reproduced in `settings_audit` and in database backups.
 - Read values through `live.Current()` and hold the returned snapshot for the duration of an

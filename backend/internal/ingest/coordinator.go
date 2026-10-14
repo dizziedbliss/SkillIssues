@@ -15,11 +15,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// claimInterval is how often the coordinator polls for newly-due work.
-// Short enough that claimed capacity doesn't sit idle, long enough not to
-// hammer Postgres with an empty-result poll.
-const claimInterval = 5 * time.Second
-
 // CoordinatorConfig configures the ingestion coordinator.
 type CoordinatorConfig struct {
 	// Token returns the current server crawling credential. A func, not a
@@ -47,6 +42,7 @@ type Coordinator struct {
 	// which must not run on every 5s claim cycle.
 	lastEligibilityCheck time.Time
 	lastMetricsRefresh   time.Time
+	lastLeaseReclaim     time.Time
 
 	// dbSizePaused and lastDBSizeMB back Status()/the D6 disk guardrail —
 	// pg_database_size() is cheap (metadata lookup, not a scan), so it's
@@ -99,16 +95,9 @@ func (c *Coordinator) Start() {
 		defer c.wg.Done()
 		slog.Info("ingestion coordinator started", "owner", c.owner)
 
-		ticker := time.NewTicker(claimInterval)
+		interval := c.live().Seconds(settings.IngestClaimIntervalSeconds)
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
-
-		// Reclaim leases left behind by a previous crashed process before
-		// claiming anything new.
-		if n, err := ReclaimExpiredLeases(c.ctx, c.pool); err != nil {
-			slog.Warn("failed to reclaim expired leases", "error", err)
-		} else if n > 0 {
-			slog.Info("reclaimed expired leases", "count", n)
-		}
 
 		for {
 			select {
@@ -117,6 +106,11 @@ func (c *Coordinator) Start() {
 				return
 			case <-ticker.C:
 				c.cycle()
+				// Pick up a changed ingest.claim_interval_seconds.
+				if next := c.live().Seconds(settings.IngestClaimIntervalSeconds); next != interval {
+					interval = next
+					ticker.Reset(interval)
+				}
 			}
 		}
 	}()
@@ -129,6 +123,7 @@ func (c *Coordinator) cycle() {
 	// 1. Eligibility first, on its own cadence: a threshold change decides
 	//    what the next two steps are even allowed to look at.
 	c.recheckEligibility(snap)
+	c.reclaimLeases(snap)
 	c.refreshMetrics(snap)
 	publishPoolStats(c.initialPool)
 	publishPoolStats(c.deepPool)
@@ -159,8 +154,9 @@ func (c *Coordinator) cycle() {
 		slog.Info("enqueued freshness re-checks", "count", n, "older_than", freshnessAfter)
 	}
 
-	c.claimAndSubmit(JobInitial, c.initialPool)
-	c.claimAndSubmit(JobDeep, c.deepPool)
+	lease := snap.Seconds(settings.IngestLeaseSeconds)
+	c.claimAndSubmit(JobInitial, c.initialPool, lease)
+	c.claimAndSubmit(JobDeep, c.deepPool, lease)
 }
 
 // recheckEligibility re-tests stored repository metadata against the current
@@ -200,10 +196,33 @@ func (c *Coordinator) refreshMetrics(snap *settings.Snapshot) {
 	}
 }
 
+// reclaimLeases returns jobs whose lease expired (a crashed or stalled
+// worker) to pending, no more often than ingest.lease_reclaim_interval_seconds.
+// The first cycle always runs it, so leases a previous process left behind
+// are freed before anything new is claimed. Safe while workers are running:
+// every job write is fenced on lease_owner, so a stalled worker that wakes
+// up after its job was reclaimed gets ErrLeaseLost instead of a write.
+func (c *Coordinator) reclaimLeases(snap *settings.Snapshot) {
+	if time.Since(c.lastLeaseReclaim) < snap.Seconds(settings.IngestLeaseReclaimIntervalSeconds) {
+		return
+	}
+	c.lastLeaseReclaim = time.Now()
+	n, err := ReclaimExpiredLeases(c.ctx, c.pool)
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("reclaim_leases").Inc()
+		slog.Warn("failed to reclaim expired leases", "error", err)
+		return
+	}
+	if n > 0 {
+		metrics.IngestLeasesReclaimed.Add(float64(n))
+		slog.Warn("reclaimed expired job leases", "count", n)
+	}
+}
+
 // checkDiskGuard returns true if the coordinator should proceed with
 // enqueuing/claiming this cycle, false if ingest.max_db_size_mb is exceeded
 // and new work must pause. Logs loudly on each transition, not every cycle,
-// so a sustained pause doesn't spam the log at claimInterval.
+// so a sustained pause doesn't spam the log every cycle.
 func (c *Coordinator) checkDiskGuard(snap *settings.Snapshot) bool {
 	maxMB := snap.Int(settings.IngestMaxDBSizeMB)
 
@@ -234,13 +253,13 @@ func (c *Coordinator) checkDiskGuard(snap *settings.Snapshot) bool {
 	return !exceeded
 }
 
-func (c *Coordinator) claimAndSubmit(jobType JobType, pool *worker.Pool) {
+func (c *Coordinator) claimAndSubmit(jobType JobType, pool *worker.Pool, lease time.Duration) {
 	stats := pool.Stats()
 	capacity := stats.QueueCapacity - stats.QueueLength
 	if capacity <= 0 {
 		return
 	}
-	jobs, err := ClaimJobs(c.ctx, c.pool, jobType, capacity, c.owner)
+	jobs, err := ClaimJobs(c.ctx, c.pool, jobType, capacity, c.owner, lease)
 	if err != nil {
 		metrics.IngestCycleErrors.WithLabelValues("claim").Inc()
 		slog.Warn("failed to claim jobs", "job_type", jobType, "error", err)
@@ -282,8 +301,14 @@ func (c *Coordinator) Shutdown(timeout time.Duration) error {
 	done := make(chan struct{})
 	go func() {
 		c.wg.Wait()
-		_ = c.initialPool.Shutdown(timeout)
-		_ = c.deepPool.Shutdown(timeout)
+		// A pool that does not drain in time leaves its jobs running; their
+		// leases expire and the next process reclaims them.
+		if err := c.initialPool.Shutdown(timeout); err != nil {
+			slog.Warn("initial pool did not drain before shutdown", "error", err)
+		}
+		if err := c.deepPool.Shutdown(timeout); err != nil {
+			slog.Warn("deep pool did not drain before shutdown", "error", err)
+		}
 		close(done)
 	}()
 

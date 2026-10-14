@@ -50,7 +50,7 @@ The schema lives only in `backend/internal/migrate/migrations/`, embedded into t
 
 ```text
 Kaggle dataset ──repoimport──▶ repositories (eligible only)
-                                   │ coordinator, every 5s
+                                   │ coordinator cycle (ingest.claim_interval_seconds)
                                    ▼
                      Initial: first page of open issues
                                    │ hasNextPage?
@@ -65,12 +65,14 @@ Kaggle dataset ──repoimport──▶ repositories (eligible only)
   control — anyone can open issues on a throwaway repo — not a quality judgement.
 - **Postgres is the queue.** `ingest_jobs` rows are claimed with `FOR UPDATE SKIP LOCKED` and a
   lease. A page's issues, its cursor and `last_synced_at` commit in one transaction, so a crash
-  can only cause a page to be fetched twice, never skipped.
+  can only cause a page to be fetched twice, never skipped. Expired leases are reclaimed every
+  `ingest.lease_reclaim_interval_seconds`, and each job write is fenced on the lease owner, so a stalled worker that wakes up
+  after its job was reclaimed has its write rejected rather than overwriting the cursor.
 - **One shared GitHub budget.** Both lanes (`crawler`, `interactive`) record GitHub's rate-limit
   telemetry in `github_budget`; the crawler stops below `ingest.rate_limit_floor`.
 - **Failures are isolated.** `NOT_FOUND` marks the repository unavailable;
   `RESOURCE_LIMITS_EXCEEDED` halves the page size and retries down to 1; rate limits pause the
-  lane for a minute; other errors back off exponentially and land in `failed` after
+  lane for `ingest.rate_limit_pause_seconds`; other errors back off exponentially and land in `failed` after
   `ingest.max_attempts`.
 - **Disk guardrails.** `ingest.max_pages_per_repo` caps how deep one repository goes;
   `ingest.max_db_size_mb` pauses new work when the database grows past it.

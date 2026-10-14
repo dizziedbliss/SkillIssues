@@ -17,11 +17,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   node-exporter, cAdvisor, Postgres and Redis exporters — reachable only over an SSH tunnel in
   production.
 - `metrics_ro`, a read-only, column-restricted database role for dashboards.
-- Live setting `ingest.metrics_refresh_seconds`.
+- Live settings `ingest.metrics_refresh_seconds`, `ingest.claim_interval_seconds`,
+  `ingest.lease_seconds`, `ingest.lease_reclaim_interval_seconds`,
+  `ingest.rate_limit_pause_seconds` and `api.issue_body.*` (cache size, prune interval, fetch
+  concurrency, installation floor), replacing values that were hardcoded.
+- Expired ingest leases are reclaimed continuously, not only when ingestd starts
+  (`ingest_leases_reclaimed_total`).
+- CI runs the database and Redis tests against service containers.
 - `docs/api.md` and `docs/settings.md`; the ingestion design doc moved to
   `docs/ingestion-architecture.md` with an implementation-status table.
 
 ### Changed
+- Every ingest job write is fenced on its lease owner. A worker whose lease was reclaimed gets
+  `ErrLeaseLost` (outcome `lease_lost`) instead of overwriting the new owner's cursor.
 - The deploy script validates `.env` before pulling and stops, naming the missing key, instead
   of failing mid-deploy.
 
@@ -46,6 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Errors loading or refreshing a user's GitHub token, and from the issue-body cache, were
   discarded; they are now logged, and a retryable failure returns 502 instead of "connect
   GitHub".
+
+### Removed
+- Settings `ingest.sync_interval_seconds` and `ingest.ondemand_workers`, which no code read.
 
 ### Security
 - `/api/metrics` and `/api/health/detail` were publicly reachable through Caddy; they now

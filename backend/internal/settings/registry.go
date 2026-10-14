@@ -43,19 +43,40 @@ const (
 
 	ContributionVerifyPerHour Key = "api.contribution.verify_per_hour"
 
-	IngestSyncIntervalSeconds Key = "ingest.sync_interval_seconds"
-	IngestGraphQLPageSize     Key = "ingest.graphql_page_size"
-	IngestRateLimitFloor      Key = "ingest.rate_limit_floor"
-	IngestMaxAttempts         Key = "ingest.max_attempts"
-	IngestBackoffBaseSeconds  Key = "ingest.backoff_base_seconds"
+	// IssueBody* tune the on-demand issue body read path
+	// (internal/issue/body.go): a bounded LRU cache in Postgres in front of
+	// a concurrency-limited GraphQL fetch.
+	IssueBodyCacheMaxRows         Key = "api.issue_body.cache_max_rows"
+	IssueBodyPruneIntervalSeconds Key = "api.issue_body.prune_interval_seconds"
+	IssueBodyMaxConcurrentFetches Key = "api.issue_body.max_concurrent_fetches"
+	IssueBodyInstallationFloor    Key = "api.issue_body.installation_floor"
+
+	IngestGraphQLPageSize    Key = "ingest.graphql_page_size"
+	IngestRateLimitFloor     Key = "ingest.rate_limit_floor"
+	IngestMaxAttempts        Key = "ingest.max_attempts"
+	IngestBackoffBaseSeconds Key = "ingest.backoff_base_seconds"
 	// IngestRoutineWorkers backs the Initial/Freshness pool and
 	// IngestPriorityWorkers the Deep Diver pool (Phase 5) — same keys as
 	// before that split existed, repurposed meaning, not a priority queue.
 	IngestRoutineWorkers  Key = "ingest.routine_workers"
 	IngestPriorityWorkers Key = "ingest.priority_workers"
-	// IngestOnDemandWorkers is reserved for the on-demand issue-body read
-	// path (Phase 6); not read by anything yet.
-	IngestOnDemandWorkers Key = "ingest.ondemand_workers"
+
+	// IngestClaimIntervalSeconds is the coordinator's cycle: short enough
+	// that claimed capacity doesn't sit idle, long enough not to hammer
+	// Postgres with empty-result polls.
+	IngestClaimIntervalSeconds Key = "ingest.claim_interval_seconds"
+	// IngestLeaseSeconds bounds how long a claimed job may sit in a pool's
+	// queue and run before ReclaimExpiredLeases may hand it to another
+	// claim. Job writes are fenced on the lease owner, so a worker that
+	// overruns it loses its write rather than corrupting the cursor.
+	IngestLeaseSeconds Key = "ingest.lease_seconds"
+	// IngestLeaseReclaimIntervalSeconds is how often expired leases (a
+	// crashed or stalled worker) are returned to pending.
+	IngestLeaseReclaimIntervalSeconds Key = "ingest.lease_reclaim_interval_seconds"
+	// IngestRateLimitPauseSeconds is how long the crawler lane pauses after
+	// GitHub reports a rate limit, and how long a job released for lack of
+	// budget waits before it can be claimed again.
+	IngestRateLimitPauseSeconds Key = "ingest.rate_limit_pause_seconds"
 
 	IngestEligibilityMinStars         Key = "ingest.eligibility.min_stars"
 	IngestEligibilityPushedWithinDays Key = "ingest.eligibility.pushed_within_days"
@@ -150,16 +171,24 @@ var Registry = map[Key]Spec{
 
 	ContributionVerifyPerHour: intSpec(5, 1, 1000, "Maximum PR verification attempts per user per contribution per hour."),
 
-	IngestSyncIntervalSeconds: intSpec(900, 30, 86400, "Delay between routine sync sweeps."),
-	IngestGraphQLPageSize:     intSpec(50, 1, 100, "Issues requested per GraphQL page. GitHub caps this at 100."),
-	IngestRateLimitFloor:      intSpec(100, 0, 5000, "Stop issuing GraphQL calls when the remaining point budget falls below this."),
-	IngestMaxAttempts:         intSpec(3, 1, 10, "Attempts per repository before a sync is recorded as failed."),
-	IngestBackoffBaseSeconds:  intSpec(1, 1, 60, "Base for exponential retry backoff between sync attempts."),
+	IssueBodyCacheMaxRows:         intSpec(50000, 100, 10000000, "Rows kept in issue_body_cache; the least recently read are pruned beyond this."),
+	IssueBodyPruneIntervalSeconds: intSpec(600, 60, 86400, "How often issue_body_cache is pruned back to api.issue_body.cache_max_rows."),
+	IssueBodyMaxConcurrentFetches: intSpec(8, 1, 64, "Concurrent GitHub fetches for issue bodies across all users."),
+	IssueBodyInstallationFloor:    intSpec(100, 0, 5000, "Remaining GraphQL points below which the installation token stops serving issue-body reads."),
+
+	IngestGraphQLPageSize:    intSpec(50, 1, 100, "Issues requested per GraphQL page. GitHub caps this at 100."),
+	IngestRateLimitFloor:     intSpec(100, 0, 5000, "Stop issuing GraphQL calls when the remaining point budget falls below this."),
+	IngestMaxAttempts:        intSpec(3, 1, 10, "Attempts per repository before a sync is recorded as failed."),
+	IngestBackoffBaseSeconds: intSpec(1, 1, 60, "Base for exponential retry backoff between sync attempts."),
 	// D20: ~4 total in-flight by default, sized for the 2 vCPU target
 	// deployment rather than a 20-vCPU dev box.
 	IngestRoutineWorkers:  intSpec(2, 1, 64, "Concurrent Initial/Freshness workers (one page per eligible repository)."),
 	IngestPriorityWorkers: intSpec(1, 1, 64, "Concurrent Deep Diver workers (subsequent pagination)."),
-	IngestOnDemandWorkers: intSpec(1, 1, 64, "Concurrent on-demand workers. Reserved for the on-demand issue-body read path; not wired up yet."),
+
+	IngestClaimIntervalSeconds:        intSpec(5, 1, 300, "How often the ingest coordinator runs a cycle: enqueue, reclaim, claim and submit."),
+	IngestLeaseSeconds:                intSpec(300, 60, 3600, "How long a claimed ingest job may wait and run before its lease can be reclaimed. Must exceed the slowest page fetch plus queue wait."),
+	IngestLeaseReclaimIntervalSeconds: intSpec(60, 5, 3600, "How often expired ingest job leases are returned to pending."),
+	IngestRateLimitPauseSeconds:       intSpec(60, 5, 3600, "How long the crawler lane pauses after a GitHub rate limit, and how long a job released for lack of budget waits."),
 
 	IngestEligibilityMinStars:         intSpec(25, 0, 100000, "Minimum stars for a repository to be eligible for ingestion. Abuse control, not ranking."),
 	IngestEligibilityPushedWithinDays: intSpec(730, 1, 3650, "A repository must have been pushed to within this many days to be eligible for ingestion."),
