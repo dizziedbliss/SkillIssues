@@ -23,16 +23,16 @@ jobs:
   # not change is skipped, and a skipped job does not fail the run. A manual
   # dispatch checks everything.
   changes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       backend: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.backend == 'true' }}
       web: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.web == 'true' }}
       desktop: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.desktop == 'true' }}
       compose: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.compose == 'true' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: github.event_name != 'workflow_dispatch'
-      - uses: dorny/paths-filter@v3.0.2
+      - uses: dorny/paths-filter@v4.0.3
         id: filter
         if: github.event_name != 'workflow_dispatch'
         with:
@@ -71,7 +71,7 @@ jobs:
   backend:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # For the tests that need a real database or Redis (skipped under
     # -short and when their *_TEST_URL is unset). Same images as compose.
     services:
@@ -92,9 +92,9 @@ jobs:
           --health-cmd "redis-cli ping"
           --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: '1.26'
           cache-dependency-path: backend/go.sum
@@ -128,11 +128,11 @@ jobs:
   web:
     needs: changes
     if: needs.changes.outputs.web == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
       - name: Install
@@ -163,11 +163,11 @@ jobs:
   desktop:
     needs: changes
     if: needs.changes.outputs.desktop == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
       - name: Install
@@ -193,9 +193,9 @@ jobs:
       needs.changes.outputs.backend == 'true' ||
       needs.changes.outputs.web == 'true' ||
       needs.changes.outputs.compose == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Validate Docker Compose configuration (dev + prod)
         # compose.prod.yaml requires several secrets to be set (POSTGRES_PASSWORD,
         # TOKEN_ENCRYPTION_KEY, ...) via `:?` — CI supplies throwaway values just
@@ -210,10 +210,10 @@ jobs:
             docker compose -f compose.prod.yaml config --quiet
       - name: Set up Docker Buildx
         if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.web == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Build api target
         if: needs.changes.outputs.backend == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: api
@@ -222,7 +222,7 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Build ingestd target
         if: needs.changes.outputs.backend == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: ingestd
@@ -231,7 +231,7 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Build migrate target
         if: needs.changes.outputs.backend == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: migrate
@@ -240,7 +240,7 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Build web target
         if: needs.changes.outputs.web == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: web
