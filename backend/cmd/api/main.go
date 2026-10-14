@@ -45,7 +45,7 @@ func main() {
 	ctx := context.Background()
 
 	// 1. Load configuration
-	cfg, err := config.Load()
+	cfg, err := config.Load(config.SecretWebhook, config.SecretAdminToken, config.SecretTokenEncryption)
 	if err != nil {
 		slog.Error("failed to load configuration", "error", err)
 		os.Exit(1)
