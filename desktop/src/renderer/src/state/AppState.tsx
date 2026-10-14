@@ -644,10 +644,10 @@ export function useAppStateValue() {
       void working.reload();
       void submissions.reload();
       setActiveSection("submissions");
-      if (submitResult?.pull_request?.manual_compare) {
-        if (submitResult.web_url) window.open(submitResult.web_url, "_blank");
+      if (submitResult && "manual_compare" in submitResult.pull_request) {
+        window.open(submitResult.web_url, "_blank");
         toast.show(
-          `Pushed branch ${pushBranch.trim()} to your GitHub fork! Opened the compare page since PAT permissions require opening the PR in the browser.`,
+          `Pushed branch ${pushBranch.trim()} to your GitHub fork, but GitHub would not open the pull request with your authorization. Opened the compare page so you can create it there.`,
           "success",
         );
       } else {
