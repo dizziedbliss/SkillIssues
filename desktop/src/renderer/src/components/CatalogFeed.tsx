@@ -1,7 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import type { ContributionDetail, Issue } from "@skillissues/api-client";
-import { DifficultyTabs, IssueCard, IssueList, SectionTabs, SubmissionList, WorkingList } from "@skillissues/ui";
+import {
+  AttachPullRequestDialog,
+  DifficultyTabs,
+  IssueCard,
+  IssueList,
+  SectionTabs,
+  SubmissionList,
+  WorkingList,
+} from "@skillissues/ui";
 import { useApp } from "../state/AppState";
 import { apiClient, desktop } from "../lib/bridge";
 import {
@@ -46,6 +54,7 @@ function groupByCategory(issues: Issue[]): SearchGroup[] {
 
 function WorkingActions({ item }: { item: ContributionDetail }) {
   const app = useApp();
+  const [attachOpen, setAttachOpen] = useState(false);
 
   const openVSCode = async () => {
     try {
@@ -81,6 +90,20 @@ function WorkingActions({ item }: { item: ContributionDetail }) {
       <button type="button" className="view-issue-btn" onClick={() => void app.startPushForWorking(item)}>
         Push &amp; Submit PR
       </button>
+      <button type="button" className="view-issue-btn" onClick={() => setAttachOpen(true)}>
+        Link PR
+      </button>
+      <AttachPullRequestDialog
+        open={attachOpen}
+        repository={item.repository}
+        onClose={() => setAttachOpen(false)}
+        onAttach={async (prUrl, prNumber) => {
+          await apiClient.attachPullRequest(item.id, prUrl, prNumber);
+          app.toast.show("Pull request linked. It now appears under Submissions.", "success");
+          void app.working.reload();
+          void app.submissions.reload();
+        }}
+      />
     </>
   );
 }

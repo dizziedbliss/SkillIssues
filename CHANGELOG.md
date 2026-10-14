@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- "Link PR" on Working cards (web and desktop): attach a pull request opened by hand on GitHub,
+  so it can be verified and credited. Uses `PUT /contributions/{id}`, which checks the PR's
+  repository and author.
 - Prometheus metrics that report real values: HTTP traffic and latency by route pattern,
   outbound GitHub calls, ingest job outcomes, queue depth, repository coverage, GitHub budget
   per lane, worker and connection pools. `ingestd` now serves `/metrics` too.
