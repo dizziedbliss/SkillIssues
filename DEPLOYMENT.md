@@ -114,6 +114,7 @@ GITHUB_APP_PRIVATE_KEY_HOST_PATH=/opt/skillissues/secrets/github-app-private-key
 GITHUB_TOKEN=<optional PAT, used as a server-crawl credential fallback>
 
 GRAFANA_ADMIN_PASSWORD=<generate: openssl rand -base64 24 | tr -d '/+='>
+GRAFANA_SECRET_KEY=<generate: openssl rand -hex 32>
 METRICS_DB_PASSWORD=<generate: openssl rand -base64 32 | tr -d '/+='>
 
 IMAGE_TAG=latest   # deploy.yml always overrides this with an explicit sha- tag; this
@@ -254,6 +255,19 @@ only read the first time Grafana initialises its volume; to change it afterwards
 
 ```bash
 dc exec grafana grafana cli admin reset-admin-password '<new password>'
+```
+
+`GRAFANA_SECRET_KEY` encrypts what Grafana stores — today only the `metrics_ro` datasource
+password, which provisioning rewrites (with the current key) on every start. So changing it in
+`.env` and redeploying is enough; this was tested on an initialised volume, with both datasources
+healthy afterwards. A secret added by hand in the UI would be lost on a key change. If Grafana
+logs decryption errors after one, start it on a fresh volume — everything it needs comes back
+from `monitoring/grafana/provisioning` and `.env`, including `GRAFANA_ADMIN_PASSWORD`:
+
+```bash
+dc stop grafana && dc rm -f grafana
+docker volume rm skillissues-prod_grafana_data
+dc up -d grafana
 ```
 
 Every one of these must be its own value — never reuse `POSTGRES_PASSWORD` or

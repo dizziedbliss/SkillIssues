@@ -138,7 +138,7 @@ jobs:
           FRONTEND_URL=https://ci.example.com \
           GITHUB_REDIRECT_URI=https://ci.example.com/api/auth/github/callback \
           GITHUB_WEBHOOK_SECRET=ci ADMIN_SYNC_TOKEN=ci TOKEN_ENCRYPTION_KEY=ci \
-          METRICS_DB_PASSWORD=ci GRAFANA_ADMIN_PASSWORD=ci \
+          METRICS_DB_PASSWORD=ci GRAFANA_ADMIN_PASSWORD=ci GRAFANA_SECRET_KEY=ci \
             docker compose -f compose.prod.yaml config --quiet
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

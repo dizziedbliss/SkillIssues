@@ -113,6 +113,10 @@ cd desktop && npm run check && npm run build
 - Desktop: keep `contextIsolation`, `sandbox` and the narrow preload bridge; run git
   asynchronously so the UI never blocks.
 
+## Security issues
+
+Don't report a vulnerability in a public issue or PR — see [SECURITY.md](SECURITY.md).
+
 ## Code of Conduct
 
 Please read the [Code of Conduct](CODE_OF_CONDUCT.md). Be kind and assume good intent.
