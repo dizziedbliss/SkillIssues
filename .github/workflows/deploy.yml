@@ -31,33 +31,33 @@ jobs:
     # Skip entirely on a rollback dispatch (image_tag given) — there's
     # nothing to build, the deploy job just redeploys the named tag.
     if: ${{ !github.event.inputs.image_tag }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
     outputs:
       image_tag: ${{ steps.tag.outputs.sha_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Compute image tag
         id: tag
         run: echo "sha_tag=sha-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       # linux/amd64 only: the VPS is x86_64 and the Dockerfile already pins
       # GOARCH=amd64, so skipping QEMU multi-arch keeps these builds fast.
       - name: Build and push api
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: api
@@ -70,7 +70,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/skillissues-api:latest
 
       - name: Build and push ingestd
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: ingestd
@@ -83,7 +83,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/skillissues-ingestd:latest
 
       - name: Build and push migrate
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: migrate
@@ -96,7 +96,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/skillissues-migrate:latest
 
       - name: Build and push web
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: web
@@ -125,11 +125,11 @@ jobs:
     # below happened to catch the empty tag; this `if` is the actual fix,
     # that guard is defense in depth, not the mechanism).
     if: ${{ always() && (needs.build-push.result == 'success' || (github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag != '')) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Resolve image tag to deploy
         id: tag
