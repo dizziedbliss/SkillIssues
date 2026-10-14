@@ -19,6 +19,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/githubapp"
 	"github.com/dizziedbliss/skillissues/internal/ingest"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
+	"github.com/dizziedbliss/skillissues/internal/middleware"
 	"github.com/dizziedbliss/skillissues/internal/settings"
 )
 
@@ -140,7 +141,13 @@ func main() {
 	// have no ingest_jobs row yet. Not a priority mechanism — it's the same
 	// FIFO queue everything else uses, just nudged to check sooner. See D9;
 	// no repository priority/ranking lives in the crawl path.
-	mux.HandleFunc("POST /sync/issues", func(w http.ResponseWriter, r *http.Request) {
+	// The POST triggers write to the queue, so they take the admin token like
+	// the API's /admin routes (go-api's proxy sends it). ingestd has no
+	// public port in production, but every container on its network can
+	// reach it, and the dev stack publishes it.
+	requireAdmin := middleware.RequireAdmin(cfg.AdminSyncToken)
+
+	mux.Handle("POST /sync/issues", requireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		count, err := ingest.EnqueueInitialJobs(r.Context(), dbPool,
 			live.Current().Int(settings.IngestEnqueueBatchSize))
 		w.Header().Set("Content-Type", "application/json")
@@ -154,11 +161,11 @@ func main() {
 			"accepted": true,
 			"enqueued": count,
 		})
-	})
+	})))
 
 	// Manual admin trigger for one repository: enqueues an "initial" job
 	// due immediately, or bumps an existing job's next_retry_at to now.
-	mux.HandleFunc("POST /sync/priority/{id}", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("POST /sync/priority/{id}", requireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		idStr := r.PathValue("id")
 		repoID, err := strconv.Atoi(idStr)
 		if err != nil {
@@ -185,7 +192,7 @@ func main() {
 			"accepted":      true,
 			"repository_id": repoID,
 		})
-	})
+	})))
 
 	port := 8002
 	if pStr := os.Getenv("SYNCD_PORT"); pStr != "" {

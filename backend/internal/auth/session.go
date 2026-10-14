@@ -96,27 +96,29 @@ func (s *Service) SetGitHubApp(app *githubapp.App) {
 	s.githubApp = app
 }
 
-// DecryptAccessToken reverses the encryption UpsertUser applies. It returns
-// "" (never an error) if the value can't be decrypted — e.g. it predates
-// encryption or the key has changed — rather than ever handing back
-// ciphertext as if it were a usable token.
-func (s *Service) DecryptAccessToken(encrypted string) string {
+// ErrGitHubReauthRequired means the user has stored GitHub authorization but
+// it can no longer be used: it does not decrypt under the current
+// TOKEN_ENCRYPTION_KEY, or GitHub rejected its refresh token. The user must
+// connect GitHub again; retrying will not help.
+var ErrGitHubReauthRequired = errors.New("auth: GitHub authorization must be renewed")
+
+// decryptToken reverses the encryption UpsertUser applies. A value that
+// cannot be decrypted is an error, never handed back as if it were a token.
+func (s *Service) decryptToken(encrypted string) (string, error) {
 	if encrypted == "" || s.tokenCipher == nil {
-		return encrypted
+		return encrypted, nil
 	}
-	plain, err := s.tokenCipher.Decrypt(encrypted)
-	if err != nil {
-		return ""
-	}
-	return plain
+	return s.tokenCipher.Decrypt(encrypted)
 }
 
-// GetAccessToken fetches and decrypts a user's stored GitHub token, if any.
-// If it's a GitHub-App-issued token nearing or past its 8-hour expiry, this
-// refreshes it first via the stored refresh token and persists the result —
-// callers never receive a token that's about to stop working mid-request.
-// A failed refresh returns "" rather than a stale token, same as "no token":
-// the caller's existing "connect GitHub" error path handles it.
+// GetAccessToken fetches and decrypts a user's stored GitHub token. If it's a
+// GitHub-App-issued token nearing or past its 8-hour expiry, this refreshes it
+// first via the stored refresh token and persists the result — callers never
+// receive a token that's about to stop working mid-request.
+//
+// It returns ("", nil) when the user never connected GitHub,
+// ErrGitHubReauthRequired when the stored authorization is unusable, and any
+// other error for a failure worth retrying (database, network, GitHub outage).
 func (s *Service) GetAccessToken(ctx context.Context, userID int) (string, error) {
 	var encToken, encRefresh string
 	var expiresAt *time.Time
@@ -127,23 +129,33 @@ func (s *Service) GetAccessToken(ctx context.Context, userID int) (string, error
 		func(row pgx.Row) error { return row.Scan(&encToken, &encRefresh, &expiresAt) },
 	)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("auth: load GitHub token: %w", err)
 	}
 
 	if expiresAt == nil || time.Until(*expiresAt) > refreshMargin || encRefresh == "" || s.githubApp == nil {
-		return s.DecryptAccessToken(encToken), nil
+		token, err := s.decryptToken(encToken)
+		if err != nil {
+			return "", fmt.Errorf("%w: access token does not decrypt: %v", ErrGitHubReauthRequired, err)
+		}
+		return token, nil
 	}
 
-	refreshToken := s.DecryptAccessToken(encRefresh)
-	if refreshToken == "" {
-		return "", nil
+	refreshToken, err := s.decryptToken(encRefresh)
+	if err != nil {
+		return "", fmt.Errorf("%w: refresh token does not decrypt: %v", ErrGitHubReauthRequired, err)
 	}
 	fresh, err := s.githubApp.RefreshUserToken(ctx, refreshToken)
+	if errors.Is(err, githubapp.ErrTokenRejected) {
+		return "", fmt.Errorf("%w: %v", ErrGitHubReauthRequired, err)
+	}
 	if err != nil {
-		return "", nil
+		return "", fmt.Errorf("auth: refresh GitHub token: %w", err)
 	}
 	if err := s.storeUserToken(ctx, userID, fresh); err != nil {
-		return "", nil
+		// GitHub has already rotated the refresh token, so the stored one is
+		// now dead and the next refresh will ask the user to reconnect.
+		// Surface that now instead of hiding it behind one working request.
+		return "", fmt.Errorf("auth: persist refreshed GitHub token: %w", err)
 	}
 	return fresh.AccessToken, nil
 }

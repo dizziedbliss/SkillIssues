@@ -16,7 +16,7 @@ this table is how you find out.
 | Initial worker — one page per eligible repository | **Built** | `ingest.Worker`, `job_type='initial'` |
 | Freshness — re-fetch page one when stale | **Built** | re-enqueued as `job_type='initial'`, not `'freshness'` (the CHECK constraint allows it; nothing writes it) |
 | Deep Diver — remaining pages from the stored cursor | **Built** | `job_type='deep'`; capped by `ingest.max_pages_per_repo` |
-| Atomic claims with `FOR UPDATE SKIP LOCKED` + lease | **Built** | expired leases are reclaimed **only when ingestd starts**, not continuously |
+| Atomic claims with `FOR UPDATE SKIP LOCKED` + lease | **Built** | expired leases reclaimed continuously; job writes fenced on `lease_owner` |
 | Cursor + issues committed in one transaction | **Built** | `CompleteOrRequeue` runs in the page's transaction |
 | Shared GitHub budget (`github_budget`, crawler/interactive lanes) | **Built** | |
 | `RESOURCE_LIMITS_EXCEEDED` recovery | **Built, differently** | no GraphQL alias batching: one repository per call, and the *page size* is halved down to 1 (§4 describes splitting alias batches) |

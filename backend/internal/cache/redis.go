@@ -9,35 +9,33 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"sync/atomic"
 	"time"
 
+	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/redis/go-redis/v9"
 )
 
 // Client wraps the Redis client with domain-specific helpers.
 type Client struct {
 	rdb *redis.Client
+
+	// down tracks whether the last Redis call failed, so an outage is
+	// logged once when it starts and once when it ends instead of on every
+	// request. Every failure is still counted in cache_errors_total.
+	down atomic.Bool
 }
 
-// New creates a Redis client and verifies connectivity.
-// Returns an error if the server is unreachable at startup.
-func New(ctx context.Context, redisURL string) (*Client, error) {
+// New creates a Redis client. It does not contact the server: Redis is a
+// performance layer, so the API starts without it, and the caller decides
+// how to report a failed Ping.
+func New(redisURL string) (*Client, error) {
 	opts, err := redis.ParseURL(redisURL)
 	if err != nil {
 		return nil, fmt.Errorf("cache: parse redis URL: %w", err)
 	}
-
-	rdb := redis.NewClient(opts)
-
-	// Ping to verify connectivity at startup.
-	// In production, Redis is expected to be available; log a warning but don't
-	// crash if it isn't — cache is a performance layer, not a hard dependency.
-	if err := rdb.Ping(ctx).Err(); err != nil {
-		// Non-fatal: log only. Cache will operate in degraded (miss-only) mode.
-		_ = err // caller should log this
-	}
-
-	return &Client{rdb: rdb}, nil
+	return &Client{rdb: redis.NewClient(opts)}, nil
 }
 
 // Close gracefully shuts down the Redis connection pool.
@@ -45,9 +43,24 @@ func (c *Client) Close() error {
 	return c.rdb.Close()
 }
 
-// Ping checks Redis liveness. Used by /health/detail.
+// Ping checks Redis liveness. Used at startup and by /health/detail.
 func (c *Client) Ping(ctx context.Context) error {
 	return c.rdb.Ping(ctx).Err()
+}
+
+// observe records the outcome of a Redis call. A cache miss (redis.Nil) is
+// a success. Callers still fail open; this only makes the failure visible.
+func (c *Client) observe(op string, err error) {
+	if err == nil || errors.Is(err, redis.Nil) {
+		if c.down.CompareAndSwap(true, false) {
+			slog.Info("redis reachable again; cache and rate limiting restored")
+		}
+		return
+	}
+	metrics.CacheErrors.WithLabelValues(op).Inc()
+	if c.down.CompareAndSwap(false, true) {
+		slog.Warn("redis call failed; cache and rate limiting fail open until it recovers", "op", op, "error", err)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -61,17 +74,23 @@ type RateLimitResult struct {
 	ResetAfter time.Duration
 }
 
-// CheckRateLimit implements a sliding-window counter using Redis INCR + EXPIRE.
-// key should be unique per (userID, action), e.g. "rl:verify:42:contrib:7".
-// Returns Allowed=true and remaining count, or Allowed=false when limit exceeded.
+// CheckRateLimit is a fixed-window counter: the first request in a window
+// creates the key and starts its expiry, later ones only INCR it. The expiry
+// is set with NX, so it is never pushed back by later requests — the count
+// resets `window` after the first request, however busy the client is. NX
+// also repairs a key left without an expiry.
+//
 // Fails open: if Redis is down, always returns Allowed=true.
 func (c *Client) CheckRateLimit(ctx context.Context, key string, limit int64, window time.Duration) RateLimitResult {
+	k := "rl:" + key
 	pipe := c.rdb.Pipeline()
-	incr := pipe.Incr(ctx, "rl:"+key)
-	pipe.Expire(ctx, "rl:"+key, window)
+	incr := pipe.Incr(ctx, k)
+	pipe.ExpireNX(ctx, k, window)
+	ttl := pipe.TTL(ctx, k)
 
-	if _, err := pipe.Exec(ctx); err != nil {
-		// Redis unavailable — fail open to avoid blocking users
+	_, err := pipe.Exec(ctx)
+	c.observe("rate_limit", err)
+	if err != nil {
 		return RateLimitResult{Allowed: true}
 	}
 
@@ -80,13 +99,10 @@ func (c *Client) CheckRateLimit(ctx context.Context, key string, limit int64, wi
 	if remaining < 0 {
 		remaining = 0
 	}
-
-	ttl, _ := c.rdb.TTL(ctx, "rl:"+key).Result()
-
 	return RateLimitResult{
 		Allowed:    count <= limit,
 		Remaining:  remaining,
-		ResetAfter: ttl,
+		ResetAfter: ttl.Val(),
 	}
 }
 
@@ -96,12 +112,13 @@ func (c *Client) CheckRateLimit(ctx context.Context, key string, limit int64, wi
 
 // SetRecommendations caches serialized recommendation JSON for a user.
 func (c *Client) SetRecommendations(ctx context.Context, userID int, data []byte, ttl time.Duration) {
-	_ = c.rdb.Set(ctx, recKey(userID), data, ttl).Err()
+	c.observe("set", c.rdb.Set(ctx, recKey(userID), data, ttl).Err())
 }
 
 // GetRecommendations retrieves cached recommendation JSON, or nil if not cached.
 func (c *Client) GetRecommendations(ctx context.Context, userID int) []byte {
 	data, err := c.rdb.Get(ctx, recKey(userID)).Bytes()
+	c.observe("get", err)
 	if err != nil {
 		return nil
 	}
@@ -110,36 +127,9 @@ func (c *Client) GetRecommendations(ctx context.Context, userID int) []byte {
 
 // InvalidateRecommendations removes cached recommendations when profile changes.
 func (c *Client) InvalidateRecommendations(ctx context.Context, userID int) {
-	_ = c.rdb.Del(ctx, recKey(userID)).Err()
+	c.observe("del", c.rdb.Del(ctx, recKey(userID)).Err())
 }
 
 func recKey(userID int) string {
 	return fmt.Sprintf("rec:%d", userID)
 }
-
-// ---------------------------------------------------------------------------
-// Distributed lock (for sync coordinator)
-// ---------------------------------------------------------------------------
-
-// AcquireLock attempts to acquire a distributed lock with the given TTL.
-// Returns true if the lock was acquired. Uses SET NX EX for atomicity.
-func (c *Client) AcquireLock(ctx context.Context, lockKey string, ttl time.Duration) bool {
-	result, err := c.rdb.SetNX(ctx, "lock:"+lockKey, "1", ttl).Result()
-	if err != nil {
-		return false // fail safe: don't proceed without lock confirmation
-	}
-	return result
-}
-
-// ReleaseLock releases a previously acquired lock.
-func (c *Client) ReleaseLock(ctx context.Context, lockKey string) {
-	_ = c.rdb.Del(ctx, "lock:"+lockKey).Err()
-}
-
-// isErrNil returns true if the error is a Redis nil (cache miss), false otherwise.
-func isErrNil(err error) bool {
-	return errors.Is(err, redis.Nil)
-}
-
-// Ensure isErrNil is used to avoid lint complaints.
-var _ = isErrNil

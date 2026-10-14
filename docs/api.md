@@ -86,12 +86,14 @@ States: `STARTED` → `PR_OPEN` → `PR_MERGED` → `VERIFIED`, or `PR_CLOSED`.
 
 ## ingestd (internal only, `:8002`)
 
-Not reachable from outside the Docker network and **not authenticated** — never publish it.
+No public port in production. The `GET` routes are unauthenticated (read-only telemetry); the
+`POST` routes take `Authorization: Bearer $ADMIN_SYNC_TOKEN`, which go-api's
+`POST /admin/sync/repository/{id}` forwards. The dev stack publishes `:8002` on all interfaces.
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/health` | Liveness |
-| GET | `/metrics` | Prometheus exposition (ingest, GitHub budget, worker pools) |
-| GET | `/sync/status` | Worker pool stats, DB size, paused flag |
-| POST | `/sync/issues` | Enqueue never-ingested eligible repositories now |
-| POST | `/sync/priority/{id}` | Make one repository's job due immediately |
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/health` | — | Liveness |
+| GET | `/metrics` | — | Prometheus exposition (ingest, GitHub budget, worker pools) |
+| GET | `/sync/status` | — | Worker pool stats, DB size, paused flag |
+| POST | `/sync/issues` | admin | Enqueue never-ingested eligible repositories now |
+| POST | `/sync/priority/{id}` | admin | Make one repository's job due immediately |

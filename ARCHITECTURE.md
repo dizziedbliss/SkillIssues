@@ -50,7 +50,7 @@ The schema lives only in `backend/internal/migrate/migrations/`, embedded into t
 
 ```text
 Kaggle dataset ──repoimport──▶ repositories (eligible only)
-                                   │ coordinator, every 5s
+                                   │ coordinator cycle (ingest.claim_interval_seconds)
                                    ▼
                      Initial: first page of open issues
                                    │ hasNextPage?
@@ -65,12 +65,14 @@ Kaggle dataset ──repoimport──▶ repositories (eligible only)
   control — anyone can open issues on a throwaway repo — not a quality judgement.
 - **Postgres is the queue.** `ingest_jobs` rows are claimed with `FOR UPDATE SKIP LOCKED` and a
   lease. A page's issues, its cursor and `last_synced_at` commit in one transaction, so a crash
-  can only cause a page to be fetched twice, never skipped.
+  can only cause a page to be fetched twice, never skipped. Expired leases are reclaimed every
+  `ingest.lease_reclaim_interval_seconds`, and each job write is fenced on the lease owner, so a stalled worker that wakes up
+  after its job was reclaimed has its write rejected rather than overwriting the cursor.
 - **One shared GitHub budget.** Both lanes (`crawler`, `interactive`) record GitHub's rate-limit
   telemetry in `github_budget`; the crawler stops below `ingest.rate_limit_floor`.
 - **Failures are isolated.** `NOT_FOUND` marks the repository unavailable;
   `RESOURCE_LIMITS_EXCEEDED` halves the page size and retries down to 1; rate limits pause the
-  lane for a minute; other errors back off exponentially and land in `failed` after
+  lane for `ingest.rate_limit_pause_seconds`; other errors back off exponentially and land in `failed` after
   `ingest.max_attempts`.
 - **Disk guardrails.** `ingest.max_pages_per_repo` caps how deep one repository goes;
   `ingest.max_db_size_mb` pauses new work when the database grows past it.
@@ -121,7 +123,7 @@ spanning several skills or technologies. Level *n*+1 costs 150 + 150·*n* XP mor
   `/auth/github/poll` until the browser flow completes. PAT login exists but is off
   (`auth.pat_login_enabled`).
 - **Sessions** live in Postgres, so they survive a Redis outage. The cookie is `HttpOnly`;
-  over HTTPS it is `Secure` with `SameSite=None`, otherwise `SameSite=Lax`.
+  always `SameSite=Lax`, and `Secure` when `FRONTEND_URL` is `https://`.
 - **Accounts link** by GitHub id or case-insensitive username, so OAuth and PAT logins are one
   user.
 - **Whose token does what:** crawling and on-demand reads use the server credential (GitHub App
@@ -135,11 +137,12 @@ spanning several skills or technologies. Level *n*+1 costs 150 + 150·*n* XP mor
 
 A Redis counter per signed-in user or per client IP (`X-Forwarded-For` honoured only from
 `TRUSTED_PROXIES`). Defaults are 180 requests per window signed out and 1,000 signed in, window
-3600s — all live settings. The key's expiry is refreshed on every request, so the count resets
-only after a full window with no requests. `/health`, `/health/detail` and `/metrics` are exempt;
+3600s — all live settings. The window is fixed: it starts at a client's first request and the
+count resets one window later, however busy the client is. `/health`, `/health/detail` and `/metrics` are exempt;
 login is not. Redis also caches the default catalog page, unauthenticated searches and
 recommendations. If Redis is down, limiting fails open and caching is skipped — nothing else
-depends on it.
+depends on it. Each failed Redis call counts in `cache_errors_total{op}`, and the API logs once
+when Redis becomes unreachable and once when it recovers.
 
 ## 7. Configuration
 
