@@ -4,7 +4,9 @@ package contribution
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
@@ -89,18 +91,28 @@ func (s *Service) SetTokenCipher(c *crypto.Cipher) {
 	s.tokenCipher = c
 }
 
-// decryptToken returns "" if the value can't be decrypted rather than ever
-// treating ciphertext as a usable token.
-func (s *Service) decryptToken(encrypted string) string {
+// readToken decrypts a user's stored GitHub token for a read. Reads may use
+// the server credential, so a token that cannot be decrypted is logged and
+// replaced by "" (the caller then falls back), never handed back as
+// ciphertext and never silently dropped.
+func (s *Service) readToken(userID int, encrypted string) string {
 	if encrypted == "" || s.tokenCipher == nil {
 		return encrypted
 	}
 	plain, err := s.tokenCipher.Decrypt(encrypted)
 	if err != nil {
+		slog.Warn("contribution: user GitHub token does not decrypt; using server credential", "user_id", userID, "error", err)
 		return ""
 	}
 	return plain
 }
+
+// userReadTokenSQL selects a user's stored token only while it is still
+// valid. A GitHub App user token expires after 8 hours and only
+// auth.GetAccessToken refreshes it; an expired one would fail the GitHub call
+// instead of falling back to the server credential.
+const userReadTokenSQL = `CASE WHEN u.github_token_expires_at IS NULL OR u.github_token_expires_at > now()
+		             THEN COALESCE(u.github_access_token, '') ELSE '' END`
 
 // New creates a new contribution Service. verifyQuota may be nil, in which case
 // a built-in limit applies.
@@ -263,15 +275,15 @@ func (s *Service) AttachPR(ctx context.Context, userID, contribID int, prURL str
 		return nil, fmt.Errorf("invalid PR URL format")
 	}
 	owner, repo, prNumStr := matches[1], matches[2], matches[3]
-	num, _ := strconv.Atoi(prNumStr)
-	if num != prNumber {
+	num, err := strconv.Atoi(prNumStr)
+	if err != nil || num != prNumber {
 		return nil, fmt.Errorf("PR number mismatch")
 	}
 
 	// Fetch contribution and repository full_name
 	var expectedRepo, username, userToken string
-	err := s.db.QueryRow(ctx,
-		`SELECT r.full_name, u.username, COALESCE(u.github_access_token, '')
+	err = s.db.QueryRow(ctx,
+		`SELECT r.full_name, u.username, `+userReadTokenSQL+`
 		 FROM contributions c
 		 JOIN issues i ON i.id = c.issue_id
 		 JOIN repositories r ON r.id = i.repository_id
@@ -283,9 +295,12 @@ func (s *Service) AttachPR(ctx context.Context, userID, contribID int, prURL str
 		},
 	)
 	if err != nil {
-		return nil, db.ErrNotFound
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("contribution: load contribution %d: %w", contribID, err)
 	}
-	userToken = s.decryptToken(userToken)
+	userToken = s.readToken(userID, userToken)
 
 	// Case-insensitive repository match
 	if strings.ToLower(fmt.Sprintf("%s/%s", owner, repo)) != strings.ToLower(expectedRepo) {
