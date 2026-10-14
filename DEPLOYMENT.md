@@ -22,10 +22,16 @@ ingestd:8002 ──→ postgres:5432, redis:6379               (internal network
                                                             its own on /sync/*, so it must
                                                             never be reachable from outside)
 migrate                                                   — one-shot, runs to completion first
+
+monitoring (see "Monitoring" below):
+prometheus ──→ go-api:8000/metrics, ingestd:8002/metrics, caddy:9180, exporters
+grafana    ──→ prometheus, postgres (as read-only metrics_ro)
+127.0.0.1:3000 (grafana), 127.0.0.1:9090 (prometheus) — loopback only, reach over ssh -L
 ```
 
 Everything except `caddy` is unreachable from outside the Docker network. `go-api` and
-`ingestd` have no published ports in `compose.prod.yaml` at all.
+`ingestd` have no published ports in `compose.prod.yaml` at all; Grafana and Prometheus publish
+on the host's loopback interface only.
 
 ## CI/CD pipeline
 
@@ -39,8 +45,9 @@ push to main
    ├─ job `build-push`  — needs: ci — builds all four root Dockerfile targets, pushes
    │                       ghcr.io/dizziedbliss/skillissues-{api,ingestd,migrate,web}
    │                       tagged sha-<short> AND latest (linux/amd64 only)
-   └─ job `deploy`      — needs: build-push — scp's compose.prod.yaml, Caddyfile and
-                           scripts/deploy-remote.sh to the host, then ssh's in to run it
+   └─ job `deploy`      — needs: build-push — scp's compose.prod.yaml, Caddyfile,
+                           monitoring/ and scripts/deploy-remote.sh to the host, then
+                           ssh's in to run it
 ```
 
 A deploy cannot happen without CI passing — `build-push` and `deploy` both `needs:` their way
@@ -102,6 +109,9 @@ GITHUB_APP_CLIENT_SECRET=<production GitHub App client secret>
 GITHUB_APP_PRIVATE_KEY_HOST_PATH=/opt/skillissues/secrets/github-app-private-key.pem
 
 GITHUB_TOKEN=<optional PAT, used as a server-crawl credential fallback>
+
+GRAFANA_ADMIN_PASSWORD=<generate: openssl rand -base64 24 | tr -d '/+='>
+METRICS_DB_PASSWORD=<generate: openssl rand -base64 32 | tr -d '/+='>
 
 IMAGE_TAG=latest   # deploy.yml always overrides this with an explicit sha- tag; this
                    # default exists only so the file is runnable by hand for testing
@@ -195,15 +205,70 @@ The host is 40 GB. Two live guardrails exist specifically so ingestion can't fil
 `ingest.max_db_size_mb` (default 30000 — stops the coordinator from enqueuing or claiming new
 work once `pg_database_size()` crosses it) and `ingest.max_pages_per_repo` (default 100 — caps
 how many pages the Deep Diver will fetch for one repository, regardless of `hasNextPage`).
-`GET /api/health/detail` reports `db_size_mb`, `max_db_size_mb` and `ingestion_paused` so the
-ceiling is visible before it's hit.
+The Grafana *Ingestion* dashboard plots `pg_database_size()` against the cap and shows whether
+ingestion is paused, so the ceiling is visible before it's hit. Without Grafana,
+`/health/detail` reports `db_size_mb`, `max_db_size_mb` and `ingestion_paused` (internal only —
+see *Monitoring* for how to reach it).
 
 ## Monitoring
 
-`GET /api/metrics` (Prometheus format) and `GET /api/health/detail` are exempt from rate
-limiting and reachable through Caddy. `ingestd`'s own `/sync/status` is internal-only (no
-Caddy route to it) — `ssh` in and `curl localhost:8002/sync/status` from the host, or add a
-route if you want it exposed.
+Prometheus, Grafana, node-exporter, cAdvisor, postgres-exporter and redis-exporter run as part
+of `compose.prod.yaml`. Nothing is public: Grafana and Prometheus bind to `127.0.0.1`, and
+Caddy returns 404 for `/api/metrics` and `/api/health/detail`.
+
+**Open the dashboards**
+
+```bash
+ssh -L 3000:localhost:3000 -L 9090:localhost:9090 deploy@host
+# then browse http://localhost:3000 — user admin, password GRAFANA_ADMIN_PASSWORD
+# Prometheus targets: http://localhost:9090/targets
+```
+
+Six provisioned dashboards, in the *SkillIssues* folder. They're read-only in the UI; edit the
+JSON under `monitoring/grafana/dashboards/` and redeploy.
+
+| Dashboard | Shows |
+|---|---|
+| Overview | every scrape target up/down, req/s, 5xx ratio, p95, GitHub points left, ingestion paused, DB size, signed-in users |
+| API & Network | status classes, p50/p95/p99, busiest and slowest routes, Caddy edge traffic, host NIC and per-container network |
+| Ingestion | queue by status/type, stuck leases, sync coverage, job outcomes, issues/min, worker pools, failure classes, DB size vs cap |
+| GitHub API | points remaining per lane vs the floor, reset time, secondary-limit pauses, requests by operation/code, latency |
+| Product | users, sign-ups, sessions, contributions started/merged, funnel, levels, XP, catalog by difficulty, most-saved repos |
+| Infrastructure | host CPU/memory/disk, container memory vs `mem_limit`, Go runtime, DB pool, Postgres, Redis, settings changes |
+
+Product panels query Postgres as `metrics_ro` (migration 00017): read-only, a 15s
+`statement_timeout`, and no access to `users.github_access_token`,
+`users.github_refresh_token`, `auth_sessions.token` or `oauth_states`. The `metrics-role`
+one-shot sets its password from `METRICS_DB_PASSWORD` on every deploy. A new table is
+invisible to dashboards until a migration grants it.
+
+Prometheus keeps `PROMETHEUS_RETENTION_TIME` (15d) or `PROMETHEUS_RETENTION_SIZE` (2GB),
+whichever is hit first. No alerting is configured yet.
+
+**From the command line** (on the host, `cd $DEPLOY_PATH`; the api/ingestd images are
+distroless, so in-network requests go through the Caddy container's `wget`):
+
+```bash
+alias dc='docker compose -f compose.prod.yaml --env-file .env'
+dc ps                                                    # every service, with health
+docker stats --no-stream                                 # CPU / memory / net I/O per container
+dc exec caddy wget -qO- http://go-api:8000/health/detail
+dc exec caddy wget -qO- http://ingestd:8002/sync/status  # worker pools, DB size, paused?
+dc exec caddy wget -qO- http://go-api:8000/metrics  | grep -v '^#'
+dc exec caddy wget -qO- http://ingestd:8002/metrics | grep -E '^(ingest_|github_)'
+dc logs --since 1h caddy | jq -r 'select(.status>=500) | .request.uri' | sort | uniq -c
+dc exec postgres psql -U skillissues -d skillissues      # then the SQL below
+```
+
+```sql
+SELECT job_type, status, count(*) FROM ingest_jobs GROUP BY 1, 2 ORDER BY 1, 2;
+SELECT last_error_class, count(*) FROM ingest_jobs WHERE status = 'failed' GROUP BY 1 ORDER BY 2 DESC;
+SELECT lane, remaining, rate_limit, reset_at, secondary_until FROM github_budget WHERE identity = 'installation';
+SELECT state, count(*) FROM contributions GROUP BY 1;
+SELECT count(*) FILTER (WHERE created_at > now() - interval '7 days') AS new_7d, count(*) AS total FROM users;
+SELECT pg_size_pretty(pg_database_size(current_database()));
+SELECT key, old_value, new_value, changed_at, changed_by FROM settings_audit ORDER BY changed_at DESC LIMIT 20;
+```
 
 ## Restore
 
@@ -225,7 +290,10 @@ current `.env` matches what was active when the backup was taken.
 - [ ] `TOKEN_ENCRYPTION_KEY` is backed up somewhere other than this host.
 - [ ] DNS is A-record-direct to the VPS, no proxying CDN in front of Caddy.
 - [ ] GitHub OAuth App and GitHub App callback URLs match the production domain.
-- [ ] `GET /api/health/detail` reports `"cache":"ok"` and sane repository/issue counts.
+- [ ] `dc exec caddy wget -qO- http://go-api:8000/health/detail` reports `"cache":"ok"` and
+      sane repository/issue counts, and `curl https://<domain>/api/metrics` returns **404**.
+- [ ] Grafana opens over the SSH tunnel and the *Overview* dashboard shows every target UP;
+      `ss -tlnp | grep -E ':(3000|9090)'` shows them bound to `127.0.0.1` only.
 - [ ] `docker compose -f compose.prod.yaml --env-file .env ps` shows every service healthy and
       `migrate` exited `0`.
 - [ ] The backup timer is enabled (`systemctl status skillissues-backup.timer` on the host).
