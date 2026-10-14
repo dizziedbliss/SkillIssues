@@ -115,7 +115,7 @@ Entrypoints under `backend/cmd/`:
 - **`ingestd`** — GitHub GraphQL crawler on `:8002`. Owns the ingestion coordinator, its
   worker pools and the claim/cycle loop. See *Ingestion policy*.
 - **`repoimport`** — offline importer for the repository metadata dataset. Streams the JSON
-  array, stores every record, computes eligibility. Touches only `repositories` and
+  array and stores only records that pass `eligible()`. Touches only `repositories` and
   `import_skipped`.
 - **`migrate`** — one-shot; applies the embedded schema and exits.
 - **`healthcheck`** — tiny binary used as the Docker `HEALTHCHECK` command.
@@ -176,8 +176,8 @@ Runs **React 19**.
 ### Desktop (`desktop/`)
 `electron-vite` layout: `src/main/index.ts` (windows, IPC, git — TypeScript, non-strict),
 `src/preload/index.ts` (context bridge — `contextIsolation: true` is mandatory),
-`src/renderer/` (currently plain-JS `app.js`, `index.html`, `app.css`, bundled by Vite — a
-React + TS rewrite onto `packages/ui`/`packages/api-client` is in progress). Builds to
+`src/renderer/` (React + TypeScript on `packages/ui`/`packages/api-client`, entry
+`src/renderer/src/main.tsx`; it reaches the API only via the preload bridge). Builds to
 `out/main`, `out/preload`, `out/renderer`. Git operations run as async child processes so
 the UI never blocks.
 
@@ -202,7 +202,7 @@ third one back.
 
 ## Ingestion policy
 
-Design of record: `SkillIssues_Ingestion_Architecture_Updated (1).md`. Read it before changing
+Design of record: `docs/ingestion-architecture.md`. Read it before changing
 anything in `backend/internal/ingest/`.
 
 **Collect broadly first; analyse later.** Coverage comes before prioritisation. Scope is open
@@ -266,6 +266,11 @@ claim and submit work to the Initial and Deep pools.
   created/pushed date windows to find repositories the dataset does not contain. Designed in
   §2 of the architecture doc, **not implemented**. New repositories currently arrive only from
   a dataset import. `ingest_jobs.job_type` already permits `'discovery'`; nothing writes it.
+- **Continuous lease reclaim** — `ReclaimExpiredLeases` runs only when ingestd starts. A job
+  whose worker dies mid-run stays `running` until the next restart; `ingest_stuck_leases` on
+  `/metrics` shows how many.
+- **Freshness job type** — stale repositories are re-queued as `job_type='initial'`; nothing
+  writes `'freshness'`.
 
 ---
 
@@ -274,8 +279,9 @@ claim and submit work to the Initial and Deep pools.
 Single VPS, `compose.prod.yaml`, Caddy same-origin. Full runbook: `DEPLOYMENT.md`.
 
 - `.github/workflows/ci.yml` gates everything: backend (vet/gofmt/build/test), web/desktop
-  (typecheck then a real build, not just a type check), and a buildx build of all four
-  Dockerfile targets plus `docker compose config` on both compose files.
+  (typecheck then a real build, not just a type check), and a buildx build of the four
+  deployed Dockerfile targets (`api`, `ingestd`, `migrate`, `web` — not `repoimport`) plus
+  `docker compose config` on both compose files.
 - `.github/workflows/deploy.yml` runs on push to `main`: `ci` → `build-push` (builds and pushes
   `ghcr.io/dizziedbliss/skillissues-{api,ingestd,migrate,web}` tagged `sha-<short>` and
   `latest`) → `deploy` (scp + ssh, runs `scripts/deploy-remote.sh` on the host). A deploy cannot
@@ -318,9 +324,11 @@ Three layers, in precedence order:
 interval, a batch size, a page size, a worker count, a cap — it is a setting, not a literal.
 The precedent is `ingest.eligibility.min_stars`, `ingest.eligibility.pushed_within_days`,
 `ingest.eligibility.recheck_seconds`, `ingest.freshness_interval_seconds`,
-`ingest.enqueue_batch_size`, `ingest.graphql_page_size`, `ingest.sync_interval_seconds`,
-`ingest.routine_workers`, `ingest.priority_workers`, `ingest.rate_limit_floor`,
+`ingest.enqueue_batch_size`, `ingest.graphql_page_size`, `ingest.routine_workers`, `ingest.priority_workers`, `ingest.rate_limit_floor`,
 `ingest.max_pages_per_repo`, `ingest.max_db_size_mb`, `ingest.metrics_refresh_seconds`.
+Every key with its default and bounds: `docs/settings.md`. Two registered keys are read by no
+code — `ingest.sync_interval_seconds` and `ingest.ondemand_workers`; don't cite them as
+examples, and don't assume changing them does anything.
 
 - **Never hardcode an operational value.** Add a key to `settings.Registry` **and** a seeded
   row in a migration. A key in one but not the other falls back to its default and is logged
@@ -332,8 +340,8 @@ The precedent is `ingest.eligibility.min_stars`, `ingest.eligibility.pushed_with
 - Change a value at runtime:
   ```bash
   curl localhost:8000/admin/config -H "Authorization: Bearer $ADMIN_SYNC_TOKEN"
-  curl -XPUT localhost:8000/admin/config/ingest.sync_interval_seconds \
-       -H "Authorization: Bearer $ADMIN_SYNC_TOKEN" -d '{"value": 300}'
+  curl -XPUT localhost:8000/admin/config/ingest.routine_workers \
+       -H "Authorization: Bearer $ADMIN_SYNC_TOKEN" -d '{"value": 4}'
   ```
   `psql` works too, and hits the same validation trigger — which matters when a bad value has
   made the API itself unhealthy.
@@ -380,11 +388,14 @@ The precedent is `ingest.eligibility.min_stars`, `ingest.eligibility.pushed_with
   Language, Author.
 - **Unified account linking**: a case-insensitive unique index on `lower(username)` merges
   PAT-login and OAuth-login into one user record.
-- **Rate limiting**: Redis counter per window — 180 requests unauthenticated, 1,000
-  authenticated. Health checks, `/metrics` and all `/auth/` paths are currently exempt;
-  exempting the whole of `/auth/` means login is unlimited, which is a known issue.
+- **Rate limiting**: Redis `INCR` counter per user (signed in) or per IP (signed out) —
+  180 / 1,000 per `api.rate_limit.window_seconds`. Only `/health`, `/health/detail` and
+  `/metrics` are exempt; `/auth/*` (login) **is** limited. The key's TTL is refreshed on every
+  request, so the window only resets after a full window of silence — a known issue. Fails open
+  when Redis is down.
 - **XP**: base per difficulty (`BEGINNER` 75, `INTERMEDIATE` 140, `ADVANCED` 250) **plus**
-  bonuses — `+25` merged, `+15` first contribution to that repo, `+10` multi-discipline. So
+  bonuses — `+25` merged, `+15` for the user's first or second merge in that repo, `+10`
+  multi-discipline (`UNCLASSIFIED` counts as `BEGINNER` base). So
   a BEGINNER issue can award up to 125, not 75. Awarded only after GitHub confirms the PR is
   merged and the author login matches.
 - **Levels** follow a quadratic curve, not a flat table: each level costs
