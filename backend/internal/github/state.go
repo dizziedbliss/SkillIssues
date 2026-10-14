@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/dizziedbliss/skillissues/internal/metrics"
 )
 
 // IssueState is the result of a live, on-demand single-issue state check
@@ -32,6 +34,7 @@ const issueStateQuery = `query IssueState($owner: String!, $name: String!, $numb
 
 // FetchIssueState fetches the live open/closed state of exactly one issue.
 func (c *Client) FetchIssueState(ctx context.Context, token, owner, name string, number int) (*IssueState, error) {
+	ctx = metrics.WithOperation(ctx, "FetchIssueState")
 	reqBody := graphQLRequest{
 		Query: issueStateQuery,
 		Variables: map[string]any{

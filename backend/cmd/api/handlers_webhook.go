@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/auth"
+	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -42,12 +44,17 @@ func (h *handlers) webhookGitHub(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var insertedDelivery string
-	_ = h.db.QueryRow(r.Context(),
+	// ErrNotFound means ON CONFLICT DO NOTHING: an already-seen delivery.
+	if err := h.db.QueryRow(r.Context(),
 		`INSERT INTO webhook_events (delivery_id, event_name) VALUES ($1, $2)
 		 ON CONFLICT (delivery_id) DO NOTHING RETURNING delivery_id`,
 		[]any{delivery, eventName},
 		func(row pgx.Row) error { return row.Scan(&insertedDelivery) },
-	)
+	); err != nil && !errors.Is(err, db.ErrNotFound) {
+		slog.Error("webhook: failed to record delivery", "delivery_id", delivery, "error", err)
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to record delivery")
+		return
+	}
 
 	if insertedDelivery != "" && eventName == "pull_request" {
 		var payload struct {
@@ -58,7 +65,9 @@ func (h *handlers) webhookGitHub(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := json.Unmarshal(body, &payload); err == nil {
 			if payload.PullRequest.Merged && payload.PullRequest.HTMLURL != "" {
-				_, _ = h.contribSvc.ApplyMergedPRByUrl(r.Context(), payload.PullRequest.HTMLURL, h.cfg.GitHubToken)
+				if _, err := h.contribSvc.ApplyMergedPRByUrl(r.Context(), payload.PullRequest.HTMLURL, h.cfg.GitHubToken); err != nil && !errors.Is(err, db.ErrNotFound) {
+					slog.Error("webhook: failed to apply merged PR", "delivery_id", delivery, "pr_url", payload.PullRequest.HTMLURL, "error", err)
+				}
 			}
 		}
 	}

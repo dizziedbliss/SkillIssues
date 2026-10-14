@@ -3,6 +3,7 @@ package issue
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/dizziedbliss/skillissues/internal/ingest"
+	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/worker"
 	"github.com/jackc/pgx/v5"
 )
@@ -138,11 +140,15 @@ func (b *BodyFetcher) fetchAndCache(ctx context.Context, issueID, userID int, us
 	// Tier 3a: the user's own token, if they have reserve left on it.
 	if userToken != "" && userID != 0 {
 		identity := fmt.Sprintf("user:%d", userID)
-		proceed, _ := ingest.CanProceed(ctx, b.db, ingest.LaneInteractive, identity, userReserve)
+		proceed, err := ingest.CanProceed(ctx, b.db, ingest.LaneInteractive, identity, userReserve)
+		if err != nil {
+			metrics.BudgetErrors.WithLabelValues("read", string(ingest.LaneInteractive)).Inc()
+			slog.Warn("issue body: user budget check failed, using installation token", "error", err)
+		}
 		if proceed {
 			result, err := b.github.FetchIssueBody(ctx, userToken, owner, name, number)
 			if err == nil {
-				_ = ingest.UpdateBudget(ctx, b.db, ingest.LaneInteractive, identity, result.RateLimit)
+				b.recordBudget(ctx, identity, result.RateLimit)
 				b.store(ctx, issueID, result.Body)
 				return result.Body, nil
 			}
@@ -155,7 +161,11 @@ func (b *BodyFetcher) fetchAndCache(ctx context.Context, issueID, userID int, us
 	if b.installationToken == nil {
 		return "", ErrBodyNoCredential
 	}
-	proceed, _ := ingest.CanProceed(ctx, b.db, ingest.LaneInteractive, "installation", installationInteractiveFloor)
+	proceed, err := ingest.CanProceed(ctx, b.db, ingest.LaneInteractive, "installation", installationInteractiveFloor)
+	if err != nil {
+		metrics.BudgetErrors.WithLabelValues("read", string(ingest.LaneInteractive)).Inc()
+		return "", fmt.Errorf("issue: check installation budget: %w", err)
+	}
 	if !proceed {
 		return "", ErrBodyBudget
 	}
@@ -167,9 +177,18 @@ func (b *BodyFetcher) fetchAndCache(ctx context.Context, issueID, userID int, us
 	if err != nil {
 		return "", fmt.Errorf("issue: fetch body: %w", err)
 	}
-	_ = ingest.UpdateBudget(ctx, b.db, ingest.LaneInteractive, "installation", result.RateLimit)
+	b.recordBudget(ctx, "installation", result.RateLimit)
 	b.store(ctx, issueID, result.Body)
 	return result.Body, nil
+}
+
+// recordBudget persists rate-limit telemetry. A failure doesn't fail the
+// read the user is waiting on, but it is logged and counted.
+func (b *BodyFetcher) recordBudget(ctx context.Context, identity string, rl github.GraphQLRateLimit) {
+	if err := ingest.UpdateBudget(ctx, b.db, ingest.LaneInteractive, identity, rl); err != nil {
+		metrics.BudgetErrors.WithLabelValues("write", string(ingest.LaneInteractive)).Inc()
+		slog.Warn("issue body: failed to persist budget", "error", err)
+	}
 }
 
 func (b *BodyFetcher) store(ctx context.Context, issueID int, body string) {

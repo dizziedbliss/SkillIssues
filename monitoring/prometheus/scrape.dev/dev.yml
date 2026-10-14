@@ -1,0 +1,6 @@
+scrape_configs:
+  # In dev, node-exporter stays on the compose network: CPU, memory and disk
+  # are host-wide via the /host mount, but network counters are its own.
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]

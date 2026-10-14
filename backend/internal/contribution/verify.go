@@ -2,6 +2,7 @@ package contribution
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/progression"
 	"github.com/jackc/pgx/v5"
 )
@@ -35,6 +37,27 @@ type VerifyResult struct {
 
 // VerifyContribution verifies PR merge status on GitHub using GraphQL and awards XP idempotently.
 func (s *Service) VerifyContribution(ctx context.Context, userID, contribID int, fallbackToken string) (*VerifyResult, error) {
+	res, err := s.verifyContribution(ctx, userID, contribID, fallbackToken)
+	metrics.ContributionVerifications.WithLabelValues(verifyResultLabel(res, err)).Inc()
+	return res, err
+}
+
+func verifyResultLabel(res *VerifyResult, err error) string {
+	switch {
+	case errors.Is(err, db.ErrNotFound):
+		return "not_found"
+	case err != nil:
+		return "error"
+	case res.AlreadyAwarded:
+		return "already_awarded"
+	case res.Verified:
+		return "verified"
+	default:
+		return "not_verified"
+	}
+}
+
+func (s *Service) verifyContribution(ctx context.Context, userID, contribID int, fallbackToken string) (*VerifyResult, error) {
 	// 1. Anti-exploit: cap verification attempts per user per contribution per hour.
 	if s.cache != nil {
 		quota := s.verifyAttemptsPerHour()
@@ -324,7 +347,10 @@ func (s *Service) ApplyMergedPRByUrl(ctx context.Context, prURL string, fallback
 		},
 	)
 	if err != nil {
-		return nil, db.ErrNotFound
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("contribution: look up PR %q: %w", prURL, err)
 	}
 	return s.VerifyContribution(ctx, userID, cID, fallbackToken)
 }

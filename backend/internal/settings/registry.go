@@ -73,6 +73,11 @@ const (
 	// changing a threshold takes effect without a re-import or a restart.
 	IngestEligibilityRecheckSeconds Key = "ingest.eligibility.recheck_seconds"
 
+	// IngestMetricsRefreshSeconds is how often ingestd re-reads queue,
+	// repository and GitHub budget gauges from Postgres for /metrics. They are
+	// GROUP BY scans over ingest_jobs, so they do not run on every claim cycle.
+	IngestMetricsRefreshSeconds Key = "ingest.metrics_refresh_seconds"
+
 	// IngestMaxPagesPerRepo caps how many pages the Deep Diver will fetch for
 	// a single repository before the job is marked done instead of
 	// requeued, regardless of GitHub's hasNextPage. 0 means unlimited. This
@@ -162,6 +167,7 @@ var Registry = map[Key]Spec{
 	IngestFreshnessIntervalSeconds:  intSpec(86400, 300, 2592000, "How old a repository's last successful sync must be before its first issue page is re-fetched."),
 	IngestEnqueueBatchSize:          intSpec(500, 1, 50000, "Jobs enqueued per coordinator cycle, for both new-repository seeding and freshness re-queues."),
 	IngestEligibilityRecheckSeconds: intSpec(3600, 60, 86400, "How often stored repository metadata is re-tested against the current eligibility thresholds."),
+	IngestMetricsRefreshSeconds:     intSpec(30, 5, 3600, "How often ingestd refreshes its queue, repository and GitHub budget gauges from Postgres for /metrics."),
 
 	// D6 disk guardrails. Defaults are sized for the 40GB VPS target: at the
 	// measured ~0.79 KB/row, 100 pages per repo (at up to 100 issues/page)

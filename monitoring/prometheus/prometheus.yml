@@ -1,0 +1,35 @@
+# Targets common to dev and prod. Environment-specific targets (Caddy, and
+# where node-exporter listens) come from the scrape.d directory that each
+# compose file mounts: scrape.prod/ or scrape.dev/.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_config_files:
+  - /etc/prometheus/scrape.d/*.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: go-api
+    static_configs:
+      - targets: ["go-api:8000"]
+
+  - job_name: ingestd
+    static_configs:
+      - targets: ["ingestd:8002"]
+
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  - job_name: redis
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+
+  - job_name: cadvisor
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["cadvisor:8080"]

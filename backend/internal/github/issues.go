@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/dizziedbliss/skillissues/internal/metrics"
 )
 
 // GraphQLRateLimit encapsulates GitHub GraphQL rate limit telemetry.
@@ -71,6 +73,7 @@ const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: St
 
 // FetchRepositoryIssues queries the GitHub GraphQL API for open issues in a repository.
 func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name string, after *string, since *time.Time, pageSize int) (*RepositoryIssuesPage, error) {
+	ctx = metrics.WithOperation(ctx, "FetchRepositoryIssues")
 	// GitHub rejects anything outside 1..100, and an oversized page also raises
 	// the chance of the query exceeding the 10s limit.
 	if pageSize < 1 {
