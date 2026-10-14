@@ -1,17 +1,76 @@
 name: CI
 
+# No `push` trigger: on a branch with an open PR it ran every job a second
+# time next to `pull_request`, and on main a second time next to the copy
+# deploy.yml runs. Run it by hand (workflow_dispatch) for a branch with no PR.
 on:
-  push:
-    branches: [ '**' ]
   pull_request:
     branches: [ main, ship ]
   # Lets deploy.yml depend on this workflow directly (needs: ci-job-names)
   # rather than reacting via workflow_run, which runs against the default
   # branch and makes ref handling error-prone.
   workflow_call: {}
+  workflow_dispatch: {}
+
+# A new push to a PR cancels that PR's run still in progress. Every other run
+# (the deploy gate on main) gets a group of its own and is never cancelled.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
+  # Decides which jobs below have anything to check. A job whose paths did
+  # not change is skipped, and a skipped job does not fail the run. A manual
+  # dispatch checks everything.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.backend == 'true' }}
+      web: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.web == 'true' }}
+      desktop: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.desktop == 'true' }}
+      compose: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.compose == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name != 'workflow_dispatch'
+      - uses: dorny/paths-filter@v3.0.2
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          # Empty token: diff with git instead of the PR-files API, which
+          # would need pull-requests: read — more than deploy.yml grants
+          # the workflow it calls.
+          token: ''
+          # ci.yml, the Dockerfile and the root npm manifests feed every job
+          # that uses them, so a change there re-checks those jobs.
+          filters: |
+            shared: &shared
+              - .github/workflows/ci.yml
+              - Dockerfile
+              - .dockerignore
+            npm: &npm
+              - *shared
+              - package.json
+              - package-lock.json
+              - packages/**
+            backend:
+              - *shared
+              - backend/**
+            web:
+              - *npm
+              - web/**
+            desktop:
+              - *npm
+              - desktop/**
+            compose:
+              - *shared
+              - compose.yaml
+              - compose.prod.yaml
+              - monitoring/**
+              - Caddyfile
+
   backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     # For the tests that need a real database or Redis (skipped under
     # -short and when their *_TEST_URL is unset). Same images as compose.
@@ -67,6 +126,8 @@ jobs:
           go test -count=1 ./internal/...
 
   web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -100,6 +161,8 @@ jobs:
           npm run build
 
   desktop:
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -125,6 +188,11 @@ jobs:
           npm run build
 
   images:
+    needs: changes
+    if: >-
+      needs.changes.outputs.backend == 'true' ||
+      needs.changes.outputs.web == 'true' ||
+      needs.changes.outputs.compose == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -141,8 +209,10 @@ jobs:
           METRICS_DB_PASSWORD=ci GRAFANA_ADMIN_PASSWORD=ci GRAFANA_SECRET_KEY=ci \
             docker compose -f compose.prod.yaml config --quiet
       - name: Set up Docker Buildx
+        if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.web == 'true'
         uses: docker/setup-buildx-action@v3
       - name: Build api target
+        if: needs.changes.outputs.backend == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -151,6 +221,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build ingestd target
+        if: needs.changes.outputs.backend == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -159,6 +230,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build migrate target
+        if: needs.changes.outputs.backend == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -167,6 +239,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build web target
+        if: needs.changes.outputs.web == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
