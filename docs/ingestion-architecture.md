@@ -14,7 +14,8 @@ this table is how you find out.
 | Repository catalog seeded from the dataset | **Built** | `cmd/repoimport`; only eligible repositories are stored |
 | Eligibility (stars, pushed-within) re-checked live | **Built** | `ingest.RecomputeEligibility`, every `ingest.eligibility.recheck_seconds` |
 | Initial worker — one page per eligible repository | **Built** | `ingest.Worker`, `job_type='initial'` |
-| Freshness — re-fetch page one when stale | **Built** | re-enqueued as `job_type='initial'`, not `'freshness'` (the CHECK constraint allows it; nothing writes it) |
+| Freshness — the incremental window when stale | **Built** | re-enqueued as `job_type='initial'`, not `'freshness'` (the CHECK constraint allows it; nothing writes it). Fetches only open issues updated since `repositories.issues_synced_through` (the last completed pass), continuing into Deep Diver only while that window has more pages |
+| Closed issues marked `CLOSED` | **Built** | the same request also pages issues closed since the watermark; issues users saved or are working on are re-checked directly every `ingest.tracked_issue_check_seconds` |
 | Deep Diver — remaining pages from the stored cursor | **Built** | `job_type='deep'`; capped by `ingest.max_pages_per_repo` |
 | Atomic claims with `FOR UPDATE SKIP LOCKED` + lease | **Built** | expired leases reclaimed continuously; job writes fenced on `lease_owner` |
 | Cursor + issues committed in one transaction | **Built** | `CompleteOrRequeue` runs in the page's transaction |

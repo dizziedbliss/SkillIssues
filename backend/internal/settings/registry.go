@@ -112,6 +112,19 @@ const (
 	// space, since ingestd cannot see the postgres volume.
 	IngestMaxDBSizeMB Key = "ingest.max_db_size_mb"
 
+	// IngestClosedPageSize is how many issues closed since a repository's
+	// last completed pass are fetched alongside each page of a freshness
+	// pass. Kept small so the extra connection does not raise the request's
+	// rate-limit cost.
+	IngestClosedPageSize Key = "ingest.closed_page_size"
+	// IngestTrackedIssueCheckSeconds is how stale an open issue that a user
+	// saved or is working on may get before its state is re-checked on
+	// GitHub, independent of the repository's freshness pass.
+	IngestTrackedIssueCheckSeconds Key = "ingest.tracked_issue_check_seconds"
+	// IngestTrackedIssueBatchSize is how many tracked issues one state-check
+	// request covers (one GraphQL alias each).
+	IngestTrackedIssueBatchSize Key = "ingest.tracked_issue_batch_size"
+
 	// AuthPATLoginEnabled gates POST /auth/github/token. Default false:
 	// OAuth is the only login path both clients expose; the PAT endpoint
 	// stays registered server-side but 404s unless explicitly turned on.
@@ -205,6 +218,10 @@ var Registry = map[Key]Spec{
 	// both 0 (unlimited) remain valid, explicit opt-outs.
 	IngestMaxPagesPerRepo: intSpec(100, 0, 100000, "Pages the Deep Diver will fetch for one repository before stopping, regardless of hasNextPage. 0 disables the cap."),
 	IngestMaxDBSizeMB:     intSpec(30000, 0, 1000000, "pg_database_size() ceiling above which the coordinator stops enqueuing and claiming new ingestion work. 0 disables the cap."),
+
+	IngestClosedPageSize:           intSpec(40, 1, 100, "Issues closed since a repository's last completed pass, fetched alongside each page of a freshness pass."),
+	IngestTrackedIssueCheckSeconds: intSpec(3600, 60, 86400, "How stale an open issue a user saved or is working on may get before its state is re-checked on GitHub."),
+	IngestTrackedIssueBatchSize:    intSpec(50, 1, 100, "Tracked issues checked per GitHub request."),
 
 	AuthPATLoginEnabled: boolSpec(false, "Whether POST /auth/github/token is reachable. Both clients only offer OAuth; this stays off unless explicitly turned on."),
 }

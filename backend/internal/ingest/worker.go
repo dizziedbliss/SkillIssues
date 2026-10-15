@@ -77,8 +77,20 @@ func (w *Worker) processJob(ctx context.Context, job Job) (string, error) {
 		return "budget_deferred", nil
 	}
 
-	pageSize := snap.Int(settings.IngestGraphQLPageSize)
-	page, err := w.fetchWithBatchLadder(ctx, token, owner, name, job.Cursor, pageSize)
+	// A pass pages through two connections in lockstep: open issues (all of
+	// them on a full crawl, or those updated since the watermark), and on
+	// an incremental pass the issues closed since the watermark. Each stops
+	// being requested once it is exhausted.
+	query := github.IssuesQuery{
+		FetchOpen:      !job.OpenDone,
+		OpenCursor:     job.Cursor,
+		PageSize:       snap.Int(settings.IngestGraphQLPageSize),
+		Since:          job.Since,
+		FetchClosed:    job.Since != nil && !job.ClosedDone,
+		ClosedCursor:   job.ClosedCursor,
+		ClosedPageSize: snap.Int(settings.IngestClosedPageSize),
+	}
+	page, err := w.fetchWithBatchLadder(ctx, token, owner, name, query)
 	if err != nil {
 		return w.handleFetchError(ctx, job, err)
 	}
@@ -107,13 +119,32 @@ func (w *Worker) processJob(ctx context.Context, job Job) (string, error) {
 		upserted++
 	}
 
-	pagesDone := job.PagesDone + 1
-	maxPages := snap.Int(settings.IngestMaxPagesPerRepo)
-	if maxPages > 0 && pagesDone >= maxPages && page.HasNextPage {
-		slog.Warn("repository hit the per-repository page cap, stopping pagination here",
-			"repo", job.FullName, "pages_done", pagesDone, "max_pages_per_repo", maxPages)
+	closed, err := MarkIssuesClosedTx(ctx, tx, job.RepositoryID, page.ClosedIssues)
+	if err != nil {
+		return "persist_error", err
 	}
-	if err := CompleteOrRequeue(ctx, tx, job, page.EndCursor, page.HasNextPage, pagesDone, maxPages); err != nil {
+
+	progress := PageProgress{
+		OpenCursor:   derefOr(job.Cursor, ""),
+		OpenDone:     job.OpenDone,
+		ClosedCursor: derefOr(job.ClosedCursor, ""),
+		ClosedDone:   job.ClosedDone || !query.FetchClosed,
+		PagesDone:    job.PagesDone + 1,
+	}
+	if query.FetchOpen {
+		progress.OpenCursor = page.EndCursor
+		progress.OpenDone = !page.HasNextPage
+	}
+	if query.FetchClosed {
+		progress.ClosedCursor = page.ClosedEndCursor
+		progress.ClosedDone = !page.ClosedHasNextPage
+	}
+	maxPages := snap.Int(settings.IngestMaxPagesPerRepo)
+	if maxPages > 0 && progress.PagesDone >= maxPages && !(progress.OpenDone && progress.ClosedDone) {
+		slog.Warn("repository hit the per-repository page cap, stopping pagination here",
+			"repo", job.FullName, "pages_done", progress.PagesDone, "max_pages_per_repo", maxPages)
+	}
+	if err := CompleteOrRequeue(ctx, tx, job, progress, maxPages); err != nil {
 		return "persist_error", fmt.Errorf("complete/requeue job: %w", err)
 	}
 
@@ -121,10 +152,12 @@ func (w *Worker) processJob(ctx context.Context, job Job) (string, error) {
 		return "persist_error", fmt.Errorf("commit page: %w", err)
 	}
 	metrics.IngestIssuesUpserted.Add(float64(upserted))
+	metrics.IngestIssuesClosed.WithLabelValues("crawl").Add(float64(closed))
 
 	slog.Info("page ingested",
-		"repo", job.FullName, "job_type", job.JobType, "issues", upserted,
-		"has_next_page", page.HasNextPage, "remaining_budget", page.RateLimit.Remaining,
+		"repo", job.FullName, "job_type", job.JobType, "incremental", job.Since != nil,
+		"issues", upserted, "closed", closed,
+		"has_next_page", !(progress.OpenDone && progress.ClosedDone), "remaining_budget", page.RateLimit.Remaining,
 	)
 	return "page_ingested", nil
 }
@@ -135,23 +168,27 @@ func (w *Worker) processJob(ctx context.Context, job Job) (string, error) {
 // tradeoff notes). On RESOURCE_LIMITS_EXCEEDED or a timeout-shaped error,
 // it halves the page size and retries, bottoming out at 1, then restores
 // the configured size for the *next* call.
-func (w *Worker) fetchWithBatchLadder(ctx context.Context, token, owner, name string, cursor *string, pageSize int) (*github.RepositoryIssuesPage, error) {
-	size := pageSize
+func (w *Worker) fetchWithBatchLadder(ctx context.Context, token, owner, name string, q github.IssuesQuery) (*github.RepositoryIssuesPage, error) {
 	for {
-		page, err := w.github.FetchRepositoryIssues(ctx, token, owner, name, cursor, nil, size)
+		page, err := w.github.FetchRepositoryIssues(ctx, token, owner, name, q)
 		if err == nil {
 			return page, nil
 		}
-		if !isResourceLimitError(err) || size <= 1 {
+		if !isResourceLimitError(err) || (q.PageSize <= 1 && q.ClosedPageSize <= 1) {
 			return nil, err
 		}
-		size /= 2
-		if size < 1 {
-			size = 1
-		}
+		q.PageSize = max(q.PageSize/2, 1)
+		q.ClosedPageSize = max(q.ClosedPageSize/2, 1)
 		slog.Warn("resource limit hit, shrinking page size and retrying",
-			"repo", owner+"/"+name, "new_page_size", size, "error", err)
+			"repo", owner+"/"+name, "new_page_size", q.PageSize, "new_closed_page_size", q.ClosedPageSize, "error", err)
 	}
+}
+
+func derefOr[T any](p *T, fallback T) T {
+	if p == nil {
+		return fallback
+	}
+	return *p
 }
 
 func isResourceLimitError(err error) bool {
