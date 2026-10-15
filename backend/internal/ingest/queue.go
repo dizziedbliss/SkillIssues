@@ -353,7 +353,8 @@ func EnqueueFreshnessJobs(ctx context.Context, pool *db.Pool, limit int, olderTh
 // them being crawled.
 //
 // The rule mirrors cmd/repoimport's eligible() exactly — if one changes,
-// both change. Repositories GitHub itself rejected (MarkUnavailable writes
+// both change. The one exception is is_fork: forks are rejected at import
+// and never stored, so there is no stored fork to re-test. Repositories GitHub itself rejected (MarkUnavailable writes
 // eligibility_reason = 'not_found') are left alone: that is a fact about
 // the repository, not a threshold decision, and re-enabling them would
 // re-queue work that is known to fail.
@@ -362,7 +363,6 @@ func RecomputeEligibility(ctx context.Context, pool *db.Pool, minStars, pushedWi
 		`WITH judged AS (
 			SELECT id,
 			       array_to_string(array_remove(ARRAY[
-			         CASE WHEN is_fork THEN 'is_fork' END,
 			         CASE WHEN is_archived THEN 'archived' END,
 			         -- NULL means "never imported with this field", not
 			         -- "has no issues". Absence of data is unknown, never a
