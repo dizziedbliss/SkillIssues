@@ -32,6 +32,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/issue"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
+	"github.com/dizziedbliss/skillissues/internal/notification"
 	"github.com/dizziedbliss/skillissues/internal/profile"
 	"github.com/dizziedbliss/skillissues/internal/settings"
 )
@@ -226,19 +227,20 @@ func buildRouter(
 
 	// Handlers object bundles all dependencies for handler functions
 	h := &handlers{
-		cfg:         cfg,
-		live:        live,
-		db:          pool,
-		cache:       cacheClient,
-		authSvc:     authSvc,
-		ghOAuth:     ghOAuth,
-		ghAppLogin:  ghAppLogin,
-		ghApp:       ghApp,
-		profileSvc:  profileSvc,
-		issueSvc:    issueSvc,
-		contribSvc:  contribSvc,
-		ghClient:    ghClient,
-		bodyFetcher: bodyFetcher,
+		cfg:             cfg,
+		live:            live,
+		db:              pool,
+		cache:           cacheClient,
+		authSvc:         authSvc,
+		ghOAuth:         ghOAuth,
+		ghAppLogin:      ghAppLogin,
+		ghApp:           ghApp,
+		profileSvc:      profileSvc,
+		issueSvc:        issueSvc,
+		contribSvc:      contribSvc,
+		notificationSvc: notification.NewService(pool),
+		ghClient:        ghClient,
+		bodyFetcher:     bodyFetcher,
 	}
 	go h.sweepExpiredTickets(context.Background())
 
@@ -273,6 +275,11 @@ func buildRouter(
 	mux.Handle("GET /saved", requireAuth(authSvc, http.HandlerFunc(h.getSaved)))
 	mux.Handle("POST /saved", requireAuth(authSvc, http.HandlerFunc(h.saveIssue)))
 	mux.Handle("DELETE /saved/{id}", requireAuth(authSvc, http.HandlerFunc(h.unsaveIssue)))
+
+	// ----- Notifications -----
+	mux.Handle("GET /notifications", requireAuth(authSvc, http.HandlerFunc(h.getNotifications)))
+	mux.Handle("POST /notifications/read-all", requireAuth(authSvc, http.HandlerFunc(h.markAllNotificationsRead)))
+	mux.Handle("POST /notifications/{id}/read", requireAuth(authSvc, http.HandlerFunc(h.markNotificationRead)))
 
 	// ----- Recommendations -----
 	mux.Handle("GET /recommendations", requireAuth(authSvc, http.HandlerFunc(h.getRecommendations)))

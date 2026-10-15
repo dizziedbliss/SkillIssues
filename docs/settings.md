@@ -27,6 +27,7 @@ readable through the endpoint above and copied into backups.
 | `api.issues.default_page_size` | 20 | 1–100 | Issues per page when browsing without a search term |
 | `api.issues.search_page_size` | 50 | 1–200 | Issues returned for a search query |
 | `api.search.per_category_cap` | 25 | 1–100 | Maximum search results per match category |
+| `api.notifications.page_size` | 50 | 1–200 | Notifications returned by `GET /notifications` |
 | `api.issues.freshness_batch_cap` | 25 | 1–100 | Maximum issue ids in one `POST /issues/freshness` |
 | `api.session.ttl_hours` | 168 | 1–8760 | Session lifetime; applies to newly issued sessions |
 | `api.cache.hot_issues_ttl_seconds` | 120 | 0–3600 | Cache for the default unauthenticated catalog page (0 = off) |
