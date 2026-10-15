@@ -324,6 +324,24 @@ func MarkIssuesClosedTx(ctx context.Context, tx pgx.Tx, repoID int, closed []git
 	return int(tag.RowsAffected()), nil
 }
 
+// UpdateRepositoryStatsTx replaces the repository's dataset-snapshot metadata
+// with what GitHub reports now. stars, pushed_at and is_archived feed
+// RecomputeEligibility, so eligibility follows the live values from here on.
+// issue_count is left alone: it is the dataset's open+closed total that the
+// import's no_issues rule reads; open_issue_count is the live open count.
+func UpdateRepositoryStatsTx(ctx context.Context, tx pgx.Tx, repoID int, st github.RepositoryStats) error {
+	_, err := tx.Exec(ctx,
+		`UPDATE repositories SET stars = $2, forks = $3, watchers = $4, open_issue_count = $5,
+		    is_archived = $6, pushed_at = coalesce($7, pushed_at), metadata_refreshed_at = now()
+		 WHERE id = $1`,
+		repoID, st.Stars, st.Forks, st.Watchers, st.OpenIssueCount, st.IsArchived, st.PushedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("ingest: update repository stats: %w", err)
+	}
+	return nil
+}
+
 // MarkUnavailable isolates a poisoned repository (e.g. GitHub returns
 // NOT_FOUND) permanently rather than retrying it forever, and flags the
 // repository itself so other code stops treating it as ingestible.

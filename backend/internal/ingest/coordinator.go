@@ -43,6 +43,7 @@ type Coordinator struct {
 	lastEligibilityCheck time.Time
 	lastMetricsRefresh   time.Time
 	lastLeaseReclaim     time.Time
+	lastClosedPrune      time.Time
 
 	// dbSizePaused and lastDBSizeMB back Status()/the D6 disk guardrail —
 	// pg_database_size() is cheap (metadata lookup, not a scan), so it's
@@ -126,6 +127,7 @@ func (c *Coordinator) cycle() {
 	c.reclaimLeases(snap)
 	c.refreshMetrics(snap)
 	c.checkTrackedIssues(snap)
+	c.pruneClosedIssues(snap)
 	publishPoolStats(c.initialPool)
 	publishPoolStats(c.deepPool)
 
@@ -240,6 +242,39 @@ func (c *Coordinator) checkTrackedIssues(snap *settings.Snapshot) {
 	}
 	metrics.IngestIssuesClosed.WithLabelValues("tracked").Add(float64(closed))
 	slog.Info("checked tracked issues", "checked", len(due), "closed", closed)
+}
+
+// pruneClosedIssues deletes issues closed longer ago than
+// ingest.closed_issue_retention_days that nobody saved or worked on, at most
+// once per ingest.closed_issue_prune_interval_seconds. Each run deletes
+// batches until one comes back short, so a backlog clears in one run while
+// no single statement holds locks for long. Retention 0 disables it.
+func (c *Coordinator) pruneClosedIssues(snap *settings.Snapshot) {
+	days := snap.Int(settings.IngestClosedIssueRetentionDays)
+	if days == 0 || time.Since(c.lastClosedPrune) < snap.Seconds(settings.IngestClosedIssuePruneIntervalSeconds) {
+		return
+	}
+	c.lastClosedPrune = time.Now()
+
+	retention := time.Duration(days) * 24 * time.Hour
+	batch := snap.Int(settings.IngestClosedIssuePruneBatchSize)
+	total := 0
+	for c.ctx.Err() == nil {
+		n, err := PruneClosedIssues(c.ctx, c.pool, retention, batch)
+		if err != nil {
+			metrics.IngestCycleErrors.WithLabelValues("prune_closed").Inc()
+			slog.Warn("failed to prune closed issues", "deleted_before_error", total, "error", err)
+			break
+		}
+		total += n
+		metrics.IngestIssuesPruned.Add(float64(n))
+		if n < batch {
+			break
+		}
+	}
+	if total > 0 {
+		slog.Info("pruned closed issues", "deleted", total, "retention_days", days)
+	}
 }
 
 // refreshMetrics re-reads the Postgres-backed /metrics gauges no more often

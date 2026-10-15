@@ -369,3 +369,111 @@ func TestPassPagesClosedConnectionAfterOpenIsExhausted(t *testing.T) {
 		t.Errorf("job %s, watermark %v; want done, %v", status, wm, passStarted)
 	}
 }
+
+// The first page of a pass writes the repository's live stats over the
+// dataset snapshot; later pages do not ask for them.
+func TestFirstPageRefreshesRepositoryStats(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	repoID, _ := testRepo(t, pool)
+	gh, vars := fakeCrawlAPI(t, `{"data":{"repository":{
+		"issues":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":""}},
+		"stargazerCount":315,"forkCount":12,"watchers":{"totalCount":7},"openIssues":{"totalCount":42},
+		"isArchived":true,"pushedAt":"2026-10-10T10:00:00Z"},`+fakeRateLimit+`}}`)
+
+	passStarted := time.Date(2026, 10, 15, 6, 0, 0, 0, time.UTC)
+	runOneJob(t, pool, gh, repoID, nil, &passStarted)
+
+	if (*vars)["withStats"] != true {
+		t.Errorf("first page did not request stats: %v", *vars)
+	}
+	var stars, forks, watchers, open int
+	var archived bool
+	var pushed, refreshed *time.Time
+	if err := pool.QueryRow(ctx,
+		`SELECT stars, forks, watchers, open_issue_count, is_archived, pushed_at, metadata_refreshed_at FROM repositories WHERE id = $1`,
+		[]any{repoID},
+		func(row pgx.Row) error {
+			return row.Scan(&stars, &forks, &watchers, &open, &archived, &pushed, &refreshed)
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if stars != 315 || forks != 12 || watchers != 7 || open != 42 || !archived ||
+		pushed == nil || !pushed.Equal(time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)) || refreshed == nil {
+		t.Errorf("stats = stars %d forks %d watchers %d open %d archived %v pushed %v refreshed %v",
+			stars, forks, watchers, open, archived, pushed, refreshed)
+	}
+}
+
+// Closed issues past retention are deleted unless a user saved them or has a
+// contribution on them; open and recently closed ones stay.
+func TestPruneClosedIssuesKeepsWhatUsersHold(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	repoID, _ := testRepo(t, pool)
+
+	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for _, n := range []int{3, 4, 5} {
+		node := github.GraphQLIssueNode{Number: n, Title: "t", URL: fmt.Sprintf("u/%d", n), State: "OPEN", CreatedAt: created, UpdatedAt: created}
+		if err := pool.InTx(ctx, func(tx pgx.Tx) error { return UpsertIssueTx(ctx, tx, repoID, node, "Go") }); err != nil {
+			t.Fatalf("insert issue #%d: %v", n, err)
+		}
+	}
+	// #1 open; #2 closed recently; #3 closed long ago (prune); #4 closed long
+	// ago but saved; #5 closed long ago with a contribution.
+	if err := pool.Exec(ctx,
+		`UPDATE issues SET state = 'CLOSED',
+		    updated_at = CASE number WHEN 2 THEN now() - interval '1 day' ELSE now() - interval '30 days' END
+		 WHERE repository_id = $1 AND number IN (2, 3, 4, 5)`, repoID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	var userID int
+	if err := pool.QueryRow(ctx, `INSERT INTO users (username) VALUES ($1) RETURNING id`,
+		[]any{fmt.Sprintf("prune-test-%d", time.Now().UnixNano())},
+		func(row pgx.Row) error { return row.Scan(&userID) }); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		// contributions do not cascade from issues, so remove them before
+		// the repository cleanup deletes the issues.
+		if err := pool.Exec(context.Background(), `DELETE FROM contributions WHERE user_id = $1`, userID); err != nil {
+			t.Errorf("cleanup contributions: %v", err)
+		}
+		if err := pool.Exec(context.Background(), `DELETE FROM users WHERE id = $1`, userID); err != nil {
+			t.Errorf("cleanup user: %v", err)
+		}
+	})
+	if err := pool.Exec(ctx,
+		`INSERT INTO saved_issues (user_id, issue_id) SELECT $1, id FROM issues WHERE repository_id = $2 AND number = 4`,
+		userID, repoID); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.Exec(ctx,
+		`INSERT INTO contributions (user_id, issue_id, state) SELECT $1, id, 'VERIFIED' FROM issues WHERE repository_id = $2 AND number = 5`,
+		userID, repoID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Batch of 100 over the whole test database: other rows may be pruned
+	// too, so only the test repository's survivors are asserted.
+	for {
+		n, err := PruneClosedIssues(ctx, pool, 7*24*time.Hour, 100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n < 100 {
+			break
+		}
+	}
+	issues := readIssues(t, pool, repoID)
+	for _, n := range []int{1, 2, 4, 5} {
+		if _, ok := issues[n]; !ok {
+			t.Errorf("issue #%d was pruned", n)
+		}
+	}
+	if _, ok := issues[3]; ok {
+		t.Error("issue #3, closed 30 days ago and unheld, survived")
+	}
+}
