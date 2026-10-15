@@ -33,6 +33,8 @@ readable through the endpoint above and copied into backups.
 | `api.cache.hot_issues_ttl_seconds` | 120 | 0–3600 | Cache for the default unauthenticated catalog page (0 = off) |
 | `api.cache.search_ttl_seconds` | 60 | 0–3600 | Cache for unauthenticated search results (0 = off) |
 | `api.cache.recommendations_ttl_seconds` | 300 | 0–3600 | Cache for per-user recommendations (0 = off) |
+| `api.cache.redis_timeout_ms` | 250 | 10–5000 | Deadline for one Redis call, connecting included; a call that misses it fails open |
+| `api.cache.redis_retry_seconds` | 5 | 1–300 | After a failed Redis call, how long Redis is skipped before one call probes for recovery |
 | `api.contribution.verify_per_hour` | 5 | 1–1000 | PR verification attempts per user per contribution per hour |
 | `api.issue_body.cache_max_rows` | 50000 | 100–10000000 | Rows kept in `issue_body_cache`; least recently read pruned beyond it |
 | `api.issue_body.prune_interval_seconds` | 600 | 60–86400 | How often the body cache is pruned |

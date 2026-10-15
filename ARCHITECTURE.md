@@ -141,8 +141,11 @@ A Redis counter per signed-in user or per client IP (`X-Forwarded-For` honoured 
 count resets one window later, however busy the client is. `/health`, `/health/detail` and `/metrics` are exempt;
 login is not. Redis also caches the default catalog page, unauthenticated searches and
 recommendations. If Redis is down, limiting fails open and caching is skipped — nothing else
-depends on it. Each failed Redis call counts in `cache_errors_total{op}`, and the API logs once
-when Redis becomes unreachable and once when it recovers.
+depends on it. Failing open is fast: each call has a deadline (`api.cache.redis_timeout_ms`), and
+after a failure the API stops calling Redis, letting one call through every
+`api.cache.redis_retry_seconds` to check whether it is back. Each failed Redis call counts in
+`cache_errors_total{op}`, each skipped one in `cache_skipped_total{op}`, and the API logs once when
+Redis becomes unreachable and once when it recovers.
 
 ## 7. Configuration
 

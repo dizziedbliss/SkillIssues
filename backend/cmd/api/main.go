@@ -79,23 +79,7 @@ func main() {
 	metrics.RegisterGitHub()
 	metrics.RegisterDBPool(pool.Raw())
 
-	// 3. Connect to Redis (non-fatal: cache operates in degraded mode if unavailable)
-	cacheClient, err := cache.New(cfg.RedisURL)
-	if err != nil {
-		slog.Warn("invalid REDIS_URL — operating without cache or rate limiting", "error", err)
-		cacheClient = nil
-	} else if err := cacheClient.Ping(ctx); err != nil {
-		// Keep the client: it reconnects on its own once Redis is up, and
-		// until then every call fails open and counts in cache_errors_total.
-		slog.Warn("redis unreachable at startup — cache and rate limiting fail open until it is", "error", err)
-	} else {
-		slog.Info("redis connected")
-	}
-	if cacheClient != nil {
-		defer cacheClient.Close()
-	}
-
-	// 4. Instantiate service layer
+	// 3. Instantiate service layer
 	tokenCipher, err := crypto.New(cfg.TokenEncryptionKey)
 	if err != nil {
 		slog.Error("failed to initialize token encryption", "error", err)
@@ -139,11 +123,35 @@ func main() {
 		ghAppLogin = auth.NewGitHubAppLogin(ghApp, authSvc, ghOAuth)
 		slog.Info("GitHub App configured", "app_id", cfg.GitHubAppID)
 	}
-	// 5. Load live settings and start watching for changes. Operational values
+	// 4. Load live settings and start watching for changes. Operational values
 	// are read from the snapshot per request, so they can change without a
 	// restart; see internal/settings.
 	live := settings.NewLive(ctx, pool.Raw(), cfg.DatabaseURL)
 	live.Start(ctx)
+
+	// 5. Connect to Redis (non-fatal: cache operates in degraded mode if
+	// unavailable). After settings, because its call deadline and retry
+	// interval are live settings.
+	cacheClient, err := cache.New(cfg.RedisURL, func() cache.Limits {
+		s := live.Current()
+		return cache.Limits{
+			CallTimeout: s.Millis(settings.CacheRedisTimeoutMs),
+			RetryAfter:  s.Seconds(settings.CacheRedisRetrySeconds),
+		}
+	})
+	if err != nil {
+		slog.Warn("invalid REDIS_URL — operating without cache or rate limiting", "error", err)
+		cacheClient = nil
+	} else if err := cacheClient.Ping(ctx); err != nil {
+		// Keep the client: it reconnects on its own once Redis is up, and
+		// until then calls fail open without waiting on it.
+		slog.Warn("redis unreachable at startup — cache and rate limiting fail open until it is", "error", err)
+	} else {
+		slog.Info("redis connected")
+	}
+	if cacheClient != nil {
+		defer cacheClient.Close()
+	}
 
 	profileSvc := profile.New(pool)
 	issueSvc := issue.New(pool, func() int {
