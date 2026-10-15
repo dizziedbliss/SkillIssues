@@ -52,10 +52,13 @@ readable through the endpoint above and copied into backups.
 | `ingest.rate_limit_floor` | 100 | 0–5000 | Crawler stops below this many remaining GitHub points |
 | `ingest.max_attempts` | 3 | 1–10 | Attempts before a job is left `failed` |
 | `ingest.backoff_base_seconds` | 1 | 1–60 | Base of the exponential retry backoff |
-| `ingest.freshness_interval_seconds` | 86400 | 300–2592000 | Age of a repository's last sync before page one is re-fetched |
+| `ingest.freshness_interval_seconds` | 86400 | 300–2592000 | Age of a repository's last sync before a freshness pass (changes since its last completed pass) is queued |
 | `ingest.enqueue_batch_size` | 500 | 1–50000 | Jobs enqueued per coordinator cycle |
 | `ingest.max_pages_per_repo` | 100 | 0–100000 | Deep Diver page cap per repository (0 = no cap) |
 | `ingest.max_db_size_mb` | 30000 | 0–1000000 | Pause new ingestion work above this database size (0 = no cap) |
+| `ingest.closed_page_size` | 40 | 1–100 | Issues closed since a repository's last completed pass, fetched with each page of a freshness pass |
+| `ingest.tracked_issue_check_seconds` | 3600 | 60–86400 | How stale a saved or in-progress open issue may get before its state is re-checked on GitHub |
+| `ingest.tracked_issue_batch_size` | 50 | 1–100 | Tracked issues checked per GitHub request |
 | `ingest.metrics_refresh_seconds` | 30 | 5–3600 | How often ingestd refreshes its Postgres-backed `/metrics` gauges |
 | `ingest.claim_interval_seconds` | 5 | 1–300 | Coordinator cycle: enqueue, reclaim, claim, submit |
 | `ingest.lease_seconds` | 300 | 60–3600 | How long a claimed job may wait in a pool queue and run before it can be reclaimed |

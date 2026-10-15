@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -24,15 +25,24 @@ const (
 
 // Job is one claimed row from ingest_jobs.
 type Job struct {
-	ID            int
-	RepositoryID  int
-	FullName      string
-	Language      *string
-	JobType       JobType
-	Cursor        *string
-	PagesDone     int
-	AttemptCount  int
-	LastSyncSince *time.Time
+	ID           int
+	RepositoryID int
+	FullName     string
+	Language     *string
+	JobType      JobType
+	Cursor       *string
+	PagesDone    int
+	AttemptCount int
+
+	// Since is the watermark this pass fetches changes after: open issues
+	// updated since it, and issues closed since it. Nil is a full crawl.
+	Since *time.Time
+	// PassStartedAt is when the pass's first job was enqueued. It becomes
+	// the repository's issues_synced_through once the pass completes.
+	PassStartedAt *time.Time
+	ClosedCursor  *string
+	OpenDone      bool
+	ClosedDone    bool
 
 	// LeaseOwner is the coordinator that claimed this job. Every write that
 	// finishes the job is fenced on it: once the lease has expired and been
@@ -87,7 +97,8 @@ func ClaimJobs(ctx context.Context, pool *db.Pool, jobType JobType, limit int, o
 			FOR UPDATE SKIP LOCKED
 		 ) claimed
 		 WHERE j.id = claimed.id
-		 RETURNING j.id, j.repository_id, j.cursor, j.pages_done, j.attempt_count, j.job_type`,
+		 RETURNING j.id, j.repository_id, j.cursor, j.pages_done, j.attempt_count, j.job_type,
+		           j.since, j.pass_started_at, j.closed_cursor, j.open_done, j.closed_done`,
 		owner, lease.Seconds(), string(jobType), limit,
 	)
 	if err != nil {
@@ -100,7 +111,8 @@ func ClaimJobs(ctx context.Context, pool *db.Pool, jobType JobType, limit int, o
 	for rows.Next() {
 		j := &Job{LeaseOwner: owner}
 		var jt string
-		if err := rows.Scan(&j.ID, &j.RepositoryID, &j.Cursor, &j.PagesDone, &j.AttemptCount, &jt); err != nil {
+		if err := rows.Scan(&j.ID, &j.RepositoryID, &j.Cursor, &j.PagesDone, &j.AttemptCount, &jt,
+			&j.Since, &j.PassStartedAt, &j.ClosedCursor, &j.OpenDone, &j.ClosedDone); err != nil {
 			return nil, fmt.Errorf("ingest: scan claimed job: %w", err)
 		}
 		j.JobType = JobType(jt)
@@ -154,71 +166,96 @@ func repoIDs(byID map[int]*Job) []int {
 	return ids
 }
 
+// PageProgress is where a pass stands once a page has been fetched.
+type PageProgress struct {
+	OpenCursor   string
+	OpenDone     bool
+	ClosedCursor string
+	ClosedDone   bool
+	PagesDone    int
+}
+
 // CompleteOrRequeue finishes a page within an already-open transaction:
 // caller is responsible for upserting the page's issues in the same tx
 // first, so the cursor only ever advances alongside committed rows (plan
 // §7 "atomic progress" / "never advance a cursor before its rows are
 // committed").
 //
-// If hasNextPage, the job (or a new "deep" job, if this was "initial")
-// goes back to pending with the new cursor. Otherwise it's marked done.
+// While either connection (open, or closed-since-watermark) has more
+// pages, the job (or a new "deep" job, if this was "initial") goes back to
+// pending with both cursors. Otherwise the pass is complete: the job is
+// marked done and the repository's issues_synced_through advances to the
+// pass's start, so the next pass fetches only what changed after it.
 //
 // maxPages is the disk guardrail (ingest.max_pages_per_repo, D6): once
-// pagesDone reaches it, the job is marked done regardless of what GitHub's
-// hasNextPage actually says, capping how much of the disk one
-// mega-repository's issue tracker can consume. 0 means unlimited.
-func CompleteOrRequeue(ctx context.Context, tx pgx.Tx, job Job, newCursor string, hasNextPage bool, pagesDone int, maxPages int) error {
-	if maxPages > 0 && pagesDone >= maxPages {
-		hasNextPage = false
-	}
+// PagesDone reaches it, the pass ends regardless of what GitHub's
+// hasNextPage says, capping how much of the disk one mega-repository's
+// issue tracker can consume. 0 means unlimited. A capped pass still
+// advances the watermark — the cap's meaning is "only the most recently
+// updated pages", and a later change to any issue brings it back in.
+func CompleteOrRequeue(ctx context.Context, tx pgx.Tx, job Job, p PageProgress, maxPages int) error {
+	capped := maxPages > 0 && p.PagesDone >= maxPages
+	more := !capped && !(p.OpenDone && p.ClosedDone)
+
 	// "Last successful sync time, separate from the cursor" (ingestion design
 	// §5). Written in the same transaction as the page's rows, so it can
 	// never claim a sync that was rolled back — and it is what
-	// EnqueueFreshnessJobs orders the cycle by.
-	if _, err := tx.Exec(ctx,
-		`UPDATE repositories SET last_synced_at = now() WHERE id = $1`,
-		job.RepositoryID,
-	); err != nil {
+	// EnqueueFreshnessJobs orders the cycle by. GREATEST ignores a NULL, and
+	// keeps an older pass that finishes late from moving the watermark back.
+	watermarkSQL := `UPDATE repositories SET last_synced_at = now() WHERE id = $1`
+	args := []any{job.RepositoryID}
+	if !more && job.PassStartedAt != nil {
+		watermarkSQL = `UPDATE repositories SET last_synced_at = now(),
+		    issues_synced_through = GREATEST(issues_synced_through, $2)
+		 WHERE id = $1`
+		args = append(args, *job.PassStartedAt)
+	}
+	if _, err := tx.Exec(ctx, watermarkSQL, args...); err != nil {
 		return fmt.Errorf("ingest: mark repository synced: %w", err)
 	}
 
-	if !hasNextPage {
+	if !more {
 		return execFenced(ctx, tx.Exec,
-			`UPDATE ingest_jobs SET status = 'done', cursor = $3, pages_done = $4,
+			`UPDATE ingest_jobs SET status = 'done', cursor = $3, closed_cursor = $4, pages_done = $5,
+			    open_done = $6, closed_done = $7,
 			    has_next_page = false, lease_owner = NULL, lease_expires_at = NULL,
 			    next_retry_at = NULL, updated_at = now()
 			 WHERE `+fenceJob,
-			job.ID, job.LeaseOwner, newCursor, pagesDone,
+			job.ID, job.LeaseOwner, p.OpenCursor, p.ClosedCursor, p.PagesDone, p.OpenDone, p.ClosedDone,
 		)
 	}
 
 	if job.JobType == JobDeep {
 		return execFenced(ctx, tx.Exec,
-			`UPDATE ingest_jobs SET status = 'pending', cursor = $3, pages_done = $4,
+			`UPDATE ingest_jobs SET status = 'pending', cursor = $3, closed_cursor = $4, pages_done = $5,
+			    open_done = $6, closed_done = $7,
 			    has_next_page = true, lease_owner = NULL, lease_expires_at = NULL,
 			    next_retry_at = now(), attempt_count = 0, updated_at = now()
 			 WHERE `+fenceJob,
-			job.ID, job.LeaseOwner, newCursor, pagesDone,
+			job.ID, job.LeaseOwner, p.OpenCursor, p.ClosedCursor, p.PagesDone, p.OpenDone, p.ClosedDone,
 		)
 	}
 
 	// An "initial" job's role ends after its one page: mark it done and
 	// hand off pagination to a new "deep" job, per the Initial/Freshness
-	// vs. Deep Diver split.
+	// vs. Deep Diver split. The deep job carries the pass: its watermark,
+	// start time, and both connections' positions.
 	if err := execFenced(ctx, tx.Exec,
-		`UPDATE ingest_jobs SET status = 'done', cursor = $3, pages_done = $4,
+		`UPDATE ingest_jobs SET status = 'done', cursor = $3, closed_cursor = $4, pages_done = $5,
+		    open_done = $6, closed_done = $7,
 		    has_next_page = true, lease_owner = NULL, lease_expires_at = NULL,
 		    next_retry_at = NULL, updated_at = now()
 		 WHERE `+fenceJob,
-		job.ID, job.LeaseOwner, newCursor, pagesDone,
+		job.ID, job.LeaseOwner, p.OpenCursor, p.ClosedCursor, p.PagesDone, p.OpenDone, p.ClosedDone,
 	); err != nil {
 		return err
 	}
 	_, err := tx.Exec(ctx,
-		`INSERT INTO ingest_jobs (repository_id, job_type, status, cursor, pages_done, has_next_page, next_retry_at)
-		 VALUES ($1, 'deep', 'pending', $2, $3, true, now())
+		`INSERT INTO ingest_jobs (repository_id, job_type, status, cursor, closed_cursor, pages_done,
+		    open_done, closed_done, since, pass_started_at, has_next_page, next_retry_at)
+		 VALUES ($1, 'deep', 'pending', $2, $3, $4, $5, $6, $7, coalesce($8, now()), true, now())
 		 ON CONFLICT (repository_id) WHERE status IN ('pending', 'running') DO NOTHING`,
-		job.RepositoryID, newCursor, pagesDone,
+		job.RepositoryID, p.OpenCursor, p.ClosedCursor, p.PagesDone, p.OpenDone, p.ClosedDone, job.Since, job.PassStartedAt,
 	)
 	return err
 }
@@ -259,6 +296,32 @@ func FailJob(ctx context.Context, pool *db.Pool, job Job, errClass, errDetail st
 		 WHERE `+fenceJob,
 		job.ID, job.LeaseOwner, attempt, errClass, errDetail, backoff.Seconds(),
 	)
+}
+
+// MarkIssuesClosedTx marks the given issues of a repository CLOSED inside the
+// page's transaction, with GitHub's own updatedAt. Only issues still OPEN
+// here change, so a newer state written by another path is not overwritten
+// and the returned count is the number that actually closed.
+func MarkIssuesClosedTx(ctx context.Context, tx pgx.Tx, repoID int, closed []github.ClosedIssue) (int, error) {
+	if len(closed) == 0 {
+		return 0, nil
+	}
+	numbers := make([]int, len(closed))
+	updatedAt := make([]time.Time, len(closed))
+	for i, c := range closed {
+		numbers[i] = c.Number
+		updatedAt[i] = c.UpdatedAt
+	}
+	tag, err := tx.Exec(ctx,
+		`UPDATE issues i SET state = 'CLOSED', updated_at = c.updated_at, last_synced_at = now()
+		 FROM unnest($2::int[], $3::timestamptz[]) AS c(number, updated_at)
+		 WHERE i.repository_id = $1 AND i.number = c.number AND i.state = 'OPEN'`,
+		repoID, numbers, updatedAt,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("ingest: mark issues closed: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
 }
 
 // MarkUnavailable isolates a poisoned repository (e.g. GitHub returns
@@ -306,11 +369,16 @@ func EnqueueInitialJobs(ctx context.Context, pool *db.Pool, limit int) (int, err
 	return int(tag.RowsAffected()), nil
 }
 
-// EnqueueFreshnessJobs re-queues the first page of repositories whose last
+// EnqueueFreshnessJobs queues a freshness pass for repositories whose last
 // successful sync is older than olderThan — the Freshness half of the
 // Initial/Freshness worker. Without this the catalog goes quiet once every
 // repository has been seeded once: EnqueueInitialJobs only ever picks up
 // repositories that have no ingest_jobs row at all.
+//
+// The pass starts from the repository's issues_synced_through, so it fetches
+// only issues changed since its last completed pass — open ones to upsert,
+// closed ones to mark CLOSED. A repository with no completed pass yet gets
+// a full crawl (since NULL).
 //
 // Still FIFO and still no score: "oldest successful sync first" is cycle
 // ordering, not a ranking of repository value. The partial unique index on
@@ -322,7 +390,7 @@ func EnqueueFreshnessJobs(ctx context.Context, pool *db.Pool, limit int, olderTh
 	}
 	tag, err := pool.Raw().Exec(ctx,
 		`WITH due AS (
-			SELECT r.id
+			SELECT r.id, r.issues_synced_through
 			FROM repositories r
 			WHERE r.is_eligible
 			  AND r.last_synced_at IS NOT NULL
@@ -334,8 +402,8 @@ func EnqueueFreshnessJobs(ctx context.Context, pool *db.Pool, limit int, olderTh
 			ORDER BY r.last_synced_at
 			LIMIT $1
 		 )
-		 INSERT INTO ingest_jobs (repository_id, job_type, status, next_retry_at)
-		 SELECT id, 'initial', 'pending', now() FROM due
+		 INSERT INTO ingest_jobs (repository_id, job_type, status, next_retry_at, since)
+		 SELECT id, 'initial', 'pending', now(), issues_synced_through FROM due
 		 ON CONFLICT (repository_id) WHERE status IN ('pending', 'running') DO NOTHING`,
 		limit, olderThan.Seconds(),
 	)

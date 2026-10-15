@@ -102,7 +102,7 @@ func TestFencedWritesRejectAReclaimedLease(t *testing.T) {
 		t.Errorf("MarkUnavailable with a reclaimed lease: err = %v, want ErrLeaseLost", err)
 	}
 	err := pool.InTx(ctx, func(tx pgx.Tx) error {
-		return CompleteOrRequeue(ctx, tx, stale, "stale-cursor", false, 1, 0)
+		return CompleteOrRequeue(ctx, tx, stale, PageProgress{OpenCursor: "stale-cursor", OpenDone: true, ClosedDone: true, PagesDone: 1}, 0)
 	})
 	if !errors.Is(err, ErrLeaseLost) {
 		t.Errorf("CompleteOrRequeue with a reclaimed lease: err = %v, want ErrLeaseLost", err)
