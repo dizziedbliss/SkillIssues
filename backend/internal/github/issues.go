@@ -39,11 +39,14 @@ type GraphQLIssueNode struct {
 // RepositoryIssuesPage is one page of a repository's open issues and, when
 // asked for, one page of the issues closed since the pass's watermark.
 type RepositoryIssuesPage struct {
-	Issues         []GraphQLIssueNode `json:"issues"`
-	HasNextPage    bool               `json:"has_next_page"`
-	EndCursor      string             `json:"end_cursor"`
-	StargazerCount int                `json:"stargazer_count"`
-	RateLimit      GraphQLRateLimit   `json:"rate_limit"`
+	Issues      []GraphQLIssueNode `json:"issues"`
+	HasNextPage bool               `json:"has_next_page"`
+	EndCursor   string             `json:"end_cursor"`
+	RateLimit   GraphQLRateLimit   `json:"rate_limit"`
+
+	// Stats is the repository's live metadata, present only when
+	// IssuesQuery.FetchStats asked for it.
+	Stats *RepositoryStats `json:"stats,omitempty"`
 
 	ClosedIssues      []ClosedIssue `json:"closed_issues"`
 	ClosedHasNextPage bool          `json:"closed_has_next_page"`
@@ -56,6 +59,17 @@ type RepositoryIssuesPage struct {
 type ClosedIssue struct {
 	Number    int       `json:"number"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// RepositoryStats is a repository's metadata as GitHub reports it now —
+// the live replacement for the dataset snapshot's numbers.
+type RepositoryStats struct {
+	Stars          int
+	Forks          int
+	Watchers       int
+	OpenIssueCount int
+	IsArchived     bool
+	PushedAt       *time.Time
 }
 
 // IssuesQuery selects what one FetchRepositoryIssues call returns.
@@ -75,9 +89,14 @@ type IssuesQuery struct {
 	FetchClosed    bool
 	ClosedCursor   *string
 	ClosedPageSize int
+
+	// FetchStats also requests the repository's live metadata. Scalars and
+	// one totalCount, so it does not raise the request's point cost; asked
+	// once per pass, on its first page.
+	FetchStats bool
 }
 
-const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: String!, $after: String, $since: DateTime, $first: Int!, $withOpen: Boolean!, $withClosed: Boolean!, $closedAfter: String, $closedFirst: Int!) {
+const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: String!, $after: String, $since: DateTime, $first: Int!, $withOpen: Boolean!, $withClosed: Boolean!, $closedAfter: String, $closedFirst: Int!, $withStats: Boolean!) {
     repository(owner: $owner, name: $name) {
         issues(first: $first, after: $after, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}, filterBy: {since: $since}) @include(if: $withOpen) {
             nodes {
@@ -98,7 +117,13 @@ const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: St
             nodes { number updatedAt }
             pageInfo { hasNextPage endCursor }
         }
-        stargazerCount
+        stargazerCount @include(if: $withStats)
+        forkCount @include(if: $withStats)
+        watchers @include(if: $withStats) { totalCount }
+        openIssues: issues(states: OPEN) @include(if: $withStats) { totalCount }
+        isArchived @include(if: $withStats)
+        pushedAt @include(if: $withStats)
+        __typename
     }
     rateLimit { limit remaining used resetAt cost }
 }`
@@ -128,6 +153,7 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 		"withOpen":    q.FetchOpen,
 		"withClosed":  fetchClosed,
 		"closedFirst": clampPageSize(q.ClosedPageSize),
+		"withStats":   q.FetchStats,
 	}
 	if q.OpenCursor != nil && *q.OpenCursor != "" {
 		variables["after"] = *q.OpenCursor
@@ -176,7 +202,16 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 					} `json:"nodes"`
 					PageInfo pageInfo `json:"pageInfo"`
 				} `json:"closed"`
-				StargazerCount int `json:"stargazerCount"`
+				StargazerCount *int `json:"stargazerCount"`
+				ForkCount      int  `json:"forkCount"`
+				Watchers       struct {
+					TotalCount int `json:"totalCount"`
+				} `json:"watchers"`
+				OpenIssues struct {
+					TotalCount int `json:"totalCount"`
+				} `json:"openIssues"`
+				IsArchived bool    `json:"isArchived"`
+				PushedAt   *string `json:"pushedAt"`
 			} `json:"repository"`
 			RateLimit rawRateLimit `json:"rateLimit"`
 		} `json:"data"`
@@ -231,11 +266,33 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 		closed = append(closed, ClosedIssue{Number: n.Number, UpdatedAt: updatedAt})
 	}
 
+	var stats *RepositoryStats
+	if q.FetchStats {
+		if repo.StargazerCount == nil {
+			return nil, fmt.Errorf("github: repository stats requested but not returned")
+		}
+		stats = &RepositoryStats{
+			Stars:          *repo.StargazerCount,
+			Forks:          repo.ForkCount,
+			Watchers:       repo.Watchers.TotalCount,
+			OpenIssueCount: repo.OpenIssues.TotalCount,
+			IsArchived:     repo.IsArchived,
+		}
+		if repo.PushedAt != nil {
+			// A repository with no pushes has a null pushedAt; that stays nil.
+			t, err := time.Parse(time.RFC3339, *repo.PushedAt)
+			if err != nil {
+				return nil, fmt.Errorf("github: parse pushedAt: %w", err)
+			}
+			stats.PushedAt = &t
+		}
+	}
+
 	return &RepositoryIssuesPage{
 		Issues:            issues,
 		HasNextPage:       repo.Issues.PageInfo.HasNextPage,
 		EndCursor:         repo.Issues.PageInfo.EndCursor,
-		StargazerCount:    repo.StargazerCount,
+		Stats:             stats,
 		RateLimit:         rawResponse.Data.RateLimit.parse(),
 		ClosedIssues:      closed,
 		ClosedHasNextPage: repo.Closed.PageInfo.HasNextPage,

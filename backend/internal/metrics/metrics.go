@@ -119,6 +119,11 @@ var (
 		Help: "Issues ingestd marked CLOSED, by how it found out: crawl (a freshness pass) or tracked (the saved/in-progress state check).",
 	}, []string{"source"})
 
+	IngestIssuesPruned = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "ingest_issues_pruned_total",
+		Help: "Closed issues deleted after ingest.closed_issue_retention_days (never saved or worked-on ones).",
+	})
+
 	IngestCycleErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "ingest_cycle_errors_total",
 		Help: "Coordinator cycle step failures, by step.",
@@ -183,7 +188,7 @@ var (
 // RegisterIngest registers the families ingestd produces.
 func RegisterIngest() {
 	Registry.MustRegister(
-		IngestJobOutcomes, IngestIssuesUpserted, IngestIssuesClosed, IngestCycleErrors,
+		IngestJobOutcomes, IngestIssuesUpserted, IngestIssuesClosed, IngestIssuesPruned, IngestCycleErrors,
 		IngestJobs, IngestStuckLeases, IngestLeasesReclaimed, IngestDBSizeBytes, IngestPaused, RepositoriesEligible,
 		GitHubBudgetRemaining, GitHubBudgetLimit, GitHubBudgetResetSeconds, GitHubSecondaryPaused,
 		WorkerPool, BudgetErrors,
