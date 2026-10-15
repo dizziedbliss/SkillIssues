@@ -9,11 +9,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// classificationRulesVersion bumps whenever ClassifyLabels' rules change in
-// a way that would alter existing rows' difficulty, so a future backfill
-// knows which rows were classified under an older rule set.
-const classificationRulesVersion = 1
-
 // UpsertIssueTx inserts or updates one issue inside an already-open
 // transaction, so the caller can commit it atomically alongside the page's
 // cursor/job-state update (plan §7 "atomic progress").
@@ -50,10 +45,9 @@ func UpsertIssueTx(ctx context.Context, tx pgx.Tx, repoID int, issue github.Grap
 		`INSERT INTO issues (
 			github_id, repository_id, number, title, url, state,
 			difficulty_score, difficulty, required_skills, technologies, learning_tags,
-			labels, classification_rules_version, comments, has_difficulty_label,
-			created_at, updated_at, author
+			labels, comments, created_at, updated_at, author
 		 )
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
 		 ON CONFLICT (repository_id, number) DO UPDATE SET
 			github_id                    = EXCLUDED.github_id,
 			title                        = EXCLUDED.title,
@@ -65,16 +59,13 @@ func UpsertIssueTx(ctx context.Context, tx pgx.Tx, repoID int, issue github.Grap
 			technologies                 = EXCLUDED.technologies,
 			learning_tags                = EXCLUDED.learning_tags,
 			labels                       = EXCLUDED.labels,
-			classification_rules_version = EXCLUDED.classification_rules_version,
 			comments                     = EXCLUDED.comments,
-			has_difficulty_label         = EXCLUDED.has_difficulty_label,
 			updated_at                   = EXCLUDED.updated_at,
 			last_synced_at               = now(),
 			author                       = EXCLUDED.author`,
 		issue.DatabaseID, repoID, issue.Number, SanitizeText(issue.Title), issue.URL, issue.State,
 		difficultyScore, difficulty, skills, tech, tags,
-		labels, classificationRulesVersion, issue.CommentsCount, hasValid,
-		createdAt, updatedAt, author,
+		labels, issue.CommentsCount, createdAt, updatedAt, author,
 	)
 	return err
 }
