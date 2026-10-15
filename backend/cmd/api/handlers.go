@@ -24,6 +24,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/dizziedbliss/skillissues/internal/githubapp"
 	"github.com/dizziedbliss/skillissues/internal/issue"
+	"github.com/dizziedbliss/skillissues/internal/notification"
 	"github.com/dizziedbliss/skillissues/internal/profile"
 	"github.com/dizziedbliss/skillissues/internal/settings"
 )
@@ -44,21 +45,22 @@ func (t ticketEntry) expired() bool { return time.Since(t.createdAt) > ticketTTL
 
 // handlers bundles all service dependencies for the handler functions.
 type handlers struct {
-	cfg            *config.Config
-	live           *settings.Live
-	db             *db.Pool
-	cache          *cache.Client
-	authSvc        *auth.Service
-	ghOAuth        *auth.GitHubOAuth
-	ghAppLogin     *auth.GitHubAppLogin // nil until the GitHub App is configured
-	ghApp          *githubapp.App       // nil until the GitHub App is configured (D23 bot identity)
-	profileSvc     *profile.Service
-	issueSvc       *issue.Service
-	contribSvc     *contribution.Service
-	ghClient       *github.Client
-	bodyFetcher    *issue.BodyFetcher
-	desktopTickets sync.Map // ticket -> ticketEntry{data: session data}
-	stateTickets   sync.Map // state -> ticketEntry{data: ticket string}
+	cfg             *config.Config
+	live            *settings.Live
+	db              *db.Pool
+	cache           *cache.Client
+	authSvc         *auth.Service
+	ghOAuth         *auth.GitHubOAuth
+	ghAppLogin      *auth.GitHubAppLogin // nil until the GitHub App is configured
+	ghApp           *githubapp.App       // nil until the GitHub App is configured (D23 bot identity)
+	profileSvc      *profile.Service
+	issueSvc        *issue.Service
+	contribSvc      *contribution.Service
+	notificationSvc *notification.Service
+	ghClient        *github.Client
+	bodyFetcher     *issue.BodyFetcher
+	desktopTickets  sync.Map // ticket -> ticketEntry{data: session data}
+	stateTickets    sync.Map // state -> ticketEntry{data: ticket string}
 }
 
 // sweepExpiredTickets periodically drops stale entries from desktopTickets

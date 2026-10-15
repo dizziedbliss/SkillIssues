@@ -400,6 +400,12 @@ Every key with its default and bounds: `docs/settings.md`.
 - **Unlabeled issues are not `BEGINNER`.** Absence of a difficulty label is `UNCLASSIFIED` —
   unknown difficulty, not easy difficulty — and `difficulty_score` is NULL for it.
 - Preserve raw GitHub labels; derived tags are not a substitute.
+- **Notifications are written by the database.** The `issues_notify_closed` trigger inserts an
+  `issue_closed` row in `notifications` for everyone who saved the issue or has a `STARTED` /
+  `PR_OPEN` contribution on it, on the `OPEN` → `CLOSED` transition — whichever path closed it.
+  Never add a Go code path that writes them for issue closure; `internal/notification` only
+  reads and marks them read (`GET /notifications`, `POST /notifications/{id}/read`,
+  `POST /notifications/read-all`). No client shows them yet.
 
 ### Frontend
 - Use a maintained Markdown library with sanitisation; never hand-roll Markdown rendering.
