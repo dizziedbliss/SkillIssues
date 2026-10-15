@@ -223,13 +223,16 @@ Initial  — one first page of open issues per eligible repository
 Deep Diver — every remaining page, from the stored cursor, until exhausted
         │
         ▼
-Freshness — re-fetch page one once a repository's last sync goes stale
+Freshness — once a repository's last sync is older than ingest.freshness_interval_seconds,
+             fetch only what changed since its last completed pass: open issues
+             updated since (upserted) and issues closed since (marked CLOSED)
 ```
 
 The coordinator (`internal/ingest/coordinator.go`) runs one cycle every
 `ingest.claim_interval_seconds`: recompute eligibility (throttled), reclaim expired leases
 (throttled), seed never-ingested repositories, re-queue stale ones, then
-claim and submit work to the Initial and Deep pools.
+check tracked (saved / in-progress) issues on GitHub, then claim and submit work to the Initial
+and Deep pools.
 
 ### Rules
 
@@ -252,6 +255,17 @@ claim and submit work to the Initial and Deep pools.
 - **Cursors advance only after the rows they describe are committed**, in the same
   transaction, along with `repositories.last_synced_at`. Never mark a repository complete on a
   truncated run.
+- **The watermark only ever trails the truth.** `repositories.issues_synced_through` is the
+  *enqueue* time of the last pass that completed (`ingest_jobs.pass_started_at`), set in the
+  transaction of the pass's last page. A freshness pass fetches changes after it (`ingest_jobs.since`);
+  NULL means no pass has completed and the next one is a full crawl. A pass pages two
+  connections in lockstep (`cursor`/`open_done`, `closed_cursor`/`closed_done`) and is done
+  only when both are exhausted or the page cap is hit.
+- **Closed issues are detected, never inferred.** The crawl asks GitHub for issues closed since
+  the watermark and marks exactly those `CLOSED`. "Not seen in this pass" is not evidence of
+  closure — the page cap means many open issues are never seen. Issues a user saved or is
+  working on are also re-checked directly (`ingest.tracked_issue_check_seconds`), so their
+  closure shows up within that interval rather than at the repository's next pass.
 - **One failing repository must never block the others.** `NOT_FOUND` marks a repository
   unavailable; `RESOURCE_LIMITS_EXCEEDED` halves the page size and retries down to 1;
   secondary rate limits pause the lane; anything else gets exponential backoff and, past
