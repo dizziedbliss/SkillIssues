@@ -125,6 +125,15 @@ const (
 	// request covers (one GraphQL alias each).
 	IngestTrackedIssueBatchSize Key = "ingest.tracked_issue_batch_size"
 
+	// IngestClosedIssueRetentionDays is how long after closing on GitHub an
+	// issue is kept before it is deleted. Issues anyone saved or worked on
+	// are never deleted. 0 keeps every closed issue.
+	IngestClosedIssueRetentionDays Key = "ingest.closed_issue_retention_days"
+	// IngestClosedIssuePruneIntervalSeconds is how often that deletion runs.
+	IngestClosedIssuePruneIntervalSeconds Key = "ingest.closed_issue_prune_interval_seconds"
+	// IngestClosedIssuePruneBatchSize is how many issues one DELETE removes.
+	IngestClosedIssuePruneBatchSize Key = "ingest.closed_issue_prune_batch_size"
+
 	// AuthPATLoginEnabled gates POST /auth/github/token. Default false:
 	// OAuth is the only login path both clients expose; the PAT endpoint
 	// stays registered server-side but 404s unless explicitly turned on.
@@ -222,6 +231,10 @@ var Registry = map[Key]Spec{
 	IngestClosedPageSize:           intSpec(40, 1, 100, "Issues closed since a repository's last completed pass, fetched alongside each page of a freshness pass."),
 	IngestTrackedIssueCheckSeconds: intSpec(3600, 60, 86400, "How stale an open issue a user saved or is working on may get before its state is re-checked on GitHub."),
 	IngestTrackedIssueBatchSize:    intSpec(50, 1, 100, "Tracked issues checked per GitHub request."),
+
+	IngestClosedIssueRetentionDays:        intSpec(7, 0, 3650, "Days after closing on GitHub before an issue nobody saved or worked on is deleted. 0 keeps every closed issue."),
+	IngestClosedIssuePruneIntervalSeconds: intSpec(3600, 60, 86400, "How often closed issues past their retention are deleted."),
+	IngestClosedIssuePruneBatchSize:       intSpec(5000, 100, 100000, "Closed issues deleted per statement."),
 
 	AuthPATLoginEnabled: boolSpec(false, "Whether POST /auth/github/token is reachable. Both clients only offer OAuth; this stays off unless explicitly turned on."),
 }

@@ -59,6 +59,9 @@ readable through the endpoint above and copied into backups.
 | `ingest.closed_page_size` | 40 | 1–100 | Issues closed since a repository's last completed pass, fetched with each page of a freshness pass |
 | `ingest.tracked_issue_check_seconds` | 3600 | 60–86400 | How stale a saved or in-progress open issue may get before its state is re-checked on GitHub |
 | `ingest.tracked_issue_batch_size` | 50 | 1–100 | Tracked issues checked per GitHub request |
+| `ingest.closed_issue_retention_days` | 7 | 0–3650 | Days after closing before an issue nobody saved or worked on is deleted (0 = keep all) |
+| `ingest.closed_issue_prune_interval_seconds` | 3600 | 60–86400 | How often closed issues past their retention are deleted |
+| `ingest.closed_issue_prune_batch_size` | 5000 | 100–100000 | Closed issues deleted per statement |
 | `ingest.metrics_refresh_seconds` | 30 | 5–3600 | How often ingestd refreshes its Postgres-backed `/metrics` gauges |
 | `ingest.claim_interval_seconds` | 5 | 1–300 | Coordinator cycle: enqueue, reclaim, claim, submit |
 | `ingest.lease_seconds` | 300 | 60–3600 | How long a claimed job may wait in a pool queue and run before it can be reclaimed |

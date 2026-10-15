@@ -89,6 +89,7 @@ func (w *Worker) processJob(ctx context.Context, job Job) (string, error) {
 		FetchClosed:    job.Since != nil && !job.ClosedDone,
 		ClosedCursor:   job.ClosedCursor,
 		ClosedPageSize: snap.Int(settings.IngestClosedPageSize),
+		FetchStats:     job.PagesDone == 0,
 	}
 	page, err := w.fetchWithBatchLadder(ctx, token, owner, name, query)
 	if err != nil {
@@ -122,6 +123,11 @@ func (w *Worker) processJob(ctx context.Context, job Job) (string, error) {
 	closed, err := MarkIssuesClosedTx(ctx, tx, job.RepositoryID, page.ClosedIssues)
 	if err != nil {
 		return "persist_error", err
+	}
+	if page.Stats != nil {
+		if err := UpdateRepositoryStatsTx(ctx, tx, job.RepositoryID, *page.Stats); err != nil {
+			return "persist_error", err
+		}
 	}
 
 	progress := PageProgress{
