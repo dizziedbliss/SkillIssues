@@ -125,6 +125,7 @@ func (c *Coordinator) cycle() {
 	c.recheckEligibility(snap)
 	c.reclaimLeases(snap)
 	c.refreshMetrics(snap)
+	c.checkTrackedIssues(snap)
 	publishPoolStats(c.initialPool)
 	publishPoolStats(c.deepPool)
 
@@ -181,6 +182,64 @@ func (c *Coordinator) recheckEligibility(snap *settings.Snapshot) {
 		slog.Info("repository eligibility recomputed",
 			"changed", n, "min_stars", minStars, "pushed_within_days", pushedWithinDays)
 	}
+}
+
+// checkTrackedIssues re-checks, on GitHub, open issues users have saved or
+// are working on once they are older than ingest.tracked_issue_check_seconds,
+// one batch per cycle. It runs before the disk guard: it adds no rows, and
+// a user's tracked issue closing matters even while new crawling is paused.
+// It shares the crawler lane's budget and floor.
+func (c *Coordinator) checkTrackedIssues(snap *settings.Snapshot) {
+	due, err := DueTrackedIssues(c.ctx, c.pool,
+		snap.Seconds(settings.IngestTrackedIssueCheckSeconds), snap.Int(settings.IngestTrackedIssueBatchSize))
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("tracked_select").Inc()
+		slog.Warn("failed to select tracked issues to check", "error", err)
+		return
+	}
+	if len(due) == 0 {
+		return
+	}
+	token := c.worker.token()
+	if token == "" {
+		metrics.IngestCycleErrors.WithLabelValues("tracked_no_token").Inc()
+		slog.Warn("tracked issues due for a check, but no github token is configured", "due", len(due))
+		return
+	}
+
+	proceed, err := CanProceed(c.ctx, c.pool, LaneCrawler, installationIdentity, snap.Int(settings.IngestRateLimitFloor))
+	if err != nil {
+		metrics.BudgetErrors.WithLabelValues("read", string(LaneCrawler)).Inc()
+		slog.Warn("budget check failed, checking tracked issues anyway", "error", err)
+	} else if !proceed {
+		return
+	}
+
+	refs, err := trackedRefs(due)
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("tracked_select").Inc()
+		slog.Warn("cannot check tracked issues", "error", err)
+		return
+	}
+	states, rl, err := c.worker.github.FetchIssueStates(c.ctx, token, refs)
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("tracked_fetch").Inc()
+		slog.Warn("failed to fetch tracked issue states", "count", len(refs), "error", err)
+		return
+	}
+	if err := UpdateBudget(c.ctx, c.pool, LaneCrawler, installationIdentity, rl); err != nil {
+		metrics.BudgetErrors.WithLabelValues("write", string(LaneCrawler)).Inc()
+		slog.Warn("failed to persist budget", "error", err)
+	}
+
+	closed, err := ApplyTrackedStates(c.ctx, c.pool, due, states)
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("tracked_apply").Inc()
+		slog.Warn("failed to persist tracked issue states", "count", len(due), "error", err)
+		return
+	}
+	metrics.IngestIssuesClosed.WithLabelValues("tracked").Add(float64(closed))
+	slog.Info("checked tracked issues", "checked", len(due), "closed", closed)
 }
 
 // refreshMetrics re-reads the Postgres-backed /metrics gauges no more often

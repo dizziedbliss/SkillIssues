@@ -54,6 +54,10 @@ type graphQLRequest struct {
 
 type graphQLError struct {
 	Message string `json:"message"`
+	// Type and Path identify a per-field error in a partial response, e.g.
+	// NOT_FOUND on one alias of a batched query while the rest succeeded.
+	Type string `json:"type,omitempty"`
+	Path []any  `json:"path,omitempty"`
 }
 
 // GetPullRequest queries GitHub GraphQL for PR details.
