@@ -37,6 +37,10 @@ const (
 
 	SessionTTLHours Key = "api.session.ttl_hours"
 
+	// NotificationsPageSize is how many notifications GET /notifications
+	// returns, newest first.
+	NotificationsPageSize Key = "api.notifications.page_size"
+
 	CacheHotIssuesTTLSeconds      Key = "api.cache.hot_issues_ttl_seconds"
 	CacheSearchTTLSeconds         Key = "api.cache.search_ttl_seconds"
 	CacheRecommendationsTTLSecond Key = "api.cache.recommendations_ttl_seconds"
@@ -183,6 +187,7 @@ var Registry = map[Key]Spec{
 	IssuesDefaultPageSize:   intSpec(20, 1, 100, "Issues returned when the catalog is browsed without a search term."),
 	IssuesSearchPageSize:    intSpec(50, 1, 200, "Issues returned for a search query."),
 	SearchPerCategoryCap:    intSpec(25, 1, 100, "Maximum results per match category, so one category cannot flood the rest."),
+	NotificationsPageSize:   intSpec(50, 1, 200, "Notifications returned by GET /notifications."),
 	IssuesFreshnessBatchCap: intSpec(25, 1, 100, "Maximum issue ids accepted by one POST /issues/freshness call."),
 
 	SessionTTLHours: intSpec(168, 1, 8760, "Session lifetime. Applies to newly issued sessions only."),
