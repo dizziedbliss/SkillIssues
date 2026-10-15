@@ -266,6 +266,15 @@ and Deep pools.
   closure — the page cap means many open issues are never seen. Issues a user saved or is
   working on are also re-checked directly (`ingest.tracked_issue_check_seconds`), so their
   closure shows up within that interval rather than at the repository's next pass.
+- **Closed issues are pruned, unless a user holds them.** Once closed on GitHub for
+  `ingest.closed_issue_retention_days`, an issue is deleted — never one in `saved_issues` or
+  with any `contributions` row (`saved_issues` would cascade; a merged contribution is the
+  user's permanent record).
+- **Repository metadata is live once crawled.** The first page of every pass writes GitHub's
+  current stars, forks, watchers, open-issue count, archived flag and last push over the
+  dataset snapshot (`repositories.metadata_refreshed_at`; NULL = still the snapshot), so
+  eligibility follows live values. `issue_count` stays the dataset's open+closed total — the
+  import's `no_issues` rule reads it; `open_issue_count` is the live open count.
 - **One failing repository must never block the others.** `NOT_FOUND` marks a repository
   unavailable; `RESOURCE_LIMITS_EXCEEDED` halves the page size and retries down to 1;
   secondary rate limits pause the lane; anything else gets exponential backoff and, past

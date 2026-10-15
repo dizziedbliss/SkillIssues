@@ -1546,8 +1546,8 @@
     },
     {
       "type": "timeseries",
-      "title": "Issues marked closed / hour",
-      "description": "Issues ingestd marked CLOSED. crawl = a freshness pass found them in GitHub's closed-since-last-pass list; tracked = the hourly check of issues users saved or are working on.",
+      "title": "Issues closed and pruned / hour",
+      "description": "Issues ingestd marked CLOSED. crawl = a freshness pass found them in GitHub's closed-since-last-pass list; tracked = the hourly check of issues users saved or are working on. pruned = closed issues deleted after ingest.closed_issue_retention_days (never ones a user saved or worked on).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1561,6 +1561,15 @@
           "expr": "sum by (source) (increase(ingest_issues_closed_total[1h]))",
           "legendFormat": "{{source}}",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(ingest_issues_pruned_total[1h]))",
+          "legendFormat": "pruned",
+          "refId": "B"
         }
       ],
       "fieldConfig": {
@@ -1594,6 +1603,47 @@
         "y": 60,
         "w": 24,
         "h": 8
+      }
+    },
+    {
+      "type": "table",
+      "title": "Largest open-issue trackers",
+      "description": "open_on_github is GitHub's live open-issue count, refreshed on the first page of every crawl pass (repositories.open_issue_count). stored is how many of them SkillIssues holds; the gap is ingest.max_pages_per_repo or a pass still in progress.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "refId": "A",
+          "rawSql": "SELECT r.full_name AS repository, r.open_issue_count AS open_on_github,\n       (SELECT count(*) FROM issues i WHERE i.repository_id = r.id AND i.state = 'OPEN') AS stored,\n       r.metadata_refreshed_at AS refreshed\nFROM repositories r\nWHERE r.open_issue_count IS NOT NULL\nORDER BY r.open_issue_count DESC\nLIMIT 25"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 28,
+      "gridPos": {
+        "x": 0,
+        "y": 68,
+        "w": 24,
+        "h": 10
       }
     }
   ]
