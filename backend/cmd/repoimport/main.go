@@ -51,10 +51,6 @@ type topicEntry struct {
 	Name string `json:"name"`
 }
 
-type parentRef struct {
-	NameWithOwner string `json:"nameWithOwner"`
-}
-
 // repoRecord mirrors one element of the Kaggle dataset's JSON array.
 type repoRecord struct {
 	NameWithOwner   string          `json:"nameWithOwner"`
@@ -72,7 +68,6 @@ type repoRecord struct {
 	PushedAt        *time.Time      `json:"pushedAt"`
 	License         *string         `json:"license"`
 	ForkingAllowed  bool            `json:"forkingAllowed"`
-	Parent          *parentRef      `json:"parent"`
 }
 
 func main() {
@@ -372,11 +367,6 @@ func (imp *importer) handle(ctx context.Context, r repoRecord) error {
 		return fmt.Errorf("marshal languages: %w", err)
 	}
 
-	var parentFullName *string
-	if r.Parent != nil && r.Parent.NameWithOwner != "" {
-		parentFullName = ingest.SanitizeOptional(&r.Parent.NameWithOwner)
-	}
-
 	url := "https://github.com/" + fullName
 
 	// is_eligible/eligibility_reason are recomputed on every pass, except
@@ -385,17 +375,16 @@ func (imp *importer) handle(ctx context.Context, r repoRecord) error {
 	// decision, so a metadata refresh must not resurrect it.
 	return imp.queue(ctx,
 		`INSERT INTO repositories (
-			full_name, url, description, language, stars, license, forkable,
-			last_activity_at, forks, watchers, is_archived, created_at, pushed_at,
-			topics, languages, forking_allowed, parent_full_name,
-			is_fork, issue_count, is_eligible, eligibility_reason
-		 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+			full_name, url, description, language, stars, license,
+			forks, watchers, is_archived, created_at, pushed_at,
+			topics, languages, forking_allowed,
+			issue_count, is_eligible, eligibility_reason
+		 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
 		 ON CONFLICT (lower(full_name)) DO UPDATE SET
 			stars = EXCLUDED.stars,
 			forks = EXCLUDED.forks,
 			watchers = EXCLUDED.watchers,
 			is_archived = EXCLUDED.is_archived,
-			last_activity_at = EXCLUDED.last_activity_at,
 			pushed_at = EXCLUDED.pushed_at,
 			description = EXCLUDED.description,
 			language = EXCLUDED.language,
@@ -403,7 +392,6 @@ func (imp *importer) handle(ctx context.Context, r repoRecord) error {
 			topics = EXCLUDED.topics,
 			languages = EXCLUDED.languages,
 			forking_allowed = EXCLUDED.forking_allowed,
-			is_fork = EXCLUDED.is_fork,
 			issue_count = EXCLUDED.issue_count,
 			is_eligible = CASE
 			  WHEN repositories.eligibility_reason = 'not_found' THEN false
@@ -417,13 +405,12 @@ func (imp *importer) handle(ctx context.Context, r repoRecord) error {
 			OR repositories.is_archived IS DISTINCT FROM EXCLUDED.is_archived
 			OR repositories.pushed_at IS DISTINCT FROM EXCLUDED.pushed_at
 			OR repositories.description IS DISTINCT FROM EXCLUDED.description
-			OR repositories.is_fork IS DISTINCT FROM EXCLUDED.is_fork
 			OR repositories.issue_count IS DISTINCT FROM EXCLUDED.issue_count
 			OR repositories.is_eligible IS DISTINCT FROM EXCLUDED.is_eligible
 			OR repositories.eligibility_reason IS DISTINCT FROM EXCLUDED.eligibility_reason`,
-		fullName, url, description, primaryLanguage, r.Stars, license, r.ForkingAllowed,
-		r.PushedAt, r.Forks, r.Watchers, r.IsArchived, r.CreatedAt, r.PushedAt,
-		topics, languagesJSON, r.ForkingAllowed, parentFullName,
-		r.IsFork, r.Issues, ok, reason,
+		fullName, url, description, primaryLanguage, r.Stars, license,
+		r.Forks, r.Watchers, r.IsArchived, r.CreatedAt, r.PushedAt,
+		topics, languagesJSON, r.ForkingAllowed,
+		r.Issues, ok, reason,
 	)
 }
