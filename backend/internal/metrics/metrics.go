@@ -70,11 +70,16 @@ var (
 		Name: "cache_errors_total",
 		Help: "Failed Redis calls by operation (get, set, del, rate_limit). Cache misses are not errors. The API fails open on each.",
 	}, []string{"op"})
+
+	CacheSkipped = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "cache_skipped_total",
+		Help: "Redis calls not attempted because Redis failed recently, by operation. The API fails open on each without waiting; one call per api.cache.redis_retry_seconds probes for recovery.",
+	}, []string{"op"})
 )
 
 // RegisterAPI registers the families go-api produces.
 func RegisterAPI() {
-	Registry.MustRegister(HTTPRequests, HTTPDuration, HTTPResponseBytes, ContributionVerifications, BudgetErrors, CacheErrors)
+	Registry.MustRegister(HTTPRequests, HTTPDuration, HTTPResponseBytes, ContributionVerifications, BudgetErrors, CacheErrors, CacheSkipped)
 }
 
 // ---------------------------------------------------------------------------

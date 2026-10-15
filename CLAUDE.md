@@ -429,7 +429,8 @@ Every key with its default and bounds: `docs/settings.md`.
   180 / 1,000 per `api.rate_limit.window_seconds`. Only `/health`, `/health/detail` and
   `/metrics` are exempt; `/auth/*` (login) **is** limited. Fixed window: the first request sets
   the key's expiry with `EXPIRE … NX`, so later requests never push it back. Fails open
-  when Redis is down.
+  when Redis is down — within `api.cache.redis_timeout_ms`, and after a failure Redis is skipped
+  (`cache_skipped_total`) except one probe per `api.cache.redis_retry_seconds`.
 - **XP**: base per difficulty (`BEGINNER` 75, `INTERMEDIATE` 140, `ADVANCED` 250) **plus**
   bonuses — `+25` merged, `+15` for the user's first or second merge in that repo, `+10`
   multi-discipline (`UNCLASSIFIED` counts as `BEGINNER` base). So

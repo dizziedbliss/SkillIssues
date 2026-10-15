@@ -45,6 +45,13 @@ const (
 	CacheSearchTTLSeconds         Key = "api.cache.search_ttl_seconds"
 	CacheRecommendationsTTLSecond Key = "api.cache.recommendations_ttl_seconds"
 
+	// CacheRedisTimeoutMs and CacheRedisRetrySeconds keep a Redis outage from
+	// slowing requests down: each call gets a deadline, and after a failure
+	// Redis is skipped (rate limiting and caching fail open) and probed once
+	// per retry interval until it answers.
+	CacheRedisTimeoutMs    Key = "api.cache.redis_timeout_ms"
+	CacheRedisRetrySeconds Key = "api.cache.redis_retry_seconds"
+
 	ContributionVerifyPerHour Key = "api.contribution.verify_per_hour"
 
 	// IssueBody* tune the on-demand issue body read path
@@ -195,6 +202,8 @@ var Registry = map[Key]Spec{
 	CacheHotIssuesTTLSeconds:      intSpec(120, 0, 3600, "Cache lifetime for the default unauthenticated catalog page. 0 disables."),
 	CacheSearchTTLSeconds:         intSpec(60, 0, 3600, "Cache lifetime for unauthenticated search results. 0 disables."),
 	CacheRecommendationsTTLSecond: intSpec(300, 0, 3600, "Cache lifetime for per-user recommendations. 0 disables."),
+	CacheRedisTimeoutMs:           intSpec(250, 10, 5000, "Deadline for one Redis call, connecting included. A call that misses it fails open."),
+	CacheRedisRetrySeconds:        intSpec(5, 1, 300, "After a failed Redis call, how long Redis is skipped before one call probes whether it has recovered."),
 
 	ContributionVerifyPerHour: intSpec(5, 1, 1000, "Maximum PR verification attempts per user per contribution per hour."),
 
@@ -322,6 +331,10 @@ func (s *Snapshot) Seconds(k Key) time.Duration {
 }
 
 // Hours reads an integer key as a duration in hours.
+func (s *Snapshot) Millis(k Key) time.Duration {
+	return time.Duration(s.Int(k)) * time.Millisecond
+}
+
 func (s *Snapshot) Hours(k Key) time.Duration {
 	return time.Duration(s.Int(k)) * time.Hour
 }
