@@ -37,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of failing mid-deploy.
 
 ### Fixed
+- With Redis down, every API request took about 20 seconds: each Redis call waited out the
+  client's dial timeout and retries before failing open. Each call now has a deadline
+  (`api.cache.redis_timeout_ms`), and after a failure Redis is skipped, with one call every
+  `api.cache.redis_retry_seconds` checking whether it is back. Skipped calls count in
+  `cache_skipped_total`. A request cancelled by its own client no longer counts as a Redis failure.
 - Grafana was stuck in an out-of-memory restart loop in production (160m limit, 17 plugins each
   running as a process). It now loads only the Prometheus and Postgres datasources it uses,
   installs both synchronously, and has a 384m limit.

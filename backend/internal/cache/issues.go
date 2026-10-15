@@ -18,7 +18,7 @@ func (c *Client) SetHotIssues(ctx context.Context, data []byte, ttl time.Duratio
 	if c == nil || c.rdb == nil {
 		return
 	}
-	c.observe("set", c.rdb.Set(ctx, hotIssuesKey, data, ttl).Err())
+	c.set(ctx, hotIssuesKey, data, ttl)
 }
 
 // GetHotIssues returns the cached hot issues payload or nil on miss.
@@ -26,12 +26,7 @@ func (c *Client) GetHotIssues(ctx context.Context) []byte {
 	if c == nil || c.rdb == nil {
 		return nil
 	}
-	data, err := c.rdb.Get(ctx, hotIssuesKey).Bytes()
-	c.observe("get", err)
-	if err != nil {
-		return nil
-	}
-	return data
+	return c.get(ctx, hotIssuesKey)
 }
 
 // InvalidateHotIssues purges cached issue search and hot issue payloads.
@@ -39,7 +34,7 @@ func (c *Client) InvalidateHotIssues(ctx context.Context) {
 	if c == nil || c.rdb == nil {
 		return
 	}
-	c.observe("del", c.rdb.Del(ctx, hotIssuesKey).Err())
+	c.del(ctx, hotIssuesKey)
 }
 
 // CacheSearchKey creates a deterministic key for an issue search query.
@@ -54,7 +49,7 @@ func (c *Client) SetCachedSearch(ctx context.Context, key string, data []byte, t
 	if c == nil || c.rdb == nil {
 		return
 	}
-	c.observe("set", c.rdb.Set(ctx, key, data, ttl).Err())
+	c.set(ctx, key, data, ttl)
 }
 
 // GetCachedSearch retrieves serialized search results.
@@ -62,10 +57,5 @@ func (c *Client) GetCachedSearch(ctx context.Context, key string) []byte {
 	if c == nil || c.rdb == nil {
 		return nil
 	}
-	data, err := c.rdb.Get(ctx, key).Bytes()
-	c.observe("get", err)
-	if err != nil {
-		return nil
-	}
-	return data
+	return c.get(ctx, key)
 }
