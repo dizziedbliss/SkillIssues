@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `excluded_repositories`: repositories that are never crawled, seeded with four (three issue
+  trackers used as databases, one public archive). Applied by the eligibility recompute, the
+  importer and job claiming; their stored issues, and those of archived repositories, are
+  pruned unless a user saved them.
+
 ### Security
 - The server no longer holds any user GitHub token. Sign-in uses a no-scope **Login app**
   (`GITHUB_LOGIN_CLIENT_ID`/`_SECRET`); the token is read once for the numeric GitHub id and

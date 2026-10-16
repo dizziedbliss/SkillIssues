@@ -44,6 +44,7 @@ type Coordinator struct {
 	lastMetricsRefresh   time.Time
 	lastLeaseReclaim     time.Time
 	lastClosedPrune      time.Time
+	lastExcludedPrune    time.Time
 
 	// dbSizePaused and lastDBSizeMB back Status()/the D6 disk guardrail —
 	// pg_database_size() is cheap (metadata lookup, not a scan), so it's
@@ -128,6 +129,7 @@ func (c *Coordinator) cycle() {
 	c.refreshMetrics(snap)
 	c.checkTrackedIssues(snap)
 	c.pruneClosedIssues(snap)
+	c.pruneExcludedIssues(snap)
 	publishPoolStats(c.initialPool)
 	publishPoolStats(c.deepPool)
 
@@ -274,6 +276,36 @@ func (c *Coordinator) pruneClosedIssues(snap *settings.Snapshot) {
 	}
 	if total > 0 {
 		slog.Info("pruned closed issues", "deleted", total, "retention_days", days)
+	}
+}
+
+// pruneExcludedIssues deletes the stored issues of excluded and archived
+// repositories (not ones a user saved), on the same interval as the closed-
+// issue prune but independent of its retention: turning that off does not
+// keep an excluded repository's issues around.
+func (c *Coordinator) pruneExcludedIssues(snap *settings.Snapshot) {
+	if time.Since(c.lastExcludedPrune) < snap.Seconds(settings.IngestClosedIssuePruneIntervalSeconds) {
+		return
+	}
+	c.lastExcludedPrune = time.Now()
+
+	batch := snap.Int(settings.IngestClosedIssuePruneBatchSize)
+	total := 0
+	for c.ctx.Err() == nil {
+		n, err := PruneExcludedIssues(c.ctx, c.pool, batch)
+		if err != nil {
+			metrics.IngestCycleErrors.WithLabelValues("prune_excluded").Inc()
+			slog.Warn("failed to prune excluded repositories' issues", "deleted_before_error", total, "error", err)
+			break
+		}
+		total += n
+		metrics.IngestIssuesPruned.Add(float64(n))
+		if n < batch {
+			break
+		}
+	}
+	if total > 0 {
+		slog.Info("pruned issues of excluded and archived repositories", "deleted", total)
 	}
 }
 
