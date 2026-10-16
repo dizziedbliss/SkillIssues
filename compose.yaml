@@ -92,18 +92,14 @@ services:
       REDIS_URL: redis://redis:6379/0
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_LOGIN_CLIENT_ID: ${GITHUB_LOGIN_CLIENT_ID:-}
+      GITHUB_LOGIN_CLIENT_SECRET: ${GITHUB_LOGIN_CLIENT_SECRET:-}
       GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8000/auth/github/callback}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-dev_local_webhook_secret}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-dev_local_admin_sync_token}
-      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-dev_local_token_encryption_key}
-      # GitHub App (D5) — optional; empty GITHUB_APP_ID leaves it disabled
-      # and falls back to the OAuth App/PAT paths above, unchanged.
+      # GitHub App — optional; empty GITHUB_APP_ID leaves it disabled and
+      # the crawl falls back to GITHUB_TOKEN. Server-side reads only.
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}
-      GITHUB_APP_CLIENT_ID: ${GITHUB_APP_CLIENT_ID:-}
-      GITHUB_APP_CLIENT_SECRET: ${GITHUB_APP_CLIENT_SECRET:-}
-      GITHUB_APP_CALLBACK_URL: ${GITHUB_APP_CALLBACK_URL:-http://localhost:8000/auth/github-app/callback}
       GITHUB_APP_PRIVATE_KEY_PATH: /run/secrets/github-app-private-key.pem
       SYNCD_URL: http://ingestd:8002
       PORT: 8000
@@ -139,7 +135,6 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-dev_local_admin_sync_token}
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}
-      GITHUB_APP_CLIENT_ID: ${GITHUB_APP_CLIENT_ID:-}
       GITHUB_APP_PRIVATE_KEY_PATH: /run/secrets/github-app-private-key.pem
       SYNCD_PORT: 8002
       PORT: 8002

@@ -1,39 +1,53 @@
-// GitHub OAuth PKCE and PAT validation for SkillIssues.
-// Uses GitHub GraphQL exclusively — no REST API calls.
+// GitHub sign-in for SkillIssues, through the Login app: an OAuth App that
+// requests no scopes. It can only tell the server who the user is.
+//
+// The server reads the numeric GitHub id, login and avatar from a token it is
+// handed and then discards that token. It never stores one, and nothing it
+// holds can act on a user's GitHub account.
 package auth
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 )
 
-// GitHubConfig holds OAuth app credentials and endpoint configuration.
+const defaultGitHubAPIURL = "https://api.github.com"
+
+// GitHubConfig holds the Login app's credentials and endpoint configuration.
 type GitHubConfig struct {
 	ClientID     string
 	ClientSecret string
 	RedirectURI  string
-	GraphQLURL   string // default: https://api.github.com/graphql
+	APIURL       string // default: https://api.github.com
 }
 
-// GitHubUser holds the data returned from GitHub for the authenticated user.
+// GitHubUser holds the data GitHub returns for the signed-in user.
 type GitHubUser struct {
 	GitHubID  string // numeric database ID, stored as TEXT in users
 	Username  string
 	AvatarURL string
 }
 
-// GitHubOAuth handles GitHub OAuth PKCE flow.
+// ErrInvalidDeviceToken means a device-flow token was not issued to the Login
+// app, or GitHub no longer accepts it.
+var ErrInvalidDeviceToken = errors.New("auth: token was not issued to the Login app")
+
+// GitHubOAuth handles sign-in through the Login app.
 type GitHubOAuth struct {
 	cfg GitHubConfig
 	db  *Service
@@ -41,36 +55,44 @@ type GitHubOAuth struct {
 
 // NewGitHubOAuth creates a GitHubOAuth handler.
 func NewGitHubOAuth(cfg GitHubConfig, authSvc *Service) *GitHubOAuth {
+	if cfg.APIURL == "" {
+		cfg.APIURL = defaultGitHubAPIURL
+	}
 	return &GitHubOAuth{cfg: cfg, db: authSvc}
+}
+
+// StateBinding derives the value of the browser-bound cookie that must
+// accompany an OAuth callback. The callback is refused unless the cookie
+// matches the state in its query string, so a callback URL replayed in
+// another browser — or planted in a victim's — completes nothing.
+func StateBinding(state string) string {
+	h := sha256.Sum256([]byte(state))
+	return hex.EncodeToString(h[:])
 }
 
 // ---------------------------------------------------------------------------
 // PKCE OAuth flow
 // ---------------------------------------------------------------------------
 
-// BeginOAuth generates the OAuth authorization URL with PKCE S256 challenge.
-// Stores the state and code_verifier in oauth_states table (expires in 10 minutes).
-// Returns: authorizeURL, oauthState.
+// BeginOAuth generates the OAuth authorization URL with a PKCE S256
+// challenge and stores the state and code_verifier in oauth_states (expires in
+// 10 minutes). It requests no scopes. Returns: authorizeURL, oauthState.
 func (g *GitHubOAuth) BeginOAuth(ctx context.Context, redirectURI string) (string, string, error) {
-	// Generate random state
 	stateBuf := make([]byte, 32)
 	if _, err := rand.Read(stateBuf); err != nil {
 		return "", "", fmt.Errorf("github oauth: generate state: %w", err)
 	}
 	state := base64.RawURLEncoding.EncodeToString(stateBuf)
 
-	// Generate PKCE code_verifier (random 32 bytes, base64url encoded)
 	verifierBuf := make([]byte, 32)
 	if _, err := rand.Read(verifierBuf); err != nil {
 		return "", "", fmt.Errorf("github oauth: generate verifier: %w", err)
 	}
 	codeVerifier := base64.RawURLEncoding.EncodeToString(verifierBuf)
 
-	// Compute S256 code_challenge = base64url(sha256(code_verifier))
 	h := sha256.Sum256([]byte(codeVerifier))
 	codeChallenge := base64.RawURLEncoding.EncodeToString(h[:])
 
-	// Store state + verifier in oauth_states (expires 10 min)
 	err := g.db.db.Exec(ctx,
 		`INSERT INTO oauth_states (state, code_verifier, redirect_uri, expires_at)
 		 VALUES ($1, $2, $3, $4)`,
@@ -80,25 +102,22 @@ func (g *GitHubOAuth) BeginOAuth(ctx context.Context, redirectURI string) (strin
 		return "", "", fmt.Errorf("github oauth: store state: %w", err)
 	}
 
-	// Build GitHub authorize URL
+	// No "scope": the default grants read access to public information only,
+	// which is all identifying a user needs.
 	params := url.Values{
 		"client_id":             {g.cfg.ClientID},
 		"redirect_uri":          {redirectURI},
-		"scope":                 {"read:user user:email repo"},
 		"state":                 {state},
 		"code_challenge":        {codeChallenge},
 		"code_challenge_method": {"S256"},
 	}
-	authorizeURL := "https://github.com/login/oauth/authorize?" + params.Encode()
-
-	return authorizeURL, state, nil
+	return "https://github.com/login/oauth/authorize?" + params.Encode(), state, nil
 }
 
-// ExchangeOAuthCode exchanges a GitHub OAuth code for an access token using PKCE.
-// Validates the state parameter against the stored value.
-// Returns the GitHub access token and user info on success.
-func (g *GitHubOAuth) ExchangeOAuthCode(ctx context.Context, code, state string) (string, *GitHubUser, error) {
-	// Look up state and code_verifier
+// ExchangeOAuthCode exchanges a GitHub OAuth code for the signed-in user's
+// identity, validating the state parameter against the stored value. The
+// access token GitHub returns is used once, to read the identity, and dropped.
+func (g *GitHubOAuth) ExchangeOAuthCode(ctx context.Context, code, state string) (*GitHubUser, error) {
 	var codeVerifier, storedRedirectURI string
 	err := g.db.db.QueryRow(ctx,
 		`DELETE FROM oauth_states
@@ -110,22 +129,19 @@ func (g *GitHubOAuth) ExchangeOAuthCode(ctx context.Context, code, state string)
 		},
 	)
 	if err != nil {
-		return "", nil, fmt.Errorf("github oauth: invalid or expired state: %w", ErrUnauthorized)
+		return nil, fmt.Errorf("github oauth: invalid or expired state: %w", ErrUnauthorized)
 	}
 
-	// Exchange code for access token
 	token, err := g.exchangeCode(ctx, code, codeVerifier, storedRedirectURI)
 	if err != nil {
-		return "", nil, fmt.Errorf("github oauth: exchange code: %w", err)
+		return nil, fmt.Errorf("github oauth: exchange code: %w", err)
 	}
 
-	// Fetch user info via GraphQL
-	user, err := g.GetAuthenticatedUser(ctx, token)
+	user, err := g.viewer(ctx, token)
 	if err != nil {
-		return "", nil, fmt.Errorf("github oauth: get user: %w", err)
+		return nil, fmt.Errorf("github oauth: get user: %w", err)
 	}
-
-	return token, user, nil
+	return user, nil
 }
 
 // exchangeCode sends the token exchange request to GitHub.
@@ -168,74 +184,107 @@ func (g *GitHubOAuth) exchangeCode(ctx context.Context, code, codeVerifier, redi
 		}
 		return "", fmt.Errorf("github oauth: %s", result.Error)
 	}
+	if result.AccessToken == "" {
+		return "", errors.New("github oauth: no access token in response")
+	}
 	return result.AccessToken, nil
 }
 
-// ---------------------------------------------------------------------------
-// PAT (Personal Access Token) validation
-// ---------------------------------------------------------------------------
-
-// ValidatePAT validates a GitHub Personal Access Token via GraphQL and returns user info.
-// Used by POST /auth/github/token (Electron PAT login flow).
-func (g *GitHubOAuth) ValidatePAT(ctx context.Context, pat string) (*GitHubUser, error) {
-	return g.GetAuthenticatedUser(ctx, pat)
-}
-
-// GetAuthenticatedUser fetches GitHub user info using a token (PAT or OAuth).
-// Uses GitHub GraphQL: { viewer { databaseId login avatarUrl } }
-func (g *GitHubOAuth) GetAuthenticatedUser(ctx context.Context, token string) (*GitHubUser, error) {
-	query := `{
-		"query": "{ viewer { databaseId login avatarUrl } }"
-	}`
-
-	req, err := http.NewRequestWithContext(ctx, "POST", g.cfg.GraphQLURL,
-		strings.NewReader(query))
+// viewer reads the identity a token belongs to from GET /user.
+func (g *GitHubOAuth) viewer(ctx context.Context, token string) (*GitHubUser, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", g.cfg.APIURL+"/user", nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("github: request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("github: GET /user returned HTTP %d", resp.StatusCode)
+	}
+	var u struct {
+		ID        int64  `json:"id"`
+		Login     string `json:"login"`
+		AvatarURL string `json:"avatar_url"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
+		return nil, fmt.Errorf("github: parse /user: %w", err)
+	}
+	return userFromGitHub(u.ID, u.Login, u.AvatarURL)
+}
+
+func userFromGitHub(id int64, login, avatarURL string) (*GitHubUser, error) {
+	if id <= 0 || login == "" {
+		return nil, ErrInvalidGitHubIdentity
+	}
+	return &GitHubUser{GitHubID: strconv.FormatInt(id, 10), Username: login, AvatarURL: avatarURL}, nil
+}
+
+// ---------------------------------------------------------------------------
+// Device flow
+// ---------------------------------------------------------------------------
+
+// VerifyDeviceToken turns a token minted by the Login app's device flow into
+// an identity. It asks GitHub to check the token against this app's client id
+// (POST /applications/{client_id}/token, authenticated with the app's own
+// credentials): GitHub answers only for a token this app issued, so a token
+// from any other app, or a personal access token, is refused. That is what
+// stops one app's token being presented here as a login. The token is not
+// kept.
+func (g *GitHubOAuth) VerifyDeviceToken(ctx context.Context, accessToken string) (*GitHubUser, error) {
+	if accessToken == "" {
+		return nil, ErrInvalidDeviceToken
+	}
+	payload, err := json.Marshal(map[string]string{"access_token": accessToken})
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST",
+		g.cfg.APIURL+"/applications/"+url.PathEscape(g.cfg.ClientID)+"/token",
+		bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(g.cfg.ClientID, g.cfg.ClientSecret)
+	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("github graphql: request failed: %w", err)
+		return nil, fmt.Errorf("github: check token: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return nil, fmt.Errorf("github: invalid token (HTTP %d)", resp.StatusCode)
+	switch resp.StatusCode {
+	case http.StatusOK:
+	case http.StatusNotFound, http.StatusUnprocessableEntity:
+		return nil, ErrInvalidDeviceToken
+	default:
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return nil, fmt.Errorf("github: check token returned HTTP %d", resp.StatusCode)
 	}
 
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+	var out struct {
+		App struct {
+			ClientID string `json:"client_id"`
+		} `json:"app"`
+		User struct {
+			ID        int64  `json:"id"`
+			Login     string `json:"login"`
+			AvatarURL string `json:"avatar_url"`
+		} `json:"user"`
 	}
-
-	var result struct {
-		Data struct {
-			Viewer struct {
-				DatabaseID int    `json:"databaseId"`
-				Login      string `json:"login"`
-				AvatarURL  string `json:"avatarUrl"`
-			} `json:"viewer"`
-		} `json:"data"`
-		Errors []struct {
-			Message string `json:"message"`
-		} `json:"errors"`
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("github: parse token check: %w", err)
 	}
-	if err := json.Unmarshal(bodyBytes, &result); err != nil {
-		return nil, fmt.Errorf("github graphql: parse response: %w", err)
+	// Belt and braces: the endpoint is already scoped to our client id.
+	if out.App.ClientID != g.cfg.ClientID {
+		return nil, ErrInvalidDeviceToken
 	}
-	if len(result.Errors) > 0 {
-		return nil, fmt.Errorf("github graphql: %s", result.Errors[0].Message)
-	}
-	if result.Data.Viewer.Login == "" {
-		return nil, fmt.Errorf("github graphql: empty viewer response")
-	}
-
-	return &GitHubUser{
-		GitHubID:  fmt.Sprintf("%d", result.Data.Viewer.DatabaseID),
-		Username:  result.Data.Viewer.Login,
-		AvatarURL: result.Data.Viewer.AvatarURL,
-	}, nil
+	return userFromGitHub(out.User.ID, out.User.Login, out.User.AvatarURL)
 }

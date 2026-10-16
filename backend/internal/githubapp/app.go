@@ -23,21 +23,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
-// Config holds the App's own identity and credentials.
+// Config holds the App's identity and private key. The App serves only the
+// server's installation token; it never signs a user in.
 type Config struct {
-	AppID        string
-	ClientID     string
-	ClientSecret string
-	PrivateKey   *rsa.PrivateKey
-	CallbackURL  string
+	AppID      string
+	PrivateKey *rsa.PrivateKey
 
 	// InstallationID pins which installation mints the server's installation
 	// token. Leave zero to auto-discover the (expected to be sole) installation
@@ -63,7 +59,7 @@ func LoadPrivateKeyFile(path string) (*rsa.PrivateKey, error) {
 	return key, nil
 }
 
-// App mints and caches the two token types the credential model needs.
+// App mints and caches the server's installation token.
 type App struct {
 	cfg Config
 
@@ -213,114 +209,4 @@ func (a *App) discoverInstallationID(ctx context.Context) (int64, error) {
 		return 0, errors.New("githubapp: app has no installations")
 	}
 	return installations[0].ID, nil
-}
-
-// ---------------------------------------------------------------------------
-// User-to-server token (contribution path: fork, push, PR)
-// ---------------------------------------------------------------------------
-
-// UserToken is the result of exchanging an authorization code or refresh
-// token. AccessToken lasts ExpiresIn seconds (8 hours as of this writing);
-// RefreshToken lasts RefreshExpiresIn seconds (~182 days) and must be used
-// to mint a new AccessToken before it expires — GitHub does not auto-renew.
-type UserToken struct {
-	AccessToken      string
-	RefreshToken     string
-	ExpiresAt        time.Time
-	RefreshExpiresAt time.Time
-}
-
-// CallbackURL returns the configured OAuth callback URL, for callers that
-// need to store it (e.g. alongside CSRF state) without reaching into Config.
-func (a *App) CallbackURL() string { return a.cfg.CallbackURL }
-
-// AuthorizeURL builds the GitHub authorize URL for the user-authorization
-// flow. state should be a server-generated, single-use CSRF token the
-// caller validates on callback.
-func (a *App) AuthorizeURL(state string) string {
-	params := url.Values{
-		"client_id":    {a.cfg.ClientID},
-		"redirect_uri": {a.cfg.CallbackURL},
-		"state":        {state},
-	}
-	return "https://github.com/login/oauth/authorize?" + params.Encode()
-}
-
-// ExchangeCode exchanges an authorization code (from the callback) for a
-// user-to-server token.
-func (a *App) ExchangeCode(ctx context.Context, code string) (*UserToken, error) {
-	return a.tokenRequest(ctx, url.Values{
-		"client_id":     {a.cfg.ClientID},
-		"client_secret": {a.cfg.ClientSecret},
-		"code":          {code},
-		"redirect_uri":  {a.cfg.CallbackURL},
-	})
-}
-
-// ErrTokenRejected wraps an OAuth error response from GitHub's token
-// endpoint (e.g. bad_refresh_token): GitHub answered and refused, so retrying
-// will not help and the user has to authorize again.
-var ErrTokenRejected = errors.New("githubapp: token rejected by GitHub")
-
-// RefreshUserToken mints a new access token from a still-valid refresh token.
-func (a *App) RefreshUserToken(ctx context.Context, refreshToken string) (*UserToken, error) {
-	return a.tokenRequest(ctx, url.Values{
-		"client_id":     {a.cfg.ClientID},
-		"client_secret": {a.cfg.ClientSecret},
-		"grant_type":    {"refresh_token"},
-		"refresh_token": {refreshToken},
-	})
-}
-
-func (a *App) tokenRequest(ctx context.Context, form url.Values) (*UserToken, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		"https://github.com/login/oauth/access_token", strings.NewReader(form.Encode()))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("githubapp: token request: %w", err)
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("githubapp: read token response: %w", err)
-	}
-
-	var result struct {
-		AccessToken           string `json:"access_token"`
-		ExpiresIn             string `json:"expires_in"`
-		RefreshToken          string `json:"refresh_token"`
-		RefreshTokenExpiresIn string `json:"refresh_token_expires_in"`
-		Error                 string `json:"error"`
-		ErrorDescription      string `json:"error_description"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("githubapp: parse token response: %w", err)
-	}
-	if result.Error != "" {
-		if result.ErrorDescription != "" {
-			return nil, fmt.Errorf("%w: %s (%s)", ErrTokenRejected, result.Error, result.ErrorDescription)
-		}
-		return nil, fmt.Errorf("%w: %s", ErrTokenRejected, result.Error)
-	}
-	if result.AccessToken == "" {
-		// The body is not echoed: a malformed success response could still
-		// carry a refresh token.
-		return nil, fmt.Errorf("githubapp: token response had no access_token (HTTP %d)", resp.StatusCode)
-	}
-
-	now := time.Now()
-	tok := &UserToken{AccessToken: result.AccessToken, RefreshToken: result.RefreshToken}
-	if secs, err := strconv.Atoi(result.ExpiresIn); err == nil {
-		tok.ExpiresAt = now.Add(time.Duration(secs) * time.Second)
-	}
-	if secs, err := strconv.Atoi(result.RefreshTokenExpiresIn); err == nil {
-		tok.RefreshExpiresAt = now.Add(time.Duration(secs) * time.Second)
-	}
-	return tok, nil
 }

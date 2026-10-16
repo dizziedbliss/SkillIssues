@@ -3,7 +3,7 @@
 Guidance for Claude Code (claude.ai/code) when working in this repository.
 
 **This is production code.** It runs against the real GitHub API with a real registered GitHub
-App, crawls real repositories, and attributes real contributions to real user accounts. It is
+App, crawls real repositories, and holds real people's GitHub identities. It is
 not a prototype or a demo, and "it works on my machine" is not a finished state. Concretely,
 that means:
 
@@ -120,7 +120,8 @@ Entrypoints under `backend/cmd/`:
 - **`migrate`** — one-shot; applies the embedded schema and exits.
 - **`healthcheck`** — tiny binary used as the Docker `HEALTHCHECK` command.
 
-Middleware chain, outermost first: RequestID → Logger → CORS → OptionalAuth → RateLimiter.
+Middleware chain, outermost first: RequestID → Logger → MaxBody → CORS → CSRF → OptionalAuth →
+RateLimiter.
 `/admin/` and `/webhooks/` are mounted outside that chain (they authenticate themselves and
 have no browser callers).
 
@@ -267,9 +268,8 @@ and Deep pools.
   working on are also re-checked directly (`ingest.tracked_issue_check_seconds`), so their
   closure shows up within that interval rather than at the repository's next pass.
 - **Closed issues are pruned, unless a user holds them.** Once closed on GitHub for
-  `ingest.closed_issue_retention_days`, an issue is deleted — never one in `saved_issues` or
-  with any `contributions` row (`saved_issues` would cascade; a merged contribution is the
-  user's permanent record).
+  `ingest.closed_issue_retention_days`, an issue is deleted — never one in `saved_issues`
+  (`saved_issues` would cascade).
 - **Repository metadata is live once crawled.** The first page of every pass writes GitHub's
   current stars, forks, watchers, open-issue count, archived flag and last push over the
   dataset snapshot (`repositories.metadata_refreshed_at`; NULL = still the snapshot), so
@@ -355,7 +355,7 @@ The precedent is `ingest.eligibility.min_stars`, `ingest.eligibility.pushed_with
 `ingest.eligibility.recheck_seconds`, `ingest.freshness_interval_seconds`,
 `ingest.enqueue_batch_size`, `ingest.graphql_page_size`, `ingest.routine_workers`, `ingest.priority_workers`, `ingest.rate_limit_floor`,
 `ingest.max_pages_per_repo`, `ingest.max_db_size_mb`, `ingest.metrics_refresh_seconds`,
-`ingest.claim_interval_seconds`, `ingest.lease_seconds`, `api.issue_body.cache_max_rows`.
+`ingest.claim_interval_seconds`, `ingest.lease_seconds`, `api.session.ttl_hours`.
 Every key with its default and bounds: `docs/settings.md`.
 
 - **Never hardcode an operational value.** Add a key to `settings.Registry` **and** a seeded
@@ -382,11 +382,24 @@ Every key with its default and bounds: `docs/settings.md`.
 - **Never edit a migration that has been applied anywhere.** Add a new one.
 - Keep migrations idempotent (`IF NOT EXISTS`) and pair every `Up` with a `Down`.
 
-### Credentials and attribution
-- Server-side work (crawling, on-demand reads) uses the server credential.
-- Fork, push and pull-request creation use **the user's own** GitHub authorization.
-- **Never fall back to the server token for a write.** It attributes the user's contribution
-  to the server identity.
+### Credentials and identity
+- **The server holds zero user GitHub tokens.** Not encrypted, not hashed, not for a minute.
+  Sign-in uses the **Login app**, a no-scope OAuth App: the server reads the numeric `id`,
+  login and avatar, then discards the token. Desktop sign-in is a device flow on the same app,
+  posted once to `POST /auth/github/device`, which asks GitHub (`POST
+  /applications/{client_id}/token`) whether the Login app issued it. Fork, push and pull
+  requests are the desktop client's job, with a token that stays on the user's machine.
+- Server-side work (crawling) uses the server credential: the GitHub App's installation token,
+  or `GITHUB_TOKEN` as a fallback. It never acts for a user.
+- **`github_id` is the only identity.** A username is display data GitHub lets another account
+  take, so `auth.UpsertUser` never matches on it; a colliding username on another row is
+  cleared, not merged.
+- A session ends only on logout, expiry (`api.session.ttl_hours`), `POST /auth/logout-all` or
+  purge. Revoking the Login app on GitHub does not end it — there is no token to invalidate.
+- Browser requests: a state cookie (`__Host-oauth_state`) binds an OAuth callback to the
+  browser that began it; `http.CrossOriginProtection` refuses cross-site mutations; a request
+  carrying the session cookie must send `Content-Type: application/json`. Bearer requests are
+  exempt. Callback errors redirect with a fixed error code, never reflected text.
 - Never log a token, a prefix of one, or its length — a prefix leaks secret bytes and the
   length identifies the credential type.
 
@@ -401,8 +414,8 @@ Every key with its default and bounds: `docs/settings.md`.
   unknown difficulty, not easy difficulty — and `difficulty_score` is NULL for it.
 - Preserve raw GitHub labels; derived tags are not a substitute.
 - **Notifications are written by the database.** The `issues_notify_closed` trigger inserts an
-  `issue_closed` row in `notifications` for everyone who saved the issue or has a `STARTED` /
-  `PR_OPEN` contribution on it, on the `OPEN` → `CLOSED` transition — whichever path closed it.
+  `issue_closed` row in `notifications` for everyone who saved the issue, on the `OPEN` →
+  `CLOSED` transition — whichever path closed it.
   Never add a Go code path that writes them for issue closure; `internal/notification` only
   reads and marks them read (`GET /notifications`, `POST /notifications/{id}/read`,
   `POST /notifications/read-all`). No client shows them yet.
@@ -423,21 +436,23 @@ Every key with its default and bounds: `docs/settings.md`.
   (`ROW_NUMBER() OVER (PARTITION BY match_category)`) and caps results per category
   (`api.search.per_category_cap`) rather than flooding one. Categories: Repository, Title,
   Language, Author.
-- **Unified account linking**: a case-insensitive unique index on `lower(username)` merges
-  PAT-login and OAuth-login into one user record.
+- **One account per GitHub id**: web and desktop sign-in both resolve to the `github_id`
+  row. The case-insensitive unique index on `lower(username)` is why a username that moved to
+  another account is cleared on the old row first.
 - **Rate limiting**: Redis `INCR` counter per user (signed in) or per IP (signed out) —
   180 / 1,000 per `api.rate_limit.window_seconds`. Only `/health`, `/health/detail` and
   `/metrics` are exempt; `/auth/*` (login) **is** limited. Fixed window: the first request sets
   the key's expiry with `EXPIRE … NX`, so later requests never push it back. Fails open
   when Redis is down — within `api.cache.redis_timeout_ms`, and after a failure Redis is skipped
   (`cache_skipped_total`) except one probe per `api.cache.redis_retry_seconds`.
-- **XP**: base per difficulty (`BEGINNER` 75, `INTERMEDIATE` 140, `ADVANCED` 250) **plus**
-  bonuses — `+25` merged, `+15` for the user's first or second merge in that repo, `+10`
-  multi-discipline (`UNCLASSIFIED` counts as `BEGINNER` base). So
-  a BEGINNER issue can award up to 125, not 75. Awarded only after GitHub confirms the PR is
-  merged and the author login matches.
-- **Levels** follow a quadratic curve, not a flat table: each level costs
-  `150 + level * 150` more than the previous one.
+
+### Not built
+- **Contributions, XP, levels and badges.** Removed with the no-user-tokens redesign
+  (migration 00027): the old design awarded XP from PRs verified with a stored user token.
+  The rebuild is client-side work with server-side verification from public GitHub data.
+- **Issue bodies and live issue state.** The server never fetches a body or answers a
+  freshness check; clients call GitHub directly. ingestd's tracked-issue check keeps saved
+  issues' state correct.
 
 ---
 

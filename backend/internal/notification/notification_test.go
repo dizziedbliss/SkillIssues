@@ -37,9 +37,9 @@ func insertID(t *testing.T, pool *db.Pool, sql string, args ...any) int {
 	return id
 }
 
-// Closing an issue notifies whoever saved it or is working on it — not a
-// user whose contribution is already merged — once; reopening and closing
-// again makes it unread again rather than adding a second row.
+// Closing an issue notifies everyone who saved it, once, and nobody else;
+// reopening and closing again makes it unread again rather than adding a
+// second row.
 func TestIssueClosedNotifiesTrackingUsers(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
@@ -50,20 +50,17 @@ func TestIssueClosedNotifiesTrackingUsers(t *testing.T) {
 	issueID := insertID(t, pool,
 		`INSERT INTO issues (repository_id, number, title, url, difficulty) VALUES ($1, 7, 'title', 'issue-url', 'UNCLASSIFIED') RETURNING id`,
 		repoID)
-	saver := insertID(t, pool, `INSERT INTO users (username) VALUES ($1) RETURNING id`, fmt.Sprintf("notify-saver-%d", stamp))
-	worker := insertID(t, pool, `INSERT INTO users (username) VALUES ($1) RETURNING id`, fmt.Sprintf("notify-worker-%d", stamp))
-	merged := insertID(t, pool, `INSERT INTO users (username) VALUES ($1) RETURNING id`, fmt.Sprintf("notify-merged-%d", stamp))
+	newUser := func(name string) int {
+		login := fmt.Sprintf("notify-%s-%d", name, stamp)
+		return insertID(t, pool, `INSERT INTO users (github_id, username) VALUES ($1, $1) RETURNING id`, login)
+	}
+	saver, saver2, bystander := newUser("saver"), newUser("saver2"), newUser("bystander")
 	t.Cleanup(func() {
 		bg := context.Background()
-		for _, q := range []string{
-			`DELETE FROM contributions WHERE issue_id = $1`,
-			`DELETE FROM repositories WHERE id = (SELECT repository_id FROM issues WHERE id = $1)`,
-		} {
-			if err := pool.Exec(bg, q, issueID); err != nil {
-				t.Errorf("cleanup: %v", err)
-			}
+		if err := pool.Exec(bg, `DELETE FROM repositories WHERE id = (SELECT repository_id FROM issues WHERE id = $1)`, issueID); err != nil {
+			t.Errorf("cleanup: %v", err)
 		}
-		if err := pool.Exec(bg, `DELETE FROM users WHERE id = ANY($1)`, []int{saver, worker, merged}); err != nil {
+		if err := pool.Exec(bg, `DELETE FROM users WHERE id = ANY($1)`, []int{saver, saver2, bystander}); err != nil {
 			t.Errorf("cleanup users: %v", err)
 		}
 	})
@@ -75,13 +72,12 @@ func TestIssueClosedNotifiesTrackingUsers(t *testing.T) {
 		}
 	}
 	must(`INSERT INTO saved_issues (user_id, issue_id) VALUES ($1, $2)`, saver, issueID)
-	must(`INSERT INTO contributions (user_id, issue_id, state) VALUES ($1, $2, 'STARTED')`, worker, issueID)
-	must(`INSERT INTO contributions (user_id, issue_id, state) VALUES ($1, $2, 'PR_MERGED')`, merged, issueID)
+	must(`INSERT INTO saved_issues (user_id, issue_id) VALUES ($1, $2)`, saver2, issueID)
 
 	svc := NewService(pool)
 	must(`UPDATE issues SET state = 'CLOSED' WHERE id = $1`, issueID)
 
-	for _, u := range []int{saver, worker} {
+	for _, u := range []int{saver, saver2} {
 		items, unread, err := svc.List(ctx, u, false, 50)
 		if err != nil {
 			t.Fatal(err)
@@ -91,8 +87,8 @@ func TestIssueClosedNotifiesTrackingUsers(t *testing.T) {
 			t.Fatalf("user %d: items %+v unread %d", u, items, unread)
 		}
 	}
-	if items, _, err := svc.List(ctx, merged, false, 50); err != nil || len(items) != 0 {
-		t.Errorf("merged contributor notified: %+v %v", items, err)
+	if items, _, err := svc.List(ctx, bystander, false, 50); err != nil || len(items) != 0 {
+		t.Errorf("user who saved nothing was notified: %+v %v", items, err)
 	}
 
 	items, _, err := svc.List(ctx, saver, false, 50)
@@ -102,7 +98,7 @@ func TestIssueClosedNotifiesTrackingUsers(t *testing.T) {
 	if found, err := svc.MarkRead(ctx, saver, items[0].ID); err != nil || !found {
 		t.Fatalf("MarkRead = %v, %v", found, err)
 	}
-	if found, err := svc.MarkRead(ctx, worker, items[0].ID); err != nil || found {
+	if found, err := svc.MarkRead(ctx, saver2, items[0].ID); err != nil || found {
 		t.Errorf("another user's notification: MarkRead = %v, %v; want not found", found, err)
 	}
 	if unreadOnly, unread, err := svc.List(ctx, saver, true, 50); err != nil || len(unreadOnly) != 0 || unread != 0 {
@@ -122,10 +118,10 @@ func TestIssueClosedNotifiesTrackingUsers(t *testing.T) {
 
 	// An update that is not OPEN -> CLOSED notifies nobody.
 	must(`UPDATE issues SET title = 'changed' WHERE id = $1`, issueID)
-	if n, err := svc.MarkAllRead(ctx, worker); err != nil || n != 1 {
+	if n, err := svc.MarkAllRead(ctx, saver2); err != nil || n != 1 {
 		t.Errorf("MarkAllRead = %d, %v; want 1", n, err)
 	}
-	if _, unread, err := svc.List(ctx, worker, false, 50); err != nil || unread != 0 {
+	if _, unread, err := svc.List(ctx, saver2, false, 50); err != nil || unread != 0 {
 		t.Errorf("after MarkAllRead: unread %d err %v", unread, err)
 	}
 }

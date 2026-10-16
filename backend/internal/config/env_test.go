@@ -12,17 +12,16 @@ func TestLoadRequiresOnlyNamedSecretsInProduction(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgresql://u:p@localhost/db")
 	t.Setenv("ADMIN_SYNC_TOKEN", "real-admin-token")
 	t.Setenv("GITHUB_WEBHOOK_SECRET", "")
-	t.Setenv("TOKEN_ENCRYPTION_KEY", "")
 
 	if _, err := Load(SecretAdminToken); err != nil {
 		t.Fatalf("Load(SecretAdminToken) with only the admin token set: %v", err)
 	}
 
-	_, err := Load(SecretWebhook, SecretAdminToken, SecretTokenEncryption)
+	_, err := Load(SecretWebhook, SecretAdminToken)
 	if err == nil {
-		t.Fatal("Load with placeholder webhook secret and encryption key: want error, got nil")
+		t.Fatal("Load with placeholder webhook secret: want error, got nil")
 	}
-	for _, name := range []string{"GITHUB_WEBHOOK_SECRET", "TOKEN_ENCRYPTION_KEY"} {
+	for _, name := range []string{"GITHUB_WEBHOOK_SECRET"} {
 		if !strings.Contains(err.Error(), name) {
 			t.Errorf("error %q does not name %s", err, name)
 		}
@@ -36,7 +35,7 @@ func TestLoadAllowsPlaceholdersOutsideProduction(t *testing.T) {
 	t.Setenv("ENV", "")
 	t.Setenv("DATABASE_URL", "postgresql://u:p@localhost/db")
 	t.Setenv("ADMIN_SYNC_TOKEN", "")
-	if _, err := Load(SecretWebhook, SecretAdminToken, SecretTokenEncryption); err != nil {
+	if _, err := Load(SecretWebhook, SecretAdminToken); err != nil {
 		t.Fatalf("development Load: %v", err)
 	}
 }
