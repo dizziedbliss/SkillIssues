@@ -324,7 +324,11 @@ Single VPS, `compose.prod.yaml`, Caddy same-origin. Full runbook: `DEPLOYMENT.md
   `ghcr.io/dizziedbliss/skillissues-{api,ingestd,migrate,web}` tagged `sha-<short>` and
   `latest`) → `deploy` (scp + ssh, runs `scripts/deploy-remote.sh` on the host). A deploy cannot
   happen without CI passing. Rollback is `workflow_dispatch` with an older `sha-` tag — deploys
-  always pin that, never `latest`.
+  always pin that, never `latest`. `build-push` attests provenance and cosign-signs each image by
+  digest; `deploy-remote.sh` resolves the tag to a digest, runs `cosign verify` (signer: `deploy.yml`
+  on `refs/heads/main`) and deploys that digest, so the host needs `cosign`. Actions are pinned to
+  commit SHAs, workflows default to `contents: read`, `govulncheck` gates backend changes, and
+  Dependabot (`.github/dependabot.yml`) keeps all of it current.
 - Caddy is the only service publishing a public port. `handle_path /api/*` strips the prefix
   before proxying to `go-api` (whose routes have no `/api` prefix of their own) and returns
   **404 for `/metrics`, `/health/detail` and `/admin/*`** — those are internal only (admin is reached over ssh, see `DEPLOYMENT.md`); everything else goes

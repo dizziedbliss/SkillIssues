@@ -10,6 +10,10 @@ name: skillissues-prod
 # the `latest` fallback below exists only so this file is runnable by hand
 # while testing.
 #
+# <API|INGESTD|MIGRATE|WEB>_IMAGE override the whole reference. deploy-remote.sh
+# sets them to tag@sha256:<digest> after verifying the cosign signature, so what
+# runs is the exact image that was verified, not whatever the tag points at later.
+#
 # Sized for the provisioned host: Debian 13, 2 vCPU, 4 GB RAM, 40 GB disk.
 
 x-logging: &default-logging
@@ -91,7 +95,7 @@ services:
       retries: 10
 
   migrate:
-    image: ghcr.io/dizziedbliss/skillissues-migrate:${IMAGE_TAG:-latest}
+    image: ${MIGRATE_IMAGE:-ghcr.io/dizziedbliss/skillissues-migrate:${IMAGE_TAG:-latest}}
     mem_limit: ${MIGRATE_MEM_LIMIT:-256m}
     cpus: ${MIGRATE_CPUS:-0.5}
     logging: *default-logging
@@ -126,7 +130,7 @@ services:
     restart: "no"
 
   go-api:
-    image: ghcr.io/dizziedbliss/skillissues-api:${IMAGE_TAG:-latest}
+    image: ${API_IMAGE:-ghcr.io/dizziedbliss/skillissues-api:${IMAGE_TAG:-latest}}
     restart: unless-stopped
     mem_limit: ${API_MEM_LIMIT:-384m}
     cpus: ${API_CPUS:-0.5}
@@ -174,7 +178,7 @@ services:
       start_period: 3s
 
   ingestd:
-    image: ghcr.io/dizziedbliss/skillissues-ingestd:${IMAGE_TAG:-latest}
+    image: ${INGESTD_IMAGE:-ghcr.io/dizziedbliss/skillissues-ingestd:${IMAGE_TAG:-latest}}
     restart: unless-stopped
     mem_limit: ${INGESTD_MEM_LIMIT:-512m}
     cpus: ${INGESTD_CPUS:-0.75}
@@ -206,7 +210,7 @@ services:
       start_period: 3s
 
   frontend:
-    image: ghcr.io/dizziedbliss/skillissues-web:${IMAGE_TAG:-latest}
+    image: ${WEB_IMAGE:-ghcr.io/dizziedbliss/skillissues-web:${IMAGE_TAG:-latest}}
     restart: unless-stopped
     mem_limit: ${FRONTEND_MEM_LIMIT:-128m}
     cpus: ${FRONTEND_CPUS:-0.25}
