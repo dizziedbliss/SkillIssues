@@ -83,11 +83,18 @@ func RateLimiter(c *cache.Client, limits func() RateLimits, keyPrefix string, tr
 	}
 }
 
-// clientIdentifier resolves client IP for unauthenticated users.
+// clientIdentifier resolves the rate-limit identity of an unauthenticated caller.
 //
-// X-Forwarded-For/X-Real-IP are only honored when the immediate peer
-// (r.RemoteAddr) is a trusted proxy; otherwise any client could set those
-// headers itself and pick its own rate-limit bucket.
+// X-Forwarded-For is honoured only when the immediate peer (r.RemoteAddr) is a
+// trusted proxy. It is then read from the right: each proxy appends the address
+// it received the request from, so the rightmost entries are the ones our own
+// proxies wrote, and the first entry that is not one of them is the client.
+// Entries further left are whatever the client chose to send and are never
+// trusted — taking the leftmost let a caller pick its own bucket by prepending
+// a value. X-Real-IP is used only when there is no usable X-Forwarded-For.
+//
+// An IPv6 client is keyed by its /64: one subscriber is routinely handed a whole
+// /64, so keying by the full address lets it mint a fresh bucket per request.
 func clientIdentifier(r *http.Request, trustedProxies []*net.IPNet) string {
 	peerHost, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -95,27 +102,51 @@ func clientIdentifier(r *http.Request, trustedProxies []*net.IPNet) string {
 	}
 
 	if isTrustedProxy(peerHost, trustedProxies) {
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			parts := strings.Split(xff, ",")
-			return strings.TrimSpace(parts[0])
+		parts := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
+		for i := len(parts) - 1; i >= 0; i-- {
+			entry := strings.TrimSpace(parts[i])
+			ip := net.ParseIP(entry)
+			if ip == nil {
+				// A malformed entry is where the proxies' trustworthy part ends.
+				break
+			}
+			if !isTrustedProxy(entry, trustedProxies) {
+				return rateLimitSubject(ip)
+			}
 		}
-		if xri := r.Header.Get("X-Real-IP"); xri != "" {
-			return strings.TrimSpace(xri)
+		if ip := net.ParseIP(strings.TrimSpace(r.Header.Get("X-Real-IP"))); ip != nil && !isTrustedProxy(ip.String(), trustedProxies) {
+			return rateLimitSubject(ip)
 		}
 	}
 
+	if ip := net.ParseIP(peerHost); ip != nil {
+		return rateLimitSubject(ip)
+	}
 	return peerHost
 }
 
-// ParseTrustedProxies parses CIDR strings (invalid entries are skipped).
-func ParseTrustedProxies(cidrs []string) []*net.IPNet {
-	var out []*net.IPNet
-	for _, c := range cidrs {
-		if _, ipnet, err := net.ParseCIDR(c); err == nil {
-			out = append(out, ipnet)
-		}
+// rateLimitSubject is the string a client's bucket is keyed by: the address for
+// IPv4, the /64 network for IPv6.
+func rateLimitSubject(ip net.IP) string {
+	if v4 := ip.To4(); v4 != nil {
+		return v4.String()
 	}
-	return out
+	return ip.Mask(net.CIDRMask(64, 128)).String() + "/64"
+}
+
+// ParseTrustedProxies parses CIDR strings. An invalid entry is an error: a
+// mistyped proxy range would silently leave every request keyed by the
+// proxy's own address, putting all users in one bucket.
+func ParseTrustedProxies(cidrs []string) ([]*net.IPNet, error) {
+	out := make([]*net.IPNet, 0, len(cidrs))
+	for _, c := range cidrs {
+		_, ipnet, err := net.ParseCIDR(strings.TrimSpace(c))
+		if err != nil {
+			return nil, fmt.Errorf("TRUSTED_PROXIES: %q is not a CIDR: %w", c, err)
+		}
+		out = append(out, ipnet)
+	}
+	return out, nil
 }
 
 func isTrustedProxy(host string, trusted []*net.IPNet) bool {

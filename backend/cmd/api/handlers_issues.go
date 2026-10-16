@@ -29,7 +29,7 @@ func (h *handlers) proxyToSyncd(w http.ResponseWriter, r *http.Request, path str
 	}
 	// ingestd's write triggers take the same admin token as /admin/*.
 	req.Header.Set("Authorization", "Bearer "+h.cfg.AdminSyncToken)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.outbound.Do(req)
 	if err != nil {
 		middleware.RespondError(w, http.StatusBadGateway, "ingestion service unavailable")
 		return
@@ -67,13 +67,13 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 	limit := defaultLimit
 	if lStr := q.Get("limit"); lStr != "" {
 		if l, err := strconv.Atoi(lStr); err == nil && l > 0 {
-			limit = l
+			limit = min(l, cfg.Int(settings.IssuesMaxLimit))
 		}
 	}
 	page := 1
 	if pStr := q.Get("page"); pStr != "" {
 		if p, err := strconv.Atoi(pStr); err == nil && p > 0 {
-			page = p
+			page = min(p, cfg.Int(settings.IssuesMaxPage))
 		}
 	}
 	f := issue.Filters{

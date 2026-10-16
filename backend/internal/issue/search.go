@@ -434,11 +434,16 @@ func (s *Service) SetState(ctx context.Context, issueID int, state string, updat
 // SetStateByRepoAndNumber is the webhook path (D2a): GitHub tells us the
 // repo full_name and issue number, not our internal id. A no-op if the
 // issue was never crawled — that repository/issue simply isn't in scope.
+//
+// An event whose updated_at is not newer than the stored one is ignored:
+// webhooks are redelivered and arrive out of order, and a replayed "closed"
+// must not undo a later reopen the crawl has already recorded.
 func (s *Service) SetStateByRepoAndNumber(ctx context.Context, repoFullName string, number int, state string, updatedAt time.Time) error {
 	return s.db.Exec(ctx,
 		`UPDATE issues i SET state = $3, updated_at = $4, last_synced_at = now()
 		 FROM repositories r
-		 WHERE r.id = i.repository_id AND r.full_name = $1 AND i.number = $2`,
+		 WHERE r.id = i.repository_id AND r.full_name = $1 AND i.number = $2
+		   AND i.updated_at < $4`,
 		repoFullName, number, state, updatedAt,
 	)
 }
@@ -447,9 +452,11 @@ func (s *Service) SetStateByRepoAndNumber(ctx context.Context, repoFullName stri
 func (s *Service) SaveIssue(ctx context.Context, userID, issueID int) error {
 	// Verify issue exists
 	var count int
-	_ = s.db.QueryRow(ctx, "SELECT count(*) FROM issues WHERE id = $1", []any{issueID}, func(row pgx.Row) error {
+	if err := s.db.QueryRow(ctx, "SELECT count(*) FROM issues WHERE id = $1", []any{issueID}, func(row pgx.Row) error {
 		return row.Scan(&count)
-	})
+	}); err != nil {
+		return err
+	}
 	if count == 0 {
 		return db.ErrNotFound
 	}

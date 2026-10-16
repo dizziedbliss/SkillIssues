@@ -468,7 +468,7 @@ Every key with its default and bounds: `docs/settings.md`.
 - **One account per GitHub id**: web and desktop sign-in both resolve to the `github_id`
   row. The case-insensitive unique index on `lower(username)` is why a username that moved to
   another account is cleared on the old row first.
-- **Rate limiting**: Redis `INCR` counter per user (signed in) or per IP (signed out) —
+- **Rate limiting**: Redis `INCR` counter per user (signed in) or per client (signed out; IPv6 keyed by /64, `X-Forwarded-For` read from the right past `TRUSTED_PROXIES`, which must parse or the API will not start) —
   180 / 1,000 per `api.rate_limit.window_seconds`. Only `/health`, `/health/detail` and
   `/metrics` are exempt; `/auth/*` (login) **is** limited. Fixed window: the first request sets
   the key's expiry with `EXPIRE … NX`, so later requests never push it back. Fails open

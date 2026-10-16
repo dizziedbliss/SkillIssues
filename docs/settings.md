@@ -37,6 +37,10 @@ readable through the endpoint above and copied into backups.
 | `api.cache.redis_retry_seconds` | 5 | 1–300 | After a failed Redis call, how long Redis is skipped before one call probes for recovery |
 | `api.http.max_body_bytes` | 1048576 | 1024–104857600 | Largest request body on any API route except the webhook; larger gets 413 |
 | `api.webhook.max_body_bytes` | 26214400 | 1024–104857600 | Largest GitHub webhook body accepted; larger gets 413 |
+| `http.outbound_timeout_seconds` | 15 | 1–120 | Deadline for each outbound call to GitHub (sign-in, installation token, the crawl's GraphQL) and to ingestd; read per call. Used by both binaries |
+| `api.issues.max_limit` | 100 | 1–500 | Largest `?limit` on `GET /issues`; larger is clamped |
+| `api.issues.max_page` | 200 | 1–10000 | Deepest `?page` on `GET /issues`; deeper is clamped |
+| `api.recommendations.max_limit` | 20 | 1–100 | Largest `?limit` on `GET /recommendations`; larger is clamped |
 
 ## Ingestion
 

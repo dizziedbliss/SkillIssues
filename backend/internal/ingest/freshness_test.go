@@ -63,7 +63,7 @@ func fakeCrawlAPI(t *testing.T, response string) (*github.Client, *map[string]an
 		}
 	}))
 	t.Cleanup(srv.Close)
-	return github.NewClient(srv.URL), &vars
+	return github.NewClient(srv.URL, func() time.Duration { return 10 * time.Second }), &vars
 }
 
 // runOneJob queues a single job for repoID and processes it with the worker.
@@ -311,7 +311,7 @@ func TestPassPagesClosedConnectionAfterOpenIsExhausted(t *testing.T) {
 		}
 	}))
 	t.Cleanup(srv.Close)
-	gh := github.NewClient(srv.URL)
+	gh := github.NewClient(srv.URL, func() time.Duration { return 10 * time.Second })
 
 	since := time.Date(2026, 10, 13, 0, 0, 0, 0, time.UTC)
 	passStarted := time.Date(2026, 10, 15, 6, 0, 0, 0, time.UTC)

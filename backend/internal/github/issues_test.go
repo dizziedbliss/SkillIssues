@@ -27,7 +27,7 @@ func fakeGraphQL(t *testing.T, response string) (*Client, *map[string]any, *stri
 		}
 	}))
 	t.Cleanup(srv.Close)
-	return NewClient(srv.URL), &vars, &query
+	return NewClient(srv.URL, func() time.Duration { return 10 * time.Second }), &vars, &query
 }
 
 func TestFetchRepositoryIssuesFullCrawlSkipsClosed(t *testing.T) {

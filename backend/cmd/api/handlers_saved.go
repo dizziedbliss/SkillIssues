@@ -2,9 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
+	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
 )
 
@@ -28,7 +31,12 @@ func (h *handlers) saveIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.issueSvc.SaveIssue(r.Context(), userID, body.IssueID); err != nil {
-		middleware.RespondError(w, http.StatusNotFound, "issue not found")
+		if errors.Is(err, db.ErrNotFound) {
+			middleware.RespondError(w, http.StatusNotFound, "issue not found")
+			return
+		}
+		slog.Error("save issue failed", "user_id", userID, "issue_id", body.IssueID, "error", err)
+		middleware.RespondError(w, http.StatusInternalServerError, "could not save the issue")
 		return
 	}
 	middleware.RespondJSON(w, http.StatusOK, map[string]any{
@@ -45,7 +53,11 @@ func (h *handlers) unsaveIssue(w http.ResponseWriter, r *http.Request) {
 		middleware.RespondError(w, http.StatusNotFound, "invalid issue id")
 		return
 	}
-	_ = h.issueSvc.UnsaveIssue(r.Context(), userID, id)
+	if err := h.issueSvc.UnsaveIssue(r.Context(), userID, id); err != nil {
+		slog.Error("unsave issue failed", "user_id", userID, "issue_id", id, "error", err)
+		middleware.RespondError(w, http.StatusInternalServerError, "could not remove the saved issue")
+		return
+	}
 	middleware.RespondJSON(w, http.StatusOK, map[string]any{
 		"saved":    false,
 		"issue_id": id,
