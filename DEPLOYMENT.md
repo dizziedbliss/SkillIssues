@@ -44,7 +44,8 @@ push to main
    ├─ job `ci`          — uses: ./.github/workflows/ci.yml (backend/web/desktop/images)
    ├─ job `build-push`  — needs: ci — builds the api/ingestd/migrate/web targets, pushes
    │                       ghcr.io/dizziedbliss/skillissues-{api,ingestd,migrate,web}
-   │                       tagged sha-<short> AND latest (linux/amd64 only)
+   │                       tagged sha-<short> AND latest (linux/amd64 only), then attests
+   │                       build provenance and cosign-signs each image by digest
    └─ job `deploy`      — needs: build-push — scp's compose.prod.yaml, Caddyfile,
                            monitoring/ and scripts/deploy-remote.sh to the host, then
                            ssh's in to run it
@@ -59,6 +60,30 @@ effect; an invalid Caddyfile fails the deploy and Caddy keeps its old config), w
 it's a committed, independently-runnable script rather than inline SSH-heredoc logic, so it can
 also be run by hand on the host for debugging.
 
+### Image signing
+
+`build-push` signs every image by digest (keyless cosign, via the workflow's OIDC identity) and
+attaches a build-provenance attestation. Before it pulls anything, `deploy-remote.sh` resolves each
+tag to a digest, runs `cosign verify` against that digest, and runs the **digest** — so an image
+pushed to GHCR by anyone else, or a tag moved after the build, fails the deploy with nothing changed.
+The accepted signer is `deploy.yml` on `refs/heads/main` only; a `workflow_dispatch` build from
+another branch is signed under that branch's ref and is refused by the host. Rollback tags were
+signed when they were built, so they verify the same way.
+
+Check an image by hand (needs `cosign` and `gh`):
+
+```bash
+cosign verify \
+  --certificate-identity-regexp '^https://github\.com/dizziedbliss/SkillIssues/\.github/workflows/deploy\.yml@refs/heads/main$' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/dizziedbliss/skillissues-api@sha256:<digest>
+gh attestation verify oci://ghcr.io/dizziedbliss/skillissues-api@sha256:<digest> --repo dizziedbliss/SkillIssues
+```
+
+Dependencies are watched by `.github/dependabot.yml` (Go modules, Actions, Dockerfile base images)
+and `govulncheck` runs in CI whenever the backend changes. Actions are pinned to commit SHAs;
+Dependabot opens the PRs that move them.
+
 **Rollback**: `workflow_dispatch` on `deploy.yml` with `image_tag` set to an older `sha-<short>`
 tag. That skips the `ci`/`build-push` jobs entirely and just redeploys the named tag. Find past
 tags under the repo's GHCR packages, or `git log --oneline` the commit you want and prefix it
@@ -68,6 +93,12 @@ with `sha-`.
 
 Done once per host, by hand — **secrets never pass through CI**, matching
 [Conventions → Credentials](CLAUDE.md#credentials-and-attribution).
+
+### 0. Install cosign
+
+`deploy-remote.sh` refuses to deploy without it. Install the release binary from
+<https://github.com/sigstore/cosign/releases> (verify its checksum), and check `cosign version`.
+The host needs outbound HTTPS to GHCR, Sigstore's TUF mirror and Rekor.
 
 ### 1. GitHub Actions secrets
 
