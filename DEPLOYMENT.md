@@ -220,43 +220,66 @@ blank to build fresh). Watch the `deploy` job's logs — `scripts/deploy-remote.
 
 ### 6. Backups
 
-Each night the host dumps the database, compresses it, **encrypts it with age to a public key
-whose private half never touches the server**, and uploads it to Cloudflare R2. The server can
-write backups but cannot read them back, so taking the server gets an attacker neither a usable
-backup nor the means to decrypt one.
+Each night the host dumps the database, compresses it and **encrypts it with age to a public key
+whose private half never touches the server**. The server can write backups but cannot read them
+back, so taking the server gets an attacker neither a usable backup nor the means to decrypt one.
+
+Where the encrypted dump goes is a choice you make explicitly with `BACKUP_DESTINATION` in the
+encrypted `.env` (there is no default; unset is an error):
+
+| `BACKUP_DESTINATION` | What happens | Survives the VPS dying? |
+|---|---|---|
+| `local` | Kept in `$DEPLOY_PATH/backups` on the server, pruned after `BACKUP_RETENTION_DAYS` (default 14). **You pull them to another machine.** | **Only once you have pulled them** |
+| `r2` | Uploaded to a Cloudflare R2 bucket; retention is an R2 lifecycle rule | Yes |
+
+Start with `local` if you have no R2 account yet, and switch later by changing that one line
+(plus the `R2_*` keys). **While on `local`, the only off-site copies are the ones you pull**, so
+do it regularly. A run prints `LOCAL ONLY: no off-site copy exists` as a reminder.
 
 One-time setup:
 
 1. **Make the backup key pair on your own machine** (not the VPS):
-   `age-keygen -o ~/.secrets/skillissues-backup.key` prints the public key (`age1...`). Keep the
-   private key in a password manager and a second place; **losing it means every backup is
-   unreadable.** Put only the public key in `.env` as `BACKUP_AGE_RECIPIENT`.
-2. **Create an R2 bucket** (private), and an R2 API token **scoped to that one bucket** with
-   *Object Read & Write*. R2 has no write-only permission, so this is the narrowest a token that
-   can upload gets: it could also delete what it can reach. Protect the backups from that with a
-   bucket lock rule (retention) so objects cannot be deleted or overwritten for N days, and add a
-   lifecycle rule that expires objects after your retention window (30 days is a reasonable
-   start). Put `R2_ENDPOINT` (`https://<account id>.r2.cloudflarestorage.com`), `R2_BUCKET`,
-   `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` in `.env`.
-3. **Install the tools and the timer on the host** (root, once):
+   `mkdir -p ~/.secrets && chmod 700 ~/.secrets && age-keygen -o ~/.secrets/skillissues-backup.key`
+   prints the public key (`age1...`). Keep the private key in a password manager and a second
+   place; **losing it means every backup is unreadable.** Put only the public key in `.env` as
+   `BACKUP_AGE_RECIPIENT`, and `BACKUP_DESTINATION=local`.
+2. **Install the tools and the timer on the host** (root, once; `rclone` only for `r2`):
 
 ```bash
 ssh <admin>@host
-sudo apt-get install -y age rclone
+sudo apt-get install -y age            # plus rclone if you will use R2
 sudo cp /opt/skillissues/systemd/skillissues-backup.{service,timer} /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now skillissues-backup.timer
 sudo systemctl start skillissues-backup.service    # first run now
-journalctl -u skillissues-backup.service -n 20     # should say "Uploaded ... to r2:..."
+journalctl -u skillissues-backup.service -n 20     # should say "Wrote ... (encrypted)"
 ```
+
+3. **Pull the files to your machine** (from your PC; use your ssh port and `DEPLOY_PATH`):
+
+```bash
+mkdir -p ~/skillissues-backups
+rsync -av --ignore-existing -e "ssh -p <port>" deploy@host:/opt/skillissues/backups/ ~/skillissues-backups/
+```
+
+   `--ignore-existing` keeps what you already have even after the server prunes it. Run it by
+   hand or from a scheduled task on a machine that is on most days; a laptop that is off for two
+   weeks misses the 14-day window. The files are age-encrypted, so the copy needs no more care
+   than any other file, but only the private key can open them.
+
+**Using R2 later.** Create a private bucket, an API token scoped to that one bucket with *Object
+Read & Write* (R2 has no write-only permission, so protect the backups with a bucket lock rule
+and expire them with a lifecycle rule), then set `BACKUP_DESTINATION=r2`, `R2_ENDPOINT`
+(`https://<account id>.r2.cloudflarestorage.com`), `R2_BUCKET`, `R2_ACCESS_KEY_ID` and
+`R2_SECRET_ACCESS_KEY`, and `sudo apt-get install -y rclone` on the host.
 
 `deploy.yml` keeps `backup-db.sh` and the unit files current; only installing them is manual.
 
 The script never keeps an unencrypted copy and never reports success it did not achieve: a
-missing setting, a failed dump or a failed upload exits non-zero, so the unit shows `failed`
-(`systemctl --failed`). A dump that could not be uploaded stays on the host, still encrypted, and
-is retried on the next run. Plaintext `.sql.gz` dumps from before this change are left alone (the
-script warns about them): delete them once a restore from R2 has worked.
+missing setting or tool, a failed dump or (for `r2`) a failed upload exits non-zero, so the unit
+shows `failed` (`systemctl --failed`). A dump that could not be uploaded stays on the host, still
+encrypted, and is retried on the next run. Plaintext `.sql.gz` dumps from before this change are
+left alone (the script warns about them): delete them once a restore has worked.
 
 A dump holds no GitHub credential (the server stores none) but does hold every user's GitHub id,
 login, avatar, preferences and saved issues, so treat it as personal data.
@@ -412,12 +435,12 @@ SELECT key, old_value, new_value, changed_at, changed_by FROM settings_audit ORD
 
 ## Restore
 
-Backups are in R2 as `db/skillissues-<timestamp>.sql.gz.age`. Decrypt on **your own machine**,
-where the private key is, never on the server:
+Backups are files named `skillissues-<timestamp>.sql.gz.age`: in `~/skillissues-backups` if you
+pull them, or in R2 under `db/` (download in the R2 dashboard or with `rclone copyto`). Decrypt on
+**your own machine**, where the private key is, never on the server:
 
 ```bash
-rclone copyto r2:<bucket>/db/skillissues-<timestamp>.sql.gz.age ./backup.sql.gz.age   # or download in the R2 dashboard
-age -d -i ~/.secrets/skillissues-backup.key backup.sql.gz.age | gunzip > backup.sql
+age -d -i ~/.secrets/skillissues-backup.key ~/skillissues-backups/skillissues-<timestamp>.sql.gz.age | gunzip > backup.sql
 scp backup.sql deploy@host:/tmp/restore.sql    # delete it from the host afterwards
 ```
 
@@ -441,8 +464,8 @@ FROM users, issues` looks right. A backup you have never restored is a hope, not
 
 - [ ] Secrets are in `secrets/prod.env.sops`, not hand-edited on the host, and the VPS age key is
       `root:deploy` mode `640` at `/etc/skillissues/age.key`.
-- [ ] A restore from an R2 backup has been rehearsed, and the backup private key is held in two
-      places off the server.
+- [ ] A restore from a backup has been rehearsed, the backup private key is held in two places off
+      the server, and (if `BACKUP_DESTINATION=local`) the files are being pulled off the server.
 - [ ] `.env` is mode `600`, owned by the deploy user, and every `:?`-required secret in
       `compose.prod.yaml` has a real value (the file refuses to start otherwise).
 - [ ] DNS is A-record-direct to the VPS, no proxying CDN in front of Caddy.
