@@ -26,10 +26,9 @@ flowchart LR
 
     Web --> Caddy --> API
     Desktop -->|via preload IPC| API
-    Desktop -->|git, with the user's token| GH
+    Desktop -->|fork, push, PR, issue bodies: the user's own token| GH
     API --> PG
     API --> Redis
-    API -->|verify PRs, forks, issue bodies| GH
     API -->|admin: crawl one repo| Ingestd
     Ingestd --> PG
     Ingestd -->|crawl open issues| GH
@@ -85,10 +84,8 @@ Design rationale and what is not built yet (the Discovery Sweeper): [docs/ingest
 |---|---|
 | `repositories` | Imported metadata: stars, language, topics, pushed date, `is_eligible`, `last_synced_at` |
 | `issues` | One row per `(repository_id, number)`; raw GitHub `labels` kept as-is; `updated_at` is GitHub's |
-| `issue_body_cache` | Bounded LRU of issue bodies, fetched on demand (bodies are not crawled) |
-| `users`, `auth_sessions` | Accounts; sessions stored as SHA-256 hashes of the cookie token |
-| `developer_profiles`, `developer_preferences` | XP, level, badges; languages, interests, target level |
-| `contributions`, `contribution_audit_log` | One attempt at an issue and its state history |
+| `users`, `auth_sessions` | Accounts keyed by GitHub id (no token columns); sessions stored as SHA-256 hashes of the session token |
+| `developer_profiles`, `developer_preferences` | Bio, experience and target level; languages, interests |
 | `saved_issues` | Bookmarks |
 | `ingest_jobs`, `github_budget`, `import_skipped` | Crawl queue, shared rate-limit budget, import skip ledger |
 | `settings`, `settings_audit` | Live configuration and every change to it |
@@ -110,26 +107,26 @@ results per category, so one category cannot flood the page.
 `15 × language match + 8 × technology match + 2 × shared skills + shared interests +
 max(0, 5 − |difficulty − target|) + min(3, stars / 25000 + 1)`.
 
-**Progression** (`internal/progression/xp.go`). XP is awarded once, only after GitHub reports
-the PR merged *and* its author matches the user — via `POST /contributions/{id}/verify` or the
-`pull_request` webhook. Base 75 / 140 / 250 by difficulty (an `UNCLASSIFIED` issue counts as
-75), plus 25 for the merge, 15 for a first or second merge in that repository, 10 for an issue
-spanning several skills or technologies. Level *n*+1 costs 150 + 150·*n* XP more than level
-*n* (300, 750, 1350, 2100, …). Badges are recomputed from merge, repository and language counts.
-
 ## 5. Auth and credentials
 
-- **Login** is GitHub OAuth App or GitHub App, through the browser; the desktop app polls
-  `/auth/github/poll` until the browser flow completes. PAT login exists but is off
-  (`auth.pat_login_enabled`).
+- **The server holds no user GitHub token.** Sign-in uses the **Login app**, a no-scope OAuth
+  App: the server reads the numeric id, login and avatar and discards the token. The browser
+  flow is bound to the browser that began it by a `__Host-oauth_state` cookie; the desktop app
+  runs a device flow on the same app and posts its token once to `POST /auth/github/device`,
+  which GitHub confirms was issued to the Login app.
+- **Accounts** are identified by GitHub id only. A username is display data and is never used to
+  find an account; if another row holds it, that row's username is cleared.
 - **Sessions** live in Postgres, so they survive a Redis outage. The cookie is `HttpOnly`;
-  always `SameSite=Lax`, and `Secure` when `FRONTEND_URL` is `https://`.
-- **Accounts link** by GitHub id or case-insensitive username, so OAuth and PAT logins are one
-  user.
-- **Whose token does what:** crawling and on-demand reads use the server credential (GitHub App
-  installation token, or `GITHUB_TOKEN`). Forks, pushes and PRs use **the user's own**
-  authorization and never fall back to the server's — that would attribute their contribution to
-  the server. User tokens are encrypted at rest with `TOKEN_ENCRYPTION_KEY`.
+  always `SameSite=Lax`, and `Secure` when `FRONTEND_URL` is `https://`. A session ends on
+  logout, expiry, "log out everywhere" or purge — revoking the Login app on GitHub does not end
+  one, because there is no token to invalidate.
+- **CSRF**: cross-site mutations are refused (`http.CrossOriginProtection`), and a request that
+  carries the session cookie must send `Content-Type: application/json`. Bearer requests are
+  exempt.
+- **Whose token does what:** crawling uses the server credential (GitHub App installation token,
+  or `GITHUB_TOKEN`). Forks, pushes, pull requests and issue-body reads are the desktop client's,
+  using a token that never leaves the user's machine. The server cannot act on a user's GitHub
+  account.
 - **Webhooks** are HMAC-SHA256 verified. **Admin** routes take a bearer token compared in
   constant time.
 
@@ -159,14 +156,14 @@ Both Go services serve Prometheus metrics at `/metrics`: HTTP traffic and latenc
 pattern, outbound GitHub calls, ingest job outcomes, queue depth, repository coverage, the GitHub
 budget per lane, worker pools, connection pools, and Go runtime stats. The compose stacks run
 Prometheus, Grafana (six provisioned dashboards), node-exporter, cAdvisor and Postgres/Redis
-exporters. Product panels query Postgres as `metrics_ro`, a read-only role that cannot see token
-columns. See DEPLOYMENT.md → *Monitoring*.
+exporters. Product panels query Postgres as `metrics_ro`, a read-only role that cannot see session tokens
+or OAuth state. See DEPLOYMENT.md → *Monitoring*.
 
 ## 9. Clients
 
 Both clients share three npm workspace packages: `@skillissues/api-client` (typed client,
 `ApiError` with status and detail, pluggable fetch or IPC transport), `@skillissues/ui` (Modal
-with focus trap and scroll lock, issue and contribution lists, …) and `@skillissues/markdown`
+with focus trap and scroll lock, issue lists, …) and `@skillissues/markdown`
 (markdown-it + DOMPurify — issue bodies are attacker-controlled).
 
 **Web** (`web/`): React 19 single-page app. Signed-out visitors get `LandingPage`; signed-in

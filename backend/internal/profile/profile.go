@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/dizziedbliss/skillissues/internal/db"
-	"github.com/dizziedbliss/skillissues/internal/progression"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -20,29 +19,20 @@ type ProfileUpdate struct {
 	PreferredLanguages []string `json:"preferred_languages"`
 }
 
-// FullProfile represents the complete developer profile returned by GET /me and GET /profile.
+// FullProfile represents the complete developer profile returned by GET /me.
+// XP, levels and badges are absent: they were computed from contributions,
+// which are deferred to the gamification redesign.
 type FullProfile struct {
-	ID                 int                       `json:"id"`
-	Username           string                    `json:"username"`
-	Name               string                    `json:"name"`
-	AvatarURL          string                    `json:"avatar_url"`
-	ExperienceLevel    string                    `json:"experience_level"`
-	TargetLevel        string                    `json:"target_level"`
-	ProgressScore      int                       `json:"progress_score"`
-	CompletedCount     int                       `json:"completed_count"`
-	Bio                string                    `json:"bio"`
-	DemonstratedSkills []string                  `json:"demonstrated_skills"`
-	TotalXP            int                       `json:"total_xp"`
-	Level              int                       `json:"level"`
-	Badges             []string                  `json:"badges"`
-	Interests          []string                  `json:"interests"`
-	PreferredLanguages []string                  `json:"preferred_languages"`
-	CurrentLevelMinXP  int                       `json:"current_level_min_xp"`
-	NextLevelXP        int                       `json:"next_level_xp"`
-	ProgressInLevel    int                       `json:"progress_in_level"`
-	LevelXPRequired    int                       `json:"level_xp_required"`
-	ProgressPercent    int                       `json:"progress_percent"`
-	BadgeDetails       []progression.BadgeDetail `json:"badge_details"`
+	ID                 int      `json:"id"`
+	Username           string   `json:"username"`
+	Name               string   `json:"name"`
+	AvatarURL          string   `json:"avatar_url"`
+	ExperienceLevel    string   `json:"experience_level"`
+	TargetLevel        string   `json:"target_level"`
+	Bio                string   `json:"bio"`
+	DemonstratedSkills []string `json:"demonstrated_skills"`
+	Interests          []string `json:"interests"`
+	PreferredLanguages []string `json:"preferred_languages"`
 }
 
 // Service manages developer profile operations.
@@ -55,103 +45,20 @@ func New(db *db.Pool) *Service {
 	return &Service{db: db}
 }
 
-// GetFullProfile retrieves or initializes the profile, calculates live XP and badges,
-// and persists updated progression metrics atomically.
+// GetFullProfile returns the user's profile, creating the profile row if it
+// does not exist yet.
 func (s *Service) GetFullProfile(ctx context.Context, userID int) (*FullProfile, error) {
-	// Ensure developer_profiles row exists
-	_ = s.db.Exec(ctx,
-		`INSERT INTO developer_profiles (user_id, experience_level, target_level, progress_score, completed_count, total_xp, level, badges)
-		 VALUES ($1, 'BEGINNER', 'INTERMEDIATE', 0, 0, 0, 1, '{}')
-		 ON CONFLICT (user_id) DO NOTHING`,
+	if err := s.db.Exec(ctx,
+		`INSERT INTO developer_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`,
 		userID,
-	)
-
-	// Calculate actual XP & completed count from merged contributions
-	var completedCount int
-	var calcXP int
-	_ = s.db.QueryRow(ctx,
-		`SELECT count(*) AS completed, COALESCE(SUM(
-			CASE 
-				WHEN UPPER(i.difficulty) = 'BEGINNER' THEN 75
-				WHEN UPPER(i.difficulty) = 'INTERMEDIATE' THEN 140
-				WHEN UPPER(i.difficulty) = 'ADVANCED' THEN 250
-				ELSE 75
-			END
-		), 0) AS calc_xp
-		FROM contributions c
-		JOIN issues i ON i.id = c.issue_id
-		WHERE c.user_id = $1 AND c.state = 'PR_MERGED'`,
-		[]any{userID},
-		func(row pgx.Row) error {
-			return row.Scan(&completedCount, &calcXP)
-		},
-	)
-
-	// Fetch stored total_xp
-	var storedXP int
-	_ = s.db.QueryRow(ctx,
-		`SELECT total_xp FROM developer_profiles WHERE user_id = $1`,
-		[]any{userID},
-		func(row pgx.Row) error {
-			return row.Scan(&storedXP)
-		},
-	)
-
-	totalXP := storedXP
-	if calcXP > totalXP {
-		totalXP = calcXP
+	); err != nil {
+		return nil, fmt.Errorf("profile: ensure profile row: %w", err)
 	}
 
-	lvlInfo := progression.CalculateLevel(totalXP)
-
-	// Evaluate badges based on user's merged PR statistics
-	var totalMerged, totalRepos, totalLangs int
-	_ = s.db.QueryRow(ctx,
-		`SELECT 
-			count(c.id) AS total_merged,
-			count(DISTINCT r.id) AS total_repos,
-			count(DISTINCT lower(r.language)) AS total_languages
-		FROM contributions c
-		JOIN issues i ON i.id = c.issue_id
-		JOIN repositories r ON r.id = i.repository_id
-		WHERE c.user_id = $1 AND c.state = 'PR_MERGED'`,
-		[]any{userID},
-		func(row pgx.Row) error {
-			return row.Scan(&totalMerged, &totalRepos, &totalLangs)
-		},
-	)
-
-	earnedBadges := progression.EvaluateBadges(progression.StatsForBadges{
-		TotalMerged:    totalMerged,
-		TotalRepos:     totalRepos,
-		TotalLanguages: totalLangs,
-	})
-	if earnedBadges == nil {
-		earnedBadges = []string{}
-	}
-
-	// Persist computed progression stats
-	_ = s.db.Exec(ctx,
-		`UPDATE developer_profiles SET
-		  total_xp = $1,
-		  level = $2,
-		  progress_score = $3,
-		  completed_count = $4,
-		  badges = $5
-		WHERE user_id = $6`,
-		totalXP, lvlInfo.Level, lvlInfo.ProgressPercent, completedCount, earnedBadges, userID,
-	)
-
-	// Fetch full combined data
 	var p FullProfile
-	var name *string
-	var avatarURL *string
-	var bio *string
-
 	err := s.db.QueryRow(ctx,
-		`SELECT u.id, u.username, COALESCE(u.name, u.username), COALESCE(u.avatar_url, ''),
-		        p.experience_level, p.target_level, p.progress_score, p.completed_count,
-		        COALESCE(p.bio, ''), p.demonstrated_skills, p.total_xp, p.level, p.badges,
+		`SELECT u.id, COALESCE(u.username, ''), COALESCE(u.name, u.username, ''), COALESCE(u.avatar_url, ''),
+		        p.experience_level, p.target_level, COALESCE(p.bio, ''), p.demonstrated_skills,
 		        COALESCE(pref.interests, '{}'), COALESCE(pref.preferred_languages, '{}')
 		 FROM users u
 		 JOIN developer_profiles p ON p.user_id = u.id
@@ -160,9 +67,8 @@ func (s *Service) GetFullProfile(ctx context.Context, userID int) (*FullProfile,
 		[]any{userID},
 		func(row pgx.Row) error {
 			return row.Scan(
-				&p.ID, &p.Username, &name, &avatarURL,
-				&p.ExperienceLevel, &p.TargetLevel, &p.ProgressScore, &p.CompletedCount,
-				&bio, &p.DemonstratedSkills, &p.TotalXP, &p.Level, &p.Badges,
+				&p.ID, &p.Username, &p.Name, &p.AvatarURL,
+				&p.ExperienceLevel, &p.TargetLevel, &p.Bio, &p.DemonstratedSkills,
 				&p.Interests, &p.PreferredLanguages,
 			)
 		},
@@ -171,15 +77,6 @@ func (s *Service) GetFullProfile(ctx context.Context, userID int) (*FullProfile,
 		return nil, fmt.Errorf("profile: fetch full profile: %w", err)
 	}
 
-	if name != nil {
-		p.Name = *name
-	}
-	if avatarURL != nil {
-		p.AvatarURL = *avatarURL
-	}
-	if bio != nil {
-		p.Bio = *bio
-	}
 	if p.Interests == nil {
 		p.Interests = []string{}
 	}
@@ -189,26 +86,6 @@ func (s *Service) GetFullProfile(ctx context.Context, userID int) (*FullProfile,
 	if p.DemonstratedSkills == nil {
 		p.DemonstratedSkills = []string{}
 	}
-	if p.Badges == nil {
-		p.Badges = []string{}
-	}
-
-	p.CurrentLevelMinXP = lvlInfo.CurrentLevelMinXP
-	p.NextLevelXP = lvlInfo.NextLevelXP
-	p.ProgressInLevel = lvlInfo.ProgressInLevel
-	p.LevelXPRequired = lvlInfo.LevelXPRequired
-	p.ProgressPercent = lvlInfo.ProgressPercent
-
-	badgeDetails := make([]progression.BadgeDetail, 0, len(p.Badges))
-	for _, b := range p.Badges {
-		icon, ok := progression.BadgeIcons[b]
-		if !ok {
-			icon = "🏅"
-		}
-		badgeDetails = append(badgeDetails, progression.BadgeDetail{Name: b, Icon: icon})
-	}
-	p.BadgeDetails = badgeDetails
-
 	return &p, nil
 }
 

@@ -12,7 +12,6 @@
 package config
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"os"
 	"strconv"
@@ -66,29 +65,18 @@ type Config struct {
 
 	// --- Layer 2: secrets ---
 
-	GitHubToken         string // Server-side token for ingestion
-	GitHubWebhookSecret string // HMAC secret for verifying webhook payloads
-	GitHubClientID      string // OAuth App client ID
-	GitHubClientSecret  string // OAuth App client secret
-	GitHubRedirectURI   string // OAuth callback URL; must match the GitHub App
-	AdminSyncToken      string // Bearer token for /admin/* endpoints
+	GitHubToken             string // Server-side token for ingestion
+	GitHubWebhookSecret     string // HMAC secret for verifying webhook payloads
+	GitHubLoginClientID     string // Login app (no-scope OAuth App) client ID
+	GitHubLoginClientSecret string // Login app client secret
+	GitHubRedirectURI       string // Login app web callback URL
+	AdminSyncToken          string // Bearer token for /admin/* endpoints
 
-	// GitHub App (plan D5) — separate from the OAuth App above. Installation
-	// token drives server-side crawling/reads; the user-to-server token
-	// drives fork/push/PR. All empty means the App isn't configured yet and
-	// those code paths stay disabled, falling back to the OAuth App/PAT.
+	// GitHub App: its installation token drives server-side crawling and
+	// reads. The server holds no user-to-server tokens, so the App's client
+	// id, client secret and callback are not configured here.
 	GitHubAppID             string
-	GitHubAppClientID       string
-	GitHubAppClientSecret   string
 	GitHubAppPrivateKeyPath string
-	GitHubAppCallbackURL    string
-
-	// TokenEncryptionKey is the AES-256 key (derived via SHA-256 from
-	// TOKEN_ENCRYPTION_KEY, so operators can set any length secret) used to
-	// encrypt users.github_access_token at rest. Losing or rotating it
-	// without migrating existing rows makes stored tokens undecryptable —
-	// users are then asked to reconnect GitHub (auth.ErrGitHubReauthRequired).
-	TokenEncryptionKey []byte
 }
 
 // Secret names a secret a binary needs. With ENV=production, Load refuses to
@@ -98,16 +86,14 @@ type Config struct {
 type Secret string
 
 const (
-	SecretWebhook         Secret = "GITHUB_WEBHOOK_SECRET"
-	SecretAdminToken      Secret = "ADMIN_SYNC_TOKEN"
-	SecretTokenEncryption Secret = "TOKEN_ENCRYPTION_KEY"
+	SecretWebhook    Secret = "GITHUB_WEBHOOK_SECRET"
+	SecretAdminToken Secret = "ADMIN_SYNC_TOKEN"
 )
 
 // placeholders are the development defaults for each Secret.
 var placeholders = map[Secret]string{
-	SecretWebhook:         "dev_local_webhook_secret",
-	SecretAdminToken:      "dev_local_admin_sync_token",
-	SecretTokenEncryption: "dev_local_token_encryption_key",
+	SecretWebhook:    "dev_local_webhook_secret",
+	SecretAdminToken: "dev_local_admin_sync_token",
 }
 
 // Load reads and validates configuration from the environment. required
@@ -138,27 +124,19 @@ func Load(required ...Secret) (*Config, error) {
 
 	cfg.GitHubToken = cleanToken(os.Getenv("GITHUB_TOKEN"))
 	cfg.GitHubWebhookSecret = strEnv(string(SecretWebhook), placeholders[SecretWebhook])
-	cfg.GitHubClientID = cleanToken(os.Getenv("GITHUB_CLIENT_ID"))
-	cfg.GitHubClientSecret = cleanToken(os.Getenv("GITHUB_CLIENT_SECRET"))
+	cfg.GitHubLoginClientID = cleanToken(os.Getenv("GITHUB_LOGIN_CLIENT_ID"))
+	cfg.GitHubLoginClientSecret = cleanToken(os.Getenv("GITHUB_LOGIN_CLIENT_SECRET"))
 	cfg.AdminSyncToken = strEnv(string(SecretAdminToken), placeholders[SecretAdminToken])
 
 	cfg.GitHubAppID = cleanToken(os.Getenv("GITHUB_APP_ID"))
-	cfg.GitHubAppClientID = cleanToken(os.Getenv("GITHUB_APP_CLIENT_ID"))
-	cfg.GitHubAppClientSecret = cleanToken(os.Getenv("GITHUB_APP_CLIENT_SECRET"))
 	cfg.GitHubAppPrivateKeyPath = cleanToken(os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH"))
-	cfg.GitHubAppCallbackURL = strEnv("GITHUB_APP_CALLBACK_URL", "http://localhost:8000/auth/github-app/callback")
-
-	tokenEncryptionSecret := strEnv(string(SecretTokenEncryption), placeholders[SecretTokenEncryption])
-	keyHash := sha256.Sum256([]byte(tokenEncryptionSecret))
-	cfg.TokenEncryptionKey = keyHash[:]
 
 	// Refuse to start in production on the development placeholder of any
 	// secret this binary uses.
 	if os.Getenv("ENV") == "production" {
 		values := map[Secret]string{
-			SecretWebhook:         cfg.GitHubWebhookSecret,
-			SecretAdminToken:      cfg.AdminSyncToken,
-			SecretTokenEncryption: tokenEncryptionSecret,
+			SecretWebhook:    cfg.GitHubWebhookSecret,
+			SecretAdminToken: cfg.AdminSyncToken,
 		}
 		for _, sec := range required {
 			if values[sec] == placeholders[sec] {

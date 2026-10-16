@@ -93,22 +93,18 @@ ENV=production
 DOMAIN=your.production.domain
 FRONTEND_URL=https://your.production.domain
 GITHUB_REDIRECT_URI=https://your.production.domain/api/auth/github/callback
-GITHUB_APP_CALLBACK_URL=https://your.production.domain/api/auth/github-app/callback
 
 POSTGRES_DB=skillissues
 POSTGRES_USER=skillissues
 POSTGRES_PASSWORD=<generate: openssl rand -base64 32 | tr -d '/+='>
 
-TOKEN_ENCRYPTION_KEY=<generate: openssl rand -base64 48 | tr -d '/+='>
 ADMIN_SYNC_TOKEN=<generate: openssl rand -hex 32>
 GITHUB_WEBHOOK_SECRET=<generate: openssl rand -hex 32>
 
-GITHUB_CLIENT_ID=<production OAuth App client ID>
-GITHUB_CLIENT_SECRET=<production OAuth App client secret>
+GITHUB_LOGIN_CLIENT_ID=<production Login app client ID>
+GITHUB_LOGIN_CLIENT_SECRET=<production Login app client secret>
 
 GITHUB_APP_ID=<production GitHub App ID>
-GITHUB_APP_CLIENT_ID=<production GitHub App client ID>
-GITHUB_APP_CLIENT_SECRET=<production GitHub App client secret>
 GITHUB_APP_PRIVATE_KEY_HOST_PATH=/opt/skillissues/secrets/github-app-private-key.pem
 
 GITHUB_TOKEN=<optional PAT, used as a server-crawl credential fallback>
@@ -124,14 +120,19 @@ IMAGE_TAG=latest   # deploy.yml always overrides this with an explicit sha- tag;
 `FRONTEND_URL` **must** start with `https://` — the session cookie is only marked `Secure`
 when it does, and that's what makes the OAuth flow work same-origin. `ENV=production` makes
 the config guard in `internal/config/env.go` refuse to start on a placeholder
-`TOKEN_ENCRYPTION_KEY`/`ADMIN_SYNC_TOKEN`/`GITHUB_WEBHOOK_SECRET`, and `compose.prod.yaml`
+`ADMIN_SYNC_TOKEN`/`GITHUB_WEBHOOK_SECRET`, and `compose.prod.yaml`
 itself refuses to start without `POSTGRES_PASSWORD` set at all (`:?` in the compose file) — a
 missing production secret fails closed rather than silently running on a dev default.
 
-Register the production OAuth App at <https://github.com/settings/applications/new> (callback:
-`https://<domain>/api/auth/github/callback`) and the GitHub App at
-<https://github.com/settings/apps/new> (callback: `https://<domain>/api/auth/github-app/callback`;
-permissions: repository Contents read, Pull requests read/write, Metadata read).
+Register the **Login app** at <https://github.com/settings/applications/new> as an OAuth App
+with callback `https://<domain>/api/auth/github/callback`, **Enable Device Flow** ticked, and
+request no scopes. Then register the GitHub App at <https://github.com/settings/apps/new> for
+the crawl's installation token only: no callback URL, no user authorization, permissions
+Metadata read and Issues read.
+
+A SkillIssues session ends only on logout, expiry (`api.session.ttl_hours`), "log out
+everywhere" or account purge. The server holds no GitHub token, so revoking the Login app on
+GitHub (<https://github.com/settings/applications>) does not end a session.
 
 ### 3. GitHub App private key
 
@@ -175,10 +176,8 @@ Needs root — the `deploy` user has none, by design, so this one step is done b
 provisioned the host. Writes a daily gzip'd `pg_dump` to `$DEPLOY_PATH/backups`, 14-day
 retention (`BACKUP_RETENTION_DAYS` in `.env` to change it).
 
-**A dump is useless without `TOKEN_ENCRYPTION_KEY`** — it decrypts `users.github_access_token`
-at rest, and it lives only in `.env`, which these dumps don't include. Back that value up
-separately (a password manager, not this directory) the moment you generate it, not after the
-first incident.
+A dump holds no GitHub credential: the server stores none. It does hold every user's
+GitHub id, login, avatar, preferences and saved issues, so treat it as personal data.
 
 ## Changing a live setting
 
@@ -246,8 +245,7 @@ JSON under `monitoring/grafana/dashboards/` and redeploy.
 | Infrastructure | host CPU/memory/disk, container memory vs `mem_limit`, Go runtime, DB pool, Postgres, Redis, settings changes |
 
 Product panels query Postgres as `metrics_ro` (migration 00017): read-only, a 15s
-`statement_timeout`, and no access to `users.github_access_token`,
-`users.github_refresh_token`, `auth_sessions.token` or `oauth_states`. The `metrics-role`
+`statement_timeout`, and no access to `auth_sessions.token` or `oauth_states`. The `metrics-role`
 one-shot sets its password from `METRICS_DB_PASSWORD` on every deploy. A new table is
 invisible to dashboards until a migration grants it.
 
@@ -313,17 +311,14 @@ gunzip -c /opt/skillissues/backups/skillissues-<timestamp>.sql.gz | \
 ```
 
 Stop `go-api` and `ingestd` first (`docker compose -f compose.prod.yaml --env-file .env stop
-go-api ingestd`) so nothing writes mid-restore, then start them back up afterward. The restored
-database only decrypts existing users' GitHub tokens correctly if `TOKEN_ENCRYPTION_KEY` in the
-current `.env` matches what was active when the backup was taken.
+go-api ingestd`) so nothing writes mid-restore, then start them back up afterward.
 
 ## Production security checklist
 
 - [ ] `.env` is mode `600`, owned by the deploy user, and every `:?`-required secret in
       `compose.prod.yaml` has a real value (the file refuses to start otherwise).
-- [ ] `TOKEN_ENCRYPTION_KEY` is backed up somewhere other than this host.
 - [ ] DNS is A-record-direct to the VPS, no proxying CDN in front of Caddy.
-- [ ] GitHub OAuth App and GitHub App callback URLs match the production domain.
+- [ ] The Login app callback URL matches the production domain.
 - [ ] `dc exec caddy wget -qO- http://go-api:8000/health/detail` reports `"cache":"ok"` and
       sane repository/issue counts, and `curl https://<domain>/api/metrics` returns **404**.
 - [ ] Grafana opens over the SSH tunnel and the *Overview* dashboard shows every target UP;

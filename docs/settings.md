@@ -28,8 +28,8 @@ readable through the endpoint above and copied into backups.
 | `api.issues.search_page_size` | 50 | 1–200 | Issues returned for a search query |
 | `api.search.per_category_cap` | 25 | 1–100 | Maximum search results per match category |
 | `api.notifications.page_size` | 50 | 1–200 | Notifications returned by `GET /notifications` |
-| `api.issues.freshness_batch_cap` | 25 | 1–100 | Maximum issue ids in one `POST /issues/freshness` |
 | `api.session.ttl_hours` | 168 | 1–8760 | Session lifetime; applies to newly issued sessions |
+| `api.session.prune_interval_seconds` | 3600 | 60–86400 | How often expired sessions and abandoned OAuth handshakes are deleted |
 | `api.cache.hot_issues_ttl_seconds` | 120 | 0–3600 | Cache for the default unauthenticated catalog page (0 = off) |
 | `api.cache.search_ttl_seconds` | 60 | 0–3600 | Cache for unauthenticated search results (0 = off) |
 | `api.cache.recommendations_ttl_seconds` | 300 | 0–3600 | Cache for per-user recommendations (0 = off) |
@@ -64,7 +64,7 @@ readable through the endpoint above and copied into backups.
 | `ingest.closed_page_size` | 40 | 1–100 | Issues closed since a repository's last completed pass, fetched with each page of a freshness pass |
 | `ingest.tracked_issue_check_seconds` | 3600 | 60–86400 | How stale a saved or in-progress open issue may get before its state is re-checked on GitHub |
 | `ingest.tracked_issue_batch_size` | 50 | 1–100 | Tracked issues checked per GitHub request |
-| `ingest.closed_issue_retention_days` | 7 | 0–3650 | Days after closing before an issue nobody saved or worked on is deleted (0 = keep all) |
+| `ingest.closed_issue_retention_days` | 7 | 0–3650 | Days after closing before an issue nobody saved is deleted (0 = keep all) |
 | `ingest.closed_issue_prune_interval_seconds` | 3600 | 60–86400 | How often closed issues past their retention are deleted |
 | `ingest.closed_issue_prune_batch_size` | 5000 | 100–100000 | Closed issues deleted per statement |
 | `ingest.metrics_refresh_seconds` | 30 | 5–3600 | How often ingestd refreshes its Postgres-backed `/metrics` gauges |

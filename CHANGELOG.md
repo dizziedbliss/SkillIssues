@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- The server no longer holds any user GitHub token. Sign-in uses a no-scope **Login app**
+  (`GITHUB_LOGIN_CLIENT_ID`/`_SECRET`); the token is read once for the numeric GitHub id and
+  discarded. Removed: PAT login, GitHub App user login, `POST /github/forks`,
+  `GET /github/git-token`, the contribution endpoints and their webhook handling, the issue
+  body and freshness endpoints, `internal/crypto` and `TOKEN_ENCRYPTION_KEY`.
+- Fixed account takeover by username reuse: accounts are matched on GitHub id only.
+- Fixed desktop session theft: the desktop ticket flow is gone; desktop signs in through
+  `POST /auth/github/device`.
+- OAuth callbacks require a browser-bound state cookie and redirect with fixed error codes.
+- CSRF protection on cookie-authenticated requests.
+- Added `POST /auth/logout-all`; `POST /auth/purge` needs `{"confirm": true}`; expired sessions
+  and OAuth states are pruned (`api.session.prune_interval_seconds`).
+
+### Removed
+- Contributions, XP, levels and badges, and `GET /me`'s fields for them (migration 00027).
+  All users, sessions and saved issues were deleted by that migration.
+- Settings `api.contribution.verify_per_hour`, `api.issues.freshness_batch_cap`,
+  `api.issue_body.*` and `auth.pat_login_enabled`.
+
 ### Added
 - "Link PR" on Working cards (web and desktop): attach a pull request opened by hand on GitHub,
   so it can be verified and credited. Uses `PUT /contributions/{id}`, which checks the PR's
