@@ -12,5 +12,5 @@
 creation_rules:
   - path_regex: ^secrets/.*\.env\.sops$
     age: >-
-      age1REPLACE_WITH_YOUR_PUBLIC_KEY,
-      age1REPLACE_WITH_THE_VPS_PUBLIC_KEY
+      age12gqkdzq9etlpyy7c3z325v76d6ld0ds4skz3hrt33xpj73gznupqjupmct,
+      age18hng5g06729c74j7mvxc63xuxhnav336amfg0wwajv3pnfe3xsesxl5u3s
