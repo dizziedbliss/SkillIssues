@@ -102,6 +102,29 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # One-shot: enables login for the least-privilege roles migration 00029
+  # creates (go-api connects as skillissues_api, ingestd as skillissues_ingest,
+  # never as the owner). Runs after every migrate so a rotated password lands.
+  app-roles:
+    image: postgres:16-alpine
+    mem_limit: 64m
+    cpus: 0.25
+    logging: *default-logging
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-skillissues}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-skillissues}
+      API_DB_PASSWORD: ${API_DB_PASSWORD:?API_DB_PASSWORD must be set in production}
+      INGEST_DB_PASSWORD: ${INGEST_DB_PASSWORD:?INGEST_DB_PASSWORD must be set in production}
+    volumes:
+      - ./db/app-roles.sql:/app-roles.sql:ro
+    command: ["psql", "-v", "ON_ERROR_STOP=1", "-q", "-f", "/app-roles.sql"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
   go-api:
     image: ghcr.io/dizziedbliss/skillissues-api:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -109,7 +132,7 @@ services:
     cpus: ${API_CPUS:-0.5}
     logging: *default-logging
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-skillissues}
+      DATABASE_URL: postgresql://skillissues_api:${API_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-skillissues}
       DB_MAX_CONNS: ${API_DB_MAX_CONNS:-15}
       REDIS_URL: redis://redis:6379/0
       # https:// is mandatory here, not cosmetic: the session cookie is
@@ -141,7 +164,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      migrate:
+      app-roles:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/healthcheck"]
@@ -157,7 +180,7 @@ services:
     cpus: ${INGESTD_CPUS:-0.75}
     logging: *default-logging
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-skillissues}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-skillissues}
+      DATABASE_URL: postgresql://skillissues_ingest:${INGEST_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-skillissues}
       DB_MAX_CONNS: ${INGESTD_DB_MAX_CONNS:-10}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:?ADMIN_SYNC_TOKEN must be set in production}
@@ -173,7 +196,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
+      app-roles:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/healthcheck"]

@@ -81,6 +81,28 @@ services:
     restart: "no"
 
   # --------------------------------------------------------------------------
+  # Database roles — one-shot. Enables login for the least-privilege roles that
+  # migration 00029 creates; go-api and ingestd connect as them, not as the
+  # owner. Runs after every migrate so a changed password lands.
+  # --------------------------------------------------------------------------
+  app-roles:
+    image: postgres:16-alpine
+    environment:
+      PGHOST: postgres
+      PGUSER: skillissues
+      PGPASSWORD: skillissues
+      PGDATABASE: skillissues
+      API_DB_PASSWORD: ${API_DB_PASSWORD:-skillissues_api_dev}
+      INGEST_DB_PASSWORD: ${INGEST_DB_PASSWORD:-skillissues_ingest_dev}
+    volumes:
+      - ./db/app-roles.sql:/app-roles.sql:ro
+    command: ["psql", "-v", "ON_ERROR_STOP=1", "-q", "-f", "/app-roles.sql"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # --------------------------------------------------------------------------
   # Go API — HTTP API, auth, catalog, progression
   # --------------------------------------------------------------------------
   go-api:
@@ -88,7 +110,7 @@ services:
       context: .
       target: api
     environment:
-      DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
+      DATABASE_URL: postgresql://skillissues_api:${API_DB_PASSWORD:-skillissues_api_dev}@postgres:5432/skillissues
       REDIS_URL: redis://redis:6379/0
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
@@ -112,7 +134,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      migrate:
+      app-roles:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/healthcheck"]
@@ -131,7 +153,7 @@ services:
       context: .
       target: ingestd
     environment:
-      DATABASE_URL: postgresql://skillissues:skillissues@postgres:5432/skillissues
+      DATABASE_URL: postgresql://skillissues_ingest:${INGEST_DB_PASSWORD:-skillissues_ingest_dev}@postgres:5432/skillissues
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-dev_local_admin_sync_token}
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}
@@ -145,7 +167,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
+      app-roles:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/healthcheck"]
