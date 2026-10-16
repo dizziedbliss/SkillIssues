@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Grafana *Ingestion* dashboard: tables of jobs by type and status, repositories running now, and
+  the next pending jobs.
 - `excluded_repositories`: repositories that are never crawled, seeded with four (three issue
   trackers used as databases, one public archive). Applied by the eligibility recompute, the
   importer and job claiming; their stored issues, and those of archived repositories, are
@@ -24,6 +26,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `BACKUP_DESTINATION` (`local` keeps encrypted files on the server to be pulled elsewhere; `r2`
   uploads to Cloudflare R2 and also needs `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`,
   `R2_SECRET_ACCESS_KEY`).
+- Images are signed and verified. The deploy builds, attests provenance for and cosign-signs each
+  image by digest; the host verifies the signature (`deploy.yml` on `main`) and runs that digest,
+  so a pushed or retagged image does not deploy. **The host needs `cosign`** (DEPLOYMENT.md,
+  step 0). Rollback to a tag built before this change fails verification (it is unsigned).
+- CI: Actions pinned to commit SHAs, `contents: read` by default, a `govulncheck` job, and
+  Dependabot for Go modules, Actions, Dockerfiles and compose files. Base images are pinned by
+  digest. go-redis upgraded to 9.7.3 (GO-2025-3540).
+- Rate limiting keys an IPv6 client by its /64 and reads `X-Forwarded-For` from the right, past
+  `TRUSTED_PROXIES`; an unparseable `TRUSTED_PROXIES` now stops startup.
+- CORS answers only `FRONTEND_URL` in production (loopback only otherwise); the
+  `*.skillissues.com` wildcard is gone.
+- Every outbound call has a deadline (`http.outbound_timeout_seconds`, default 15), replacing
+  `http.DefaultClient` and the crawler's fixed 15 s. `GET /issues` `limit`/`page` and
+  `GET /recommendations` `limit` are capped (`api.issues.max_limit`, `api.issues.max_page`,
+  `api.recommendations.max_limit`); larger requests are clamped.
+- Admin and ingestd errors no longer return internal error text, and saving or unsaving an issue
+  no longer discards a database error.
+- A webhook whose issue `updated_at` is not newer than the stored one is ignored.
 - `go-api` and `ingestd` no longer connect as the database owner (a superuser). They use
   `skillissues_api` and `skillissues_ingest`, which have per-table DML grants only (migration
   00029). **New required secrets: `API_DB_PASSWORD` and `INGEST_DB_PASSWORD`.**
@@ -47,9 +67,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `api.issue_body.*` and `auth.pat_login_enabled`.
 
 ### Added
-- "Link PR" on Working cards (web and desktop): attach a pull request opened by hand on GitHub,
-  so it can be verified and credited. Uses `PUT /contributions/{id}`, which checks the PR's
-  repository and author.
 - Prometheus metrics that report real values: HTTP traffic and latency by route pattern,
   outbound GitHub calls, ingest job outcomes, queue depth, repository coverage, GitHub budget
   per lane, worker and connection pools. `ingestd` now serves `/metrics` too.
@@ -59,8 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `metrics_ro`, a read-only, column-restricted database role for dashboards.
 - Live settings `ingest.metrics_refresh_seconds`, `ingest.claim_interval_seconds`,
   `ingest.lease_seconds`, `ingest.lease_reclaim_interval_seconds`,
-  `ingest.rate_limit_pause_seconds` and `api.issue_body.*` (cache size, prune interval, fetch
-  concurrency, installation floor), replacing values that were hardcoded.
+  and `ingest.rate_limit_pause_seconds`, replacing values that were hardcoded.
 - Expired ingest leases are reclaimed continuously, not only when ingestd starts
   (`ingest_leases_reclaimed_total`).
 - CI runs the database and Redis tests against service containers.
