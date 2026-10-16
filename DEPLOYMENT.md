@@ -267,6 +267,12 @@ rsync -av --ignore-existing -e "ssh -p <port>" deploy@host:/opt/skillissues/back
    weeks misses the 14-day window. The files are age-encrypted, so the copy needs no more care
    than any other file, but only the private key can open them.
 
+**Size.** Measure before choosing a retention: on `local` each file is kept for
+`BACKUP_RETENTION_DAYS` (default 14) on a small disk. A dump of the current database is about
+0.7 GB and takes about 3 minutes; 14 days of that is roughly 10 GB, and it grows with the crawl.
+Check `df -h $DEPLOY_PATH` and lower it in the encrypted `.env` (for example
+`BACKUP_RETENTION_DAYS=3`) if the disk is tight and you pull the files regularly.
+
 **Using R2 later.** Create a private bucket, an API token scoped to that one bucket with *Object
 Read & Write* (R2 has no write-only permission, so protect the backups with a bucket lock rule
 and expire them with a lifecycle rule), then set `BACKUP_DESTINATION=r2`, `R2_ENDPOINT`

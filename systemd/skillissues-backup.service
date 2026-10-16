@@ -11,3 +11,9 @@ Type=oneshot
 User=deploy
 WorkingDirectory=/opt/skillissues
 ExecStart=/opt/skillissues/backup-db.sh
+# Keep the nightly dump from competing with the live API and the crawl. This
+# covers the host-side work (gzip, age, the docker client). pg_dump itself runs
+# inside the postgres container and keeps that container's priority.
+Nice=19
+IOSchedulingClass=idle
+CPUSchedulingPolicy=batch
