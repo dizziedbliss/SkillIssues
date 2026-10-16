@@ -56,6 +56,40 @@ if ! "${COMPOSE[@]}" config --quiet; then
 	exit 1
 fi
 
+# Only images that deploy.yml built and signed on main are allowed to run.
+# A tag is mutable, so: pull the tag, take the digest it resolved to, verify the
+# cosign signature on that digest, and run that digest (compose.prod.yaml's
+# *_IMAGE overrides). Anyone who can push to GHCR can move a tag; they cannot
+# produce a signature whose certificate names this workflow on main.
+if ! command -v cosign >/dev/null 2>&1; then
+	echo "cosign is not installed on this host — see DEPLOYMENT.md, 'First-time host setup'." >&2
+	echo "Nothing was changed; production is still on the previous release." >&2
+	exit 1
+fi
+IMAGE_PREFIX="ghcr.io/dizziedbliss"
+SIGNER_IDENTITY='^https://github\.com/dizziedbliss/SkillIssues/\.github/workflows/deploy\.yml@refs/heads/main$'
+SIGNER_ISSUER='https://token.actions.githubusercontent.com'
+for name in api ingestd migrate web; do
+	repo="${IMAGE_PREFIX}/skillissues-${name}"
+	docker pull --quiet "${repo}:${IMAGE_TAG}" >/dev/null
+	digest_ref="$(docker inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "${repo}:${IMAGE_TAG}" | grep -F "${repo}@sha256:" | head -n 1)"
+	if ! [[ "$digest_ref" =~ ^${repo}@sha256:[0-9a-f]{64}$ ]]; then
+		echo "could not resolve a digest for ${repo}:${IMAGE_TAG}" >&2
+		exit 1
+	fi
+	if ! cosign verify \
+		--certificate-identity-regexp "$SIGNER_IDENTITY" \
+		--certificate-oidc-issuer "$SIGNER_ISSUER" \
+		"$digest_ref" >/dev/null; then
+		echo "signature check FAILED for ${digest_ref} — refusing to deploy." >&2
+		echo "Nothing was changed; production is still on the previous release." >&2
+		exit 1
+	fi
+	echo "verified ${digest_ref}"
+	upper="$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')"
+	export "${upper}_IMAGE=${repo}:${IMAGE_TAG}@${digest_ref#*@}"
+done
+
 "${COMPOSE[@]}" pull
 "${COMPOSE[@]}" up -d --remove-orphans
 
