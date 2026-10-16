@@ -52,6 +52,12 @@ const (
 	CacheRedisTimeoutMs    Key = "api.cache.redis_timeout_ms"
 	CacheRedisRetrySeconds Key = "api.cache.redis_retry_seconds"
 
+	// HTTPMaxBodyBytes caps a request body on every API route except the
+	// webhook; WebhookMaxBodyBytes caps the GitHub webhook, whose payloads are
+	// larger than any client request.
+	HTTPMaxBodyBytes    Key = "api.http.max_body_bytes"
+	WebhookMaxBodyBytes Key = "api.webhook.max_body_bytes"
+
 	ContributionVerifyPerHour Key = "api.contribution.verify_per_hour"
 
 	// IssueBody* tune the on-demand issue body read path
@@ -204,6 +210,9 @@ var Registry = map[Key]Spec{
 	CacheRecommendationsTTLSecond: intSpec(300, 0, 3600, "Cache lifetime for per-user recommendations. 0 disables."),
 	CacheRedisTimeoutMs:           intSpec(250, 10, 5000, "Deadline for one Redis call, connecting included. A call that misses it fails open."),
 	CacheRedisRetrySeconds:        intSpec(5, 1, 300, "After a failed Redis call, how long Redis is skipped before one call probes whether it has recovered."),
+
+	HTTPMaxBodyBytes:    intSpec(1048576, 1024, 104857600, "Largest request body accepted on any API route except the webhook; larger bodies get 413."),
+	WebhookMaxBodyBytes: intSpec(26214400, 1024, 104857600, "Largest GitHub webhook body accepted (GitHub's own cap is 25 MiB); larger bodies get 413."),
 
 	ContributionVerifyPerHour: intSpec(5, 1, 1000, "Maximum PR verification attempts per user per contribution per hour."),
 
