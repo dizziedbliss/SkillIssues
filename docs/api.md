@@ -12,7 +12,7 @@ works signed out, personalised when signed in; *none* = public; *admin* =
 **Rate limiting** applies to every public route except `/health`, `/health/detail` and
 `/metrics`: a Redis counter per user (signed in) or per IP (signed out), limits from
 [`api.rate_limit.*`](settings.md). Responses carry `X-RateLimit-Limit` /
-`X-RateLimit-Remaining`; a 429 carries `Retry-After`. If Redis is down the limiter fails open.
+`X-RateLimit-Remaining`; a 429 carries `Retry-After`. Signed-out callers are keyed by client address (an IPv6 client by its /64; `X-Forwarded-For` is read from the right, past `TRUSTED_PROXIES`). If Redis is down the limiter fails open.
 `/admin/*` and `/webhooks/*` are outside the public chain and are not rate limited. Request bodies are capped (`api.http.max_body_bytes`; `api.webhook.max_body_bytes` for the webhook); over the cap is `413`. In production Caddy also answers `404` for `/admin/*`.
 
 ## Health and metrics
@@ -43,6 +43,8 @@ works signed out, personalised when signed in; *none* = public; *admin* =
 | GET | `/issues/{id}` | none | One issue |
 | GET | `/recommendations` | session | Issues ranked for the user's profile (`difficulty`, `page`, `limit`) |
 | GET | `/preferences/options` | none | Selectable languages/interests for the profile form |
+
+`limit` and `page` are clamped, not refused: `/issues` to `api.issues.max_limit` / `api.issues.max_page`, `/recommendations` to `api.recommendations.max_limit` (`docs/settings.md`).
 
 ## User
 
