@@ -7,7 +7,7 @@ import (
 )
 
 func TestCORS_AllowedOrigins(t *testing.T) {
-	handler := CORS("https://skillissues.com")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS("https://skillissues.com", false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	}))
@@ -84,7 +84,7 @@ func TestCORS_AllowedOrigins(t *testing.T) {
 // on a credentialed request, so an unmatched origin must fall back to just
 // the first configured entry.
 func TestCORS_MultiValueFrontendURLFallsBackToFirstEntry(t *testing.T) {
-	handler := CORS("https://a.skillissues.com,https://b.skillissues.com")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS("https://a.skillissues.com,https://b.skillissues.com", false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -104,5 +104,28 @@ func TestCORS_MultiValueFrontendURLFallsBackToFirstEntry(t *testing.T) {
 
 	if got := rec2.Header().Get("Access-Control-Allow-Origin"); got != "https://b.skillissues.com" {
 		t.Errorf("expected the second configured origin to be allowed, got %q", got)
+	}
+}
+
+// In production only the configured origins are answered: loopback is a
+// development convenience, and a sibling subdomain is not the frontend.
+func TestCORS_ProductionAllowsOnlyConfiguredOrigins(t *testing.T) {
+	handler := CORS("https://app.example.com", true)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	for origin, want := range map[string]string{
+		"https://app.example.com":   "https://app.example.com",
+		"http://localhost:5173":     "https://app.example.com",
+		"http://127.0.0.1:3000":     "https://app.example.com",
+		"https://evil.example.com":  "https://app.example.com",
+		"https://x.skillissues.com": "https://app.example.com",
+	} {
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Header.Set("Origin", origin)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != want {
+			t.Errorf("origin %q: Allow-Origin = %q, want %q", origin, got, want)
+		}
 	}
 }

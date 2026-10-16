@@ -5,9 +5,9 @@
 package github
 
 import (
-	"net/http"
 	"time"
 
+	"github.com/dizziedbliss/skillissues/internal/httpx"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 )
 
@@ -16,17 +16,18 @@ const DefaultGraphQLURL = "https://api.github.com/graphql"
 
 // Client interacts with GitHub GraphQL API.
 type Client struct {
-	httpClient *http.Client
+	httpClient httpx.Doer
 	graphqlURL string
 }
 
-// NewClient creates a new GitHub GraphQL client.
-func NewClient(graphqlURL string) *Client {
+// NewClient creates a new GitHub GraphQL client. timeout is read on every call,
+// so the http.outbound_timeout_seconds setting applies without a restart.
+func NewClient(graphqlURL string, timeout func() time.Duration) *Client {
 	if graphqlURL == "" {
 		graphqlURL = DefaultGraphQLURL
 	}
 	return &Client{
-		httpClient: &http.Client{Timeout: 15 * time.Second, Transport: metrics.InstrumentedTransport{}},
+		httpClient: httpx.New(timeout, metrics.InstrumentedTransport{}),
 		graphqlURL: graphqlURL,
 	}
 }

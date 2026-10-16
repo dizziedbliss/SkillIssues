@@ -14,6 +14,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/config"
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/httpx"
 	"github.com/dizziedbliss/skillissues/internal/issue"
 	"github.com/dizziedbliss/skillissues/internal/notification"
 	"github.com/dizziedbliss/skillissues/internal/profile"
@@ -28,6 +29,7 @@ type handlers struct {
 	cache           *cache.Client
 	authSvc         *auth.Service
 	ghOAuth         *auth.GitHubOAuth
+	outbound        httpx.Doer // calls to ingestd; carries the outbound timeout
 	profileSvc      *profile.Service
 	issueSvc        *issue.Service
 	notificationSvc *notification.Service

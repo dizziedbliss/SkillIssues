@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dizziedbliss/skillissues/internal/httpx"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -34,6 +35,10 @@ type GitHubConfig struct {
 	ClientSecret string
 	RedirectURI  string
 	APIURL       string // default: https://api.github.com
+
+	// HTTP sends every call to GitHub. Required: it carries the timeout, and
+	// http.DefaultClient has none.
+	HTTP httpx.Doer
 }
 
 // GitHubUser holds the data GitHub returns for the signed-in user.
@@ -57,6 +62,11 @@ type GitHubOAuth struct {
 func NewGitHubOAuth(cfg GitHubConfig, authSvc *Service) *GitHubOAuth {
 	if cfg.APIURL == "" {
 		cfg.APIURL = defaultGitHubAPIURL
+	}
+	if cfg.HTTP == nil {
+		// Every call then fails with httpx.ErrNoTimeout instead of running
+		// with no deadline.
+		cfg.HTTP = httpx.New(nil, nil)
 	}
 	return &GitHubOAuth{cfg: cfg, db: authSvc}
 }
@@ -164,7 +174,7 @@ func (g *GitHubOAuth) exchangeCode(ctx context.Context, code, codeVerifier, redi
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := g.cfg.HTTP.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -199,7 +209,7 @@ func (g *GitHubOAuth) viewer(ctx context.Context, token string) (*GitHubUser, er
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := g.cfg.HTTP.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("github: request failed: %w", err)
 	}
@@ -254,7 +264,7 @@ func (g *GitHubOAuth) VerifyDeviceToken(ctx context.Context, accessToken string)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := g.cfg.HTTP.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("github: check token: %w", err)
 	}
