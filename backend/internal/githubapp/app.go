@@ -27,6 +27,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dizziedbliss/skillissues/internal/httpx"
 )
 
 // Config holds the App's identity and private key. The App serves only the
@@ -39,6 +41,9 @@ type Config struct {
 	// token. Leave zero to auto-discover the (expected to be sole) installation
 	// via GET /app/installations on first use.
 	InstallationID int64
+
+	// HTTP sends every call to GitHub. Required: it carries the timeout.
+	HTTP httpx.Doer
 }
 
 // LoadPrivateKeyFile reads and parses a PKCS1 RSA private key PEM file, as
@@ -76,6 +81,9 @@ func New(cfg Config) (*App, error) {
 	}
 	if cfg.AppID == "" {
 		return nil, errors.New("githubapp: app ID is required")
+	}
+	if cfg.HTTP == nil {
+		return nil, errors.New("githubapp: an HTTP client with a timeout is required")
 	}
 	return &App{cfg: cfg, installationID: cfg.InstallationID}, nil
 }
@@ -148,7 +156,7 @@ func (a *App) InstallationToken(ctx context.Context) (string, error) {
 	req.Header.Set("Authorization", "Bearer "+appJWT)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := a.cfg.HTTP.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("githubapp: mint installation token: %w", err)
 	}
@@ -186,7 +194,7 @@ func (a *App) discoverInstallationID(ctx context.Context) (int64, error) {
 	req.Header.Set("Authorization", "Bearer "+appJWT)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := a.cfg.HTTP.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("githubapp: list installations: %w", err)
 	}

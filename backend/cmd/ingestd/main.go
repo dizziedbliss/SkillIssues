@@ -70,7 +70,11 @@ func main() {
 	metrics.RegisterGitHub()
 	metrics.RegisterDBPool(dbPool.Raw())
 
-	ghClient := github.NewClient(cfg.GitHubGraphQLURL)
+	live := settings.NewLive(ctx, dbPool.Raw(), cfg.DatabaseURL)
+	live.Start(ctx)
+
+	outboundTimeout := func() time.Duration { return live.Current().Seconds(settings.HTTPOutboundTimeoutSeconds) }
+	ghClient := github.NewClient(cfg.GitHubGraphQLURL, outboundTimeout)
 
 	// Token: prefer the GitHub App's installation token (D5, D2 — the crawl
 	// credential strictly separate from the contribution path), falling
@@ -86,6 +90,7 @@ func main() {
 		ghApp, err := githubapp.New(githubapp.Config{
 			AppID:      cfg.GitHubAppID,
 			PrivateKey: privKey,
+			HTTP:       settings.OutboundClient(live, nil),
 		})
 		if err != nil {
 			slog.Error("failed to initialize GitHub App", "error", err)
@@ -103,9 +108,6 @@ func main() {
 	} else if cfg.GitHubToken == "" {
 		slog.Warn("neither GITHUB_APP_ID nor GITHUB_TOKEN is set — ingestd will skip all GitHub GraphQL syncs")
 	}
-
-	live := settings.NewLive(ctx, dbPool.Raw(), cfg.DatabaseURL)
-	live.Start(ctx)
 
 	coordinator := ingest.NewCoordinator(dbPool, ghClient, ingest.CoordinatorConfig{
 		Token:    tokenFn,
@@ -151,8 +153,9 @@ func main() {
 			live.Current().Int(settings.IngestEnqueueBatchSize))
 		w.Header().Set("Content-Type", "application/json")
 		if err != nil {
+			slog.Error("enqueue initial jobs failed", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "could not enqueue jobs"})
 			return
 		}
 		w.WriteHeader(http.StatusAccepted)
@@ -179,9 +182,10 @@ func main() {
 			 DO UPDATE SET next_retry_at = now()`,
 			repoID,
 		); err != nil {
+			slog.Error("priority enqueue failed", "repository_id", repoID, "error", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "could not enqueue the repository"})
 			return
 		}
 

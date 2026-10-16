@@ -216,46 +216,38 @@ func resolveSession(r *http.Request, authSvc *auth.Service) (int, error) {
 // CORS
 // ---------------------------------------------------------------------------
 
-// isAllowedOrigin checks if the incoming request origin matches allowed patterns.
-func isAllowedOrigin(origin, frontendURL string) bool {
+// isAllowedOrigin reports whether a credentialed cross-origin request from
+// origin may be answered. The configured frontend origins always may. Outside
+// production, loopback origins may too, so a local frontend can reach a local
+// API. Nothing else is ever allowed: no wildcard subdomains, since a takeover of
+// any one subdomain would then be a credentialed origin.
+func isAllowedOrigin(origin, frontendURL string, production bool) bool {
 	if origin == "" {
 		return false
 	}
 	cleanOrigin := strings.TrimRight(strings.ToLower(strings.TrimSpace(origin)), "/")
-	cleanFrontend := strings.TrimRight(strings.ToLower(strings.TrimSpace(frontendURL)), "/")
 
-	// Check against configured frontendURL (supports comma-separated origins)
-	for _, allowed := range strings.Split(cleanFrontend, ",") {
-		cleanAllowed := strings.TrimRight(strings.ToLower(strings.TrimSpace(allowed)), "/")
+	for _, allowed := range strings.Split(strings.ToLower(frontendURL), ",") {
+		cleanAllowed := strings.TrimRight(strings.TrimSpace(allowed), "/")
 		if cleanAllowed != "" && cleanOrigin == cleanAllowed {
 			return true
 		}
 	}
 
-	// Localhost and loopback development origins (any port)
-	if strings.HasPrefix(cleanOrigin, "http://localhost:") ||
+	if production {
+		return false
+	}
+	return strings.HasPrefix(cleanOrigin, "http://localhost:") ||
 		cleanOrigin == "http://localhost" ||
 		strings.HasPrefix(cleanOrigin, "http://127.0.0.1:") ||
 		cleanOrigin == "http://127.0.0.1" ||
 		strings.HasPrefix(cleanOrigin, "https://localhost:") ||
-		cleanOrigin == "https://localhost" {
-		return true
-	}
-
-	// Production and staging SkillIssues domains
-	if cleanOrigin == "https://skillissues.com" ||
-		cleanOrigin == "https://www.skillissues.com" ||
-		cleanOrigin == "https://app.skillissues.com" ||
-		strings.HasSuffix(cleanOrigin, ".skillissues.com") {
-		return true
-	}
-
-	return false
+		cleanOrigin == "https://localhost"
 }
 
 // CORS sets the appropriate CORS headers for the incoming request origin.
 // Credentials are enabled to support cookie-based and header session authentication.
-func CORS(frontendURL string) func(http.Handler) http.Handler {
+func CORS(frontendURL string, production bool) func(http.Handler) http.Handler {
 	// frontendURL may be a comma-separated list (multiple allowed origins).
 	// The fallback below must still name exactly one origin — a browser
 	// rejects a comma-joined Access-Control-Allow-Origin on a credentialed
@@ -265,7 +257,7 @@ func CORS(frontendURL string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
 			allowedOrigin := primaryOrigin
-			if isAllowedOrigin(origin, frontendURL) {
+			if isAllowedOrigin(origin, frontendURL, production) {
 				allowedOrigin = origin
 			}
 

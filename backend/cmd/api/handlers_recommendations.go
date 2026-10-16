@@ -18,7 +18,7 @@ func (h *handlers) getRecommendations(w http.ResponseWriter, r *http.Request) {
 	limit := 3
 	if lStr := r.URL.Query().Get("limit"); lStr != "" {
 		if l, err := strconv.Atoi(lStr); err == nil && l > 0 {
-			limit = l
+			limit = min(l, h.live.Current().Int(settings.RecommendationsMaxLimit))
 		}
 	}
 

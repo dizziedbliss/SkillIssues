@@ -55,6 +55,18 @@ const (
 	HTTPMaxBodyBytes    Key = "api.http.max_body_bytes"
 	WebhookMaxBodyBytes Key = "api.webhook.max_body_bytes"
 
+	// HTTPOutboundTimeoutSeconds is the deadline on every call the server makes
+	// to GitHub (sign-in, installation token, the crawl's GraphQL) and to
+	// ingestd. Nothing outbound may run without one.
+	HTTPOutboundTimeoutSeconds Key = "http.outbound_timeout_seconds"
+
+	// IssuesMaxLimit and IssuesMaxPage bound what a caller may ask of
+	// GET /issues; RecommendationsMaxLimit bounds GET /recommendations. A
+	// request over a cap is clamped, not refused.
+	IssuesMaxLimit          Key = "api.issues.max_limit"
+	IssuesMaxPage           Key = "api.issues.max_page"
+	RecommendationsMaxLimit Key = "api.recommendations.max_limit"
+
 	IngestGraphQLPageSize    Key = "ingest.graphql_page_size"
 	IngestRateLimitFloor     Key = "ingest.rate_limit_floor"
 	IngestMaxAttempts        Key = "ingest.max_attempts"
@@ -195,6 +207,12 @@ var Registry = map[Key]Spec{
 
 	HTTPMaxBodyBytes:    intSpec(1048576, 1024, 104857600, "Largest request body accepted on any API route except the webhook; larger bodies get 413."),
 	WebhookMaxBodyBytes: intSpec(26214400, 1024, 104857600, "Largest GitHub webhook body accepted (GitHub's own cap is 25 MiB); larger bodies get 413."),
+
+	HTTPOutboundTimeoutSeconds: intSpec(15, 1, 120, "Deadline for each outbound call to GitHub or ingestd; a call that exceeds it fails."),
+
+	IssuesMaxLimit:          intSpec(100, 1, 500, "Largest ?limit honoured by GET /issues; a larger request is clamped."),
+	IssuesMaxPage:           intSpec(200, 1, 10000, "Deepest ?page honoured by GET /issues; a deeper request is clamped. Deep offsets are expensive."),
+	RecommendationsMaxLimit: intSpec(20, 1, 100, "Largest ?limit honoured by GET /recommendations; a larger request is clamped."),
 
 	IngestGraphQLPageSize:    intSpec(50, 1, 100, "Issues requested per GraphQL page. GitHub caps this at 100."),
 	IngestRateLimitFloor:     intSpec(100, 0, 5000, "Stop issuing GraphQL calls when the remaining point budget falls below this."),

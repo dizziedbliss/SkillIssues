@@ -15,7 +15,7 @@
 # ---------------------------------------------------------------------------
 # Shared Go builder — compiles all three backend binaries plus healthcheck.
 # ---------------------------------------------------------------------------
-FROM golang:1.26-alpine AS go-builder
+FROM golang:1.26-alpine@sha256:3082400e369fa24d5fc60bca20edab3f6d604e0c5a690ec66b295eff4dd87ade AS go-builder
 WORKDIR /build
 
 COPY backend/go.mod backend/go.sum ./
@@ -37,7 +37,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 # api — distroless, nonroot. Published images need their own HEALTHCHECK;
 # compose having one is not enough once these ship to a registry.
 # ---------------------------------------------------------------------------
-FROM gcr.io/distroless/static-debian12:nonroot AS api
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab AS api
 COPY --from=go-builder /out/api /api
 COPY --from=go-builder /out/healthcheck /healthcheck
 USER nonroot:nonroot
@@ -48,7 +48,7 @@ ENTRYPOINT ["/api"]
 # ---------------------------------------------------------------------------
 # ingestd — distroless, nonroot.
 # ---------------------------------------------------------------------------
-FROM gcr.io/distroless/static-debian12:nonroot AS ingestd
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab AS ingestd
 COPY --from=go-builder /out/ingestd /ingestd
 COPY --from=go-builder /out/healthcheck /healthcheck
 USER nonroot:nonroot
@@ -60,7 +60,7 @@ ENTRYPOINT ["/ingestd"]
 # migrate — one-shot, distroless, nonroot. No HEALTHCHECK: it runs to
 # completion and exits, it never serves traffic.
 # ---------------------------------------------------------------------------
-FROM gcr.io/distroless/static-debian12:nonroot AS migrate
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab AS migrate
 COPY --from=go-builder /out/migrate /migrate
 USER nonroot:nonroot
 ENTRYPOINT ["/migrate"]
@@ -72,7 +72,7 @@ ENTRYPOINT ["/migrate"]
 # another path). Resumable and idempotent — a re-run is how a refreshed
 # dataset or a loosened eligibility threshold lands (see CLAUDE.md).
 # ---------------------------------------------------------------------------
-FROM gcr.io/distroless/static-debian12:nonroot AS repoimport
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab AS repoimport
 COPY --from=go-builder /out/repoimport /repoimport
 USER nonroot:nonroot
 # cmd/repoimport's --file/IMPORT_FILE default is the relative path
@@ -88,7 +88,7 @@ ENTRYPOINT ["/repoimport"]
 # as real workspace symlinks under node_modules instead of a relative
 # import reaching outside web/; served by nginx.
 # ---------------------------------------------------------------------------
-FROM node:22-alpine AS web-builder
+FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS web-builder
 # Alpine's bundled npm 10.9.9 has a known bug (npm/cli#7708-class) where
 # `npm ci` hard-fails on an unrelated optionalDependency's platform
 # mismatch (e.g. @esbuild/aix-ppc64 on linux/amd64) instead of skipping it,
@@ -123,7 +123,7 @@ ARG VITE_API_URL=/api
 ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 
-FROM nginx:alpine AS web
+FROM nginx:alpine@sha256:892bb2152464f0c5d8972593a5f5afaf8054552580b699d95f8ff4af08c2d33d AS web
 COPY --from=web-builder /app/web/dist /usr/share/nginx/html
 COPY web/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80

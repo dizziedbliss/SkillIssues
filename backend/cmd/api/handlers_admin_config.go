@@ -56,13 +56,20 @@ func (h *handlers) adminPutConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := settings.Set(r.Context(), h.db.Raw(), key, body.Value, adminActor(r)); err != nil {
+	// Validate returns messages written for the caller (unknown key, wrong type,
+	// out of bounds). Anything Set fails with after that is the server's, and its
+	// text can carry SQL, so it is logged and not returned.
+	if err := settings.Validate(key, body.Value); err != nil {
 		if errors.Is(err, settings.ErrUnknownKey) {
 			middleware.RespondError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		// A trigger rejection is the caller's fault, not the server's.
 		middleware.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := settings.Set(r.Context(), h.db.Raw(), key, body.Value, adminActor(r)); err != nil {
+		slog.Error("setting update failed", "key", key, "error", err)
+		middleware.RespondError(w, http.StatusInternalServerError, "could not update the setting")
 		return
 	}
 

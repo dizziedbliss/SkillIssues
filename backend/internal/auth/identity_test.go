@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/httpx"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -104,7 +105,7 @@ func fakeGitHub(t *testing.T, handler http.HandlerFunc) *GitHubOAuth {
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
-	return NewGitHubOAuth(GitHubConfig{ClientID: "login-app", ClientSecret: "s3cret", APIURL: srv.URL}, New(nil))
+	return NewGitHubOAuth(GitHubConfig{ClientID: "login-app", ClientSecret: "s3cret", APIURL: srv.URL, HTTP: httpx.New(func() time.Duration { return 5 * time.Second }, nil)}, New(nil))
 }
 
 func TestVerifyDeviceToken(t *testing.T) {

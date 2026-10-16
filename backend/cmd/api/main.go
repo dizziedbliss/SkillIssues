@@ -22,6 +22,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/config"
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/httpx"
 	"github.com/dizziedbliss/skillissues/internal/issue"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
@@ -74,17 +75,19 @@ func main() {
 
 	// 3. Instantiate service layer
 	authSvc := auth.New(pool)
-	ghOAuth := auth.NewGitHubOAuth(auth.GitHubConfig{
-		ClientID:     cfg.GitHubLoginClientID,
-		ClientSecret: cfg.GitHubLoginClientSecret,
-		RedirectURI:  cfg.GitHubRedirectURI,
-	}, authSvc)
-
 	// 4. Load live settings and start watching for changes. Operational values
 	// are read from the snapshot per request, so they can change without a
 	// restart; see internal/settings.
 	live := settings.NewLive(ctx, pool.Raw(), cfg.DatabaseURL)
 	live.Start(ctx)
+
+	outbound := settings.OutboundClient(live, nil)
+	ghOAuth := auth.NewGitHubOAuth(auth.GitHubConfig{
+		ClientID:     cfg.GitHubLoginClientID,
+		ClientSecret: cfg.GitHubLoginClientSecret,
+		RedirectURI:  cfg.GitHubRedirectURI,
+		HTTP:         outbound,
+	}, authSvc)
 
 	// 5. Connect to Redis (non-fatal: cache operates in degraded mode if
 	// unavailable). After settings, because its call deadline and retry
@@ -120,7 +123,7 @@ func main() {
 	go pruneSessionsLoop(ctx, authSvc, live.Current)
 
 	// 6. Build the HTTP router and register all routes
-	mux, err := buildRouter(cfg, live, pool, cacheClient, authSvc, ghOAuth, profileSvc, issueSvc)
+	mux, err := buildRouter(cfg, live, pool, cacheClient, authSvc, ghOAuth, outbound, profileSvc, issueSvc)
 	if err != nil {
 		slog.Error("failed to build router", "error", err)
 		os.Exit(1)
@@ -168,6 +171,7 @@ func buildRouter(
 	cacheClient *cache.Client,
 	authSvc *auth.Service,
 	ghOAuth *auth.GitHubOAuth,
+	outbound httpx.Doer,
 	profileSvc *profile.Service,
 	issueSvc *issue.Service,
 ) (http.Handler, error) {
@@ -183,6 +187,7 @@ func buildRouter(
 		cache:           cacheClient,
 		authSvc:         authSvc,
 		ghOAuth:         ghOAuth,
+		outbound:        outbound,
 		profileSvc:      profileSvc,
 		issueSvc:        issueSvc,
 		notificationSvc: notification.NewService(pool),
@@ -241,7 +246,10 @@ func buildRouter(
 	// Public chain: RequestID → Logger → MaxBody → CORS → OptionalAuth → RateLimiter → mux
 	var publicHandler http.Handler = middleware.RecordRoute(mux)
 	if cacheClient != nil {
-		trustedProxies := middleware.ParseTrustedProxies(cfg.TrustedProxies)
+		trustedProxies, err := middleware.ParseTrustedProxies(cfg.TrustedProxies)
+		if err != nil {
+			return nil, err
+		}
 		// Read limits per request so a settings change applies without a restart.
 		publicHandler = middleware.RateLimiter(cacheClient, func() middleware.RateLimits {
 			s := live.Current()
@@ -258,7 +266,7 @@ func buildRouter(
 		return nil, err
 	}
 	publicHandler = csrf(publicHandler)
-	publicHandler = middleware.CORS(cfg.FrontendURL)(publicHandler)
+	publicHandler = middleware.CORS(cfg.FrontendURL, cfg.Production)(publicHandler)
 	publicHandler = httpBodyLimit(publicHandler)
 	publicHandler = middleware.Logger(publicHandler)
 	publicHandler = middleware.RequestID(publicHandler)
