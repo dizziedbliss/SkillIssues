@@ -334,6 +334,14 @@ Single VPS, `compose.prod.yaml`, Caddy same-origin. Full runbook: `DEPLOYMENT.md
   Grafana (:3000) and Prometheus (:9090) bind to `127.0.0.1` and are reached over `ssh -L`.
   `deploy.yml` scp's `monitoring/` alongside the compose file. Runbook: `DEPLOYMENT.md`,
   *Monitoring*.
+- **The services do not run as the database owner.** `go-api` connects as `skillissues_api` and
+  `ingestd` as `skillissues_ingest` (migration 00029): no ownership, no DDL, no `TRUNCATE`, no
+  `COPY ... PROGRAM`. Passwords come from `API_DB_PASSWORD` / `INGEST_DB_PASSWORD` via the
+  `app-roles` one-shot (`db/app-roles.sql`). `migrate` and backups use the owner. Grants are
+  explicit per table with no default privileges: **a migration that adds a table grants it** to
+  the roles that use it, plus `USAGE` on its sequence — remember triggers run as the invoker, so
+  a table a trigger writes needs granting to whoever fires it. `internal/migrate/roles_test.go`
+  fails when a table is granted to neither role and not listed as deliberately ungranted.
 - Grafana's Postgres datasource and postgres-exporter connect as **`metrics_ro`** (migration
   00017): read-only, 15s `statement_timeout`, explicit per-table grants. **Never grant it a
   credential column**, and a new table a dashboard needs must be granted in a new migration.

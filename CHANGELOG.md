@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pruned unless a user saved them.
 
 ### Security
+- `go-api` and `ingestd` no longer connect as the database owner (a superuser). They use
+  `skillissues_api` and `skillissues_ingest`, which have per-table DML grants only (migration
+  00029). **New required secrets: `API_DB_PASSWORD` and `INGEST_DB_PASSWORD`.**
 - The server no longer holds any user GitHub token. Sign-in uses a no-scope **Login app**
   (`GITHUB_LOGIN_CLIENT_ID`/`_SECRET`); the token is read once for the numeric GitHub id and
   discarded. Removed: PAT login, GitHub App user login, `POST /github/forks`,
