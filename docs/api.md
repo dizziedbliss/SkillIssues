@@ -13,7 +13,7 @@ works signed out, personalised when signed in; *none* = public; *admin* =
 `/metrics`: a Redis counter per user (signed in) or per IP (signed out), limits from
 [`api.rate_limit.*`](settings.md). Responses carry `X-RateLimit-Limit` /
 `X-RateLimit-Remaining`; a 429 carries `Retry-After`. If Redis is down the limiter fails open.
-`/admin/*` and `/webhooks/*` are outside the public chain and are not rate limited.
+`/admin/*` and `/webhooks/*` are outside the public chain and are not rate limited. Request bodies are capped (`api.http.max_body_bytes`; `api.webhook.max_body_bytes` for the webhook); over the cap is `413`. In production Caddy also answers `404` for `/admin/*`.
 
 ## Health and metrics
 

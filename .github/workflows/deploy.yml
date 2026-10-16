@@ -133,14 +133,19 @@ jobs:
 
       - name: Resolve image tag to deploy
         id: tag
+        env:
+          # Passed through env, never interpolated into the script: a
+          # workflow_dispatch input is attacker-shaped text.
+          INPUT_TAG: ${{ github.event.inputs.image_tag }}
+          BUILT_TAG: ${{ needs.build-push.outputs.image_tag }}
         run: |
-          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
-            tag="${{ github.event.inputs.image_tag }}"
-          else
-            tag="${{ needs.build-push.outputs.image_tag }}"
-          fi
+          tag="${INPUT_TAG:-$BUILT_TAG}"
           if [ -z "$tag" ]; then
             echo "no image tag resolved — nothing to deploy" >&2
+            exit 1
+          fi
+          if ! printf '%s' "$tag" | grep -Eq '^sha-[0-9a-f]{7,40}$'; then
+            echo "image tag is not sha-<hex>: refusing to deploy" >&2
             exit 1
           fi
           echo "image_tag=$tag" >> "$GITHUB_OUTPUT"
@@ -182,4 +187,4 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -p "$VPS_SSH_PORT" -o UserKnownHostsFile=~/.ssh/known_hosts \
             "$VPS_USER@$VPS_HOST" \
-            "chmod +x $DEPLOY_PATH/deploy-remote.sh && $DEPLOY_PATH/deploy-remote.sh $IMAGE_TAG"
+            "chmod +x '$DEPLOY_PATH/deploy-remote.sh' && '$DEPLOY_PATH/deploy-remote.sh' '$IMAGE_TAG'"
