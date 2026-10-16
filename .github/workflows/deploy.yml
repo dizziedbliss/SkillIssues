@@ -162,7 +162,7 @@ jobs:
           printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Copy compose file, Caddyfile, monitoring and db config and deploy script to host
+      - name: Copy compose file, Caddyfile, monitoring, db and systemd config, scripts and encrypted secrets to host
         env:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -170,8 +170,15 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
           scp -r -i ~/.ssh/deploy_key -P "$VPS_SSH_PORT" -o UserKnownHostsFile=~/.ssh/known_hosts \
-            compose.prod.yaml Caddyfile monitoring db scripts/deploy-remote.sh \
+            compose.prod.yaml Caddyfile monitoring db systemd \
+            scripts/deploy-remote.sh scripts/decrypt-env.sh scripts/backup-db.sh \
             "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/"
+          # The secrets stay encrypted in transit and at rest on the runner: this
+          # job holds no age key. The host decrypts them (decrypt-env.sh).
+          if [ -f secrets/prod.env.sops ]; then
+            scp -i ~/.ssh/deploy_key -P "$VPS_SSH_PORT" -o UserKnownHostsFile=~/.ssh/known_hosts \
+              secrets/prod.env.sops "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/secrets/prod.env.sops"
+          fi
 
       # The actual pull/up/health-wait/prune logic lives in
       # scripts/deploy-remote.sh (committed, tested locally) rather than
@@ -187,4 +194,4 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -p "$VPS_SSH_PORT" -o UserKnownHostsFile=~/.ssh/known_hosts \
             "$VPS_USER@$VPS_HOST" \
-            "chmod +x '$DEPLOY_PATH/deploy-remote.sh' && '$DEPLOY_PATH/deploy-remote.sh' '$IMAGE_TAG'"
+            "cd '$DEPLOY_PATH' && chmod +x deploy-remote.sh decrypt-env.sh backup-db.sh && ./deploy-remote.sh '$IMAGE_TAG'"
