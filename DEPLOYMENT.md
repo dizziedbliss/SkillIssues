@@ -1,5 +1,8 @@
 # Production Deployment
 
+> Day-to-day operations (deploys, secrets, backups, restores, rotations, troubleshooting) are in
+> [docs/runbook.md](docs/runbook.md). This file is the reference for how it is built.
+
 This is the actual runbook for the one supported production path: a single VPS running
 `compose.prod.yaml`, with Caddy terminating TLS and GitHub Actions building and deploying on
 every push to `main`. There is no Kubernetes path and no certbot/nginx path — if you're looking
