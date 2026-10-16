@@ -316,3 +316,21 @@ func hashedHex(s string) string {
 }
 
 var _ = hashedHex // prevent unused lint error
+
+// MaxBody caps each request body at limit() bytes. limit is read per request
+// so a settings change applies without a restart. A handler reading past the
+// cap gets *http.MaxBytesError and the connection is closed; a declared
+// Content-Length over the cap is refused here with 413 without reading.
+func MaxBody(limit func() int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			max := limit()
+			if r.ContentLength > max {
+				respondError(w, http.StatusRequestEntityTooLarge, "request body too large")
+				return
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, max)
+			next.ServeHTTP(w, r)
+		})
+	}
+}

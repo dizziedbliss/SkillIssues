@@ -19,6 +19,11 @@ import (
 func (h *handlers) webhookGitHub(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			middleware.RespondError(w, http.StatusRequestEntityTooLarge, "request body too large")
+			return
+		}
 		middleware.RespondError(w, http.StatusBadRequest, "failed to read body")
 		return
 	}

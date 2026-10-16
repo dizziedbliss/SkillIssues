@@ -317,7 +317,10 @@ func buildRouter(
 	adminMux.Handle("PUT /admin/config/{key}",
 		requireAdmin(cfg.AdminSyncToken, http.HandlerFunc(h.adminPutConfig)))
 
-	// Public chain: RequestID → Logger → CORS → OptionalAuth → RateLimiter → mux
+	httpBodyLimit := middleware.MaxBody(func() int64 { return int64(live.Current().Int(settings.HTTPMaxBodyBytes)) })
+	webhookBodyLimit := middleware.MaxBody(func() int64 { return int64(live.Current().Int(settings.WebhookMaxBodyBytes)) })
+
+	// Public chain: RequestID → Logger → MaxBody → CORS → OptionalAuth → RateLimiter → mux
 	var publicHandler http.Handler = middleware.RecordRoute(mux)
 	if cacheClient != nil {
 		trustedProxies := middleware.ParseTrustedProxies(cfg.TrustedProxies)
@@ -333,6 +336,7 @@ func buildRouter(
 	}
 	publicHandler = middleware.OptionalAuth(authSvc)(publicHandler)
 	publicHandler = middleware.CORS(cfg.FrontendURL)(publicHandler)
+	publicHandler = httpBodyLimit(publicHandler)
 	publicHandler = middleware.Logger(publicHandler)
 	publicHandler = middleware.RequestID(publicHandler)
 
@@ -340,8 +344,8 @@ func buildRouter(
 	// have no browser callers, so they skip CORS, OptionalAuth and the browsing rate
 	// limiter — only RequestID/Logger apply.
 	top := http.NewServeMux()
-	top.Handle("/admin/", group(middleware.RecordRoute(adminMux), middleware.Logger, middleware.RequestID))
-	top.Handle("/webhooks/", group(middleware.RecordRoute(webhookMux), middleware.Logger, middleware.RequestID))
+	top.Handle("/admin/", group(middleware.RecordRoute(adminMux), middleware.Logger, middleware.RequestID, httpBodyLimit))
+	top.Handle("/webhooks/", group(middleware.RecordRoute(webhookMux), middleware.Logger, middleware.RequestID, webhookBodyLimit))
 	top.Handle("/", publicHandler)
 
 	return top
