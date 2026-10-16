@@ -130,6 +130,10 @@ max(0, 5 − |difficulty − target|) + min(3, stars / 25000 + 1)`.
 - **Webhooks** are HMAC-SHA256 verified. **Admin** routes take a bearer token compared in
   constant time.
 
+**Database access.** Migrations run as the database owner. `go-api` and `ingestd` connect as
+`skillissues_api` and `skillissues_ingest`, which hold per-table DML grants and nothing else, so
+a compromised service cannot drop or alter the schema or run commands on the host.
+
 ## 6. Rate limiting and caching
 
 A Redis counter per signed-in user or per client IP (`X-Forwarded-For` honoured only from

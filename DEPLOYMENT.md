@@ -112,6 +112,8 @@ GITHUB_TOKEN=<optional PAT, used as a server-crawl credential fallback>
 GRAFANA_ADMIN_PASSWORD=<generate: openssl rand -base64 24 | tr -d '/+='>
 GRAFANA_SECRET_KEY=<generate: openssl rand -hex 32>
 METRICS_DB_PASSWORD=<generate: openssl rand -base64 32 | tr -d '/+='>
+API_DB_PASSWORD=<generate: openssl rand -base64 32 | tr -d '/+='>
+INGEST_DB_PASSWORD=<generate: openssl rand -base64 32 | tr -d '/+='>
 
 IMAGE_TAG=latest   # deploy.yml always overrides this with an explicit sha- tag; this
                    # default exists only so the file is runnable by hand for testing
@@ -217,6 +219,30 @@ The Grafana *Ingestion* dashboard plots `pg_database_size()` against the cap and
 ingestion is paused, so the ceiling is visible before it's hit. Without Grafana,
 `/health/detail` reports `db_size_mb`, `max_db_size_mb` and `ingestion_paused` (internal only —
 see *Monitoring* for how to reach it).
+
+## Database roles
+
+Three database users exist, and only one is powerful:
+
+| Role | Used by | Can |
+|---|---|---|
+| `$POSTGRES_USER` (the owner, a superuser) | `migrate`, the `app-roles` and `metrics-role` one-shots, `pg_dump` backups, you | everything |
+| `skillissues_api` | `go-api` | read and write what the API serves: accounts, sessions, saved issues, notifications, webhook state changes, settings edits |
+| `skillissues_ingest` | `ingestd`, and `cmd/repoimport` if you run it with this role | the crawl: repositories, issues, ingest jobs, the GitHub budget; reads settings, saved issues and the exclusion list |
+| `metrics_ro` | Grafana, postgres-exporter | read-only, see *Monitoring* |
+
+Neither service role owns a table, can `DROP`, `ALTER`, `TRUNCATE` or create anything, or run
+commands on the host (`COPY ... PROGRAM`). A SQL injection in the API can therefore change
+rows it could already change; it cannot destroy the schema or read the crawl's internals.
+
+Passwords come from `API_DB_PASSWORD` and `INGEST_DB_PASSWORD`; the `app-roles` one-shot applies
+them on every deploy, after `migrate` and before the services start, so rotating one is a
+`.env` edit and a redeploy. A deploy refuses to start (changing nothing) while either is unset.
+
+Grants are explicit per table, with no default privileges. **A migration that adds a table
+must grant it** to the roles that use it (and `USAGE` on its sequence), or the service gets
+`permission denied` at runtime. `internal/migrate/roles_test.go` fails in CI when a table is
+granted to neither role and not listed there as deliberately ungranted.
 
 ## Monitoring
 
