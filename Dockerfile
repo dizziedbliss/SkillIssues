@@ -88,7 +88,7 @@ ENTRYPOINT ["/repoimport"]
 # as real workspace symlinks under node_modules instead of a relative
 # import reaching outside web/; served by nginx.
 # ---------------------------------------------------------------------------
-FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS web-builder
+FROM node:25-alpine@sha256:bdf2cca6fe3dabd014ea60163eca3f0f7015fbd5c7ee1b0e9ccb4ced6eb02ef4 AS web-builder
 # Alpine's bundled npm 10.9.9 has a known bug (npm/cli#7708-class) where
 # `npm ci` hard-fails on an unrelated optionalDependency's platform
 # mismatch (e.g. @esbuild/aix-ppc64 on linux/amd64) instead of skipping it,
