@@ -55,16 +55,6 @@ const (
 	HTTPMaxBodyBytes    Key = "api.http.max_body_bytes"
 	WebhookMaxBodyBytes Key = "api.webhook.max_body_bytes"
 
-	ContributionVerifyPerHour Key = "api.contribution.verify_per_hour"
-
-	// IssueBody* tune the on-demand issue body read path
-	// (internal/issue/body.go): a bounded LRU cache in Postgres in front of
-	// a concurrency-limited GraphQL fetch.
-	IssueBodyCacheMaxRows         Key = "api.issue_body.cache_max_rows"
-	IssueBodyPruneIntervalSeconds Key = "api.issue_body.prune_interval_seconds"
-	IssueBodyMaxConcurrentFetches Key = "api.issue_body.max_concurrent_fetches"
-	IssueBodyInstallationFloor    Key = "api.issue_body.installation_floor"
-
 	IngestGraphQLPageSize    Key = "ingest.graphql_page_size"
 	IngestRateLimitFloor     Key = "ingest.rate_limit_floor"
 	IngestMaxAttempts        Key = "ingest.max_attempts"
@@ -205,13 +195,6 @@ var Registry = map[Key]Spec{
 
 	HTTPMaxBodyBytes:    intSpec(1048576, 1024, 104857600, "Largest request body accepted on any API route except the webhook; larger bodies get 413."),
 	WebhookMaxBodyBytes: intSpec(26214400, 1024, 104857600, "Largest GitHub webhook body accepted (GitHub's own cap is 25 MiB); larger bodies get 413."),
-
-	ContributionVerifyPerHour: intSpec(5, 1, 1000, "Maximum PR verification attempts per user per contribution per hour."),
-
-	IssueBodyCacheMaxRows:         intSpec(50000, 100, 10000000, "Rows kept in issue_body_cache; the least recently read are pruned beyond this."),
-	IssueBodyPruneIntervalSeconds: intSpec(600, 60, 86400, "How often issue_body_cache is pruned back to api.issue_body.cache_max_rows."),
-	IssueBodyMaxConcurrentFetches: intSpec(8, 1, 64, "Concurrent GitHub fetches for issue bodies across all users."),
-	IssueBodyInstallationFloor:    intSpec(100, 0, 5000, "Remaining GraphQL points below which the installation token stops serving issue-body reads."),
 
 	IngestGraphQLPageSize:    intSpec(50, 1, 100, "Issues requested per GraphQL page. GitHub caps this at 100."),
 	IngestRateLimitFloor:     intSpec(100, 0, 5000, "Stop issuing GraphQL calls when the remaining point budget falls below this."),
