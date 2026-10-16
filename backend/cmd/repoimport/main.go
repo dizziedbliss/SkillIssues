@@ -107,10 +107,18 @@ func main() {
 	}
 	defer closeFn()
 
+	excluded, err := loadExcluded(ctx, pool)
+	if err != nil {
+		slog.Error("failed to load excluded repositories", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("excluded repositories", "count", len(excluded))
+
 	imp := &importer{
 		pool:             pool,
 		minStars:         minStars,
 		pushedWithinDays: pushedWithinDays,
+		excluded:         excluded,
 		batchSize:        *batchSize,
 		reasons:          map[string]int{},
 	}
@@ -174,6 +182,13 @@ type importer struct {
 	pool             *db.Pool
 	minStars         int
 	pushedWithinDays int
+
+	// excluded holds the lower-cased full names in excluded_repositories. A
+	// listed repository is never stored, whatever eligible() says. It is
+	// checked here rather than in eligible(), which stays a pure function of
+	// the record; ingest.RecomputeEligibility applies the same list to rows
+	// that are already stored.
+	excluded map[string]struct{}
 
 	// Writes are batched because this now stores every record in the
 	// dataset, not the eligible minority: one round trip per record turns a
@@ -288,6 +303,24 @@ func (imp *importer) run(ctx context.Context, r io.Reader, logEvery int) error {
 	return imp.flush(ctx)
 }
 
+// loadExcluded reads excluded_repositories as a set of lower-cased names.
+func loadExcluded(ctx context.Context, pool *db.Pool) (map[string]struct{}, error) {
+	set := map[string]struct{}{}
+	err := pool.QueryRows(ctx, `SELECT lower(full_name) FROM excluded_repositories`, nil,
+		func(rows pgx.Rows) error {
+			var name string
+			if err := rows.Scan(&name); err != nil {
+				return err
+			}
+			set[name] = struct{}{}
+			return nil
+		})
+	if err != nil {
+		return nil, fmt.Errorf("load excluded repositories: %w", err)
+	}
+	return set, nil
+}
+
 // eligible applies D1's rule. The star floor is abuse control (anyone can
 // open a fake issue on a trivially-created repo to burn crawl budget), not a
 // quality ranking — there is deliberately no scoring here.
@@ -330,6 +363,9 @@ func (imp *importer) handle(ctx context.Context, r repoRecord) error {
 	}
 
 	ok, reason := eligible(r, imp.minStars, imp.pushedWithinDays)
+	if _, isExcluded := imp.excluded[strings.ToLower(r.NameWithOwner)]; isExcluded {
+		ok, reason = false, "excluded"
+	}
 	if !ok {
 		// Not stored. The dataset is ~4.2M records and only ~288k pass the
 		// filter; keeping the rest would cost ~2.8GB for rows nothing is

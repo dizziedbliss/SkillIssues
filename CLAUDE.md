@@ -243,6 +243,15 @@ and Deep pools.
   judgement about repository value. Data-science ranking comes later, from the collected data.
 - **Eligibility is abuse control and pacing, not quality.** The star floor exists because
   anyone can open an issue on a throwaway repository to burn crawl budget.
+- **Some repositories are excluded by name.** `excluded_repositories` (migration 00028) lists
+  repositories that pass every threshold and are still not worth crawling — an issue tracker
+  used as a database, a public archive. A listed repository is ineligible (`excluded` in
+  `eligibility_reason`): `ingest.RecomputeEligibility` applies the list, `cmd/repoimport`
+  checks it before `eligible()` so a re-import cannot store one, and `ClaimJobs` only claims
+  jobs of eligible repositories, so a job queued earlier does not run. The coordinator also
+  deletes the stored issues of excluded and **archived** repositories (never ones a user saved)
+  on the closed-issue prune interval. Add one with
+  `INSERT INTO excluded_repositories (full_name, reason) VALUES ('owner/name', 'why')`.
 - **Only eligible repositories are stored.** The dataset is ~4.2M records and ~288k pass the
   filter; storing the rest cost ~2.8 GB of rows nothing is ever allowed to crawl. A full
   import pass is ~16 minutes and idempotent, so **loosening** a threshold means re-running
