@@ -23,3 +23,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+  # Image digests pinned in compose.yaml / compose.prod.yaml.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
