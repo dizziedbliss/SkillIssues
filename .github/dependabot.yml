@@ -1,0 +1,31 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /backend
+    schedule:
+      interval: weekly
+    groups:
+      go-minor-patch:
+        update-types: [ minor, patch ]
+
+  # Keeps the SHA pins in .github/workflows current (the version after the
+  # `#` is what it bumps).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: [ '*' ]
+
+  # Root Dockerfile base images.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Image digests pinned in compose.yaml / compose.prod.yaml.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
