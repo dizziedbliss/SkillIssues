@@ -1,6 +1,6 @@
 {
   "uid": "si-ingest",
-  "title": "SkillIssues \u00b7 Ingestion",
+  "title": "SkillIssues · Ingestion",
   "tags": [
     "skillissues"
   ],
@@ -881,7 +881,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Worker pools \u2014 active vs concurrency",
+      "title": "Worker pools — active vs concurrency",
       "description": "",
       "targets": [
         {
@@ -1273,7 +1273,7 @@
     {
       "type": "stat",
       "title": "Issues in catalog",
-      "description": "Planner estimate from pg_class.reltuples, refreshed by autovacuum/ANALYZE \u2014 an exact count(*) would scan the whole table on every refresh.",
+      "description": "Planner estimate from pg_class.reltuples, refreshed by autovacuum/ANALYZE — an exact count(*) would scan the whole table on every refresh.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "postgres"
@@ -1485,7 +1485,7 @@
     {
       "type": "timeseries",
       "title": "New issues added",
-      "description": "Issues first stored per interval (first_seen_at). Re-fetches of known issues are not counted \u2014 see \"Issues upserted / min\" for those.",
+      "description": "Issues first stored per interval (first_seen_at). Re-fetches of known issues are not counted — see \"Issues upserted / min\" for those.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "postgres"
@@ -1642,6 +1642,142 @@
       "gridPos": {
         "x": 0,
         "y": 68,
+        "w": 24,
+        "h": 10
+      }
+    },
+    {
+      "type": "row",
+      "title": "Jobs (Postgres)",
+      "collapsed": false,
+      "id": 29,
+      "gridPos": {
+        "x": 0,
+        "y": 78,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Jobs by type and status",
+      "description": "Every ingest_jobs row. initial = first page, deep = remaining pages. freshness and discovery are never written (see CLAUDE.md, Not built).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "refId": "A",
+          "rawSql": "SELECT job_type, status, count(*) AS jobs FROM ingest_jobs GROUP BY 1,2 ORDER BY 1,2"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 30,
+      "gridPos": {
+        "x": 0,
+        "y": 79,
+        "w": 8,
+        "h": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "Running now",
+      "description": "Repositories being crawled this moment. pages_done climbs while a repository is paged; a lease_expires_at in the past means the worker stalled and the job will be reclaimed.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "refId": "A",
+          "rawSql": "SELECT r.full_name AS repository, j.job_type, j.pages_done AS pages, j.has_next_page AS more_pages, j.lease_owner AS worker, j.lease_expires_at AS lease_until, j.updated_at AS last_update\nFROM ingest_jobs j JOIN repositories r ON r.id = j.repository_id\nWHERE j.status = 'running'\nORDER BY j.updated_at"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 31,
+      "gridPos": {
+        "x": 8,
+        "y": 79,
+        "w": 16,
+        "h": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "Next in queue",
+      "description": "Pending jobs in claim order (FIFO on next_retry_at). A job with attempts > 0 is a retry after an error.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "refId": "A",
+          "rawSql": "SELECT r.full_name AS repository, j.job_type, j.attempt_count AS attempts, j.next_retry_at AS due, j.last_error_class AS last_error\nFROM ingest_jobs j JOIN repositories r ON r.id = j.repository_id\nWHERE j.status = 'pending'\nORDER BY j.next_retry_at NULLS FIRST, j.id\nLIMIT 25"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 32,
+      "gridPos": {
+        "x": 0,
+        "y": 88,
         "w": 24,
         "h": 10
       }
