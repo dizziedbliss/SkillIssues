@@ -30,7 +30,7 @@ networks:
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     restart: unless-stopped
     shm_size: ${PG_SHM_SIZE:-256mb}
     mem_limit: ${PG_MEM_LIMIT:-1536m}
@@ -69,7 +69,7 @@ services:
   # Rate-limit counters and cached responses only; sessions resolve from
   # Postgres, so an empty Redis on restart costs latency, never correctness.
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
     restart: unless-stopped
     mem_limit: ${REDIS_MEM_LIMIT:-320m}
     cpus: ${REDIS_CPUS:-0.25}
@@ -106,7 +106,7 @@ services:
   # creates (go-api connects as skillissues_api, ingestd as skillissues_ingest,
   # never as the owner). Runs after every migrate so a rotated password lands.
   app-roles:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     mem_limit: 64m
     cpus: 0.25
     logging: *default-logging
@@ -217,7 +217,7 @@ services:
         condition: service_healthy
 
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
     restart: unless-stopped
     mem_limit: ${CADDY_MEM_LIMIT:-128m}
     cpus: ${CADDY_CPUS:-0.25}
@@ -247,7 +247,7 @@ services:
   # One-shot: enables login for the metrics_ro role (migration 00017) with
   # METRICS_DB_PASSWORD. Runs after every migrate so a rotated password lands.
   metrics-role:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     mem_limit: 64m
     cpus: 0.25
     logging: *default-logging
@@ -266,7 +266,7 @@ services:
     restart: "no"
 
   prometheus:
-    image: prom/prometheus:v3.15.0
+    image: prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
     restart: unless-stopped
     mem_limit: ${PROMETHEUS_MEM_LIMIT:-256m}
     cpus: ${PROMETHEUS_CPUS:-0.25}
@@ -290,7 +290,7 @@ services:
       retries: 5
 
   grafana:
-    image: grafana/grafana:13.2.3
+    image: grafana/grafana:13.2.3@sha256:b28bae15e219c998fb0e0424ed724930cc61b1f61fb404d47c862f9a23f9e572
     restart: unless-stopped
     mem_limit: ${GRAFANA_MEM_LIMIT:-384m}
     cpus: ${GRAFANA_CPUS:-0.25}
@@ -338,7 +338,7 @@ services:
   # Host network so it reports the real NIC; listens only on this compose
   # network's gateway (fixed subnet above), never on the public interface.
   node-exporter:
-    image: prom/node-exporter:v1.12.1
+    image: prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
     restart: unless-stopped
     mem_limit: ${NODE_EXPORTER_MEM_LIMIT:-48m}
     cpus: ${NODE_EXPORTER_CPUS:-0.1}
@@ -352,7 +352,7 @@ services:
       - /:/host:ro,rslave
 
   cadvisor:
-    image: ghcr.io/google/cadvisor:v0.57.0
+    image: ghcr.io/google/cadvisor:v0.57.0@sha256:e75bdb03b74b0b6995f208f166fead2e6e555dde73e44200113bb26f41b1981d
     restart: unless-stopped
     mem_limit: ${CADVISOR_MEM_LIMIT:-96m}
     cpus: ${CADVISOR_CPUS:-0.15}
@@ -372,7 +372,7 @@ services:
       - /dev/kmsg
 
   postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:v0.20.1
+    image: prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e
     restart: unless-stopped
     mem_limit: ${POSTGRES_EXPORTER_MEM_LIMIT:-48m}
     cpus: ${POSTGRES_EXPORTER_CPUS:-0.1}
@@ -386,7 +386,7 @@ services:
         condition: service_completed_successfully
 
   redis-exporter:
-    image: oliver006/redis_exporter:v1.92.1
+    image: oliver006/redis_exporter:v1.92.1@sha256:7fbc93d30f0f91eed1b2fe6968a956259cc5d260a984dd9071f1d1e9c2692ecd
     restart: unless-stopped
     mem_limit: ${REDIS_EXPORTER_MEM_LIMIT:-32m}
     cpus: ${REDIS_EXPORTER_CPUS:-0.1}

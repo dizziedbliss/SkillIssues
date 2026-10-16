@@ -50,6 +50,10 @@ type Config struct {
 	// browser defaults to the exact host that set the cookie.
 	SessionCookieDomain string
 
+	// Production is true when ENV=production. It narrows behaviour that is only
+	// loosened for local development, such as CORS accepting loopback origins.
+	Production bool
+
 	// SyncdURL is the ingestion service address used to forward sync requests.
 	SyncdURL string
 
@@ -109,6 +113,7 @@ func Load(required ...Secret) (*Config, error) {
 		TrustedProxies:      strListEnv("TRUSTED_PROXIES", []string{"127.0.0.1/32", "::1/128"}),
 		DBMaxConns:          intEnv("DB_MAX_CONNS", 0),
 		SessionCookieDomain: strEnv("SESSION_COOKIE_DOMAIN", ""),
+		Production:          os.Getenv("ENV") == "production",
 	}
 	cfg.FrontendURLPrimary = strings.TrimSpace(strings.SplitN(cfg.FrontendURL, ",", 2)[0])
 	if cfg.FrontendURLPrimary == "" {

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/dizziedbliss/skillissues/internal/httpx"
 )
 
 func testApp(t *testing.T) (*App, *rsa.PrivateKey) {
@@ -18,7 +20,7 @@ func testApp(t *testing.T) (*App, *rsa.PrivateKey) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	app, err := New(Config{AppID: "12345", PrivateKey: key})
+	app, err := New(Config{AppID: "12345", PrivateKey: key, HTTP: httpx.New(func() time.Duration { return 5 * time.Second }, nil)})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
