@@ -5,6 +5,8 @@
 # avoids the quoting nightmare of embedding this logic in an SSH heredoc
 # from inside a GitHub Actions expression.
 #
+# Needs decrypt-env.sh beside it (deploy.yml copies both).
+#
 # Usage: deploy-remote.sh <image-tag>
 #   image-tag: a sha-<short> tag (never `latest` — see compose.prod.yaml's
 #   own comment on why) published by the build-push job, or an older one
@@ -28,8 +30,18 @@ cd "$(dirname "$0")"
 export IMAGE_TAG="$1"
 echo "Deploying image tag: ${IMAGE_TAG}"
 
-if [ ! -f .env ]; then
-	echo ".env not found in $(pwd) — see DEPLOYMENT.md for first-time host setup" >&2
+# .env comes from secrets/prod.env.sops, which deploy.yml copied here still
+# encrypted: CI never sees the plaintext. A file that is present but will not
+# decrypt fails the deploy rather than falling back to a stale .env — that would
+# quietly keep running on secrets you believed you had rotated. Only a host with
+# no encrypted file at all (not yet migrated) keeps the .env already on it.
+if [ -f secrets/prod.env.sops ]; then
+	./decrypt-env.sh secrets/prod.env.sops .env
+elif [ -f .env ]; then
+	echo "WARNING: secrets/prod.env.sops not found; using the .env already on this host." >&2
+	echo "         Move it into SOPS (DEPLOYMENT.md, 'Secrets') so CI-delivered secrets stay encrypted." >&2
+else
+	echo "neither secrets/prod.env.sops nor .env found in $(pwd) — see DEPLOYMENT.md for first-time host setup" >&2
 	exit 1
 fi
 

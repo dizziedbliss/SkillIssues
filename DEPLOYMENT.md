@@ -86,7 +86,9 @@ Set on the repo (`gh secret set NAME` or Settings → Secrets and variables → 
 
 ### 2. `$DEPLOY_PATH/.env`
 
-Create by hand on the host, **mode `600`, owned by the deploy user**:
+The shape of the production environment. Before you move to SOPS (*Secrets*, below) you create
+this by hand on the host, **mode `600`, owned by the deploy user**; after, it is generated from
+`secrets/prod.env.sops` on every deploy and this block is what that file contains:
 
 ```bash
 ENV=production
@@ -136,6 +138,57 @@ A SkillIssues session ends only on logout, expiry (`api.session.ttl_hours`), "lo
 everywhere" or account purge. The server holds no GitHub token, so revoking the Login app on
 GitHub (<https://github.com/settings/applications>) does not end a session.
 
+### Secrets (SOPS + age)
+
+The production `.env` lives in the repo as **`secrets/prod.env.sops`, encrypted** to two age keys:
+yours (so you can edit it) and the VPS's (so the host can decrypt it). `deploy.yml` copies the
+file to the host still encrypted, and `deploy-remote.sh` decrypts it into `.env` (mode 600) with
+`decrypt-env.sh`. **CI never holds a key, so a compromised workflow sees only ciphertext.** A file
+that is present but will not decrypt fails the deploy; it never falls back to a stale `.env`. A
+host with no encrypted file at all keeps the `.env` already on it and logs a warning, which is how
+you migrate without a flag day.
+
+Once migrated, **`.env` on the host is generated: edits made there are overwritten on the next
+deploy.** Change secrets in the encrypted file.
+
+One-time setup:
+
+1. **Your key** (on your machine): `age-keygen -o ~/.secrets/skillissues.key`. Note the public key
+   (`age1...`); keep the private key in a password manager.
+2. **The VPS key** (root, once):
+   ```bash
+   sudo install -d -m 750 -o root -g deploy /etc/skillissues
+   sudo age-keygen -o /etc/skillissues/age.key       # prints the public key
+   sudo chown root:deploy /etc/skillissues/age.key && sudo chmod 640 /etc/skillissues/age.key
+   ```
+   and install `age` and `sops` (the sops release binary from
+   <https://github.com/getsops/sops/releases>, `age` from `apt`).
+3. **Put both public keys in `.sops.yaml`** and commit it.
+4. **Encrypt the current `.env`** (copy it off the host over ssh, encrypt, then shred the copy):
+   ```bash
+   scp deploy@host:/opt/skillissues/.env ./prod.env
+   sops encrypt --filename-override secrets/prod.env.sops \
+     --input-type dotenv --output-type dotenv prod.env > secrets/prod.env.sops
+   shred -u prod.env
+   git add secrets/prod.env.sops && git commit -m "chore(secrets): encrypt production .env" && git push
+   ```
+   `*.env` is gitignored, but check the plaintext is gone from your disk. CI runs
+   `scripts/check-secrets-encrypted.sh`, which fails the build if anything under `secrets/` is
+   not SOPS-encrypted or an age private key is committed anywhere.
+
+Day to day:
+
+```bash
+SOPS_AGE_KEY_FILE=~/.secrets/skillissues.key \
+  sops edit --input-type dotenv --output-type dotenv secrets/prod.env.sops   # then commit and push
+```
+
+**Rotating the VPS key:** generate a new key on the host, add its public key to `.sops.yaml`, run
+`sops updatekeys --input-type dotenv secrets/prod.env.sops`, commit and deploy, then remove the old
+public key and `updatekeys` again. **Revoking a recipient** is the same last step; note that anyone
+who held that key could already have read the secrets in earlier versions of the file in git
+history, so rotate the secrets themselves if a key was exposed.
+
 ### 3. GitHub App private key
 
 ```bash
@@ -167,19 +220,71 @@ blank to build fresh). Watch the `deploy` job's logs — `scripts/deploy-remote.
 
 ### 6. Backups
 
+Each night the host dumps the database, compresses it and **encrypts it with age to a public key
+whose private half never touches the server**. The server can write backups but cannot read them
+back, so taking the server gets an attacker neither a usable backup nor the means to decrypt one.
+
+Where the encrypted dump goes is a choice you make explicitly with `BACKUP_DESTINATION` in the
+encrypted `.env` (there is no default; unset is an error):
+
+| `BACKUP_DESTINATION` | What happens | Survives the VPS dying? |
+|---|---|---|
+| `local` | Kept in `$DEPLOY_PATH/backups` on the server, pruned after `BACKUP_RETENTION_DAYS` (default 14). **You pull them to another machine.** | **Only once you have pulled them** |
+| `r2` | Uploaded to a Cloudflare R2 bucket; retention is an R2 lifecycle rule | Yes |
+
+Start with `local` if you have no R2 account yet, and switch later by changing that one line
+(plus the `R2_*` keys). **While on `local`, the only off-site copies are the ones you pull**, so
+do it regularly. A run prints `LOCAL ONLY: no off-site copy exists` as a reminder.
+
+One-time setup:
+
+1. **Make the backup key pair on your own machine** (not the VPS):
+   `mkdir -p ~/.secrets && chmod 700 ~/.secrets && age-keygen -o ~/.secrets/skillissues-backup.key`
+   prints the public key (`age1...`). Keep the private key in a password manager and a second
+   place; **losing it means every backup is unreadable.** Put only the public key in `.env` as
+   `BACKUP_AGE_RECIPIENT`, and `BACKUP_DESTINATION=local`.
+2. **Install the tools and the timer on the host** (root, once; `rclone` only for `r2`):
+
 ```bash
-ssh deploy@host
+ssh <admin>@host
+sudo apt-get install -y age            # plus rclone if you will use R2
 sudo cp /opt/skillissues/systemd/skillissues-backup.{service,timer} /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now skillissues-backup.timer
+sudo systemctl start skillissues-backup.service    # first run now
+journalctl -u skillissues-backup.service -n 20     # should say "Wrote ... (encrypted)"
 ```
 
-Needs root — the `deploy` user has none, by design, so this one step is done by whoever
-provisioned the host. Writes a daily gzip'd `pg_dump` to `$DEPLOY_PATH/backups`, 14-day
-retention (`BACKUP_RETENTION_DAYS` in `.env` to change it).
+3. **Pull the files to your machine** (from your PC; use your ssh port and `DEPLOY_PATH`):
 
-A dump holds no GitHub credential: the server stores none. It does hold every user's
-GitHub id, login, avatar, preferences and saved issues, so treat it as personal data.
+```bash
+mkdir -p ~/skillissues-backups
+rsync -av --ignore-existing -e "ssh -p <port>" deploy@host:/opt/skillissues/backups/ ~/skillissues-backups/
+```
+
+   `--ignore-existing` keeps what you already have even after the server prunes it. Run it by
+   hand or from a scheduled task on a machine that is on most days; a laptop that is off for two
+   weeks misses the 14-day window. The files are age-encrypted, so the copy needs no more care
+   than any other file, but only the private key can open them.
+
+**Using R2 later.** Create a private bucket, an API token scoped to that one bucket with *Object
+Read & Write* (R2 has no write-only permission, so protect the backups with a bucket lock rule
+and expire them with a lifecycle rule), then set `BACKUP_DESTINATION=r2`, `R2_ENDPOINT`
+(`https://<account id>.r2.cloudflarestorage.com`), `R2_BUCKET`, `R2_ACCESS_KEY_ID` and
+`R2_SECRET_ACCESS_KEY`, and `sudo apt-get install -y rclone` on the host.
+
+`deploy.yml` keeps `backup-db.sh` and the unit files current; only installing them is manual.
+
+The script never keeps an unencrypted copy and never reports success it did not achieve: a
+missing setting or tool, a failed dump or (for `r2`) a failed upload exits non-zero, so the unit
+shows `failed` (`systemctl --failed`). A dump that could not be uploaded stays on the host, still
+encrypted, and is retried on the next run. Plaintext `.sql.gz` dumps from before this change are
+left alone (the script warns about them): delete them once a restore has worked.
+
+A dump holds no GitHub credential (the server stores none) but does hold every user's GitHub id,
+login, avatar, preferences and saved issues, so treat it as personal data.
+
+**Do a restore drill** before relying on any of this; see *Restore*.
 
 ## Changing a live setting
 
@@ -330,17 +435,37 @@ SELECT key, old_value, new_value, changed_at, changed_by FROM settings_audit ORD
 
 ## Restore
 
+Backups are files named `skillissues-<timestamp>.sql.gz.age`: in `~/skillissues-backups` if you
+pull them, or in R2 under `db/` (download in the R2 dashboard or with `rclone copyto`). Decrypt on
+**your own machine**, where the private key is, never on the server:
+
 ```bash
-gunzip -c /opt/skillissues/backups/skillissues-<timestamp>.sql.gz | \
-  docker compose -f compose.prod.yaml --env-file .env exec -T postgres \
-  psql -U skillissues -d skillissues
+age -d -i ~/.secrets/skillissues-backup.key ~/skillissues-backups/skillissues-<timestamp>.sql.gz.age | gunzip > backup.sql
+scp backup.sql deploy@host:/tmp/restore.sql    # delete it from the host afterwards
 ```
 
-Stop `go-api` and `ingestd` first (`docker compose -f compose.prod.yaml --env-file .env stop
-go-api ingestd`) so nothing writes mid-restore, then start them back up afterward.
+Then on the host, stop the services so nothing writes mid-restore, load the dump, and start them
+again:
+
+```bash
+cd /opt/skillissues
+docker compose -f compose.prod.yaml --env-file .env stop go-api ingestd
+docker compose -f compose.prod.yaml --env-file .env exec -T postgres \
+  psql -U skillissues -d skillissues < /tmp/restore.sql
+shred -u /tmp/restore.sql
+docker compose -f compose.prod.yaml --env-file .env start go-api ingestd
+```
+
+To rehearse without touching production, create a scratch database first
+(`CREATE DATABASE restore_drill`) and load the dump into that instead; check `SELECT count(*)
+FROM users, issues` looks right. A backup you have never restored is a hope, not a backup.
 
 ## Production security checklist
 
+- [ ] Secrets are in `secrets/prod.env.sops`, not hand-edited on the host, and the VPS age key is
+      `root:deploy` mode `640` at `/etc/skillissues/age.key`.
+- [ ] A restore from a backup has been rehearsed, the backup private key is held in two places off
+      the server, and (if `BACKUP_DESTINATION=local`) the files are being pulled off the server.
 - [ ] `.env` is mode `600`, owned by the deploy user, and every `:?`-required secret in
       `compose.prod.yaml` has a real value (the file refuses to start otherwise).
 - [ ] DNS is A-record-direct to the VPS, no proxying CDN in front of Caddy.
