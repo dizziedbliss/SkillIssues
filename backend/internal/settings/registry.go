@@ -29,13 +29,10 @@ const (
 	IssuesSearchPageSize  Key = "api.issues.search_page_size"
 	SearchPerCategoryCap  Key = "api.search.per_category_cap"
 
-	// IssuesFreshnessBatchCap bounds POST /issues/freshness (D2a): a client
-	// calls this once per Saved/Working render with the handful of issues it
-	// is actually showing, never the whole catalog, so this caps that
-	// request rather than the crawl.
-	IssuesFreshnessBatchCap Key = "api.issues.freshness_batch_cap"
-
 	SessionTTLHours Key = "api.session.ttl_hours"
+	// SessionPruneIntervalSeconds is how often expired sessions and
+	// abandoned OAuth handshakes are deleted.
+	SessionPruneIntervalSeconds Key = "api.session.prune_interval_seconds"
 
 	// NotificationsPageSize is how many notifications GET /notifications
 	// returns, newest first.
@@ -51,16 +48,6 @@ const (
 	// per retry interval until it answers.
 	CacheRedisTimeoutMs    Key = "api.cache.redis_timeout_ms"
 	CacheRedisRetrySeconds Key = "api.cache.redis_retry_seconds"
-
-	ContributionVerifyPerHour Key = "api.contribution.verify_per_hour"
-
-	// IssueBody* tune the on-demand issue body read path
-	// (internal/issue/body.go): a bounded LRU cache in Postgres in front of
-	// a concurrency-limited GraphQL fetch.
-	IssueBodyCacheMaxRows         Key = "api.issue_body.cache_max_rows"
-	IssueBodyPruneIntervalSeconds Key = "api.issue_body.prune_interval_seconds"
-	IssueBodyMaxConcurrentFetches Key = "api.issue_body.max_concurrent_fetches"
-	IssueBodyInstallationFloor    Key = "api.issue_body.installation_floor"
 
 	IngestGraphQLPageSize    Key = "ingest.graphql_page_size"
 	IngestRateLimitFloor     Key = "ingest.rate_limit_floor"
@@ -144,11 +131,6 @@ const (
 	IngestClosedIssuePruneIntervalSeconds Key = "ingest.closed_issue_prune_interval_seconds"
 	// IngestClosedIssuePruneBatchSize is how many issues one DELETE removes.
 	IngestClosedIssuePruneBatchSize Key = "ingest.closed_issue_prune_batch_size"
-
-	// AuthPATLoginEnabled gates POST /auth/github/token. Default false:
-	// OAuth is the only login path both clients expose; the PAT endpoint
-	// stays registered server-side but 404s unless explicitly turned on.
-	AuthPATLoginEnabled Key = "auth.pat_login_enabled"
 )
 
 // Kind is the value type a key accepts.
@@ -191,26 +173,19 @@ var Registry = map[Key]Spec{
 	RateLimitAuthPerHour:   intSpec(1000, 1, 1000000, "Requests per window allowed for authenticated callers."),
 	RateLimitWindowSeconds: intSpec(3600, 60, 86400, "Length of the rate-limit window."),
 
-	IssuesDefaultPageSize:   intSpec(20, 1, 100, "Issues returned when the catalog is browsed without a search term."),
-	IssuesSearchPageSize:    intSpec(50, 1, 200, "Issues returned for a search query."),
-	SearchPerCategoryCap:    intSpec(25, 1, 100, "Maximum results per match category, so one category cannot flood the rest."),
-	NotificationsPageSize:   intSpec(50, 1, 200, "Notifications returned by GET /notifications."),
-	IssuesFreshnessBatchCap: intSpec(25, 1, 100, "Maximum issue ids accepted by one POST /issues/freshness call."),
+	IssuesDefaultPageSize: intSpec(20, 1, 100, "Issues returned when the catalog is browsed without a search term."),
+	IssuesSearchPageSize:  intSpec(50, 1, 200, "Issues returned for a search query."),
+	SearchPerCategoryCap:  intSpec(25, 1, 100, "Maximum results per match category, so one category cannot flood the rest."),
+	NotificationsPageSize: intSpec(50, 1, 200, "Notifications returned by GET /notifications."),
 
-	SessionTTLHours: intSpec(168, 1, 8760, "Session lifetime. Applies to newly issued sessions only."),
+	SessionTTLHours:             intSpec(168, 1, 8760, "Session lifetime. Applies to newly issued sessions only."),
+	SessionPruneIntervalSeconds: intSpec(3600, 60, 86400, "How often expired sessions and abandoned OAuth handshakes are deleted."),
 
 	CacheHotIssuesTTLSeconds:      intSpec(120, 0, 3600, "Cache lifetime for the default unauthenticated catalog page. 0 disables."),
 	CacheSearchTTLSeconds:         intSpec(60, 0, 3600, "Cache lifetime for unauthenticated search results. 0 disables."),
 	CacheRecommendationsTTLSecond: intSpec(300, 0, 3600, "Cache lifetime for per-user recommendations. 0 disables."),
 	CacheRedisTimeoutMs:           intSpec(250, 10, 5000, "Deadline for one Redis call, connecting included. A call that misses it fails open."),
 	CacheRedisRetrySeconds:        intSpec(5, 1, 300, "After a failed Redis call, how long Redis is skipped before one call probes whether it has recovered."),
-
-	ContributionVerifyPerHour: intSpec(5, 1, 1000, "Maximum PR verification attempts per user per contribution per hour."),
-
-	IssueBodyCacheMaxRows:         intSpec(50000, 100, 10000000, "Rows kept in issue_body_cache; the least recently read are pruned beyond this."),
-	IssueBodyPruneIntervalSeconds: intSpec(600, 60, 86400, "How often issue_body_cache is pruned back to api.issue_body.cache_max_rows."),
-	IssueBodyMaxConcurrentFetches: intSpec(8, 1, 64, "Concurrent GitHub fetches for issue bodies across all users."),
-	IssueBodyInstallationFloor:    intSpec(100, 0, 5000, "Remaining GraphQL points below which the installation token stops serving issue-body reads."),
 
 	IngestGraphQLPageSize:    intSpec(50, 1, 100, "Issues requested per GraphQL page. GitHub caps this at 100."),
 	IngestRateLimitFloor:     intSpec(100, 0, 5000, "Stop issuing GraphQL calls when the remaining point budget falls below this."),
@@ -249,8 +224,6 @@ var Registry = map[Key]Spec{
 	IngestClosedIssueRetentionDays:        intSpec(7, 0, 3650, "Days after closing on GitHub before an issue nobody saved or worked on is deleted. 0 keeps every closed issue."),
 	IngestClosedIssuePruneIntervalSeconds: intSpec(3600, 60, 86400, "How often closed issues past their retention are deleted."),
 	IngestClosedIssuePruneBatchSize:       intSpec(5000, 100, 100000, "Closed issues deleted per statement."),
-
-	AuthPATLoginEnabled: boolSpec(false, "Whether POST /auth/github/token is reachable. Both clients only offer OAuth; this stays off unless explicitly turned on."),
 }
 
 // Snapshot is an immutable view of the settings. Readers hold one for the

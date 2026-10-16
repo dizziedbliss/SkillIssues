@@ -210,7 +210,7 @@ func TestTrackedIssuesAreCheckedAndClosed(t *testing.T) {
 
 	var userID int
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO users (username) VALUES ($1) RETURNING id`,
+		`INSERT INTO users (github_id, username) VALUES ($1, $1) RETURNING id`,
 		[]any{fmt.Sprintf("tracked-test-%d", time.Now().UnixNano())},
 		func(row pgx.Row) error { return row.Scan(&userID) },
 	); err != nil {
@@ -406,52 +406,42 @@ func TestFirstPageRefreshesRepositoryStats(t *testing.T) {
 	}
 }
 
-// Closed issues past retention are deleted unless a user saved them or has a
-// contribution on them; open and recently closed ones stay.
+// Closed issues past retention are deleted unless a user saved them; open and
+// recently closed ones stay.
 func TestPruneClosedIssuesKeepsWhatUsersHold(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	repoID, _ := testRepo(t, pool)
 
 	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	for _, n := range []int{3, 4, 5} {
+	for _, n := range []int{3, 4} {
 		node := github.GraphQLIssueNode{Number: n, Title: "t", URL: fmt.Sprintf("u/%d", n), State: "OPEN", CreatedAt: created, UpdatedAt: created}
 		if err := pool.InTx(ctx, func(tx pgx.Tx) error { return UpsertIssueTx(ctx, tx, repoID, node, "Go") }); err != nil {
 			t.Fatalf("insert issue #%d: %v", n, err)
 		}
 	}
 	// #1 open; #2 closed recently; #3 closed long ago (prune); #4 closed long
-	// ago but saved; #5 closed long ago with a contribution.
+	// ago but saved.
 	if err := pool.Exec(ctx,
 		`UPDATE issues SET state = 'CLOSED',
 		    updated_at = CASE number WHEN 2 THEN now() - interval '1 day' ELSE now() - interval '30 days' END
-		 WHERE repository_id = $1 AND number IN (2, 3, 4, 5)`, repoID,
+		 WHERE repository_id = $1 AND number IN (2, 3, 4)`, repoID,
 	); err != nil {
 		t.Fatal(err)
 	}
 	var userID int
-	if err := pool.QueryRow(ctx, `INSERT INTO users (username) VALUES ($1) RETURNING id`,
+	if err := pool.QueryRow(ctx, `INSERT INTO users (github_id, username) VALUES ($1, $1) RETURNING id`,
 		[]any{fmt.Sprintf("prune-test-%d", time.Now().UnixNano())},
 		func(row pgx.Row) error { return row.Scan(&userID) }); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		// contributions do not cascade from issues, so remove them before
-		// the repository cleanup deletes the issues.
-		if err := pool.Exec(context.Background(), `DELETE FROM contributions WHERE user_id = $1`, userID); err != nil {
-			t.Errorf("cleanup contributions: %v", err)
-		}
 		if err := pool.Exec(context.Background(), `DELETE FROM users WHERE id = $1`, userID); err != nil {
 			t.Errorf("cleanup user: %v", err)
 		}
 	})
 	if err := pool.Exec(ctx,
 		`INSERT INTO saved_issues (user_id, issue_id) SELECT $1, id FROM issues WHERE repository_id = $2 AND number = 4`,
-		userID, repoID); err != nil {
-		t.Fatal(err)
-	}
-	if err := pool.Exec(ctx,
-		`INSERT INTO contributions (user_id, issue_id, state) SELECT $1, id, 'VERIFIED' FROM issues WHERE repository_id = $2 AND number = 5`,
 		userID, repoID); err != nil {
 		t.Fatal(err)
 	}
@@ -468,7 +458,7 @@ func TestPruneClosedIssuesKeepsWhatUsersHold(t *testing.T) {
 		}
 	}
 	issues := readIssues(t, pool, repoID)
-	for _, n := range []int{1, 2, 4, 5} {
+	for _, n := range []int{1, 2, 4} {
 		if _, ok := issues[n]; !ok {
 			t.Errorf("issue #%d was pruned", n)
 		}

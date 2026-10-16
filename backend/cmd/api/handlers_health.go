@@ -25,20 +25,19 @@ func (h *handlers) health(w http.ResponseWriter, r *http.Request) {
 }
 
 // healthDetail handles GET /health/detail
-// Returns counts of repositories, issues, and contributions, plus the D6
+// Returns counts of repositories and issues, plus the D6
 // disk guardrail state so the database-size ceiling is visible before it's
 // hit, not discovered after ingestion has already stopped.
 func (h *handlers) healthDetail(w http.ResponseWriter, r *http.Request) {
-	var repoCount, issueCount, contribCount int
+	var repoCount, issueCount int
 	status := "ok"
 	if err := h.db.QueryRow(r.Context(),
 		`SELECT
 			(SELECT COUNT(*) FROM repositories),
-			(SELECT COUNT(*) FROM issues),
-			(SELECT COUNT(*) FROM contributions)`,
+			(SELECT COUNT(*) FROM issues)`,
 		nil,
 		func(row pgx.Row) error {
-			return row.Scan(&repoCount, &issueCount, &contribCount)
+			return row.Scan(&repoCount, &issueCount)
 		},
 	); err != nil {
 		// A component that is down must not be reported as connected: the
@@ -67,7 +66,6 @@ func (h *handlers) healthDetail(w http.ResponseWriter, r *http.Request) {
 		"service":          "api",
 		"repositories":     repoCount,
 		"issues":           issueCount,
-		"contributions":    contribCount,
 		"cache":            cacheStatus,
 		"db_size_mb":       dbSizeMB,
 		"max_db_size_mb":   maxDBSizeMB,

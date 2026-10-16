@@ -40,12 +40,6 @@ type Issue struct {
 	RecommendationScore int      `json:"recommendation_score,omitempty"`
 	WhyRecommended      []string `json:"why_recommended,omitempty"`
 	MatchCategory       string   `json:"match_category,omitempty"`
-
-	// Lifecycle is only populated for the saved-issues list (D2b): the
-	// caller's own most recent contribution against this issue, one of
-	// none|working|submitted|merged. Saved stays sticky regardless of
-	// issue.State — this is what lets a client show why.
-	Lifecycle string `json:"lifecycle,omitempty"`
 }
 
 // Filters for issue catalog queries.
@@ -93,8 +87,7 @@ func (s *Service) categoryCap() int {
 	return n
 }
 
-// No i.body here — D17 removed it from everything but the bounded
-// issue_body_cache LRU (see internal/issue/body.go), which this doesn't read.
+// No i.body here: the server stores no issue bodies; clients read them from GitHub.
 const baseIssueSelect = `
 	SELECT i.id, COALESCE(i.github_id, 0), i.number, i.title,
 	       i.url, i.state, i.updated_at::text,
@@ -374,10 +367,8 @@ func (s *Service) GetRepositoryID(ctx context.Context, issueID int) (int, error)
 	return repoID, nil
 }
 
-// savedIssueSelect joins each saved issue against the caller's own latest
-// contribution for it (LEFT JOIN LATERAL — at most one row, the most
-// recently updated). Saved stays sticky by contract: this never filters on
-// issue or contribution state, it only labels what the client already shows.
+// savedIssueSelect is the column list for a saved issue. Saved stays sticky by
+// contract: nothing here filters on issue state, so a closed issue stays listed.
 const savedIssueSelect = `
 	SELECT i.id, COALESCE(i.github_id, 0), i.number, i.title,
 	       i.url, i.state, i.updated_at::text,
@@ -387,22 +378,9 @@ const savedIssueSelect = `
 	       COALESCE(i.learning_tags, '{}'),
 	       i.comments, COALESCE(i.author, split_part(r.full_name, '/', 1)),
 	       r.full_name, r.url, COALESCE(r.description, ''),
-	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, ''),
-	       COALESCE(c.lifecycle, 'none')
+	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, '')
 	FROM issues i
 	JOIN repositories r ON r.id = i.repository_id
-	LEFT JOIN LATERAL (
-		SELECT CASE
-			WHEN c2.state IN ('PR_MERGED', 'VERIFIED') THEN 'merged'
-			WHEN c2.state = 'PR_OPEN' THEN 'submitted'
-			WHEN c2.state = 'STARTED' THEN 'working'
-			ELSE 'none'
-		END AS lifecycle
-		FROM contributions c2
-		WHERE c2.user_id = $1 AND c2.issue_id = i.id
-		ORDER BY c2.updated_at DESC
-		LIMIT 1
-	) c ON true
 `
 
 func scanSavedIssue(rows pgx.Rows) (Issue, error) {
@@ -415,13 +393,11 @@ func scanSavedIssue(rows pgx.Rows) (Issue, error) {
 		&it.Comments, &it.Author,
 		&it.Repository, &it.RepositoryURL, &it.RepositoryDescription,
 		&it.Language, &it.Stars, &it.License,
-		&it.Lifecycle,
 	)
 	return it, err
 }
 
-// GetSavedIssues returns all bookmarked issues for a developer, each labeled
-// with the caller's lifecycle against it (D2b).
+// GetSavedIssues returns all bookmarked issues for a developer.
 func (s *Service) GetSavedIssues(ctx context.Context, userID int) ([]Issue, error) {
 	query := savedIssueSelect + `
 		WHERE i.id IN (SELECT issue_id FROM saved_issues WHERE user_id = $1)
