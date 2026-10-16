@@ -56,11 +56,6 @@ var (
 		Help: "Response body bytes written, by matched route pattern.",
 	}, []string{"method", "route"})
 
-	ContributionVerifications = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "contribution_verify_total",
-		Help: "Contribution verification attempts by result.",
-	}, []string{"result"})
-
 	BudgetErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "github_budget_errors_total",
 		Help: "Failures reading or writing the shared github_budget table, by operation and lane.",
@@ -79,7 +74,7 @@ var (
 
 // RegisterAPI registers the families go-api produces.
 func RegisterAPI() {
-	Registry.MustRegister(HTTPRequests, HTTPDuration, HTTPResponseBytes, ContributionVerifications, BudgetErrors, CacheErrors, CacheSkipped)
+	Registry.MustRegister(HTTPRequests, HTTPDuration, HTTPResponseBytes, BudgetErrors, CacheErrors, CacheSkipped)
 }
 
 // ---------------------------------------------------------------------------
