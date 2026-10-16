@@ -11,8 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// TrackedIssue is an open issue a user has saved or is working on (a
-// contribution that is STARTED or has its PR open). These are checked on
+// TrackedIssue is an open issue a user has saved. These are checked on
 // GitHub on their own short cadence, so a user learns their issue closed
 // within ingest.tracked_issue_check_seconds rather than whenever the
 // repository's next freshness pass happens to run.
@@ -27,13 +26,8 @@ type TrackedIssue struct {
 func DueTrackedIssues(ctx context.Context, pool *db.Pool, staleAfter time.Duration, limit int) ([]TrackedIssue, error) {
 	var out []TrackedIssue
 	err := pool.QueryRows(ctx,
-		`WITH tracked AS (
-			SELECT issue_id FROM saved_issues
-			UNION
-			SELECT issue_id FROM contributions WHERE state IN ('STARTED', 'PR_OPEN')
-		 )
-		 SELECT i.id, r.full_name, i.number
-		 FROM tracked t
+		`SELECT i.id, r.full_name, i.number
+		 FROM (SELECT DISTINCT issue_id FROM saved_issues) t
 		 JOIN issues i ON i.id = t.issue_id
 		 JOIN repositories r ON r.id = i.repository_id
 		 WHERE i.state = 'OPEN'

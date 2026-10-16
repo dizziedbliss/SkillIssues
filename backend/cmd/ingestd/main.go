@@ -84,11 +84,8 @@ func main() {
 			os.Exit(1)
 		}
 		ghApp, err := githubapp.New(githubapp.Config{
-			AppID:        cfg.GitHubAppID,
-			ClientID:     cfg.GitHubAppClientID,
-			ClientSecret: cfg.GitHubAppClientSecret,
-			PrivateKey:   privKey,
-			CallbackURL:  cfg.GitHubAppCallbackURL,
+			AppID:      cfg.GitHubAppID,
+			PrivateKey: privKey,
 		})
 		if err != nil {
 			slog.Error("failed to initialize GitHub App", "error", err)

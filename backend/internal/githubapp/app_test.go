@@ -18,7 +18,7 @@ func testApp(t *testing.T) (*App, *rsa.PrivateKey) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	app, err := New(Config{AppID: "12345", PrivateKey: key, CallbackURL: "http://localhost:8000/auth/github-app/callback"})
+	app, err := New(Config{AppID: "12345", PrivateKey: key})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -89,16 +89,5 @@ func TestInstallationTokenReusesCachedValue(t *testing.T) {
 	}
 	if tok != "cached-token" {
 		t.Fatalf("expected cached token, got %q", tok)
-	}
-}
-
-func TestAuthorizeURLIncludesStateAndCallback(t *testing.T) {
-	app, _ := testApp(t)
-	u := app.AuthorizeURL("my-state")
-	if !strings.Contains(u, "state=my-state") {
-		t.Fatalf("missing state in URL: %s", u)
-	}
-	if !strings.Contains(u, "redirect_uri=") {
-		t.Fatalf("missing redirect_uri in URL: %s", u)
 	}
 }

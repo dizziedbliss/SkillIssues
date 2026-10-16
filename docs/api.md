@@ -28,14 +28,12 @@ works signed out, personalised when signed in; *none* = public; *admin* =
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | GET | `/auth/session` | none | Current session's user, or signed out |
-| GET | `/auth/github` | none | Start the OAuth App login |
-| GET | `/auth/github/callback` | none | OAuth App callback |
-| GET | `/auth/github/poll` | none | Desktop polls for a completed browser login |
-| GET | `/auth/github-app` | none | Start the GitHub App login |
-| GET | `/auth/github-app/callback` | none | GitHub App callback |
-| POST | `/auth/github/token` | none | PAT login — **disabled unless `auth.pat_login_enabled`** |
+| GET | `/auth/github` | none | Start Login app sign-in (sets the `__Host-oauth_state` cookie) |
+| GET | `/auth/github/callback` | none | Login app callback; needs the state cookie; errors redirect with a fixed `?error=` code |
+| POST | `/auth/github/device` | none | Desktop sign-in: body `{"access_token"}` from the Login app's device flow; returns a bearer session. The token is checked with GitHub and discarded |
 | POST | `/auth/logout` | none | Clear the session |
-| POST | `/auth/purge` | session (checked in the handler) | Delete the account and everything that cascades from it |
+| POST | `/auth/logout-all` | session | End every session of the user |
+| POST | `/auth/purge` | session (checked in the handler) | Body `{"confirm": true}`. Delete the account and everything that cascades from it; the response carries GitHub's authorized-apps URL |
 
 ## Catalog
 
@@ -43,9 +41,6 @@ works signed out, personalised when signed in; *none* = public; *admin* =
 |---|---|---|---|
 | GET | `/issues` | optional | Browse or search (`?search=`, filters); search is balanced across Repository / Title / Language / Author |
 | GET | `/issues/{id}` | none | One issue |
-| GET | `/issues/{id}/body` | optional | Issue body, fetched on demand from GitHub and cached; may answer `{"status":"queued"}` |
-| POST | `/issues/{id}/freshness` | session | Re-check one issue's open/closed state on GitHub |
-| POST | `/issues/freshness` | session | Same, for up to `api.issues.freshness_batch_cap` ids |
 | GET | `/recommendations` | session | Issues ranked for the user's profile (`difficulty`, `page`, `limit`) |
 | GET | `/preferences/options` | none | Selectable languages/interests for the profile form |
 
@@ -53,33 +48,17 @@ works signed out, personalised when signed in; *none* = public; *admin* =
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET | `/me` | session | Profile, XP, level, badges |
+| GET | `/me` | session | Profile and preferences |
 | PUT | `/profile` | session | Update profile and preferences |
-| GET | `/saved` | session | Saved issues, with each one's contribution lifecycle |
+| GET | `/saved` | session | Saved issues (a closed issue stays listed) |
 | POST | `/saved` | session | Save an issue |
 | DELETE | `/saved/{id}` | session | Unsave |
-
-## Contributions
-
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| POST | `/contributions` | session | Start a contribution (state `STARTED`) |
-| GET | `/contributions` | session | The user's contributions |
-| GET | `/working` | session | Contributions in progress |
-| GET | `/contributions/{id}` | session | One contribution |
-| PUT | `/contributions/{id}` | session | Update it (e.g. PR URL) |
-| POST | `/contributions/{id}/submit` | session | Mark submitted (`submitted_at`) |
-| POST | `/contributions/{id}/verify` | session | Ask GitHub whether the PR merged and the author matches; awards XP once. Limited by `api.contribution.verify_per_hour` |
-| POST | `/github/forks` | session | Fork the issue's repository **with the user's own GitHub token** |
-| GET | `/github/git-token` | session | The user's own token for `git push` from the desktop app — never the server's |
-
-States: `STARTED` → `PR_OPEN` → `PR_MERGED` → `VERIFIED`, or `PR_CLOSED`.
 
 ## Webhooks and admin
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| POST | `/webhooks/github` | HMAC | `pull_request` merged → verify and award XP; `issues` closed/reopened → update state. Deduplicated by delivery id |
+| POST | `/webhooks/github` | HMAC | `issues` closed/reopened → update state. Deduplicated by delivery id |
 | POST | `/admin/sync/repository/{id}` | admin | Ask ingestd to crawl one repository now |
 | GET | `/admin/config` | admin | All live settings |
 | PUT | `/admin/config/{key}` | admin | Change a live setting — see [settings.md](settings.md) |
@@ -97,3 +76,10 @@ No public port in production. The `GET` routes are unauthenticated (read-only te
 | GET | `/sync/status` | — | Worker pool stats, DB size, paused flag |
 | POST | `/sync/issues` | admin | Enqueue never-ingested eligible repositories now |
 | POST | `/sync/priority/{id}` | admin | Make one repository's job due immediately |
+
+## Browser requests
+
+A request that carries the session cookie and is not `GET`/`HEAD`/`OPTIONS` must send
+`Content-Type: application/json` (415 otherwise), including body-less ones such as
+`POST /auth/logout` and `DELETE /saved/{id}`. Cross-site mutations are refused with 403 unless
+the origin is in `FRONTEND_URL`. Requests authenticated with `Authorization: Bearer` are exempt.

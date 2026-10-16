@@ -56,22 +56,6 @@ func (h *handlers) webhookGitHub(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if insertedDelivery != "" && eventName == "pull_request" {
-		var payload struct {
-			PullRequest struct {
-				Merged  bool   `json:"merged"`
-				HTMLURL string `json:"html_url"`
-			} `json:"pull_request"`
-		}
-		if err := json.Unmarshal(body, &payload); err == nil {
-			if payload.PullRequest.Merged && payload.PullRequest.HTMLURL != "" {
-				if _, err := h.contribSvc.ApplyMergedPRByUrl(r.Context(), payload.PullRequest.HTMLURL, h.cfg.GitHubToken); err != nil && !errors.Is(err, db.ErrNotFound) {
-					slog.Error("webhook: failed to apply merged PR", "delivery_id", delivery, "pr_url", payload.PullRequest.HTMLURL, "error", err)
-				}
-			}
-		}
-	}
-
 	// D2a: free closed/reopened signal for repos where the App is
 	// installed — no API call needed, unlike the on-demand freshness check.
 	if insertedDelivery != "" && eventName == "issues" {

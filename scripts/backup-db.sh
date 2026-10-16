@@ -3,11 +3,8 @@
 # Dumps the production database to /opt/skillissues/backups and prunes
 # dumps older than the retention window.
 #
-# A dump is useless without TOKEN_ENCRYPTION_KEY — it decrypts
-# users.github_access_token at rest, and losing or rotating it without
-# migrating existing rows makes every stored token undecryptable. Back that
-# value up (e.g. a password manager, not this directory) alongside these
-# dumps, not instead of them.
+# A dump holds no GitHub credential (the server stores none) but does hold every
+# user's id, login, avatar and saved issues: treat it as personal data.
 set -euo pipefail
 
 cd "$(dirname "$0")"
