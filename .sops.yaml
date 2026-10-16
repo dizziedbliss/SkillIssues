@@ -1,0 +1,16 @@
+# SOPS rules for the repo's encrypted secrets (see DEPLOYMENT.md, "Secrets").
+#
+# Every file under secrets/ is encrypted to TWO age keys: yours (so you can
+# edit it) and the VPS's (so deploy-remote.sh can decrypt it on the host).
+# CI never holds either private key, so a compromised workflow sees only
+# ciphertext.
+#
+# Replace both placeholders with the PUBLIC keys (age1...). The VPS private key
+# lives only at /etc/skillissues/age.key on the host; yours stays off-host.
+# Changing the recipient list takes effect for a file with:
+#   sops updatekeys secrets/prod.env.sops
+creation_rules:
+  - path_regex: ^secrets/.*\.env\.sops$
+    age: >-
+      age1REPLACE_WITH_YOUR_PUBLIC_KEY,
+      age1REPLACE_WITH_THE_VPS_PUBLIC_KEY

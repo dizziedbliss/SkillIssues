@@ -329,6 +329,16 @@ Single VPS, `compose.prod.yaml`, Caddy same-origin. Full runbook: `DEPLOYMENT.md
   before proxying to `go-api` (whose routes have no `/api` prefix of their own) and returns
   **404 for `/metrics`, `/health/detail` and `/admin/*`** — those are internal only (admin is reached over ssh, see `DEPLOYMENT.md`); everything else goes
   to the `frontend` (nginx) image. `go-api` and `ingestd` have no published ports in prod.
+- **Secrets are in git, encrypted.** `secrets/prod.env.sops` (SOPS + age, to the owner's key and
+  the VPS's key; `.sops.yaml`). `deploy.yml` ships it as ciphertext and `deploy-remote.sh` runs
+  `decrypt-env.sh` on the host to write `.env`; CI never holds a key. A present file that will not
+  decrypt fails the deploy rather than falling back to a stale `.env`. `scripts/check-secrets-encrypted.sh`
+  (CI) fails on a plaintext file under `secrets/` or a committed age private key. Never commit a plaintext secret.
+- **Backups are encrypted before they leave the host.** `scripts/backup-db.sh` pipes `pg_dump | gzip |
+  age -r <public key>` to Cloudflare R2 with rclone; the private key is off the server, so the host can
+  write backups but not read them. It fails loudly (non-zero) on any missing setting, failed dump or failed
+  upload, never keeps an unencrypted copy, and retries an unuploaded dump next run. Retention is an R2
+  lifecycle rule.
 - Monitoring runs in both compose files: Prometheus, Grafana (six provisioned dashboards in
   `monitoring/grafana/dashboards/`), node-exporter, cAdvisor, postgres- and redis-exporter.
   Grafana (:3000) and Prometheus (:9090) bind to `127.0.0.1` and are reached over `ssh -L`.

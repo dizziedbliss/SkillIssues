@@ -67,6 +67,9 @@ jobs:
               - compose.prod.yaml
               - monitoring/**
               - db/**
+              - secrets/**
+              - .sops.yaml
+              - scripts/**
               - Caddyfile
 
   backend:
@@ -197,6 +200,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - name: Check secrets are encrypted
+        # Nothing under secrets/ may be plaintext, and no age private key may
+        # be committed. Cheap, so it runs whenever this job does.
+        run: scripts/check-secrets-encrypted.sh
       - name: Validate Docker Compose configuration (dev + prod)
         # compose.prod.yaml requires several secrets to be set (POSTGRES_PASSWORD,
         # ADMIN_SYNC_TOKEN, ...) via `:?` — CI supplies throwaway values just
