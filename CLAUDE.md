@@ -318,7 +318,7 @@ Single VPS, `compose.prod.yaml`, Caddy same-origin. Full runbook: `DEPLOYMENT.md
   always pin that, never `latest`.
 - Caddy is the only service publishing a public port. `handle_path /api/*` strips the prefix
   before proxying to `go-api` (whose routes have no `/api` prefix of their own) and returns
-  **404 for `/metrics` and `/health/detail`** — those are internal only; everything else goes
+  **404 for `/metrics`, `/health/detail` and `/admin/*`** — those are internal only (admin is reached over ssh, see `DEPLOYMENT.md`); everything else goes
   to the `frontend` (nginx) image. `go-api` and `ingestd` have no published ports in prod.
 - Monitoring runs in both compose files: Prometheus, Grafana (six provisioned dashboards in
   `monitoring/grafana/dashboards/`), node-exporter, cAdvisor, postgres- and redis-exporter.
