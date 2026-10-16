@@ -166,7 +166,10 @@ jobs:
               echo "no digest for $name — refusing to continue unsigned" >&2
               exit 1
             fi
-            cosign sign --yes "$PREFIX/skillissues-$name@$digest"
+            # The runner's cosign is v3, whose default is the new bundle format that a
+            # v2 verifier does not look for ("no signatures found"). The legacy
+            # signature is read by both v2 and v3, so the host's version does not matter.
+            cosign sign --yes --new-bundle-format=false "$PREFIX/skillissues-$name@$digest"
           done
 
   deploy:
