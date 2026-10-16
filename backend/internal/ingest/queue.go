@@ -92,6 +92,10 @@ func ClaimJobs(ctx context.Context, pool *db.Pool, jobType JobType, limit int, o
 			WHERE job_type = $3
 			  AND status = 'pending'
 			  AND (next_retry_at IS NULL OR next_retry_at <= now())
+			  -- A repository made ineligible after its job was queued (excluded,
+			  -- archived, below a raised floor) is not crawled. Its job stays
+			  -- pending and resumes if the repository becomes eligible again.
+			  AND EXISTS (SELECT 1 FROM repositories r WHERE r.id = repository_id AND r.is_eligible)
 			ORDER BY next_retry_at NULLS FIRST, id
 			LIMIT $4
 			FOR UPDATE SKIP LOCKED
@@ -439,7 +443,8 @@ func EnqueueFreshnessJobs(ctx context.Context, pool *db.Pool, limit int, olderTh
 // them being crawled.
 //
 // The rule mirrors cmd/repoimport's eligible() exactly — if one changes,
-// both change. The one exception is is_fork: forks are rejected at import
+// both change. The exclusion list is the one input eligible() does not take:
+// the importer checks it before calling eligible(). The one exception is is_fork: forks are rejected at import
 // and never stored, so there is no stored fork to re-test. Repositories GitHub itself rejected (MarkUnavailable writes
 // eligibility_reason = 'not_found') are left alone: that is a fact about
 // the repository, not a threshold decision, and re-enabling them would
@@ -447,23 +452,27 @@ func EnqueueFreshnessJobs(ctx context.Context, pool *db.Pool, limit int, olderTh
 func RecomputeEligibility(ctx context.Context, pool *db.Pool, minStars, pushedWithinDays int) (int, error) {
 	tag, err := pool.Raw().Exec(ctx,
 		`WITH judged AS (
-			SELECT id,
+			SELECT r.id,
 			       array_to_string(array_remove(ARRAY[
-			         CASE WHEN is_archived THEN 'archived' END,
+			         -- Listed in excluded_repositories: never crawled, whatever
+			         -- else is true of it.
+			         CASE WHEN x.full_name IS NOT NULL THEN 'excluded' END,
+			         CASE WHEN r.is_archived THEN 'archived' END,
 			         -- NULL means "never imported with this field", not
 			         -- "has no issues". Absence of data is unknown, never a
 			         -- negative judgement — reading it as 0 here would
 			         -- declare the entire pre-existing catalog ineligible
 			         -- and stop the crawl dead.
-			         CASE WHEN issue_count IS NOT NULL AND issue_count <= 0 THEN 'no_issues' END,
-			         CASE WHEN language IS NULL OR language = '' THEN 'no_primary_language' END,
-			         CASE WHEN pushed_at IS NULL
-			                OR pushed_at < now() - ($2 * interval '1 day')
+			         CASE WHEN r.issue_count IS NOT NULL AND r.issue_count <= 0 THEN 'no_issues' END,
+			         CASE WHEN r.language IS NULL OR r.language = '' THEN 'no_primary_language' END,
+			         CASE WHEN r.pushed_at IS NULL
+			                OR r.pushed_at < now() - ($2 * interval '1 day')
 			              THEN 'stale' END,
-			         CASE WHEN coalesce(stars, 0) < $1 THEN 'below_star_floor' END
+			         CASE WHEN coalesce(r.stars, 0) < $1 THEN 'below_star_floor' END
 			       ], NULL), ';') AS reason
-			FROM repositories
-			WHERE eligibility_reason IS DISTINCT FROM 'not_found'
+			FROM repositories r
+			LEFT JOIN excluded_repositories x ON lower(x.full_name) = lower(r.full_name)
+			WHERE r.eligibility_reason IS DISTINCT FROM 'not_found'
 		 )
 		 UPDATE repositories r
 		 SET is_eligible = (judged.reason = ''),
