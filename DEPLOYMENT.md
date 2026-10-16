@@ -186,13 +186,18 @@ Everything that isn't a secret and isn't fixed at process start (see `CLAUDE.md`
 *Configuration* section for the exact boundary) lives in the `settings` table and can be
 changed on a running system, no restart, no redeploy:
 
+`/admin/*` is internal only: Caddy returns 404 for `/api/admin/...`, so it is not reachable
+from the internet. From the host, go through the Docker network:
+
 ```bash
-curl https://<domain>/api/admin/config -H "Authorization: Bearer $ADMIN_SYNC_TOKEN"
-curl -XPUT https://<domain>/api/admin/config/ingest.max_db_size_mb \
-     -H "Authorization: Bearer $ADMIN_SYNC_TOKEN" -d '{"value": 32000}'
+ssh deploy@host
+cd /opt/skillissues
+set -a; . ./.env; set +a    # for ADMIN_SYNC_TOKEN
+docker compose -f compose.prod.yaml --env-file .env exec caddy \
+  wget -qO- --header "Authorization: Bearer $ADMIN_SYNC_TOKEN" http://go-api:8000/admin/config
 ```
 
-Or directly via `psql` on the host (hits the same validation trigger — useful when a bad value
+To change a value, use `psql` on the host (hits the same validation trigger — useful when a bad value
 has made the API itself unhealthy):
 
 ```bash
@@ -218,7 +223,7 @@ see *Monitoring* for how to reach it).
 
 Prometheus, Grafana, node-exporter, cAdvisor, postgres-exporter and redis-exporter run as part
 of `compose.prod.yaml`. Nothing is public: Grafana and Prometheus bind to `127.0.0.1`, and
-Caddy returns 404 for `/api/metrics` and `/api/health/detail`.
+Caddy returns 404 for `/api/metrics`, `/api/health/detail` and `/api/admin/*`.
 
 **Open the dashboards**
 

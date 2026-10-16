@@ -16,6 +16,13 @@ if [ $# -ne 1 ] || [ -z "$1" ]; then
 	exit 1
 fi
 
+# The tag reaches a shell on the host and names an image to pull: accept
+# nothing but a commit-derived tag.
+if ! [[ "$1" =~ ^sha-[0-9a-f]{7,40}$ ]]; then
+	echo "image tag must match sha-<hex>, got: $1" >&2
+	exit 1
+fi
+
 cd "$(dirname "$0")"
 
 export IMAGE_TAG="$1"

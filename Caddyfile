@@ -11,16 +11,34 @@
 }
 
 {$DOMAIN} {
+	# Cap bodies at the edge; the API enforces its own, tighter, live limits.
+	request_body {
+		max_size 26MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		-Server
+	}
+
 	# /api/* -> go-api, with the /api prefix stripped: the browser calls
 	# https://{$DOMAIN}/api/auth/github/callback, go-api only ever sees
 	# /auth/github/callback (its routes have no /api prefix of their own).
 	handle_path /api/* {
-		# Operational endpoints are scraped inside the Docker network only.
-		@internal path /metrics /metrics/* /health/detail
+		# Operational and admin endpoints are internal only: /metrics and
+		# /health/detail are scraped on the Docker network, /admin is reached
+		# over ssh (see DEPLOYMENT.md). Admin has its own bearer token, but a
+		# token is not a reason to put the endpoint on the internet.
+		@internal path /metrics /metrics/* /health/detail /admin /admin/*
 		handle @internal {
 			respond 404
 		}
 		handle {
+			# The API returns JSON only: nothing it serves may load or run anything.
+			header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
 			reverse_proxy go-api:8000
 		}
 	}
