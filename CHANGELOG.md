@@ -19,9 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Production secrets are stored encrypted in the repo (`secrets/prod.env.sops`, SOPS + age) and
   decrypted on the host at deploy time; CI never sees plaintext. CI fails on a plaintext file under
   `secrets/` or a committed age private key.
-- Database backups are encrypted with age to a key held off the server and uploaded to Cloudflare
-  R2; the old unencrypted local `.sql.gz` dumps are no longer written. New `.env` keys:
-  `BACKUP_AGE_RECIPIENT`, `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`.
+- Database backups are encrypted with age to a key held off the server; the old unencrypted local
+  `.sql.gz` dumps are no longer written. Required `.env` keys: `BACKUP_AGE_RECIPIENT` and
+  `BACKUP_DESTINATION` (`local` keeps encrypted files on the server to be pulled elsewhere; `r2`
+  uploads to Cloudflare R2 and also needs `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`,
+  `R2_SECRET_ACCESS_KEY`).
 - `go-api` and `ingestd` no longer connect as the database owner (a superuser). They use
   `skillissues_api` and `skillissues_ingest`, which have per-table DML grants only (migration
   00029). **New required secrets: `API_DB_PASSWORD` and `INGEST_DB_PASSWORD`.**
