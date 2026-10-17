@@ -115,3 +115,16 @@ func TestFlowTapPublishesAnAnonymousReadByPattern(t *testing.T) {
 		}
 	}
 }
+
+func TestFlowTapNamesARateLimitedRequest(t *testing.T) {
+	_, flush := tapChain(t)
+	limited := Logger(FlowTap(flow.Users)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+	})))
+	limited.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/issues/1", nil))
+	for _, e := range decodeHops(t, flush()) {
+		if e.Label != "rate limited" || !strings.HasPrefix(e.Payload, "429") {
+			t.Errorf("rate-limited hop = %+v", e)
+		}
+	}
+}
