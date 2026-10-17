@@ -10,6 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Discovery Sweeper in `ingestd`: GitHub repository Search (`stars:>=min_stars fork:false
+  archived:false pushed:<window>`) finds repositories the dataset does not contain and stores the
+  eligible ones, which then enter the crawl like imported ones. A full sweep covers the whole
+  pushed-within range every 30 days, and an incremental sweep covers what was pushed since the last
+  completed sweep every day. Windows over GitHub's 1,000-result cap are halved down to one minute.
+  **Off by default** (`ingest.discovery.enabled`); `POST /sync/discovery` on ingestd starts a full
+  sweep. Migration 00032; Grafana *Ingestion* dashboard has a Discovery row.
+- `repositories.github_database_id`: GitHub's stable repository id, filled by the sweeper and by
+  the first page of every crawl pass. A renamed repository is followed by id; an id-less row that
+  turns out to be the same repository as one holding its id is marked `duplicate` (not crawled,
+  nothing deleted; its unsaved issues are pruned).
+- Measured first full crawl recorded in `docs/ingestion-architecture.md` §9: 3 days 23 h,
+  284,478 repositories, 7.19M open issues.
 - Grafana *Ingestion* dashboard: tables of jobs by type and status, repositories running now, and
   the next pending jobs.
 - `excluded_repositories`: repositories that are never crawled, seeded with four (three issue
