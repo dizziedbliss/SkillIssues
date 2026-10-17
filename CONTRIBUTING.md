@@ -18,7 +18,7 @@ assistants, but it's the most complete statement of the project's conventions â€
 ## Where things live
 
 ```text
-backend/cmd/          api, ingestd, migrate, repoimport, healthcheck
+backend/cmd/          api, ingestd, flowd, migrate, repoimport, healthcheck
 backend/internal/     auth, issue (search, bodies), ingest (crawler), progression (XP),
                       recommendation, settings, metrics, middleware, migrate/migrations, â€¦
 web/src/              React web app

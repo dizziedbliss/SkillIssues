@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dizziedbliss/skillissues/internal/flow"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -54,7 +55,10 @@ func New(ctx context.Context, cfg Config) (*Pool, error) {
 	poolCfg.MaxConnLifetime = cfg.MaxConnLifetime
 	poolCfg.MaxConnIdleTime = cfg.MaxConnIdleTime
 
-	// Trace queries in development by wiring into pgx tracer hooks (not done here — add via AfterConnect)
+	// Every statement is a hop in the live visualizer: verb and table only,
+	// never the SQL or its arguments. A no-op in a process that installs no
+	// flow publisher.
+	poolCfg.ConnConfig.Tracer = flow.QueryTracer{}
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {

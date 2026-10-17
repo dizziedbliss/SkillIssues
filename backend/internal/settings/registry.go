@@ -173,6 +173,34 @@ const (
 	// sweep, and a full one over the whole pushed-within range.
 	IngestDiscoveryIncrementalIntervalSeconds Key = "ingest.discovery.incremental_interval_seconds"
 	IngestDiscoveryFullIntervalSeconds        Key = "ingest.discovery.full_interval_seconds"
+
+	// FlowEnabled turns the live visualizer's tap on in go-api and ingestd.
+	// Off, nothing is buffered or published; flowd keeps serving an idle stream.
+	FlowEnabled Key = "flow.enabled"
+	// FlowBufferSize bounds the events a publisher holds while Redis catches
+	// up, and the lines flowd holds for one slow viewer. Past it, events drop.
+	FlowBufferSize Key = "flow.buffer_size"
+	// FlowPublishTimeoutMs is the deadline for one PUBLISH of a batch.
+	FlowPublishTimeoutMs Key = "flow.publish_timeout_ms"
+	// FlowMaxLabelChars truncates a public label or payload (an issue title,
+	// a repository name) before it leaves the process.
+	FlowMaxLabelChars Key = "flow.max_label_chars"
+	// FlowMaxEventsPerSecond caps the labelled events flowd relays; every
+	// event still counts towards its link's density.
+	FlowMaxEventsPerSecond Key = "flow.max_events_per_second"
+	// FlowMaxViewers caps open /stream connections.
+	FlowMaxViewers Key = "flow.max_viewers"
+	// FlowDensityIntervalMs is the window flowd counts events per link over
+	// before sending one density line per link.
+	FlowDensityIntervalMs Key = "flow.density_interval_ms"
+	// FlowHeartbeatSeconds is how often an idle stream gets a keep-alive.
+	FlowHeartbeatSeconds Key = "flow.heartbeat_seconds"
+	// FlowAmbientRefreshSeconds is how often flowd asks Prometheus for the
+	// network rates of links nothing is instrumented on, and
+	// FlowAmbientRateWindowSeconds the rate() window it asks over. The window
+	// must span at least two cAdvisor scrapes.
+	FlowAmbientRefreshSeconds    Key = "flow.ambient_refresh_seconds"
+	FlowAmbientRateWindowSeconds Key = "flow.ambient_rate_window_seconds"
 )
 
 // Kind is the value type a key accepts.
@@ -284,6 +312,17 @@ var Registry = map[Key]Spec{
 	IngestDiscoveryRateLimitFloor:             intSpec(1000, 0, 12500, "Discovery stops searching when the shared crawler budget falls below this; kept above ingest.rate_limit_floor so the issue crawl keeps going after discovery yields."),
 	IngestDiscoveryIncrementalIntervalSeconds: intSpec(86400, 3600, 2592000, "How often an incremental sweep covers repositories pushed since the last completed sweep."),
 	IngestDiscoveryFullIntervalSeconds:        intSpec(2592000, 86400, 31536000, "How often a full sweep covers the whole pushed-within range, catching repositories that crossed the star floor without a new push."),
+
+	FlowEnabled:                  boolSpec(true, "Publish live flow events from go-api and ingestd for the public visualizer (flowd). Signed-in traffic is published as symbols only."),
+	FlowBufferSize:               intSpec(1024, 64, 65536, "Flow events a publisher holds while Redis catches up, and lines flowd holds for one slow viewer; past it, events are dropped and counted."),
+	FlowPublishTimeoutMs:         intSpec(250, 10, 5000, "Deadline for publishing one batch of flow events to Redis."),
+	FlowMaxLabelChars:            intSpec(80, 8, 500, "Longest public label or payload (an issue title, a repository name) a flow event carries; longer text is truncated."),
+	FlowMaxEventsPerSecond:       intSpec(40, 1, 1000, "Labelled flow events flowd relays per second; the rest count only towards their link's density."),
+	FlowMaxViewers:               intSpec(200, 1, 5000, "Concurrent /stream viewers flowd serves; past it, new viewers get 503."),
+	FlowDensityIntervalMs:        intSpec(1000, 100, 60000, "Window flowd counts events per link over before sending each link's density."),
+	FlowHeartbeatSeconds:         intSpec(15, 1, 300, "How often flowd sends a keep-alive on an idle stream."),
+	FlowAmbientRefreshSeconds:    intSpec(5, 1, 300, "How often flowd reads cAdvisor network rates from Prometheus for the links nothing is instrumented on."),
+	FlowAmbientRateWindowSeconds: intSpec(120, 30, 3600, "rate() window for those network rates; must span at least two cAdvisor scrapes."),
 }
 
 // Snapshot is an immutable view of the settings. Readers hold one for the
@@ -370,6 +409,14 @@ func (s *Snapshot) Millis(k Key) time.Duration {
 
 func (s *Snapshot) Hours(k Key) time.Duration {
 	return time.Duration(s.Int(k)) * time.Hour
+}
+
+// With returns a copy of s with k set to v, for tests that need a value other
+// than the default. The receiver is unchanged.
+func (s *Snapshot) With(k Key, v any) *Snapshot {
+	vals := s.Raw()
+	vals[k] = v
+	return newSnapshot(vals)
 }
 
 // Raw exposes the resolved values for the admin endpoint.

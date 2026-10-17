@@ -22,6 +22,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/config"
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/flow"
 	"github.com/dizziedbliss/skillissues/internal/httpx"
 	"github.com/dizziedbliss/skillissues/internal/issue"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
@@ -81,7 +82,18 @@ func main() {
 	live := settings.NewLive(ctx, pool.Raw(), cfg.DatabaseURL)
 	live.Start(ctx)
 
-	outbound := settings.OutboundClient(live, nil)
+	// The live visualizer's tap. Fire-and-forget: without Redis the API runs
+	// the same, and every dropped event is counted.
+	metrics.RegisterFlowPublisher()
+	if pub, err := flow.NewPublisher(flow.API, cfg.RedisURL, flow.SettingsLimits(live.Current)); err != nil {
+		slog.Warn("invalid REDIS_URL — live flow events are not published", "error", err)
+	} else {
+		flow.Install(pub)
+		go pub.Run(ctx)
+		defer pub.Close()
+	}
+
+	outbound := settings.OutboundClient(live, flow.Transport{})
 	ghOAuth := auth.NewGitHubOAuth(auth.GitHubConfig{
 		ClientID:     cfg.GitHubLoginClientID,
 		ClientSecret: cfg.GitHubLoginClientSecret,
@@ -243,7 +255,7 @@ func buildRouter(
 	httpBodyLimit := middleware.MaxBody(func() int64 { return int64(live.Current().Int(settings.HTTPMaxBodyBytes)) })
 	webhookBodyLimit := middleware.MaxBody(func() int64 { return int64(live.Current().Int(settings.WebhookMaxBodyBytes)) })
 
-	// Public chain: RequestID → Logger → MaxBody → CORS → OptionalAuth → RateLimiter → mux
+	// Public chain: RequestID → Logger → FlowTap → MaxBody → CORS → CSRF → OptionalAuth → RateLimiter → mux
 	var publicHandler http.Handler = middleware.RecordRoute(mux)
 	if cacheClient != nil {
 		trustedProxies, err := middleware.ParseTrustedProxies(cfg.TrustedProxies)
@@ -268,6 +280,7 @@ func buildRouter(
 	publicHandler = csrf(publicHandler)
 	publicHandler = middleware.CORS(cfg.FrontendURL, cfg.Production)(publicHandler)
 	publicHandler = httpBodyLimit(publicHandler)
+	publicHandler = middleware.FlowTap(flow.Users)(publicHandler)
 	publicHandler = middleware.Logger(publicHandler)
 	publicHandler = middleware.RequestID(publicHandler)
 
@@ -276,7 +289,7 @@ func buildRouter(
 	// limiter — only RequestID/Logger apply.
 	top := http.NewServeMux()
 	top.Handle("/admin/", group(middleware.RecordRoute(adminMux), middleware.Logger, middleware.RequestID, httpBodyLimit))
-	top.Handle("/webhooks/", group(middleware.RecordRoute(webhookMux), middleware.Logger, middleware.RequestID, webhookBodyLimit))
+	top.Handle("/webhooks/", group(middleware.RecordRoute(webhookMux), middleware.Logger, middleware.FlowTap(flow.GitHub), middleware.RequestID, webhookBodyLimit))
 	top.Handle("/", publicHandler)
 
 	return top, nil

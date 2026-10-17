@@ -114,14 +114,15 @@ Entrypoints under `backend/cmd/`:
   router; do not add one without a reason routing actually causes.
 - **`ingestd`** — GitHub GraphQL crawler on `:8002`. Owns the ingestion coordinator, its
   worker pools and the claim/cycle loop. See *Ingestion policy*.
+- **`flowd`** — relay for the public live visualizer on `:8003`. See *Flow tap*.
 - **`repoimport`** — offline importer for the repository metadata dataset. Streams the JSON
   array and stores only records that pass `eligible()`. Touches only `repositories` and
   `import_skipped`.
 - **`migrate`** — one-shot; applies the embedded schema and exits.
 - **`healthcheck`** — tiny binary used as the Docker `HEALTHCHECK` command.
 
-Middleware chain, outermost first: RequestID → Logger → MaxBody → CORS → CSRF → OptionalAuth →
-RateLimiter.
+Middleware chain, outermost first: RequestID → Logger → FlowTap → MaxBody → CORS → CSRF →
+OptionalAuth → RateLimiter.
 `/admin/` and `/webhooks/` are mounted outside that chain (they authenticate themselves and
 have no browser callers).
 
@@ -130,9 +131,9 @@ Use `pgxpool` for all database access — never open individual connections. Alw
 
 ### Metrics (`backend/internal/metrics/`)
 `prometheus/client_golang`, served at `GET /metrics` by **both** `api` (:8000) and `ingestd`
-(:8002). Each binary registers only the families it produces (`RegisterAPI`,
-`RegisterIngest`, `RegisterGitHub`, `RegisterDBPool`), so a process never exports another's
-gauge as a misleading zero.
+(:8002), and by `flowd` (:8003). Each binary registers only the families it produces
+(`RegisterAPI`, `RegisterIngest`, `RegisterGitHub`, `RegisterDBPool`, `RegisterFlowPublisher`,
+`RegisterFlowd`), so a process never exports another's gauge as a misleading zero.
 
 - HTTP metrics are labelled by the **matched `ServeMux` pattern** (`route="GET /issues/{id}"`),
   never the raw path — `middleware.RecordRoute` must wrap each mux directly, because the mux
@@ -145,6 +146,31 @@ gauge as a misleading zero.
   claim cycle and not per scrape.
 - A failure you log on an operational path should also increment a counter
   (`ingest_cycle_errors_total`, `github_budget_errors_total`, …) so it shows on a dashboard.
+
+### Flow tap (`backend/internal/flow/`, `internal/flowd/`, `cmd/flowd`)
+The public live visualizer (a separate site, `flow.dizziedbliss.lol`) shows data moving
+through the system. go-api and ingestd describe each hop as a `flow.Event` and call
+`flow.Emit`; a `Publisher` batches them to Redis (`PUBLISH flow:events`) and flowd relays them
+to viewers at `GET /stream` (SSE; `?format=ndjson` for `curl -N`). The taps reuse existing
+seams: `middleware.FlowTap` (route pattern, status, size), `flow.QueryTracer` on every pool
+(`db.New`; verb and first table only, never SQL or arguments), `flow.Transport` on the GitHub
+client and the outbound client (operation name and status), the Redis cache wrapper, and one
+emit after each committed crawl or discovery page (repository, counts, first title).
+
+- **Redaction lives only in `flow.Emit`.** A context marked by `flow.MarkUser` (a request
+  presenting a session, valid or not, and every `/auth/` request) or `flow.UserLinked` (the
+  tracked-issue check) is published as random symbols of random length. Never build a label
+  from anything a caller could not show a stranger, and never add an identifying field to
+  `flow.Event` — `TestEventHasNoIdentifyingFields` pins the field set.
+- **Fire-and-forget.** `Emit` never blocks or fails its caller; a full buffer, a Redis error or
+  no listening flowd drops events and counts them (`flow_events_dropped_total{reason}`). Redis
+  being down changes nothing else, and with no publisher installed (`migrate`, `repoimport`,
+  flowd itself) `Emit` is a no-op.
+- flowd relays at most `flow.max_events_per_second` labelled events; every event still counts
+  towards its link's density line. It reads its settings as `skillissues_flow` and re-encodes
+  every event through `flow.Event`, so an unknown field never reaches a viewer. Links nothing is
+  instrumented on get ambient rates from cAdvisor via Prometheus (`PROMETHEUS_URL`).
+- `flow.enabled` (live) turns the tap off. The visualizer site is not in this repository.
 
 ### Shared packages (`packages/`)
 npm workspace members, imported by both clients as `@skillissues/*` (a real `node_modules`
@@ -344,14 +370,14 @@ link to them from tracked docs (`README.md`, `ARCHITECTURE.md`); code comments m
 remain in earlier git history, which is not rewritten.
 
 - `.github/workflows/ci.yml` gates everything: backend (vet/gofmt/build/test), web/desktop
-  (typecheck then a real build, not just a type check), and a buildx build of the four
-  deployed Dockerfile targets (`api`, `ingestd`, `migrate`, `web` — not `repoimport`) plus
-  `docker compose config` on both compose files. It runs on pull requests and as the deploy
+  (typecheck then a real build, not just a type check), and a buildx build of the five
+  deployed Dockerfile targets (`api`, `ingestd`, `flowd`, `migrate`, `web` — not `repoimport`) plus
+  `docker compose config` on both compose files and `caddy validate` on the Caddyfile. It runs on pull requests and as the deploy
   gate, not on plain pushes, and a `changes` job (`dorny/paths-filter`) skips any job whose
   paths did not change. A skipped job counts as passing, so when adding a job, add its paths
   to the filter. `workflow_dispatch` runs everything.
 - `.github/workflows/deploy.yml` runs on push to `main`: `ci` → `build-push` (builds and pushes
-  `ghcr.io/dizziedbliss/skillissues-{api,ingestd,migrate,web}` tagged `sha-<short>` and
+  `ghcr.io/dizziedbliss/skillissues-{api,ingestd,flowd,migrate,web}` tagged `sha-<short>` and
   `latest`) → `deploy` (scp + ssh, runs `scripts/deploy-remote.sh` on the host). A deploy cannot
   happen without CI passing. Rollback is `workflow_dispatch` with an older `sha-` tag — deploys
   always pin that, never `latest`. `build-push` attests provenance and cosign-signs each image by
@@ -362,7 +388,9 @@ remain in earlier git history, which is not rewritten.
 - Caddy is the only service publishing a public port. `handle_path /api/*` strips the prefix
   before proxying to `go-api` (whose routes have no `/api` prefix of their own) and returns
   **404 for `/metrics`, `/health/detail` and `/admin/*`** — those are internal only (admin is reached over ssh, see `DEPLOYMENT.md`); everything else goes
-  to the `frontend` (nginx) image. `go-api` and `ingestd` have no published ports in prod.
+  to the `frontend` (nginx) image. A second site, `{$STREAM_DOMAIN}`, proxies only `GET /stream`
+  to `flowd` (`flush_interval -1`) and returns 404 for everything else. `go-api`, `ingestd` and
+  `flowd` have no published ports in prod.
 - **Secrets are in git, encrypted.** `secrets/prod.env.sops` (SOPS + age, to the owner's key and
   the VPS's key; `.sops.yaml`). `deploy.yml` ships it as ciphertext and `deploy-remote.sh` runs
   `decrypt-env.sh` on the host to write `.env`; CI never holds a key. A present file that will not
@@ -380,9 +408,10 @@ remain in earlier git history, which is not rewritten.
   Grafana (:3000) and Prometheus (:9090) bind to `127.0.0.1` and are reached over `ssh -L`.
   `deploy.yml` scp's `monitoring/` alongside the compose file. Runbook: `DEPLOYMENT.md`,
   *Monitoring*.
-- **The services do not run as the database owner.** `go-api` connects as `skillissues_api` and
-  `ingestd` as `skillissues_ingest` (migration 00029): no ownership, no DDL, no `TRUNCATE`, no
-  `COPY ... PROGRAM`. Passwords come from `API_DB_PASSWORD` / `INGEST_DB_PASSWORD` via the
+- **The services do not run as the database owner.** `go-api` connects as `skillissues_api`,
+  `ingestd` as `skillissues_ingest` (migration 00029) and `flowd` as `skillissues_flow` (00033,
+  `SELECT` on `settings` only): no ownership, no DDL, no `TRUNCATE`, no `COPY ... PROGRAM`.
+  Passwords come from `API_DB_PASSWORD` / `INGEST_DB_PASSWORD` / `FLOW_DB_PASSWORD` via the
   `app-roles` one-shot (`db/app-roles.sql`). `migrate` and backups use the owner. Grants are
   explicit per table with no default privileges: **a migration that adds a table grants it** to
   the roles that use it, plus `USAGE` on its sequence — remember triggers run as the invoker, so

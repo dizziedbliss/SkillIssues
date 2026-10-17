@@ -28,6 +28,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/flow"
 	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/settings"
@@ -587,6 +588,7 @@ func (w *Worker) processDiscoveryWindow(ctx context.Context, win DiscoveryWindow
 	pushedWithinDays := snap.Int(settings.IngestEligibilityPushedWithinDays)
 	outcomes := map[string]int{}
 	conflicts := map[string]int{}
+	firstNew := ""
 	for _, r := range page.Repositories {
 		if r.DatabaseID == 0 {
 			continue
@@ -594,6 +596,9 @@ func (w *Worker) processDiscoveryWindow(ctx context.Context, win DiscoveryWindow
 		outcome, conflict, err := upsertDiscoveredTx(ctx, tx, r, minStars, pushedWithinDays)
 		if err != nil {
 			return "persist_error", fmt.Errorf("upsert %s: %w", r.NameWithOwner, err)
+		}
+		if outcome == discoveredNew && firstNew == "" {
+			firstNew = r.NameWithOwner
 		}
 		outcomes[outcome]++
 		if conflict != "" {
@@ -637,6 +642,11 @@ func (w *Worker) processDiscoveryWindow(ctx context.Context, win DiscoveryWindow
 		slog.Warn("discovery window at the minimum span still exceeds the search cap; reading only the first results",
 			"window_id", win.ID, "from", win.From, "to", win.To, "matches", page.RepositoryCount, "cap", github.SearchResultCap)
 	}
+	flow.Emit(ctx, flow.Event{
+		From: flow.GitHub, To: flow.Ingestd, Kind: flow.KindDiscovery,
+		Label:   fmt.Sprintf("discovery %d repos +%d new", len(page.Repositories), outcomes[discoveredNew]),
+		Payload: firstNew,
+	})
 	slog.Info("discovery page ingested",
 		"window_id", win.ID, "sweep_id", win.SweepID, "repositories", len(page.Repositories),
 		"new", outcomes[discoveredNew], "has_next_page", page.HasNextPage, "remaining_budget", page.RateLimit.Remaining)

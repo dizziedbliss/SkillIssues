@@ -74,6 +74,7 @@ jobs:
               - *shared
               - compose.yaml
               - compose.prod.yaml
+              - Caddyfile
               - monitoring/**
               - db/**
               - secrets/**
@@ -242,8 +243,16 @@ jobs:
           FRONTEND_URL=https://ci.example.com \
           GITHUB_REDIRECT_URI=https://ci.example.com/api/auth/github/callback \
           GITHUB_WEBHOOK_SECRET=ci ADMIN_SYNC_TOKEN=ci \
-          METRICS_DB_PASSWORD=ci API_DB_PASSWORD=ci INGEST_DB_PASSWORD=ci GRAFANA_ADMIN_PASSWORD=ci GRAFANA_SECRET_KEY=ci \
+          METRICS_DB_PASSWORD=ci API_DB_PASSWORD=ci INGEST_DB_PASSWORD=ci FLOW_DB_PASSWORD=ci \
+          GRAFANA_ADMIN_PASSWORD=ci GRAFANA_SECRET_KEY=ci STREAM_DOMAIN=stream.ci.example.com \
             docker compose -f compose.prod.yaml config --quiet
+      - name: Validate Caddyfile
+        # The image compose.prod.yaml runs, so a directive it does not know fails here.
+        run: |
+          image="$(grep -A1 '^  caddy:' compose.prod.yaml | sed -n 's/^ *image: //p')"
+          docker run --rm -e DOMAIN=ci.example.com -e STREAM_DOMAIN=stream.ci.example.com \
+            -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" "$image" \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
       - name: Set up Docker Buildx
         if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.web == 'true'
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
@@ -262,6 +271,15 @@ jobs:
         with:
           context: .
           target: ingestd
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build flowd target
+        if: needs.changes.outputs.backend == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          target: flowd
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
