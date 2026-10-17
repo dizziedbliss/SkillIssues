@@ -146,6 +146,9 @@ func FlowTap(from flow.Node) func(http.Handler) http.Handler {
 			route := "unmatched"
 			if slot, ok := r.Context().Value(ctxRoute).(*routeSlot); ok && slot.pattern != "" {
 				route = slot.pattern
+			} else if rw.status == http.StatusTooManyRequests {
+				// Refused by the rate limiter before the mux matched anything.
+				route = "rate limited"
 			}
 			payload := strconv.Itoa(rw.status) + " · " + formatBytes(rw.size)
 			ms := float64(time.Since(start).Microseconds()) / 1000

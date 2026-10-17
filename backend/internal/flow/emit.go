@@ -113,8 +113,9 @@ func Emit(ctx context.Context, e Event) {
 	p.enqueue(e, lim.BufferSize)
 }
 
-// glyphAlphabet holds the symbols redacted text is drawn from.
-var glyphAlphabet = []rune("◈◇◆○●□■△▲▽▼◊※⌘⌖⊕⊗⊙⟁⟐⧫⬡⬢")
+// glyphAlphabet holds the symbols redacted text is drawn from: geometric
+// shapes most fonts carry, so a viewer sees symbols rather than empty boxes.
+var glyphAlphabet = []rune("◈◇◆○●□■△▲▽▼◊※⊕⊗⊙")
 
 // glyphMin and glyphMax bound a redacted string's length. It is random, not
 // the original's length, so a redacted label says nothing about its text.
