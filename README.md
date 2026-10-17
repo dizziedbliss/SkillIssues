@@ -6,7 +6,7 @@ SkillIssues collects open issues from real GitHub repositories, sorts them by di
 language and skills, and helps you go from "what should I work on?" to a merged pull request —
 with XP, levels and badges awarded only after GitHub confirms the merge.
 
-[Architecture](ARCHITECTURE.md) · [Deployment](DEPLOYMENT.md) · [Contributing](CONTRIBUTING.md) · [API](docs/api.md) · [Settings](docs/settings.md) · [Code of Conduct](CODE_OF_CONDUCT.md)
+[Architecture](ARCHITECTURE.md) · [Contributing](CONTRIBUTING.md) · [API](docs/api.md) · [Settings](docs/settings.md) · [Code of Conduct](CODE_OF_CONDUCT.md)
 
 ---
 
@@ -128,7 +128,7 @@ cd desktop && npm run check && npm run build
 ```
 
 More detail — native (non-Docker) development, branch and commit conventions — is in
-[CONTRIBUTING.md](CONTRIBUTING.md). Production is in [DEPLOYMENT.md](DEPLOYMENT.md).
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

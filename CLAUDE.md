@@ -311,7 +311,15 @@ and Deep pools.
 
 ## Deployment
 
-Single VPS, `compose.prod.yaml`, Caddy same-origin. Full runbook: `DEPLOYMENT.md`.
+Single VPS, `compose.prod.yaml`, Caddy same-origin. Full runbook: `DEPLOYMENT.md` (local only).
+
+**Local-only documents.** `DEPLOYMENT.md` and `docs/runbook.md` (the operator runbook) describe
+how production is run, so they live only on the owner's machine: they are in `.gitignore`, were
+removed from the index, and must **never be committed or pushed**. Do not `git add -f` them. The
+same applies to any new operational document of that kind (host setup, access, rotation or
+restore procedures): create it, add it to `.gitignore`, and keep it out of tracked files. Do not
+link to them from tracked docs (`README.md`, `ARCHITECTURE.md`); code comments may name them. They
+remain in earlier git history, which is not rewritten.
 
 - `.github/workflows/ci.yml` gates everything: backend (vet/gofmt/build/test), web/desktop
   (typecheck then a real build, not just a type check), and a buildx build of the four

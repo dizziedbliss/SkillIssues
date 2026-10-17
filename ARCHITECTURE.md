@@ -1,7 +1,7 @@
 # Architecture
 
 How SkillIssues is put together, as of the code in this repository. For the rules contributors
-must follow, see [CLAUDE.md](CLAUDE.md); for running it in production, [DEPLOYMENT.md](DEPLOYMENT.md).
+must follow, see [CLAUDE.md](CLAUDE.md).
 
 ## 1. Components
 
