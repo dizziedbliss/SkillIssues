@@ -18,6 +18,8 @@ flowchart LR
 
     API["go-api :8000<br/>stdlib ServeMux"]
     Ingestd["ingestd :8002<br/>coordinator + worker pools"]
+    Flowd["flowd :8003<br/>live visualizer relay"]
+    Viewers["flow.dizziedbliss.lol<br/>(separate site)"]
     PG[("PostgreSQL 16<br/>data, sessions, job queue, settings")]
     Redis[("Redis 7<br/>rate limits, response cache")]
     GH["GitHub GraphQL + REST"]
@@ -33,12 +35,16 @@ flowchart LR
     Ingestd --> PG
     Ingestd -->|crawl open issues| GH
     Kaggle --> Import --> PG
+    API -.->|flow events| Redis
+    Ingestd -.->|flow events| Redis
+    Redis -.-> Flowd -->|GET /stream| Viewers
 ```
 
 | Binary (`backend/cmd/`) | Role |
 |---|---|
 | `api` | The HTTP API ([route list](docs/api.md)). Go standard-library `http.ServeMux` with method patterns; no third-party router. |
-| `ingestd` | GitHub crawler. One coordinator loop plus two worker pools (Initial, Deep Diver). Uses Postgres only — not Redis. |
+| `ingestd` | GitHub crawler. One coordinator loop plus two worker pools (Initial, Deep Diver). Its state is in Postgres only; Redis carries nothing but its flow events. |
+| `flowd` | Relay for the public live visualizer. Subscribes to the flow events go-api and ingestd publish to Redis, caps the labelled ones per second, counts the rest as link density, and serves them at `GET /stream` (SSE or ndjson). Signed-in traffic arrives already redacted to symbols. |
 | `migrate` | Applies the embedded goose migrations and exits. Compose runs it before anything else starts. |
 | `repoimport` | Streams the ~4.2M-record Kaggle dataset, stores the ~288k eligible repositories. Resumable, idempotent. |
 | `healthcheck` | Tiny binary used as the containers' Docker `HEALTHCHECK`. |
@@ -132,7 +138,8 @@ max(0, 5 − |difficulty − target|) + min(3, stars / 25000 + 1)`.
 
 **Database access.** Migrations run as the database owner. `go-api` and `ingestd` connect as
 `skillissues_api` and `skillissues_ingest`, which hold per-table DML grants and nothing else, so
-a compromised service cannot drop or alter the schema or run commands on the host.
+a compromised service cannot drop or alter the schema or run commands on the host. `flowd`
+connects as `skillissues_flow`, which can read `settings` and nothing else.
 
 ## 6. Rate limiting and caching
 

@@ -10,6 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Live flow tap and `flowd`, the backend of the public data-flow visualizer. go-api and ingestd
+  publish one event per hop — an HTTP request (route pattern, status, size), a statement (verb and
+  table), a GitHub call (operation, status), a Redis call, a committed crawl or discovery page
+  (repository, counts, first title) — to Redis, fire-and-forget. flowd relays up to
+  `flow.max_events_per_second` of them with their labels, sends per-link density for all of them,
+  reads cAdvisor rates for uninstrumented links, and serves `GET /stream` (SSE, or ndjson for
+  `curl -N`) on `STREAM_DOMAIN`. Anything tied to a signed-in session leaves the process as random
+  symbols. On by default (`flow.enabled`). Migration 00033 adds ten `flow.*` settings and the
+  `skillissues_flow` role (reads `settings` only); new required `.env` keys `FLOW_DB_PASSWORD` and
+  `STREAM_DOMAIN`. Grafana *Ingestion* dashboard has a Flow row.
 - Discovery Sweeper in `ingestd`: GitHub repository Search (`stars:>=min_stars fork:false
   archived:false pushed:<window>`) finds repositories the dataset does not contain and stores the
   eligible ones, which then enter the crawl like imported ones. A full sweep covers the whole

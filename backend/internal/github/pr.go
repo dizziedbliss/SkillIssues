@@ -7,6 +7,7 @@ package github
 import (
 	"time"
 
+	"github.com/dizziedbliss/skillissues/internal/flow"
 	"github.com/dizziedbliss/skillissues/internal/httpx"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 )
@@ -27,7 +28,7 @@ func NewClient(graphqlURL string, timeout func() time.Duration) *Client {
 		graphqlURL = DefaultGraphQLURL
 	}
 	return &Client{
-		httpClient: httpx.New(timeout, metrics.InstrumentedTransport{}),
+		httpClient: httpx.New(timeout, metrics.InstrumentedTransport{Base: flow.Transport{}}),
 		graphqlURL: graphqlURL,
 	}
 }

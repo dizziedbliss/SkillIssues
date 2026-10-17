@@ -79,6 +79,41 @@ No public port in production. The `GET` routes are unauthenticated (read-only te
 | POST | `/sync/issues` | admin | Enqueue never-ingested eligible repositories now |
 | POST | `/sync/priority/{id}` | admin | Make one repository's job due immediately |
 
+## flowd (`:8003`; `/stream` public on `STREAM_DOMAIN`)
+
+The live visualizer's stream. Caddy serves only `GET /stream` on `STREAM_DOMAIN`; `/health`
+and `/metrics` are internal. A browser request is answered only from an origin in
+`FLOW_ALLOWED_ORIGINS` (403 otherwise); a request with no `Origin` (curl) always is. Past
+`flow.max_viewers`, a new viewer gets 503 with `Retry-After`.
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/stream` | — | Server-Sent Events: one `data:` line per event, `: heartbeat` comments every `flow.heartbeat_seconds` |
+| GET | `/stream?format=ndjson` | — | The same, one JSON object per line (`curl -N`); the heartbeat is a `kind: "heartbeat"` line |
+| GET | `/health` | — | 200 while Redis answers, 503 while it does not |
+| GET | `/metrics` | — | `flow_viewers`, `flow_events_relayed_total`, `flow_events_dropped_total{reason}`, `flow_ambient_errors_total` |
+
+Every line is one object:
+
+```json
+{"t":"2026-10-18T12:00:00.123Z","from":"go-api","to":"postgres","kind":"sql","label":"SELECT issues","ms":1.42,"n":1}
+```
+
+| Field | Meaning |
+|---|---|
+| `t` | When the hop happened (UTC) |
+| `from`, `to` | Nodes: `users`, `github`, `caddy`, `frontend`, `go-api`, `ingestd`, `flowd`, `postgres`, `redis`, `prometheus`, `grafana`, `postgres-exporter`, `redis-exporter`, `node-exporter`, `cadvisor` |
+| `kind` | `http`, `sql`, `redis`, `github`, `crawl`, `discovery` (one hop each); `density`, `ambient`, `viewers`, `heartbeat` (written by flowd) |
+| `label` | Route pattern (`GET /issues/{id}`), SQL verb and table, GitHub operation, or what a crawled page brought in (`owner/name +50`) |
+| `payload` | Status and size, `error`, `miss`, or a crawled page's first issue title. Omitted when empty |
+| `ms` | Duration of the hop; for `density`, the window the count covers |
+| `n` | 1 for a hop; events in the window for `density`; bytes/s for `ambient`; open streams for `viewers` |
+| `redacted` | Present and `true` when the hop belonged to a signed-in user: `label` and `payload` are random symbols, unrelated to the original text or its length |
+
+No line carries an IP address, token, request id, user id, URL path or SQL value. `label` and
+`payload` are public GitHub data or text the code itself wrote, and an issue title is
+attacker-controlled: render it as text.
+
 ## Browser requests
 
 A request that carries the session cookie and is not `GET`/`HEAD`/`OPTIONS` must send

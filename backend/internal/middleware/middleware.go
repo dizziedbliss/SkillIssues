@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/auth"
+	"github.com/dizziedbliss/skillissues/internal/flow"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/google/uuid"
 )
@@ -122,6 +123,64 @@ func Logger(next http.Handler) http.Handler {
 	})
 }
 
+// FlowTap emits each request to the live visualizer as two hops, from→caddy
+// and caddy→go-api, labelled with the matched route pattern, the status and
+// the response size: never the path, query, headers, body or client address.
+// It must sit inside Logger, which records the pattern. A request carrying a
+// session, or any /auth/ request, is published as symbols (see flow.Emit).
+func FlowTap(from flow.Node) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !flow.Active() {
+				next.ServeHTTP(w, r)
+				return
+			}
+			ctx := flow.WithScope(r.Context())
+			if strings.HasPrefix(r.URL.Path, "/auth/") || hasSessionCredential(r) {
+				ctx = flow.MarkUser(ctx)
+			}
+			start := time.Now()
+			rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
+			next.ServeHTTP(rw, r.WithContext(ctx))
+
+			route := "unmatched"
+			if slot, ok := r.Context().Value(ctxRoute).(*routeSlot); ok && slot.pattern != "" {
+				route = slot.pattern
+			} else if rw.status == http.StatusTooManyRequests {
+				// Refused by the rate limiter before the mux matched anything.
+				route = "rate limited"
+			}
+			payload := strconv.Itoa(rw.status) + " · " + formatBytes(rw.size)
+			ms := float64(time.Since(start).Microseconds()) / 1000
+			now := time.Now().UTC()
+			flow.Emit(ctx, flow.Event{T: now, From: from, To: flow.Caddy, Kind: flow.KindHTTP, Label: route, Payload: payload, Ms: ms})
+			flow.Emit(ctx, flow.Event{T: now, From: flow.Caddy, To: flow.API, Kind: flow.KindHTTP, Label: route, Payload: payload, Ms: ms})
+		})
+	}
+}
+
+// hasSessionCredential reports whether the request presents a session at
+// all, valid or not. Redaction keys on this rather than on a resolved user,
+// so a request with an expired session is still not published as text.
+func hasSessionCredential(r *http.Request) bool {
+	if strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+		return true
+	}
+	_, err := r.Cookie("skillissues_session")
+	return err == nil
+}
+
+func formatBytes(n int) string {
+	switch {
+	case n < 1024:
+		return strconv.Itoa(n) + " B"
+	case n < 1024*1024:
+		return strconv.FormatFloat(float64(n)/1024, 'f', 1, 64) + " KB"
+	default:
+		return strconv.FormatFloat(float64(n)/(1024*1024), 'f', 1, 64) + " MB"
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Authentication middleware
 // ---------------------------------------------------------------------------
@@ -140,7 +199,7 @@ func RequireAuth(authSvc *auth.Service) func(http.Handler) http.Handler {
 				respondError(w, http.StatusUnauthorized, "authentication required")
 				return
 			}
-			ctx := context.WithValue(r.Context(), ctxUserID, userID)
+			ctx := context.WithValue(flow.MarkUser(r.Context()), ctxUserID, userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -152,7 +211,13 @@ func OptionalAuth(authSvc *auth.Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			userID, _ := resolveSession(r, authSvc)
-			ctx := context.WithValue(r.Context(), ctxUserID, userID)
+			ctx := r.Context()
+			if userID != 0 || hasSessionCredential(r) {
+				// Everything this request does from here is a signed-in
+				// user's, so the visualizer must only ever see symbols.
+				ctx = flow.MarkUser(ctx)
+			}
+			ctx = context.WithValue(ctx, ctxUserID, userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
