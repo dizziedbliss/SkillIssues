@@ -448,7 +448,10 @@ func EnqueueFreshnessJobs(ctx context.Context, pool *db.Pool, limit int, olderTh
 // and never stored, so there is no stored fork to re-test. Repositories GitHub itself rejected (MarkUnavailable writes
 // eligibility_reason = 'not_found') are left alone: that is a fact about
 // the repository, not a threshold decision, and re-enabling them would
-// re-queue work that is known to fail.
+// re-queue work that is known to fail. So are 'duplicate' rows (another row
+// holds the same GitHub repository id): re-enabling one would crawl the same
+// issues twice. The Discovery Sweeper clears 'not_found' when search shows
+// the repository exists again.
 func RecomputeEligibility(ctx context.Context, pool *db.Pool, minStars, pushedWithinDays int) (int, error) {
 	tag, err := pool.Raw().Exec(ctx,
 		`WITH judged AS (
@@ -472,7 +475,7 @@ func RecomputeEligibility(ctx context.Context, pool *db.Pool, minStars, pushedWi
 			       ], NULL), ';') AS reason
 			FROM repositories r
 			LEFT JOIN excluded_repositories x ON lower(x.full_name) = lower(r.full_name)
-			WHERE r.eligibility_reason IS DISTINCT FROM 'not_found'
+			WHERE r.eligibility_reason IS NULL OR r.eligibility_reason NOT IN ('not_found', 'duplicate')
 		 )
 		 UPDATE repositories r
 		 SET is_eligible = (judged.reason = ''),

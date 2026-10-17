@@ -197,6 +197,31 @@ func main() {
 		})
 	})))
 
+	// Manual admin trigger: start a full discovery sweep now instead of
+	// waiting for ingest.discovery.full_interval_seconds. Its windows are
+	// only searched while ingest.discovery.enabled is on.
+	mux.Handle("POST /sync/discovery", requireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		id, kind, err := coordinator.StartSweep(ingest.SweepFull)
+		if errors.Is(err, ingest.ErrSweepRunning) {
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "a discovery sweep is already running"})
+			return
+		}
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "could not start a discovery sweep"})
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"accepted": true,
+			"sweep_id": id,
+			"kind":     kind,
+			"enabled":  live.Current().Bool(settings.IngestDiscoveryEnabled),
+		})
+	})))
+
 	port := 8002
 	if pStr := os.Getenv("SYNCD_PORT"); pStr != "" {
 		if p, err := strconv.Atoi(pStr); err == nil {

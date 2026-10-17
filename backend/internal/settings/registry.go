@@ -149,6 +149,30 @@ const (
 	IngestClosedIssuePruneIntervalSeconds Key = "ingest.closed_issue_prune_interval_seconds"
 	// IngestClosedIssuePruneBatchSize is how many issues one DELETE removes.
 	IngestClosedIssuePruneBatchSize Key = "ingest.closed_issue_prune_batch_size"
+
+	// IngestDiscoveryEnabled turns the Discovery Sweeper on. Off by default:
+	// it spends the crawler's GitHub budget, so turning it on is a deliberate
+	// live change rather than a side effect of a deploy.
+	IngestDiscoveryEnabled Key = "ingest.discovery.enabled"
+	// IngestDiscoveryWorkers backs the discovery pool (one search page each).
+	IngestDiscoveryWorkers Key = "ingest.discovery_workers"
+	// IngestDiscoveryWindowHours is the pushed-date span of each window a new
+	// sweep starts with; IngestDiscoveryMinWindowSeconds is how far a window
+	// with more than GitHub's 1,000-result search cap is halved before the
+	// sweeper settles for the first 1,000 and marks it truncated.
+	IngestDiscoveryWindowHours      Key = "ingest.discovery.window_hours"
+	IngestDiscoveryMinWindowSeconds Key = "ingest.discovery.min_window_seconds"
+	IngestDiscoveryPageSize         Key = "ingest.discovery.page_size"
+	// IngestDiscoveryRateLimitFloor is discovery's own floor on the shared
+	// crawler budget. Higher than ingest.rate_limit_floor, so discovery
+	// yields before the issue crawl does.
+	IngestDiscoveryRateLimitFloor Key = "ingest.discovery.rate_limit_floor"
+	// IngestDiscoveryIncrementalIntervalSeconds and
+	// IngestDiscoveryFullIntervalSeconds schedule the two sweep kinds: an
+	// incremental one over repositories pushed since the last completed
+	// sweep, and a full one over the whole pushed-within range.
+	IngestDiscoveryIncrementalIntervalSeconds Key = "ingest.discovery.incremental_interval_seconds"
+	IngestDiscoveryFullIntervalSeconds        Key = "ingest.discovery.full_interval_seconds"
 )
 
 // Kind is the value type a key accepts.
@@ -251,6 +275,15 @@ var Registry = map[Key]Spec{
 	IngestClosedIssueRetentionDays:        intSpec(7, 0, 3650, "Days after closing on GitHub before an issue nobody saved or worked on is deleted. 0 keeps every closed issue."),
 	IngestClosedIssuePruneIntervalSeconds: intSpec(3600, 60, 86400, "How often closed issues past their retention are deleted."),
 	IngestClosedIssuePruneBatchSize:       intSpec(5000, 100, 100000, "Closed issues deleted per statement."),
+
+	IngestDiscoveryEnabled:                    boolSpec(false, "Run the Discovery Sweeper: GitHub repository Search over pushed-date windows for repositories the dataset does not contain."),
+	IngestDiscoveryWorkers:                    intSpec(1, 1, 16, "Concurrent Discovery Sweeper workers (one search page each)."),
+	IngestDiscoveryWindowHours:                intSpec(24, 1, 720, "Pushed-date span of each search window a new sweep starts with; denser windows are halved."),
+	IngestDiscoveryMinWindowSeconds:           intSpec(60, 1, 86400, "Smallest window a dense one is halved down to. Past it, only GitHub's first 1,000 results are read and the window is marked truncated."),
+	IngestDiscoveryPageSize:                   intSpec(100, 1, 100, "Repositories requested per search page. GitHub caps this at 100."),
+	IngestDiscoveryRateLimitFloor:             intSpec(1000, 0, 12500, "Discovery stops searching when the shared crawler budget falls below this; kept above ingest.rate_limit_floor so the issue crawl keeps going after discovery yields."),
+	IngestDiscoveryIncrementalIntervalSeconds: intSpec(86400, 3600, 2592000, "How often an incremental sweep covers repositories pushed since the last completed sweep."),
+	IngestDiscoveryFullIntervalSeconds:        intSpec(2592000, 86400, 31536000, "How often a full sweep covers the whole pushed-within range, catching repositories that crossed the star floor without a new push."),
 }
 
 // Snapshot is an immutable view of the settings. Readers hold one for the

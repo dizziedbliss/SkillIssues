@@ -212,10 +212,13 @@ issues, most-recently-updated first — not every comment, reaction, event or cl
 ### The pipeline
 
 ```
-Kaggle repository-metadata dataset  (cmd/repoimport)
-        │  ~4.2M records streamed, filtered at import; only passers stored
-        ▼
-eligible repositories  (~288k at the current thresholds)
+Kaggle repository-metadata dataset      Discovery Sweeper (ingestd, off by default)
+  (cmd/repoimport)                        GitHub repository Search over pushed-date
+  ~4.2M records streamed,                 windows; full sweep monthly, incremental daily
+  filtered at import                             │
+        │  only passers stored                   │  only passers stored
+        ▼                                        ▼
+eligible repositories  (~278k after the first full crawl)
         │
         ▼
 Initial  — one first page of open issues per eligible repository
@@ -233,7 +236,9 @@ The coordinator (`internal/ingest/coordinator.go`) runs one cycle every
 `ingest.claim_interval_seconds`: recompute eligibility (throttled), reclaim expired leases
 (throttled), seed never-ingested repositories, re-queue stale ones, then
 check tracked (saved / in-progress) issues on GitHub, then claim and submit work to the Initial
-and Deep pools.
+and Deep pools, then — if `ingest.discovery.enabled` — start a due discovery sweep and claim its
+windows for the Discovery pool. The first full crawl (every eligible repository through one pass)
+took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
 
 ### Rules
 
@@ -249,7 +254,7 @@ and Deep pools.
   `eligibility_reason`): `ingest.RecomputeEligibility` applies the list, `cmd/repoimport`
   checks it before `eligible()` so a re-import cannot store one, and `ClaimJobs` only claims
   jobs of eligible repositories, so a job queued earlier does not run. The coordinator also
-  deletes the stored issues of excluded and **archived** repositories (never ones a user saved)
+  deletes the stored issues of excluded, **archived** and `duplicate` repositories (never ones a user saved)
   on the closed-issue prune interval. Add one with
   `INSERT INTO excluded_repositories (full_name, reason) VALUES ('owner/name', 'why')`.
 - **Only eligible repositories are stored.** The dataset is ~4.2M records and ~288k pass the
@@ -259,7 +264,25 @@ and Deep pools.
 - **Tightening is live.** `ingest.RecomputeEligibility` re-tests the rows that *are* stored
   against the current thresholds on a throttled cycle, so raising the star floor, or metadata
   going stale, takes repositories out of the crawl without a re-import. The rule it applies
-  must stay identical to `cmd/repoimport`'s `eligible()` — if one changes, both change.
+  must stay identical to `ingest.Eligible` (used by `cmd/repoimport` and the Discovery Sweeper)
+  — if one changes, both change. It never re-judges `not_found` or `duplicate` rows.
+- **New repositories come from discovery.** The Discovery Sweeper (`internal/ingest/discovery.go`)
+  searches `stars:>=min_stars fork:false archived:false pushed:<window>` and stores what passes
+  `ingest.Eligible` and is not excluded; `EnqueueInitialJobs` takes it from there. A full sweep
+  (whole pushed-within range) runs every `ingest.discovery.full_interval_seconds`, an incremental
+  one (since the last `done` sweep) every `ingest.discovery.incremental_interval_seconds`. A
+  window over GitHub's 1,000-result search cap is replaced by its halves down to
+  `ingest.discovery.min_window_seconds`. Windows (`discovery_windows`) are a leased, fenced queue
+  like `ingest_jobs`; a sweep with a failed window ends `failed` and does not advance the
+  watermark. Discovery checks the shared `crawler` budget against its own, higher
+  `ingest.discovery.rate_limit_floor`, so it yields before the crawl. `POST /sync/discovery`
+  (ingestd, admin) starts a full sweep.
+- **`github_database_id` is a repository's identity; `full_name` is display data.** Discovery
+  and the first page of every crawl pass record GitHub's repository id. A row found by id under a
+  new name is renamed. An id-less row that is the same repository as one holding its id (a
+  dataset row imported under the post-rename name) is marked `duplicate`: never crawled, never
+  re-judged, its unsaved issues pruned, nothing deleted. A name now held by a different
+  repository is reported (`repository_identity_conflicts_total`) and left as it is.
 - **Unknown is not a negative.** A NULL metadata field means "not imported yet", never
   "fails the check" — the same principle as unlabeled issues not being `BEGINNER`.
 - **Cursors advance only after the rows they describe are committed**, in the same
@@ -300,10 +323,9 @@ and Deep pools.
 
 ### Not built
 
-- **Discovery Sweeper / Sleeping Giant worker** — GitHub repository Search over
-  created/pushed date windows to find repositories the dataset does not contain. Designed in
-  §2 of the architecture doc, **not implemented**. New repositories currently arrive only from
-  a dataset import. `ingest_jobs.job_type` already permits `'discovery'`; nothing writes it.
+- **`'discovery'` job type** — `ingest_jobs.job_type` permits it, but the Discovery Sweeper has its
+  own tables (`discovery_sweeps`, `discovery_windows`); nothing writes it. Tests use it as a job
+  type no running coordinator claims.
 - **Freshness job type** — stale repositories are re-queued as `job_type='initial'`; nothing
   writes `'freshness'`.
 
