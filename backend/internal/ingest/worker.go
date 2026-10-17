@@ -124,8 +124,12 @@ func (w *Worker) processJob(ctx context.Context, job Job) (string, error) {
 	if err != nil {
 		return "persist_error", err
 	}
+	conflict := ""
 	if page.Stats != nil {
 		if err := UpdateRepositoryStatsTx(ctx, tx, job.RepositoryID, *page.Stats); err != nil {
+			return "persist_error", err
+		}
+		if conflict, err = RecordRepositoryIDTx(ctx, tx, job.RepositoryID, page.Stats.DatabaseID); err != nil {
 			return "persist_error", err
 		}
 	}
@@ -159,6 +163,9 @@ func (w *Worker) processJob(ctx context.Context, job Job) (string, error) {
 	}
 	metrics.IngestIssuesUpserted.Add(float64(upserted))
 	metrics.IngestIssuesClosed.WithLabelValues("crawl").Add(float64(closed))
+	if conflict != "" {
+		metrics.RepositoryIdentityConflicts.WithLabelValues(conflict).Inc()
+	}
 
 	slog.Info("page ingested",
 		"repo", job.FullName, "job_type", job.JobType, "incremental", job.Since != nil,

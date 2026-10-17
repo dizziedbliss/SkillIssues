@@ -1,7 +1,7 @@
 # Database reference
 
 Every table and column in production, what it means, where its value comes from, and how
-fresh it is. Checked against prod data on 2026-10-16 and updated for the schema at **migration 31** (the
+fresh it is. Checked against prod data on 2026-10-16 and updated for the schema at **migration 32** (the
 last migration in `backend/internal/migrate/migrations/`). Row counts below are from that
 date's prod data and will have moved.
 
@@ -42,9 +42,10 @@ every column is a **dataset snapshot**.
 | `pushed_at` | Last push to any branch | dataset → crawl | Drives the `stale` rule (`ingest.eligibility.pushed_within_days`). |
 | `metadata_refreshed_at` | When the crawl last wrote the live stats above | crawl | NULL = the row still holds the dataset snapshot. |
 | `is_eligible` | Allowed into the crawl | import + crawl | Recomputed live from the thresholds (`RecomputeEligibility`). |
-| `eligibility_reason` | Why not eligible; `''` when eligible | import + crawl | `;`-separated: `is_fork`, `archived`, `no_issues`, `no_primary_language`, `stale`, `below_star_floor`, or `not_found` (crawler got NOT_FOUND from GitHub — deleted/renamed/private; never reset by a re-import). Prod today: 284,198 eligible, 2,203 `not_found`, 864 `stale`. |
-| `last_synced_at` | Last time the crawler finished a page for this repo | crawl | NULL = never crawled yet (52k today). Freshness is due once this is older than `ingest.freshness_interval_seconds`. |
+| `eligibility_reason` | Why not eligible; `''` when eligible | import + crawl | `;`-separated: `is_fork`, `archived`, `no_issues`, `no_primary_language`, `stale`, `below_star_floor`, `excluded`, or `not_found` (crawler got NOT_FOUND from GitHub — deleted/renamed/private; never reset by a re-import, cleared when the Discovery Sweeper finds the repository again) or `duplicate` (another row holds this repository's GitHub id; never reset by a recompute or re-import). Prod today: 284,198 eligible, 2,203 `not_found`, 864 `stale`. |
+| `last_synced_at` | Last time the crawler finished a page for this repo | crawl | NULL = never crawled yet (52k on 2026-10-16; 0 since the first full crawl finished on 2026-10-17 — see `ingestion-architecture.md` §9). Freshness is due once this is older than `ingest.freshness_interval_seconds`. |
 | `issues_synced_through` | Watermark: every open/closed change up to here is in `issues` | crawl | The enqueue time of the last **completed** pass. The next pass fetches only changes after it. NULL = no pass completed; next one is a full crawl. |
+| `github_database_id` | GitHub's numeric repository id | crawl / discovery | Stable across renames, unlike `full_name`; unique. Filled by the first page of every pass and by the Discovery Sweeper (migration 32). NULL = not seen by either yet. A row whose id another row already holds is the id-less twin of that repository and is marked `duplicate`. |
 
 ## issues — 5.5M rows
 
@@ -83,7 +84,7 @@ One row per unit of crawl work. At most one `pending`/`running` job per reposito
 |---|---|
 | `id` | |
 | `repository_id` | → `repositories.id` |
-| `job_type` | `initial` (first page of a pass), `deep` (remaining pages). `freshness` and `discovery` are allowed but nothing writes them — a freshness pass is an `initial` job with `since` set. |
+| `job_type` | `initial` (first page of a pass), `deep` (remaining pages). `freshness` and `discovery` are allowed but nothing writes them — a freshness pass is an `initial` job with `since` set, and discovery has its own tables (`discovery_sweeps`, `discovery_windows`). |
 | `status` | `pending` → `running` → `done` / `failed` |
 | `attempt_count` | Failed attempts so far; past `ingest.max_attempts` → `failed` |
 | `lease_owner` / `lease_expires_at` | Which worker holds it and until when. Expired leases are reclaimed. |
@@ -96,6 +97,22 @@ One row per unit of crawl work. At most one `pending`/`running` job per reposito
 | `has_next_page` | The pass has more pages to fetch |
 | `last_error_class` / `last_error_detail` | Why the last attempt failed (`not_found`, `rate_limited`, …) |
 | `created_at` / `updated_at` | Row bookkeeping |
+
+## discovery_sweeps / discovery_windows — the Discovery Sweeper
+
+`discovery_sweeps`: one pass of GitHub repository Search over a pushed-date range — `kind`
+(`full`: the whole `ingest.eligibility.pushed_within_days` range; `incremental`: since the last
+completed sweep), `pushed_from` / `pushed_to`, `min_stars` (the star floor its queries use),
+`status` (`running` → `done` / `failed`; at most one `running`), `started_at`, `completed_at`.
+`pushed_to` of the latest `done` sweep is the discovery watermark; a sweep with a failed window
+ends `failed` and does not move it.
+
+`discovery_windows`: the sweep's queue, leased and fenced like `ingest_jobs` — `sweep_id`,
+`pushed_from` / `pushed_to`, `status`, `cursor`, `pages_done`, `repository_count` (GitHub's match
+count on the first page), `repos_seen`, `split` (replaced by its two halves: over the 1,000-result
+search cap), `truncated` (over the cap at `ingest.discovery.min_window_seconds`, so only the first
+1,000 were read), `attempt_count`, `lease_owner` / `lease_expires_at`, `next_retry_at`,
+`last_error_class` / `last_error_detail`, `created_at` / `updated_at`.
 
 ## github_budget
 

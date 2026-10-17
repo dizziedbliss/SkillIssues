@@ -179,6 +179,36 @@ var (
 		Help: "1 while a GitHub secondary rate limit is pausing the lane.",
 	}, []string{"lane"})
 
+	DiscoveryWindowOutcomes = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "discovery_window_outcomes_total",
+		Help: "Processed Discovery Sweeper window pages by outcome (page, split, budget_deferred, rate_limited, fetch_error, lease_lost, persist_error, …).",
+	}, []string{"outcome"})
+
+	DiscoveryRepositories = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "discovery_repositories_total",
+		Help: "Repositories the Discovery Sweeper saw, by what it did with them: new, updated, renamed, ineligible, excluded, conflict.",
+	}, []string{"outcome"})
+
+	DiscoveryWindowsTruncated = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "discovery_windows_truncated_total",
+		Help: "Search windows at ingest.discovery.min_window_seconds that still matched more than GitHub's 1,000-result cap; only the first 1,000 were read.",
+	})
+
+	DiscoveryWindows = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "discovery_windows",
+		Help: "Rows in discovery_windows by status, as of the last refresh.",
+	}, []string{"status"})
+
+	DiscoveryLastSweepCompleted = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "discovery_last_sweep_completed_timestamp_seconds",
+		Help: "Unix time the latest successful sweep of each kind completed; 0 = never.",
+	}, []string{"kind"})
+
+	RepositoryIdentityConflicts = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "repository_identity_conflicts_total",
+		Help: "Repository rows whose GitHub id or name collided with another row: duplicate (an id-less twin marked duplicate), rename_blocked (a rename onto a name another repository's row holds), id_mismatch (a name now resolving to a different repository).",
+	}, []string{"kind"})
+
 	WorkerPool = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "worker_pool",
 		Help: "Worker pool state by pool and field (concurrency, active, queue_length, queue_capacity).",
@@ -192,5 +222,7 @@ func RegisterIngest() {
 		IngestJobs, IngestStuckLeases, IngestLeasesReclaimed, IngestDBSizeBytes, IngestPaused, RepositoriesEligible,
 		GitHubBudgetRemaining, GitHubBudgetLimit, GitHubBudgetResetSeconds, GitHubSecondaryPaused,
 		WorkerPool, BudgetErrors,
+		DiscoveryWindowOutcomes, DiscoveryRepositories, DiscoveryWindowsTruncated, DiscoveryWindows,
+		DiscoveryLastSweepCompleted, RepositoryIdentityConflicts,
 	)
 }

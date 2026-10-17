@@ -321,33 +321,17 @@ func loadExcluded(ctx context.Context, pool *db.Pool) (map[string]struct{}, erro
 	return set, nil
 }
 
-// eligible applies D1's rule. The star floor is abuse control (anyone can
-// open a fake issue on a trivially-created repo to burn crawl budget), not a
-// quality ranking — there is deliberately no scoring here.
+// eligible applies ingest.Eligible, the rule the Discovery Sweeper and
+// ingest.RecomputeEligibility share.
 func eligible(r repoRecord, minStars, pushedWithinDays int) (bool, string) {
-	var reasons []string
-	if r.IsFork {
-		reasons = append(reasons, "is_fork")
-	}
-	if r.IsArchived {
-		reasons = append(reasons, "archived")
-	}
-	if r.Issues <= 0 {
-		reasons = append(reasons, "no_issues")
-	}
-	if r.PrimaryLanguage == nil || *r.PrimaryLanguage == "" {
-		reasons = append(reasons, "no_primary_language")
-	}
-	if r.PushedAt == nil || time.Since(*r.PushedAt) > time.Duration(pushedWithinDays)*24*time.Hour {
-		reasons = append(reasons, "stale")
-	}
-	if r.Stars < minStars {
-		reasons = append(reasons, "below_star_floor")
-	}
-	if len(reasons) > 0 {
-		return false, strings.Join(reasons, ";")
-	}
-	return true, ""
+	return ingest.Eligible(ingest.RepoFacts{
+		IsFork:          r.IsFork,
+		IsArchived:      r.IsArchived,
+		IssueCount:      r.Issues,
+		PrimaryLanguage: r.PrimaryLanguage,
+		PushedAt:        r.PushedAt,
+		Stars:           r.Stars,
+	}, minStars, pushedWithinDays)
 }
 
 func (imp *importer) handle(ctx context.Context, r repoRecord) error {
@@ -407,8 +391,9 @@ func (imp *importer) handle(ctx context.Context, r repoRecord) error {
 
 	// is_eligible/eligibility_reason are recomputed on every pass, except
 	// where the crawler has already learned from GitHub that the repository
-	// does not exist. That is a fact about the repository, not a threshold
-	// decision, so a metadata refresh must not resurrect it.
+	// does not exist, or that it is a duplicate of a row holding its GitHub
+	// id. Those are facts about the repository, not threshold decisions, so
+	// a metadata refresh must not resurrect them.
 	return imp.queue(ctx,
 		`INSERT INTO repositories (
 			full_name, url, description, language, stars, license,
@@ -430,10 +415,10 @@ func (imp *importer) handle(ctx context.Context, r repoRecord) error {
 			forking_allowed = EXCLUDED.forking_allowed,
 			issue_count = EXCLUDED.issue_count,
 			is_eligible = CASE
-			  WHEN repositories.eligibility_reason = 'not_found' THEN false
+			  WHEN repositories.eligibility_reason IN ('not_found', 'duplicate') THEN false
 			  ELSE EXCLUDED.is_eligible END,
 			eligibility_reason = CASE
-			  WHEN repositories.eligibility_reason = 'not_found' THEN 'not_found'
+			  WHEN repositories.eligibility_reason IN ('not_found', 'duplicate') THEN repositories.eligibility_reason
 			  ELSE EXCLUDED.eligibility_reason END
 		 WHERE repositories.stars IS DISTINCT FROM EXCLUDED.stars
 			OR repositories.forks IS DISTINCT FROM EXCLUDED.forks
