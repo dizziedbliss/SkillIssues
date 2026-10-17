@@ -33,7 +33,56 @@ func RefreshQueueMetrics(ctx context.Context, pool *db.Pool) error {
 	note(refreshStuckLeases(ctx, pool))
 	note(refreshRepositoryCounts(ctx, pool))
 	note(refreshBudget(ctx, pool))
+	note(refreshDiscovery(ctx, pool))
 	return firstErr
+}
+
+// Mirrors the CHECK constraints on discovery_windows and discovery_sweeps.
+var (
+	windowStatuses = []string{"pending", "running", "done", "failed"}
+	sweepKinds     = []string{string(SweepFull), string(SweepIncremental)}
+)
+
+func refreshDiscovery(ctx context.Context, pool *db.Pool) error {
+	counts := map[string]float64{}
+	err := pool.QueryRows(ctx,
+		`SELECT status, count(*) FROM discovery_windows GROUP BY 1`, nil,
+		func(rows pgx.Rows) error {
+			var st string
+			var n int64
+			if err := rows.Scan(&st, &n); err != nil {
+				return err
+			}
+			counts[st] = float64(n)
+			return nil
+		})
+	if err != nil {
+		return fmt.Errorf("ingest: count discovery windows: %w", err)
+	}
+	for _, st := range windowStatuses {
+		metrics.DiscoveryWindows.WithLabelValues(st).Set(counts[st])
+	}
+
+	last := map[string]float64{}
+	err = pool.QueryRows(ctx,
+		`SELECT kind, extract(epoch FROM max(completed_at)) FROM discovery_sweeps
+		 WHERE status = 'done' GROUP BY 1`, nil,
+		func(rows pgx.Rows) error {
+			var kind string
+			var ts float64
+			if err := rows.Scan(&kind, &ts); err != nil {
+				return err
+			}
+			last[kind] = ts
+			return nil
+		})
+	if err != nil {
+		return fmt.Errorf("ingest: read last discovery sweeps: %w", err)
+	}
+	for _, k := range sweepKinds {
+		metrics.DiscoveryLastSweepCompleted.WithLabelValues(k).Set(last[k])
+	}
+	return nil
 }
 
 func refreshJobCounts(ctx context.Context, pool *db.Pool) error {

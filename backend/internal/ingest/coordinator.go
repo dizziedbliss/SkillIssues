@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -25,16 +26,17 @@ type CoordinatorConfig struct {
 	Settings func() *settings.Snapshot
 }
 
-// Coordinator owns the Initial/Freshness and Deep Diver worker pools and
-// the periodic claim loop that feeds them. No priority queue, no activity
+// Coordinator owns the Initial/Freshness, Deep Diver and Discovery worker
+// pools and the periodic claim loop that feeds them. No priority queue, no activity
 // score — FIFO on next_retry_at via ClaimJobs (plan §7, D1/D9).
 type Coordinator struct {
 	pool   *db.Pool
 	worker *Worker
 	live   func() *settings.Snapshot
 
-	initialPool *worker.Pool
-	deepPool    *worker.Pool
+	initialPool   *worker.Pool
+	deepPool      *worker.Pool
+	discoveryPool *worker.Pool
 
 	owner string
 
@@ -69,6 +71,7 @@ func NewCoordinator(pool *db.Pool, ghClient *github.Client, cfg CoordinatorConfi
 
 	initialCount := cfg.Settings().Int(settings.IngestRoutineWorkers)
 	deepCount := cfg.Settings().Int(settings.IngestPriorityWorkers)
+	discoveryCount := cfg.Settings().Int(settings.IngestDiscoveryWorkers)
 
 	return &Coordinator{
 		pool:        pool,
@@ -76,9 +79,12 @@ func NewCoordinator(pool *db.Pool, ghClient *github.Client, cfg CoordinatorConfi
 		live:        cfg.Settings,
 		initialPool: worker.NewPool("ingest-initial", initialCount, initialCount*8),
 		deepPool:    worker.NewPool("ingest-deep", deepCount, deepCount*8),
-		owner:       "ingestd-" + uuid.NewString()[:8],
-		ctx:         ctx,
-		cancel:      cancel,
+		// One search page per claim; a deep queue would only hold leases on
+		// windows nobody is fetching yet.
+		discoveryPool: worker.NewPool("ingest-discovery", discoveryCount, discoveryCount*2),
+		owner:         "ingestd-" + uuid.NewString()[:8],
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 }
 
@@ -88,6 +94,7 @@ func (c *Coordinator) ApplySettings(_ *settings.Snapshot) {
 	s := c.live()
 	c.initialPool.SetConcurrency(s.Int(settings.IngestRoutineWorkers))
 	c.deepPool.SetConcurrency(s.Int(settings.IngestPriorityWorkers))
+	c.discoveryPool.SetConcurrency(s.Int(settings.IngestDiscoveryWorkers))
 }
 
 // Start boots the claim loop in a background goroutine.
@@ -132,6 +139,8 @@ func (c *Coordinator) cycle() {
 	c.pruneExcludedIssues(snap)
 	publishPoolStats(c.initialPool)
 	publishPoolStats(c.deepPool)
+	publishPoolStats(c.discoveryPool)
+	c.completeSweeps()
 
 	// D6 disk guardrail: once the database itself has grown past the
 	// configured ceiling, stop enqueuing and claiming entirely — new work
@@ -162,6 +171,92 @@ func (c *Coordinator) cycle() {
 	lease := snap.Seconds(settings.IngestLeaseSeconds)
 	c.claimAndSubmit(JobInitial, c.initialPool, lease)
 	c.claimAndSubmit(JobDeep, c.deepPool, lease)
+
+	// 4. Discovery: start a sweep when one is due, then feed its windows.
+	if snap.Bool(settings.IngestDiscoveryEnabled) {
+		c.scheduleDiscovery(snap)
+		c.claimDiscoveryWindows(lease)
+	}
+}
+
+// completeSweeps closes sweeps whose windows have all finished. It runs even
+// while discovery is disabled or the disk guard pauses new work: it only
+// records what already happened.
+func (c *Coordinator) completeSweeps() {
+	done, err := CompleteSweeps(c.ctx, c.pool)
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("discovery_complete").Inc()
+		slog.Warn("failed to complete discovery sweeps", "error", err)
+		return
+	}
+	for _, s := range done {
+		if s.Status == "failed" {
+			slog.Warn("discovery sweep ended with failed windows; the discovery watermark does not advance",
+				"sweep_id", s.ID, "kind", s.Kind)
+			continue
+		}
+		slog.Info("discovery sweep completed", "sweep_id", s.ID, "kind", s.Kind)
+	}
+}
+
+// scheduleDiscovery starts a full or incremental sweep when one is due.
+func (c *Coordinator) scheduleDiscovery(snap *settings.Snapshot) {
+	kind, due, err := DueSweep(c.ctx, c.pool,
+		snap.Seconds(settings.IngestDiscoveryFullIntervalSeconds),
+		snap.Seconds(settings.IngestDiscoveryIncrementalIntervalSeconds))
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("discovery_schedule").Inc()
+		slog.Warn("failed to read the discovery schedule", "error", err)
+		return
+	}
+	if due {
+		// Failures are counted and logged inside; the next cycle retries.
+		_, _, _ = c.StartSweep(kind)
+	}
+}
+
+// StartSweep starts a discovery sweep now, unless one is running
+// (ErrSweepRunning). The scheduler and ingestd's admin trigger both call it.
+func (c *Coordinator) StartSweep(kind SweepKind) (int64, SweepKind, error) {
+	id, started, err := StartSweep(c.ctx, c.pool, kind, sweepParams(c.live()))
+	if errors.Is(err, ErrSweepRunning) {
+		return 0, kind, err
+	}
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("discovery_start").Inc()
+		slog.Warn("failed to start a discovery sweep", "kind", kind, "error", err)
+		return 0, kind, err
+	}
+	slog.Info("discovery sweep started", "sweep_id", id, "kind", started)
+	return id, started, nil
+}
+
+func (c *Coordinator) claimDiscoveryWindows(lease time.Duration) {
+	stats := c.discoveryPool.Stats()
+	capacity := stats.QueueCapacity - stats.QueueLength
+	if capacity <= 0 {
+		return
+	}
+	windows, err := ClaimDiscoveryWindows(c.ctx, c.pool, capacity, c.owner, lease)
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("discovery_claim").Inc()
+		slog.Warn("failed to claim discovery windows", "error", err)
+		return
+	}
+	for _, win := range windows {
+		wn := win
+		if err := c.discoveryPool.Submit(func(workerCtx context.Context) error {
+			if err := c.worker.ProcessDiscoveryWindow(workerCtx, wn); err != nil {
+				slog.Warn("discovery window processing failed", "window_id", wn.ID, "error", err)
+			}
+			return nil
+		}); err != nil {
+			if err := ReleaseDiscoveryWindow(c.ctx, c.pool, wn, 5*time.Second); err != nil {
+				metrics.IngestCycleErrors.WithLabelValues("discovery_release").Inc()
+				slog.Warn("failed to release unsubmitted discovery window; its lease will expire", "window_id", wn.ID, "error", err)
+			}
+		}
+	}
 }
 
 // recheckEligibility re-tests stored repository metadata against the current
@@ -337,11 +432,18 @@ func (c *Coordinator) reclaimLeases(snap *settings.Snapshot) {
 	if err != nil {
 		metrics.IngestCycleErrors.WithLabelValues("reclaim_leases").Inc()
 		slog.Warn("failed to reclaim expired leases", "error", err)
-		return
-	}
-	if n > 0 {
+	} else if n > 0 {
 		metrics.IngestLeasesReclaimed.Add(float64(n))
 		slog.Warn("reclaimed expired job leases", "count", n)
+	}
+
+	n, err = ReclaimExpiredDiscoveryLeases(c.ctx, c.pool)
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("reclaim_discovery_leases").Inc()
+		slog.Warn("failed to reclaim expired discovery window leases", "error", err)
+	} else if n > 0 {
+		metrics.IngestLeasesReclaimed.Add(float64(n))
+		slog.Warn("reclaimed expired discovery window leases", "count", n)
 	}
 }
 
@@ -415,6 +517,7 @@ func (c *Coordinator) Status() map[string]any {
 	return map[string]any{
 		"initial_pool":   c.initialPool.Stats(),
 		"deep_pool":      c.deepPool.Stats(),
+		"discovery_pool": c.discoveryPool.Stats(),
 		"db_size_mb":     c.lastDBSizeMB.Load(),
 		"db_size_paused": c.dbSizePaused.Load(),
 	}
@@ -434,6 +537,9 @@ func (c *Coordinator) Shutdown(timeout time.Duration) error {
 		}
 		if err := c.deepPool.Shutdown(timeout); err != nil {
 			slog.Warn("deep pool did not drain before shutdown", "error", err)
+		}
+		if err := c.discoveryPool.Shutdown(timeout); err != nil {
+			slog.Warn("discovery pool did not drain before shutdown", "error", err)
 		}
 		close(done)
 	}()

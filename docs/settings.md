@@ -70,6 +70,14 @@ readable through the endpoint above and copied into backups.
 | `ingest.lease_seconds` | 300 | 60–3600 | How long a claimed job may wait in a pool queue and run before it can be reclaimed |
 | `ingest.lease_reclaim_interval_seconds` | 60 | 5–3600 | How often expired leases are returned to `pending` |
 | `ingest.rate_limit_pause_seconds` | 60 | 5–3600 | Crawler pause after a GitHub rate limit; retry delay for a job released for budget |
+| `ingest.discovery.enabled` | false | bool | Run the Discovery Sweeper (GitHub repository Search for repositories the dataset lacks) |
+| `ingest.discovery_workers` | 1 | 1–16 | Concurrent Discovery Sweeper workers (one search page each) |
+| `ingest.discovery.window_hours` | 24 | 1–720 | Pushed-date span of each window a new sweep starts with |
+| `ingest.discovery.min_window_seconds` | 60 | 1–86400 | Smallest span a window over the 1,000-result search cap is halved to; past it the window is read truncated |
+| `ingest.discovery.page_size` | 100 | 1–100 | Repositories per search page |
+| `ingest.discovery.rate_limit_floor` | 1000 | 0–12500 | Discovery's floor on the shared crawler budget; above `ingest.rate_limit_floor` so discovery yields first |
+| `ingest.discovery.incremental_interval_seconds` | 86400 | 3600–2592000 | How often an incremental sweep covers repositories pushed since the last completed sweep |
+| `ingest.discovery.full_interval_seconds` | 2592000 | 86400–31536000 | How often a full sweep covers the whole `pushed_within_days` range |
 
 Raising the eligibility thresholds takes effect on the next recheck. **Lowering** them only
 affects repositories already stored — anything that failed the old threshold was never imported,

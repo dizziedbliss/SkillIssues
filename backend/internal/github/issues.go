@@ -64,6 +64,9 @@ type ClosedIssue struct {
 // RepositoryStats is a repository's metadata as GitHub reports it now —
 // the live replacement for the dataset snapshot's numbers.
 type RepositoryStats struct {
+	// DatabaseID is GitHub's numeric repository id: stable across renames
+	// and transfers, unlike the name the repository was fetched by.
+	DatabaseID     int64
 	Stars          int
 	Forks          int
 	Watchers       int
@@ -117,6 +120,7 @@ const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: St
             nodes { number updatedAt }
             pageInfo { hasNextPage endCursor }
         }
+        databaseId @include(if: $withStats)
         stargazerCount @include(if: $withStats)
         forkCount @include(if: $withStats)
         watchers @include(if: $withStats) { totalCount }
@@ -202,8 +206,9 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 					} `json:"nodes"`
 					PageInfo pageInfo `json:"pageInfo"`
 				} `json:"closed"`
-				StargazerCount *int `json:"stargazerCount"`
-				ForkCount      int  `json:"forkCount"`
+				DatabaseID     int64 `json:"databaseId"`
+				StargazerCount *int  `json:"stargazerCount"`
+				ForkCount      int   `json:"forkCount"`
 				Watchers       struct {
 					TotalCount int `json:"totalCount"`
 				} `json:"watchers"`
@@ -272,6 +277,7 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 			return nil, fmt.Errorf("github: repository stats requested but not returned")
 		}
 		stats = &RepositoryStats{
+			DatabaseID:     repo.DatabaseID,
 			Stars:          *repo.StargazerCount,
 			Forks:          repo.ForkCount,
 			Watchers:       repo.Watchers.TotalCount,

@@ -1,6 +1,6 @@
 # SkillIssues Ingestion Architecture
 
-**Updated:** 11 October 2026 (design) · implementation status checked 14 October 2026  
+**Updated:** 11 October 2026 (design) · implementation status checked 17 October 2026  
 **Purpose:** Build a broad, reliable issue dataset first. Data-science ranking and repository prioritization come later, after there is enough data to analyze.
 
 This is the design of record for `backend/internal/ingest/`. It describes intent; the table
@@ -25,7 +25,7 @@ this table is how you find out.
 | `NOT_FOUND` isolates the repository | **Built** | job `failed`, repository marked ineligible |
 | NUL-byte sanitisation before persistence | **Built** | `ingest.SanitizeText` |
 | Metrics distinguishing retries from failures | **Built** | `ingest_job_outcomes_total{outcome}` on ingestd's `/metrics` |
-| Discovery Sweeper (GitHub Search over date windows) | **Not built** | new repositories arrive only from a dataset import; nothing writes `job_type='discovery'` |
+| Discovery Sweeper (GitHub Search over date windows) | **Built** (off by default) | `ingest/discovery.go`; its own queue (`discovery_sweeps`, `discovery_windows`), not `ingest_jobs` — nothing writes `job_type='discovery'`. Windows are over **pushed** date (not created), deduplication is by `repositories.github_database_id`. See *Discovery Sweeper* below |
 
 Sections 4 and 6 record observations from the Python v6 prototype (still in `benchmark/`);
 they are history, not a description of the Go worker.
@@ -76,6 +76,43 @@ All stages should be able to run concurrently, with shared rate-limit coordinati
 - Split dense search windows into smaller time ranges when needed; persist completed work before advancing the discovery watermark.
 - Deduplicate by stable repository ID. New eligible repositories enter the initial-ingestion queue.
 - Keep repository discovery separate from issue pagination.
+
+As built (migration 00032, `internal/ingest/discovery.go`), with `ingest.discovery.enabled` on:
+
+- **Query.** `stars:>=<min_stars> fork:false archived:false pushed:<from>..<to>` through GraphQL
+  `search(type: REPOSITORY)`. It uses the eligibility thresholds, so it finds brand-new
+  repositories, repositories that crossed the star floor since the snapshot, and ones the
+  dataset never had.
+- **Sweeps.** A `full` sweep covers the whole `ingest.eligibility.pushed_within_days` range
+  every `ingest.discovery.full_interval_seconds` (30 days). An `incremental` sweep covers
+  `pushed_to` of the last `done` sweep up to now, every
+  `ingest.discovery.incremental_interval_seconds` (1 day). Only one sweep runs at a time. A
+  repository that crosses the star floor without a push is found only by the next full sweep.
+- **Windows and the 1,000-result cap.** A sweep starts as `ingest.discovery.window_hours`
+  slices. If GitHub's `repositoryCount` for a slice is over 1,000, the slice is replaced by its
+  two halves in one transaction. This repeats down to `ingest.discovery.min_window_seconds`.
+  Below that, only the first 1,000 are read: the window is marked `truncated` and
+  `discovery_windows_truncated_total` goes up.
+- **Queue.** One search page per claim, with `FOR UPDATE SKIP LOCKED`, a lease, and every write
+  fenced on `lease_owner`. Each page's repository writes commit together with its cursor. The
+  sweep closes once no window is pending or running. It closes `failed` if any window failed,
+  and a failed sweep does not move the watermark.
+- **Budget.** Discovery shares the `crawler` lane but checks it against
+  `ingest.discovery.rate_limit_floor` (1,000), which is above the crawl's own floor, so
+  discovery stops first when points run low.
+- **What it stores.**
+  - New repository: inserted only if `ingest.Eligible` passes and it is not excluded, the same
+    rule `cmd/repoimport` uses. `EnqueueInitialJobs` then queues it.
+  - Known repository: gets the live stats, the same ones a crawl pass's first page writes, and
+    has its `not_found` flag cleared.
+- **Identity.** `repositories.github_database_id` is matched first, then `lower(full_name)`:
+  - An id match under a new name renames the row.
+  - If an id-less row already holds the new name, it is the same repository imported again,
+    and it is marked `duplicate`: not crawled, nothing deleted.
+  - A name held by a row with a different id is reported (`repository_identity_conflicts_total`)
+    and left alone.
+  - The crawl's first page of every pass fills the id for rows that lack it and applies the
+    same `duplicate` rule.
 
 ### Initial / Freshness Worker
 

@@ -32,10 +32,12 @@ func PruneClosedIssues(ctx context.Context, pool *db.Pool, retention time.Durati
 }
 
 // PruneExcludedIssues deletes up to batch issues of repositories that are
-// excluded or archived, except any a user saved. Both are facts about the
-// repository rather than a threshold: excluded repositories are never
-// crawled and nobody can contribute to an archive, so what the crawl stored
-// before that was known only wastes disk and fills the catalog. Repositories
+// excluded, archived or a duplicate, except any a user saved. All three are
+// facts about the repository rather than a threshold: excluded repositories
+// are never crawled, nobody can contribute to an archive, and a duplicate's
+// issues are the same issues stored again under the row that holds the
+// repository's GitHub id, so what the crawl stored before that was known
+// only wastes disk and fills the catalog. Repositories
 // that merely fall below a threshold keep their issues; they may climb back.
 // It returns how many rows it deleted.
 func PruneExcludedIssues(ctx context.Context, pool *db.Pool, batch int) (int, error) {
@@ -44,7 +46,7 @@ func PruneExcludedIssues(ctx context.Context, pool *db.Pool, batch int) (int, er
 			SELECT i.id FROM issues i
 			JOIN repositories r ON r.id = i.repository_id
 			WHERE NOT r.is_eligible
-			  AND r.eligibility_reason ~ '(^|;)(excluded|archived)(;|$)'
+			  AND r.eligibility_reason ~ '(^|;)(excluded|archived|duplicate)(;|$)'
 			  AND NOT EXISTS (SELECT 1 FROM saved_issues s WHERE s.issue_id = i.id)
 			LIMIT $1
 		 )`,
