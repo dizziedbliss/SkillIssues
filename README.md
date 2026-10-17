@@ -45,7 +45,7 @@ up to 125. Levels get steadily more expensive: level 2 at 300 XP, 3 at 750, 4 at
 
 ```text
 SkillIssues/
-├── backend/        Go: cmd/{api,ingestd,migrate,repoimport,healthcheck}, internal/*
+├── backend/        Go: cmd/{api,ingestd,flowd,migrate,repoimport,healthcheck}, internal/*
 │                   schema = backend/internal/migrate/migrations (goose, embedded)
 ├── web/            React 19 + Vite + TypeScript web app
 ├── desktop/        Electron 44 app (React + TypeScript renderer)
@@ -58,7 +58,7 @@ SkillIssues/
 ├── compose.yaml        local stack (builds from source)
 ├── compose.prod.yaml   production stack (pulls images from GHCR)
 ├── Caddyfile           production reverse proxy / TLS
-└── Dockerfile          one file, targets: api, ingestd, migrate, web, repoimport
+└── Dockerfile          one file, targets: api, ingestd, flowd, migrate, web, repoimport
 ```
 
 ---
@@ -104,6 +104,7 @@ Only eligible repositories are stored. A full pass takes about 16 minutes and is
 | Web app | http://localhost:5173 |
 | API | http://localhost:8000 (`/health`, `/metrics`) |
 | ingestd | http://localhost:8002/sync/status |
+| flowd (live flow stream) | `curl -N 'http://localhost:8003/stream?format=ndjson'` |
 | Grafana | http://localhost:3000 — `admin` / `admin` unless `GRAFANA_ADMIN_PASSWORD` is set |
 | Prometheus | http://localhost:9090 |
 

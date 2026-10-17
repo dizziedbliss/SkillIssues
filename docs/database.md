@@ -1,7 +1,7 @@
 # Database reference
 
 Every table and column in production, what it means, where its value comes from, and how
-fresh it is. Checked against prod data on 2026-10-16 and updated for the schema at **migration 32** (the
+fresh it is. Checked against prod data on 2026-10-16 and updated for the schema at **migration 33** (the
 last migration in `backend/internal/migrate/migrations/`). Row counts below are from that
 date's prod data and will have moved.
 
@@ -191,7 +191,7 @@ GitHub webhook deliveries already processed (dedupe): `delivery_id`, `event_name
 Live operational settings (`docs/settings.md`). `settings`: `key`, `value` (JSON),
 `value_type`, `min_value`/`max_value` (enforced by trigger), `description`, `updated_at`,
 `updated_by`. `settings_audit`: every change — `key`, `old_value`, `new_value`, `changed_at`,
-`changed_by`.
+`changed_by`. `settings` is the only table `skillissues_flow` (flowd) can read.
 
 ## excluded_repositories
 
