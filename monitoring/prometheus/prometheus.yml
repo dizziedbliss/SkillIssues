@@ -21,6 +21,10 @@ scrape_configs:
     static_configs:
       - targets: ["ingestd:8002"]
 
+  - job_name: flowd
+    static_configs:
+      - targets: ["flowd:8003"]
+
   - job_name: postgres
     static_configs:
       - targets: ["postgres-exporter:9187"]

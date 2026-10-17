@@ -86,6 +86,20 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/skillissues-ingestd:${{ steps.tag.outputs.sha_tag }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/skillissues-ingestd:latest
 
+      - name: Build and push flowd
+        id: flowd
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          target: flowd
+          platforms: linux/amd64
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/skillissues-flowd:${{ steps.tag.outputs.sha_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/skillissues-flowd:latest
+
       - name: Build and push migrate
         id: migrate
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
@@ -136,6 +150,13 @@ jobs:
           subject-digest: ${{ steps.ingestd.outputs.digest }}
           push-to-registry: true
 
+      - name: Attest provenance (flowd)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/skillissues-flowd
+          subject-digest: ${{ steps.flowd.outputs.digest }}
+          push-to-registry: true
+
       - name: Attest provenance (migrate)
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -155,11 +176,12 @@ jobs:
           PREFIX: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}
           API_DIGEST: ${{ steps.api.outputs.digest }}
           INGESTD_DIGEST: ${{ steps.ingestd.outputs.digest }}
+          FLOWD_DIGEST: ${{ steps.flowd.outputs.digest }}
           MIGRATE_DIGEST: ${{ steps.migrate.outputs.digest }}
           WEB_DIGEST: ${{ steps.web.outputs.digest }}
         run: |
           set -euo pipefail
-          for pair in "api:$API_DIGEST" "ingestd:$INGESTD_DIGEST" "migrate:$MIGRATE_DIGEST" "web:$WEB_DIGEST"; do
+          for pair in "api:$API_DIGEST" "ingestd:$INGESTD_DIGEST" "flowd:$FLOWD_DIGEST" "migrate:$MIGRATE_DIGEST" "web:$WEB_DIGEST"; do
             name="${pair%%:*}"
             digest="${pair#*:}"
             if ! printf '%s' "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'; then

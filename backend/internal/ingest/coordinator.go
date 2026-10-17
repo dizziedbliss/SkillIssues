@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/flow"
 	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/settings"
@@ -289,7 +290,10 @@ func (c *Coordinator) recheckEligibility(snap *settings.Snapshot) {
 // a user's tracked issue closing matters even while new crawling is paused.
 // It shares the crawler lane's budget and floor.
 func (c *Coordinator) checkTrackedIssues(snap *settings.Snapshot) {
-	due, err := DueTrackedIssues(c.ctx, c.pool,
+	// These issues are in someone's saved list, so the check reaches the live
+	// visualizer as symbols only.
+	userCtx := flow.UserLinked(c.ctx)
+	due, err := DueTrackedIssues(userCtx, c.pool,
 		snap.Seconds(settings.IngestTrackedIssueCheckSeconds), snap.Int(settings.IngestTrackedIssueBatchSize))
 	if err != nil {
 		metrics.IngestCycleErrors.WithLabelValues("tracked_select").Inc()
@@ -320,7 +324,7 @@ func (c *Coordinator) checkTrackedIssues(snap *settings.Snapshot) {
 		slog.Warn("cannot check tracked issues", "error", err)
 		return
 	}
-	states, rl, err := c.worker.github.FetchIssueStates(c.ctx, token, refs)
+	states, rl, err := c.worker.github.FetchIssueStates(userCtx, token, refs)
 	if err != nil {
 		metrics.IngestCycleErrors.WithLabelValues("tracked_fetch").Inc()
 		slog.Warn("failed to fetch tracked issue states", "count", len(refs), "error", err)
@@ -331,7 +335,7 @@ func (c *Coordinator) checkTrackedIssues(snap *settings.Snapshot) {
 		slog.Warn("failed to persist budget", "error", err)
 	}
 
-	closed, err := ApplyTrackedStates(c.ctx, c.pool, due, states)
+	closed, err := ApplyTrackedStates(userCtx, c.pool, due, states)
 	if err != nil {
 		metrics.IngestCycleErrors.WithLabelValues("tracked_apply").Inc()
 		slog.Warn("failed to persist tracked issue states", "count", len(due), "error", err)

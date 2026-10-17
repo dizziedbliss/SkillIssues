@@ -94,6 +94,7 @@ services:
       PGDATABASE: skillissues
       API_DB_PASSWORD: ${API_DB_PASSWORD:-skillissues_api_dev}
       INGEST_DB_PASSWORD: ${INGEST_DB_PASSWORD:-skillissues_ingest_dev}
+      FLOW_DB_PASSWORD: ${FLOW_DB_PASSWORD:-skillissues_flow_dev}
     volumes:
       - ./db/app-roles.sql:/app-roles.sql:ro
     command: ["psql", "-v", "ON_ERROR_STOP=1", "-q", "-f", "/app-roles.sql"]
@@ -154,6 +155,8 @@ services:
       target: ingestd
     environment:
       DATABASE_URL: postgresql://skillissues_ingest:${INGEST_DB_PASSWORD:-skillissues_ingest_dev}@postgres:5432/skillissues
+      # Publishing live flow events only; the crawl runs the same without it.
+      REDIS_URL: redis://redis:6379/0
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:-dev_local_admin_sync_token}
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}
@@ -166,6 +169,35 @@ services:
       - ${GITHUB_APP_PRIVATE_KEY_HOST_PATH:-/dev/null}:/run/secrets/github-app-private-key.pem:ro
     depends_on:
       postgres:
+        condition: service_healthy
+      app-roles:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+
+  # --------------------------------------------------------------------------
+  # flowd — relays go-api's and ingestd's flow events to the live visualizer.
+  # `curl -N localhost:8003/stream?format=ndjson` to watch it.
+  # --------------------------------------------------------------------------
+  flowd:
+    build:
+      context: .
+      target: flowd
+    environment:
+      DATABASE_URL: postgresql://skillissues_flow:${FLOW_DB_PASSWORD:-skillissues_flow_dev}@postgres:5432/skillissues
+      REDIS_URL: redis://redis:6379/0
+      PROMETHEUS_URL: http://prometheus:9090
+      # The visualizer's Vite dev server.
+      FLOW_ALLOWED_ORIGINS: ${FLOW_ALLOWED_ORIGINS:-http://localhost:5174}
+      PORT: 8003
+    ports:
+      - "8003:8003"
+    depends_on:
+      redis:
         condition: service_healthy
       app-roles:
         condition: service_completed_successfully

@@ -69,7 +69,7 @@ fi
 IMAGE_PREFIX="ghcr.io/dizziedbliss"
 SIGNER_IDENTITY='^https://github\.com/dizziedbliss/SkillIssues/\.github/workflows/deploy\.yml@refs/heads/main$'
 SIGNER_ISSUER='https://token.actions.githubusercontent.com'
-for name in api ingestd migrate web; do
+for name in api ingestd flowd migrate web; do
 	repo="${IMAGE_PREFIX}/skillissues-${name}"
 	docker pull --quiet "${repo}:${IMAGE_TAG}" >/dev/null
 	digest_ref="$(docker inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "${repo}:${IMAGE_TAG}" | grep -F "${repo}@sha256:" | head -n 1)"

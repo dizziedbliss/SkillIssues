@@ -67,6 +67,15 @@ type Config struct {
 	// GitHubGraphQLURL is overridden only by tests and GitHub Enterprise.
 	GitHubGraphQLURL string
 
+	// FlowAllowedOrigins are the origins flowd's /stream answers a browser
+	// from (the visualizer site, and a dev origin). Empty means none: only
+	// clients that send no Origin, like curl, can read the stream.
+	FlowAllowedOrigins []string
+
+	// PrometheusURL is where flowd reads cAdvisor network rates for the
+	// links nothing is instrumented on. Empty turns those off.
+	PrometheusURL string
+
 	// --- Layer 2: secrets ---
 
 	GitHubToken             string // Server-side token for ingestion
@@ -113,6 +122,8 @@ func Load(required ...Secret) (*Config, error) {
 		TrustedProxies:      strListEnv("TRUSTED_PROXIES", []string{"127.0.0.1/32", "::1/128"}),
 		DBMaxConns:          intEnv("DB_MAX_CONNS", 0),
 		SessionCookieDomain: strEnv("SESSION_COOKIE_DOMAIN", ""),
+		FlowAllowedOrigins:  strListEnv("FLOW_ALLOWED_ORIGINS", nil),
+		PrometheusURL:       strEnv("PROMETHEUS_URL", ""),
 		Production:          os.Getenv("ENV") == "production",
 	}
 	cfg.FrontendURLPrimary = strings.TrimSpace(strings.SplitN(cfg.FrontendURL, ",", 2)[0])

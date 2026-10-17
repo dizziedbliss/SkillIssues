@@ -15,6 +15,7 @@ import (
 
 	"github.com/dizziedbliss/skillissues/internal/config"
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/flow"
 	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/dizziedbliss/skillissues/internal/githubapp"
 	"github.com/dizziedbliss/skillissues/internal/ingest"
@@ -73,6 +74,17 @@ func main() {
 	live := settings.NewLive(ctx, dbPool.Raw(), cfg.DatabaseURL)
 	live.Start(ctx)
 
+	// The live visualizer's tap. ingestd uses Redis for nothing else: without
+	// it the crawl runs the same, and every dropped event is counted.
+	metrics.RegisterFlowPublisher()
+	if pub, err := flow.NewPublisher(flow.Ingestd, cfg.RedisURL, flow.SettingsLimits(live.Current)); err != nil {
+		slog.Warn("invalid REDIS_URL — live flow events are not published", "error", err)
+	} else {
+		flow.Install(pub)
+		go pub.Run(ctx)
+		defer pub.Close()
+	}
+
 	outboundTimeout := func() time.Duration { return live.Current().Seconds(settings.HTTPOutboundTimeoutSeconds) }
 	ghClient := github.NewClient(cfg.GitHubGraphQLURL, outboundTimeout)
 
@@ -90,7 +102,7 @@ func main() {
 		ghApp, err := githubapp.New(githubapp.Config{
 			AppID:      cfg.GitHubAppID,
 			PrivateKey: privKey,
-			HTTP:       settings.OutboundClient(live, nil),
+			HTTP:       settings.OutboundClient(live, flow.Transport{}),
 		})
 		if err != nil {
 			slog.Error("failed to initialize GitHub App", "error", err)

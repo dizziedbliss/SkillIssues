@@ -215,6 +215,48 @@ var (
 	}, []string{"pool", "field"})
 )
 
+// ---------------------------------------------------------------------------
+// Flow tap (go-api, ingestd) and relay (flowd)
+// ---------------------------------------------------------------------------
+
+var (
+	FlowEventsPublished = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "flow_events_published_total",
+		Help: "Flow events this process published to Redis for the live visualizer.",
+	})
+
+	FlowEventsDropped = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "flow_events_dropped_total",
+		Help: "Flow events discarded, by reason: buffer_full, encode and redis (publisher), no_subscriber (published with no flowd listening), decode, invalid and slow_viewer (flowd).",
+	}, []string{"reason"})
+
+	FlowEventsRelayed = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "flow_events_relayed_total",
+		Help: "Labelled flow events flowd sent to viewers (within flow.max_events_per_second); the rest count only towards link density.",
+	})
+
+	FlowViewers = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "flow_viewers",
+		Help: "Open /stream connections on flowd.",
+	})
+
+	FlowAmbientErrors = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "flow_ambient_errors_total",
+		Help: "Failed Prometheus queries for the visualizer's ambient (uninstrumented) link rates.",
+	})
+)
+
+// RegisterFlowPublisher registers the families a process that taps flow
+// events produces (go-api, ingestd).
+func RegisterFlowPublisher() {
+	Registry.MustRegister(FlowEventsPublished, FlowEventsDropped)
+}
+
+// RegisterFlowd registers the families flowd produces.
+func RegisterFlowd() {
+	Registry.MustRegister(FlowEventsDropped, FlowEventsRelayed, FlowViewers, FlowAmbientErrors)
+}
+
 // RegisterIngest registers the families ingestd produces.
 func RegisterIngest() {
 	Registry.MustRegister(

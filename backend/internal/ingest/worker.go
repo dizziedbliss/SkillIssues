@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/flow"
 	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/settings"
@@ -166,6 +167,7 @@ func (w *Worker) processJob(ctx context.Context, job Job) (string, error) {
 	if conflict != "" {
 		metrics.RepositoryIdentityConflicts.WithLabelValues(conflict).Inc()
 	}
+	emitCrawledPage(ctx, job.FullName, page, upserted, closed)
 
 	slog.Info("page ingested",
 		"repo", job.FullName, "job_type", job.JobType, "incremental", job.Since != nil,
@@ -173,6 +175,24 @@ func (w *Worker) processJob(ctx context.Context, job Job) (string, error) {
 		"has_next_page", !(progress.OpenDone && progress.ClosedDone), "remaining_budget", page.RateLimit.Remaining,
 	)
 	return "page_ingested", nil
+}
+
+// emitCrawledPage tells the live visualizer what a committed page brought in:
+// the repository, how many issues were written and closed, and the first
+// title. All of it is public GitHub data.
+func emitCrawledPage(ctx context.Context, fullName string, page *github.RepositoryIssuesPage, upserted, closed int) {
+	if !flow.Active() {
+		return
+	}
+	label := fmt.Sprintf("%s +%d", fullName, upserted)
+	if closed > 0 {
+		label += fmt.Sprintf(" −%d closed", closed)
+	}
+	first := ""
+	if len(page.Issues) > 0 {
+		first = page.Issues[0].Title
+	}
+	flow.Emit(ctx, flow.Event{From: flow.GitHub, To: flow.Ingestd, Kind: flow.KindCrawl, Label: label, Payload: first})
 }
 
 // fetchWithBatchLadder implements plan §7's batch ladder, applied to page

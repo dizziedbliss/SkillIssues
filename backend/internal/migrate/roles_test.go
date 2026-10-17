@@ -234,3 +234,20 @@ func TestIngestRoleCanDoItsJobAndNothingMore(t *testing.T) {
 		mustFail(t, tx, `INSERT INTO excluded_repositories (full_name, reason) VALUES ('a/b', 'c')`)
 	})
 }
+
+func TestFlowRoleReadsSettingsAndNothingElse(t *testing.T) {
+	pool := rolesTestPool(t)
+	asRole(t, pool, "skillissues_flow", nil, func(tx pgx.Tx) {
+		mustDo(t, tx, `SELECT key, value, value_type FROM settings`)
+
+		mustFail(t, tx, `UPDATE settings SET value = value`)
+		mustFail(t, tx, `SELECT 1 FROM users`)
+		mustFail(t, tx, `SELECT 1 FROM auth_sessions`)
+		mustFail(t, tx, `SELECT 1 FROM saved_issues`)
+		mustFail(t, tx, `SELECT 1 FROM issues`)
+		mustFail(t, tx, `SELECT 1 FROM repositories`)
+		mustFail(t, tx, `SELECT 1 FROM settings_audit`)
+		mustFail(t, tx, `CREATE TABLE roles_test_t (id int)`)
+		mustFail(t, tx, `COPY (SELECT 1) TO PROGRAM 'true'`)
+	})
+}

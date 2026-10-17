@@ -15,6 +15,12 @@ func WithOperation(ctx context.Context, op string) context.Context {
 	return context.WithValue(ctx, operationKey{}, op)
 }
 
+// Operation returns the name WithOperation tagged ctx with, or "" if none.
+func Operation(ctx context.Context) string {
+	op, _ := ctx.Value(operationKey{}).(string)
+	return op
+}
+
 // InstrumentedTransport records GitHub request counts and latency. It never
 // inspects headers or bodies, so credentials cannot reach a label.
 type InstrumentedTransport struct {

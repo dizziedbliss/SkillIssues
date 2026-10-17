@@ -87,6 +87,23 @@ If `ingest_job_outcomes_total{outcome="lease_lost"}` climbs, jobs are outliving
 `ingest.lease_seconds` (usually a long pool queue during a GitHub slowdown) — raise it. A lost
 lease is safe: the stale worker's write is rejected, and the job is retried by its new owner.
 
+## Flow (live visualizer)
+
+The tap settings are read by go-api and ingestd on every event; the rest by flowd.
+
+| Key | Default | Bounds | What it does |
+|---|---:|---|---|
+| `flow.enabled` | true | bool | Publish flow events from go-api and ingestd. Off, nothing is buffered or published and flowd serves an idle stream |
+| `flow.buffer_size` | 1024 | 64–65536 | Events a publisher holds while Redis catches up, and lines flowd holds for one slow viewer; past it, events drop (`flow_events_dropped_total`) |
+| `flow.publish_timeout_ms` | 250 | 10–5000 | Deadline for one `PUBLISH` of a batch |
+| `flow.max_label_chars` | 80 | 8–500 | Longest public label or payload (an issue title, a repository name); longer text is truncated |
+| `flow.max_events_per_second` | 40 | 1–1000 | Labelled events flowd relays per second; every event still counts towards its link's density |
+| `flow.max_viewers` | 200 | 1–5000 | Concurrent `/stream` viewers; past it, 503 |
+| `flow.density_interval_ms` | 1000 | 100–60000 | Window flowd counts events per link over before sending each link's density |
+| `flow.heartbeat_seconds` | 15 | 1–300 | Keep-alive interval on an idle stream; a write that cannot finish in two of these drops the viewer |
+| `flow.ambient_refresh_seconds` | 5 | 1–300 | How often flowd reads cAdvisor network rates from Prometheus for uninstrumented links |
+| `flow.ambient_rate_window_seconds` | 120 | 30–3600 | `rate()` window for those; must span at least two cAdvisor scrapes (30s) |
+
 ## Adding a setting
 
 Add the key to `settings.Registry` **and** seed it in a new migration (see

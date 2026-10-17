@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/dizziedbliss/skillissues/internal/flow"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/redis/go-redis/v9"
 )
@@ -151,6 +152,7 @@ func (c *Client) CheckRateLimit(ctx context.Context, key string, limit int64, wi
 	defer cancel()
 
 	k := "rl:" + key
+	start := time.Now()
 	pipe := c.rdb.Pipeline()
 	incr := pipe.Incr(callCtx, k)
 	pipe.ExpireNX(callCtx, k, window)
@@ -158,6 +160,9 @@ func (c *Client) CheckRateLimit(ctx context.Context, key string, limit int64, wi
 
 	_, err := pipe.Exec(callCtx)
 	c.observe(ctx, "rate_limit", err)
+	// The key identifies a user or a client address, so the visualizer only
+	// ever gets symbols for it.
+	tap(ctx, "INCR ratelimit:"+flow.Symbols(), start, err)
 	if err != nil {
 		return RateLimitResult{Allowed: true}
 	}
@@ -209,8 +214,10 @@ func (c *Client) get(ctx context.Context, key string) []byte {
 		return nil
 	}
 	defer cancel()
+	start := time.Now()
 	data, err := c.rdb.Get(callCtx, key).Bytes()
 	c.observe(ctx, "get", err)
+	tap(ctx, "GET cache", start, err)
 	if err != nil {
 		return nil
 	}
@@ -223,7 +230,10 @@ func (c *Client) set(ctx context.Context, key string, data []byte, ttl time.Dura
 		return
 	}
 	defer cancel()
-	c.observe(ctx, "set", c.rdb.Set(callCtx, key, data, ttl).Err())
+	start := time.Now()
+	err := c.rdb.Set(callCtx, key, data, ttl).Err()
+	c.observe(ctx, "set", err)
+	tap(ctx, "SET cache", start, err)
 }
 
 func (c *Client) del(ctx context.Context, key string) {
@@ -232,5 +242,28 @@ func (c *Client) del(ctx context.Context, key string) {
 		return
 	}
 	defer cancel()
-	c.observe(ctx, "del", c.rdb.Del(callCtx, key).Err())
+	start := time.Now()
+	err := c.rdb.Del(callCtx, key).Err()
+	c.observe(ctx, "del", err)
+	tap(ctx, "DEL cache", start, err)
+}
+
+// tap emits go-api→redis for a call that reached Redis. The label names the
+// operation and never the key.
+func tap(ctx context.Context, label string, start time.Time, err error) {
+	if !flow.Active() {
+		return
+	}
+	payload := "ok"
+	switch {
+	case errors.Is(err, redis.Nil):
+		payload = "miss"
+	case err != nil:
+		payload = "error"
+	}
+	flow.Emit(ctx, flow.Event{
+		From: flow.Self(), To: flow.Redis, Kind: flow.KindRedis,
+		Label: label, Payload: payload,
+		Ms: float64(time.Since(start).Microseconds()) / 1000,
+	})
 }

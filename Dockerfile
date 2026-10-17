@@ -8,12 +8,13 @@
 # Build one target at a time:
 #   docker build --target api        -t skillissues-api        .
 #   docker build --target ingestd    -t skillissues-ingestd    .
+#   docker build --target flowd      -t skillissues-flowd      .
 #   docker build --target migrate    -t skillissues-migrate    .
 #   docker build --target web        -t skillissues-web        .
 #   docker build --target repoimport -t skillissues-repoimport .
 
 # ---------------------------------------------------------------------------
-# Shared Go builder — compiles all three backend binaries plus healthcheck.
+# Shared Go builder — compiles every backend binary plus healthcheck.
 # ---------------------------------------------------------------------------
 FROM golang:1.26-alpine@sha256:3082400e369fa24d5fc60bca20edab3f6d604e0c5a690ec66b295eff4dd87ade AS go-builder
 WORKDIR /build
@@ -26,6 +27,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-s -w" -o /out/api ./cmd/api && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-s -w" -o /out/ingestd ./cmd/ingestd && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-s -w" -o /out/flowd ./cmd/flowd && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-s -w" -o /out/migrate ./cmd/migrate && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
@@ -55,6 +58,17 @@ USER nonroot:nonroot
 EXPOSE 8002
 HEALTHCHECK --interval=5s --timeout=3s --retries=10 --start-period=3s CMD ["/healthcheck"]
 ENTRYPOINT ["/ingestd"]
+
+# ---------------------------------------------------------------------------
+# flowd — distroless, nonroot. Relays the live visualizer's stream.
+# ---------------------------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab AS flowd
+COPY --from=go-builder /out/flowd /flowd
+COPY --from=go-builder /out/healthcheck /healthcheck
+USER nonroot:nonroot
+EXPOSE 8003
+HEALTHCHECK --interval=5s --timeout=3s --retries=10 --start-period=3s CMD ["/healthcheck"]
+ENTRYPOINT ["/flowd"]
 
 # ---------------------------------------------------------------------------
 # migrate — one-shot, distroless, nonroot. No HEALTHCHECK: it runs to
