@@ -215,6 +215,61 @@ The first full-coverage milestone is complete when:
 - Workers can run concurrently without double-claiming a repository or exceeding shared rate controls.
 - Metrics distinguish recovered retries from unrecovered failures.
 
+## 9. First full crawl (measured 17 October 2026)
+
+The first-coverage milestone in §8 is met: every eligible repository has completed at least
+one pass. Measured on production from `ingest_jobs` (rows are never deleted, so the first
+`initial` job of each repository is still there) and `repositories`:
+
+| Measure | Value |
+|---|---:|
+| First `initial` job queued | 2026-10-13 10:19:46 UTC |
+| Last repository to finish its first pass | 2026-10-17 09:39:36 UTC |
+| **Duration** | **3 days 23 h 20 min (~95 h)** |
+| Repositories that completed a first pass | 284,478 |
+| Eligible repositories now | 278,062 |
+| Eligible repositories never synced / with no completed pass | 0 / 0 |
+| Open issues stored | 7,188,572 |
+| Average throughput | ~75k issues/h (~21/s), ~3,000 repositories/h |
+
+How to read it:
+
+- **284,478 finished, 278,062 eligible.** The import stored ~288k repositories. Since then the
+  first page of each pass has overwritten the dataset snapshot with live metadata, and
+  `RecomputeEligibility` has taken out ~10k that are now archived, stale, below the star
+  floor, excluded or `not_found`. Completed repositories that later became ineligible still
+  count in the first figure.
+- **The duration is set by the long tail.** It ends when the *last* repository finished, which
+  is a repository with many pages working through the Deep Diver. It does not mean the
+  crawl ran at a constant rate.
+- **Job counts at the time:** `initial` done 432,255, failed 2,656, pending 318; `deep` done
+  28,852, pending 31. `initial` done exceeds the repository count because freshness passes
+  are also queued as `initial` (§ Implementation status), so ~148k freshness passes had
+  already run. ~28.9k passes needed more than one page. The 2,656 failed `initial` jobs are
+  `not_found` repositories plus any that exhausted `ingest.max_attempts`.
+
+The queries, for re-measuring:
+
+```sql
+-- start, completion span, and how many repositories finished a first pass
+WITH first_start AS (
+  SELECT repository_id, min(created_at) AS started
+  FROM ingest_jobs WHERE job_type = 'initial' GROUP BY repository_id
+), first_done AS (
+  SELECT j.repository_id, min(j.updated_at) AS finished
+  FROM ingest_jobs j JOIN first_start s USING (repository_id)
+  WHERE j.status = 'done' AND j.has_next_page = false AND j.created_at >= s.started
+  GROUP BY j.repository_id
+)
+SELECT count(*), min(s.started), max(d.finished), max(d.finished) - min(s.started)
+FROM first_done d JOIN first_start s USING (repository_id);
+
+-- finished when both are 0
+SELECT count(*) FILTER (WHERE last_synced_at IS NULL),
+       count(*) FILTER (WHERE issues_synced_through IS NULL)
+FROM repositories WHERE is_eligible;
+```
+
 ## Decisions for this phase
 
 - **Fetch broadly first; analyze later.**

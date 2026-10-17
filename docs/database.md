@@ -43,7 +43,7 @@ every column is a **dataset snapshot**.
 | `metadata_refreshed_at` | When the crawl last wrote the live stats above | crawl | NULL = the row still holds the dataset snapshot. |
 | `is_eligible` | Allowed into the crawl | import + crawl | Recomputed live from the thresholds (`RecomputeEligibility`). |
 | `eligibility_reason` | Why not eligible; `''` when eligible | import + crawl | `;`-separated: `is_fork`, `archived`, `no_issues`, `no_primary_language`, `stale`, `below_star_floor`, or `not_found` (crawler got NOT_FOUND from GitHub — deleted/renamed/private; never reset by a re-import). Prod today: 284,198 eligible, 2,203 `not_found`, 864 `stale`. |
-| `last_synced_at` | Last time the crawler finished a page for this repo | crawl | NULL = never crawled yet (52k today). Freshness is due once this is older than `ingest.freshness_interval_seconds`. |
+| `last_synced_at` | Last time the crawler finished a page for this repo | crawl | NULL = never crawled yet (52k on 2026-10-16; 0 since the first full crawl finished on 2026-10-17 — see `ingestion-architecture.md` §9). Freshness is due once this is older than `ingest.freshness_interval_seconds`. |
 | `issues_synced_through` | Watermark: every open/closed change up to here is in `issues` | crawl | The enqueue time of the last **completed** pass. The next pass fetches only changes after it. NULL = no pass completed; next one is a full crawl. |
 
 ## issues — 5.5M rows
