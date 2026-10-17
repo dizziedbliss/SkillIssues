@@ -35,3 +35,7 @@ backend/cmd/healthcheck/healthcheck.exe
 # Local build of cmd/repoimport
 backend/repoimport
 backend/api
+
+# Operator docs: local only, never pushed (see CLAUDE.md, "Local-only documents").
+/DEPLOYMENT.md
+/docs/runbook.md
