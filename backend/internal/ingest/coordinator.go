@@ -290,10 +290,7 @@ func (c *Coordinator) recheckEligibility(snap *settings.Snapshot) {
 // a user's tracked issue closing matters even while new crawling is paused.
 // It shares the crawler lane's budget and floor.
 func (c *Coordinator) checkTrackedIssues(snap *settings.Snapshot) {
-	// These issues are in someone's saved list, so the check reaches the live
-	// visualizer as symbols only.
-	userCtx := flow.UserLinked(c.ctx)
-	due, err := DueTrackedIssues(userCtx, c.pool,
+	due, err := DueTrackedIssues(c.ctx, c.pool,
 		snap.Seconds(settings.IngestTrackedIssueCheckSeconds), snap.Int(settings.IngestTrackedIssueBatchSize))
 	if err != nil {
 		metrics.IngestCycleErrors.WithLabelValues("tracked_select").Inc()
@@ -303,6 +300,11 @@ func (c *Coordinator) checkTrackedIssues(snap *settings.Snapshot) {
 	if len(due) == 0 {
 		return
 	}
+	// From here the work is on issues in someone's saved list, so it reaches
+	// the live visualizer as symbols only. The select above is not: it runs
+	// every cycle whether or not anyone saved anything, and says only that
+	// the check ran.
+	userCtx := flow.UserLinked(c.ctx)
 	token := c.worker.token()
 	if token == "" {
 		metrics.IngestCycleErrors.WithLabelValues("tracked_no_token").Inc()
