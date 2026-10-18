@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Three more excluded repositories (migration 00034): `type-challenges/type-challenges`,
+  `haizlin/fe-interview` and `microsoft/JARVIS`, none of which is work a contributor can pick up.
 - Live flow tap and `flowd`, the backend of the public data-flow visualizer. go-api and ingestd
   publish one event per hop — an HTTP request (route pattern, status, size), a statement (verb and
   table), a GitHub call (operation, status), a Redis call, a committed crawl or discovery page
