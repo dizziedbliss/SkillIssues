@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -171,5 +173,54 @@ func TestGetIssueBody(t *testing.T) {
 	}
 	if rec := get("nope"); rec.Code != http.StatusNotFound {
 		t.Errorf("malformed id: %d, want 404", rec.Code)
+	}
+}
+
+func TestParseIssueFilters(t *testing.T) {
+	cfg := settings.Defaults().With(settings.IssuesFilterMaxValues, 3)
+	parse := func(raw string) (issue.Filters, error) {
+		t.Helper()
+		q, err := url.ParseQuery(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return parseIssueFilters(q, cfg)
+	}
+
+	f, err := parse("difficulty=beginner,UNCLASSIFIED&language=Go&labels=bug,docs&topics=cli&tech=shell&comments_min=1&comments_max=5&sort=newest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(f.Difficulties, []string{"BEGINNER", "UNCLASSIFIED"}) || !slices.Equal(f.Labels, []string{"bug", "docs"}) ||
+		!slices.Equal(f.Languages, []string{"Go"}) || !slices.Equal(f.Topics, []string{"cli"}) || !slices.Equal(f.Tech, []string{"shell"}) ||
+		*f.CommentsMin != 1 || *f.CommentsMax != 5 || f.Sort != issue.SortNewest {
+		t.Errorf("parsed %+v", f)
+	}
+
+	for _, bad := range []string{
+		"difficulty=trivial",
+		"labels=a,b,c,d", // over the 3-value limit
+		"comments_min=-1",
+		"comments_max=lots",
+		"comments_min=5&comments_max=2",
+		"sort=stars",
+	} {
+		if _, err := parse(bad); err == nil {
+			t.Errorf("%s: want an error", bad)
+		}
+	}
+}
+
+// The same query, spelled differently, shares one cache entry; a different
+// filter does not.
+func TestIssueCacheKeyIsCanonical(t *testing.T) {
+	a := issue.Filters{Labels: []string{"Bug", "docs"}, Sort: issue.SortShuffle, Limit: 20}
+	b := issue.Filters{Labels: []string{"docs", "bug"}, Sort: issue.SortShuffle, Limit: 20}
+	c := issue.Filters{Labels: []string{"docs"}, Sort: issue.SortShuffle, Limit: 20}
+	if issueCacheKey(a, true, "") != issueCacheKey(b, true, "") {
+		t.Error("reordered or re-cased labels gave a different key")
+	}
+	if issueCacheKey(a, true, "") == issueCacheKey(c, true, "") || issueCacheKey(a, true, "") == issueCacheKey(a, false, "") {
+		t.Error("different requests shared a key")
 	}
 }

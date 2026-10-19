@@ -101,6 +101,10 @@ const (
 	// hits are free; a miss spends the server's interactive budget.
 	BodiesFallbackMissesPerHour Key = "api.bodies.fallback_misses_per_hour"
 
+	// IssuesFilterMaxValues is the most values one GET /issues filter
+	// (labels, topics, …) may name; each is a condition the query evaluates.
+	IssuesFilterMaxValues Key = "api.issues.filter_max_values"
+
 	IngestGraphQLPageSize Key = "ingest.graphql_page_size"
 	IngestRateLimitFloor  Key = "ingest.rate_limit_floor"
 	// IngestInteractiveReservePercent is the share of the GitHub rate limit
@@ -239,6 +243,14 @@ const (
 	// least recently read first, never a saved issue's body.
 	IngestBodiesCacheMaxMB           Key = "ingest.bodies.cache_max_mb"
 	IngestBodiesPruneIntervalSeconds Key = "ingest.bodies.prune_interval_seconds"
+
+	// IngestCatalog* schedule the catalog's periodic jobs (ingest/catalog.go):
+	// redrawing the shuffled feed's repository order, and recomputing the
+	// filter dropdowns' values (catalog_facets), keeping FacetsMaxValues per
+	// kind.
+	IngestCatalogShuffleIntervalSeconds Key = "ingest.catalog.shuffle_interval_seconds"
+	IngestCatalogFacetsRefreshSeconds   Key = "ingest.catalog.facets_refresh_seconds"
+	IngestCatalogFacetsMaxValues        Key = "ingest.catalog.facets_max_values"
 
 	// FlowEnabled turns the live visualizer's tap on in go-api and ingestd.
 	// Off, nothing is buffered or published; flowd keeps serving an idle stream.
@@ -397,6 +409,10 @@ var Registry = map[Key]Spec{
 	IngestArchiveMaxLagSeconds:                intSpec(21600, 3600, 604800, "If the archive falls further behind than this, the freshness crawl returns to ingest.freshness_interval_seconds and the incremental discovery sweep resumes."),
 	IngestArchiveRepairIntervalSeconds:        intSpec(2592000, 86400, 31536000, "While the archive keeps up, the freshness crawl re-checks each repository this rarely, to catch what events miss (deleted or transferred issues)."),
 	IngestArchiveCandidateBatchSize:           intSpec(50, 1, 100, "Repositories seen in the archive but not stored, looked up on GitHub per call."),
+	IngestCatalogShuffleIntervalSeconds:       intSpec(86400, 3600, 2592000, "How often the shuffled feed's repository order is re-randomised."),
+	IngestCatalogFacetsRefreshSeconds:         intSpec(86400, 3600, 2592000, "How often the filter dropdowns' values and counts (catalog_facets) are recomputed."),
+	IngestCatalogFacetsMaxValues:              intSpec(300, 10, 5000, "Values kept per filter (labels, topics, tech, languages), the most common first."),
+	IssuesFilterMaxValues:                     intSpec(20, 1, 100, "Most values one GET /issues filter may name; more is a 400."),
 	IngestBodiesCacheMaxMB:                    intSpec(512, 0, 100000, "Size the issue body cache is trimmed back to, least recently read first; bodies of saved issues are always kept. 0 keeps only those."),
 	IngestBodiesPruneIntervalSeconds:          intSpec(3600, 60, 86400, "How often the issue body cache is trimmed."),
 	BodiesFallbackMissesPerHour:               intSpec(30, 0, 10000, "Issue bodies one caller may have fetched from GitHub per hour through GET /issues/{id}/body; cached bodies do not count. 0 serves the cache only."),
