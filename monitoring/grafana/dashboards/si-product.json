@@ -223,19 +223,18 @@
     },
     {
       "type": "stat",
-      "title": "Contributions started (7d)",
-      "description": "",
+      "title": "Issues saved (7d)",
+      "description": "Saves made in the last 7 days.",
       "targets": [
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
             "uid": "postgres"
           },
-          "rawSql": "SELECT count(*) FROM contributions WHERE created_at > now() - interval '7 days'",
-          "rawQuery": true,
-          "editorMode": "code",
+          "rawSql": "SELECT count(*) FROM saved_issues WHERE created_at > now() - interval '7 days'",
           "format": "table",
-          "refId": "A"
+          "refId": "A",
+          "editorMode": "code"
         }
       ],
       "datasource": {
@@ -285,19 +284,18 @@
     },
     {
       "type": "stat",
-      "title": "PRs merged (30d)",
-      "description": "",
+      "title": "Users who saved an issue",
+      "description": "Distinct users with at least one saved issue.",
       "targets": [
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
             "uid": "postgres"
           },
-          "rawSql": "SELECT count(*) FROM contributions WHERE merged_at > now() - interval '30 days'",
-          "rawQuery": true,
-          "editorMode": "code",
+          "rawSql": "SELECT count(DISTINCT user_id) FROM saved_issues",
           "format": "table",
-          "refId": "A"
+          "refId": "A",
+          "editorMode": "code"
         }
       ],
       "datasource": {
@@ -445,7 +443,8 @@
             "mode": "fixed",
             "fixedColor": "#3987e5"
           },
-          "min": 0
+          "min": 0,
+          "noValue": "No sign-ups in this range"
         },
         "overrides": []
       },
@@ -470,7 +469,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Contributions per day",
+      "title": "Issues saved per day",
       "description": "",
       "targets": [
         {
@@ -478,22 +477,10 @@
             "type": "grafana-postgresql-datasource",
             "uid": "postgres"
           },
-          "rawSql": "SELECT date_trunc('day', created_at) AS time, count(*) AS started FROM contributions WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1",
-          "rawQuery": true,
-          "editorMode": "code",
+          "rawSql": "SELECT date_trunc('day', created_at) AS time, count(*) AS saves FROM saved_issues WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1",
           "format": "time_series",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "postgres"
-          },
-          "rawSql": "SELECT date_trunc('day', merged_at) AS time, count(*) AS merged FROM contributions WHERE merged_at IS NOT NULL AND $__timeFilter(merged_at) GROUP BY 1 ORDER BY 1",
-          "rawQuery": true,
-          "editorMode": "code",
-          "format": "time_series",
-          "refId": "B"
+          "refId": "A",
+          "editorMode": "code"
         }
       ],
       "datasource": {
@@ -516,7 +503,8 @@
           "color": {
             "mode": "palette-classic-by-name"
           },
-          "min": 0
+          "min": 0,
+          "noValue": "No saves in this range"
         },
         "overrides": [
           {
@@ -572,7 +560,7 @@
     },
     {
       "type": "row",
-      "title": "Progression",
+      "title": "Engagement",
       "id": 10,
       "collapsed": false,
       "gridPos": {
@@ -585,19 +573,18 @@
     },
     {
       "type": "bargauge",
-      "title": "Contribution funnel (all time)",
-      "description": "Current state of every contribution. PR_CLOSED is closed without merge.",
+      "title": "Saved issues by state",
+      "description": "Open vs closed among issues users saved. A closed one stays saved; its owner gets a notification.",
       "targets": [
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
             "uid": "postgres"
           },
-          "rawSql": "SELECT s.state, coalesce(c.n, 0) AS contributions FROM unnest(ARRAY['STARTED','PR_OPEN','PR_MERGED','VERIFIED','PR_CLOSED']) WITH ORDINALITY AS s(state, ord) LEFT JOIN (SELECT state, count(*) n FROM contributions GROUP BY state) c USING (state) ORDER BY s.ord",
-          "rawQuery": true,
-          "editorMode": "code",
+          "rawSql": "SELECT s.state, coalesce(c.n, 0) AS issues FROM unnest(ARRAY['OPEN','CLOSED']) WITH ORDINALITY AS s(state, ord) LEFT JOIN (SELECT i.state, count(*) n FROM saved_issues sv JOIN issues i ON i.id = sv.issue_id GROUP BY 1) c USING (state) ORDER BY s.ord",
           "format": "table",
-          "refId": "A"
+          "refId": "A",
+          "editorMode": "code"
         }
       ],
       "datasource": {
@@ -649,19 +636,18 @@
     },
     {
       "type": "bargauge",
-      "title": "Users by level",
-      "description": "",
+      "title": "Notifications (30d)",
+      "description": "issue_closed notifications written by the database trigger, and how many have been read.",
       "targets": [
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
             "uid": "postgres"
           },
-          "rawSql": "SELECT 'Level ' || level AS level, count(*) AS users FROM developer_profiles GROUP BY developer_profiles.level ORDER BY developer_profiles.level",
-          "rawQuery": true,
-          "editorMode": "code",
+          "rawSql": "SELECT 'sent' AS notifications, count(*) AS n FROM notifications WHERE created_at > now() - interval '30 days' UNION ALL SELECT 'read', count(*) FROM notifications WHERE created_at > now() - interval '30 days' AND read_at IS NOT NULL",
           "format": "table",
-          "refId": "A"
+          "refId": "A",
+          "editorMode": "code"
         }
       ],
       "datasource": {
@@ -713,19 +699,18 @@
     },
     {
       "type": "table",
-      "title": "XP",
-      "description": "",
+      "title": "Issue body cache",
+      "description": "The GET /issues/{id}/body fallback cache (issue_bodies), trimmed to ingest.bodies.cache_max_mb. Bodies themselves are not readable here.",
       "targets": [
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
             "uid": "postgres"
           },
-          "rawSql": "SELECT round(avg(total_xp)) AS \"mean XP\", percentile_disc(0.5) WITHIN GROUP (ORDER BY total_xp) AS \"median XP\", max(total_xp) AS \"max XP\", sum(completed_count) AS \"completed issues\" FROM developer_profiles",
-          "rawQuery": true,
-          "editorMode": "code",
+          "rawSql": "SELECT count(*) AS bodies, count(*) FILTER (WHERE source = 'archive') AS \"refreshed by archive\", count(*) FILTER (WHERE last_read_at > now() - interval '24 hours') AS \"read in 24h\", pg_size_pretty(pg_total_relation_size('issue_bodies')) AS size, max(fetched_at) AS \"last fetched\" FROM issue_bodies",
           "format": "table",
-          "refId": "A"
+          "refId": "A",
+          "editorMode": "code"
         }
       ],
       "datasource": {
@@ -773,19 +758,18 @@
     },
     {
       "type": "bargauge",
-      "title": "Open issues by difficulty",
-      "description": "UNCLASSIFIED is unknown difficulty (no difficulty label), not easy.",
+      "title": "Issues by difficulty (estimate)",
+      "description": "From Postgres column statistics (pg_stats), refreshed by ANALYZE: an exact count of every open issue takes longer than the 15 s query limit. Includes the few closed issues still within retention.",
       "targets": [
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
             "uid": "postgres"
           },
-          "rawSql": "SELECT d.difficulty, coalesce(c.n, 0) AS issues FROM unnest(ARRAY['BEGINNER','INTERMEDIATE','ADVANCED','UNCLASSIFIED']) WITH ORDINALITY AS d(difficulty, ord) LEFT JOIN (SELECT difficulty, count(*) n FROM issues WHERE state = 'OPEN' GROUP BY 1) c USING (difficulty) ORDER BY d.ord",
-          "rawQuery": true,
-          "editorMode": "code",
+          "rawSql": "SELECT v.difficulty, round(c.reltuples * v.freq)::bigint AS issues FROM pg_class c, LATERAL (SELECT unnest(most_common_vals::text::text[]) AS difficulty, unnest(most_common_freqs) AS freq FROM pg_stats WHERE schemaname = 'public' AND tablename = 'issues' AND attname = 'difficulty') v WHERE c.oid = 'public.issues'::regclass ORDER BY array_position(ARRAY['BEGINNER','INTERMEDIATE','ADVANCED','UNCLASSIFIED'], v.difficulty)",
           "format": "table",
-          "refId": "A"
+          "refId": "A",
+          "editorMode": "code"
         }
       ],
       "datasource": {
@@ -872,7 +856,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "Nobody has saved an issue yet"
         },
         "overrides": []
       },
