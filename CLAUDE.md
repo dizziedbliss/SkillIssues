@@ -421,6 +421,11 @@ remain in earlier git history, which is not rewritten.
   on `refs/heads/main`) and deploys that digest, so the host needs `cosign`. Actions are pinned to
   commit SHAs, workflows default to `contents: read`, `govulncheck` gates backend changes, and
   Dependabot (`.github/dependabot.yml`) keeps all of it current.
+- Caddy takes the visitor's address from `CF-Connecting-IP` only when the peer is in
+  Cloudflare's ranges (`trusted_proxies` in the `Caddyfile`), and sends go-api exactly that address
+  in `X-Forwarded-For` (`header_up X-Forwarded-For {client_ip}`). That works with or without
+  Cloudflare proxying: without it the header is ignored and the peer is the client. Keep the
+  ranges current with https://www.cloudflare.com/ips/.
 - Caddy is the only service publishing a public port. `handle_path /api/*` strips the prefix
   before proxying to `go-api` (whose routes have no `/api` prefix of their own) and returns
   **404 for `/metrics`, `/health/detail` and `/admin/*`** — those are internal only (admin is reached over ssh, see `DEPLOYMENT.md`); everything else goes
