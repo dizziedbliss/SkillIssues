@@ -340,6 +340,13 @@ took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
 - **Workers share one GitHub budget** (`github_budget`, lanes `crawler` and `interactive`) and
   claim work atomically with `FOR UPDATE SKIP LOCKED` plus a lease. Never assume a worker owns
   the whole API budget.
+- **The crawler never spends the interactive reserve.** Both lanes draw on one counter: GitHub
+  counts per credential, and `CanProceed` reads every lane's row as one. The crawler lane (crawl,
+  discovery) stops while `ingest.interactive_reserve_percent` of the limit is still left. Its floors
+  are measured above that reserve. Work a user is waiting on (the tracked-issue check) runs on
+  `interactive` and spends down to `ingest.rate_limit_floor`. A secondary limit pauses both lanes.
+  New user-facing GitHub work goes on `interactive`; new background work goes on `crawler`. There
+  is one GitHub App installation: never add an identity to get more limit.
 - **Every job write is fenced on its lease.** Expired leases are reclaimed continuously
   (`ingest.lease_reclaim_interval_seconds`), so a stalled worker's job can be re-claimed while
   it still runs. Any write that finishes a job must match `status = 'running' AND

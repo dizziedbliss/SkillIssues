@@ -540,7 +540,8 @@ func (w *Worker) processDiscoveryWindow(ctx context.Context, win DiscoveryWindow
 	}
 	snap := w.live()
 
-	proceed, err := CanProceed(ctx, w.pool, LaneCrawler, installationIdentity, snap.Int(settings.IngestDiscoveryRateLimitFloor))
+	proceed, err := CanProceed(ctx, w.pool, LaneCrawler, installationIdentity,
+		snap.Int(settings.IngestDiscoveryRateLimitFloor), snap.Int(settings.IngestInteractiveReservePercent))
 	if err != nil {
 		metrics.BudgetErrors.WithLabelValues("read", string(LaneCrawler)).Inc()
 		slog.Warn("budget check failed, searching anyway", "error", err)

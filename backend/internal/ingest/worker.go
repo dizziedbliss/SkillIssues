@@ -66,7 +66,7 @@ func (w *Worker) processJob(ctx context.Context, job Job) (string, error) {
 
 	snap := w.live()
 	floor := snap.Int(settings.IngestRateLimitFloor)
-	proceed, err := CanProceed(ctx, w.pool, LaneCrawler, installationIdentity, floor)
+	proceed, err := CanProceed(ctx, w.pool, LaneCrawler, installationIdentity, floor, snap.Int(settings.IngestInteractiveReservePercent))
 	if err != nil {
 		metrics.BudgetErrors.WithLabelValues("read", string(LaneCrawler)).Inc()
 		slog.Warn("budget check failed, proceeding cautiously", "error", err)

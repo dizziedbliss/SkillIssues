@@ -89,10 +89,16 @@ const (
 	// costs more than the page it decides, and a language's size moves slowly.
 	IssuesLanguageCountTTLSeconds Key = "api.issues.language_count_ttl_seconds"
 
-	IngestGraphQLPageSize    Key = "ingest.graphql_page_size"
-	IngestRateLimitFloor     Key = "ingest.rate_limit_floor"
-	IngestMaxAttempts        Key = "ingest.max_attempts"
-	IngestBackoffBaseSeconds Key = "ingest.backoff_base_seconds"
+	IngestGraphQLPageSize Key = "ingest.graphql_page_size"
+	IngestRateLimitFloor  Key = "ingest.rate_limit_floor"
+	// IngestInteractiveReservePercent is the share of the GitHub rate limit
+	// the crawler lane never spends, kept for interactive work a user is
+	// waiting on (tracked-issue checks). The crawler lane's floors —
+	// ingest.rate_limit_floor and ingest.discovery.rate_limit_floor — are
+	// measured above it; the interactive lane stops at ingest.rate_limit_floor.
+	IngestInteractiveReservePercent Key = "ingest.interactive_reserve_percent"
+	IngestMaxAttempts               Key = "ingest.max_attempts"
+	IngestBackoffBaseSeconds        Key = "ingest.backoff_base_seconds"
 	// IngestRoutineWorkers backs the Initial/Freshness pool and
 	// IngestPriorityWorkers the Deep Diver pool (Phase 5) — same keys as
 	// before that split existed, repurposed meaning, not a priority queue.
@@ -186,8 +192,8 @@ const (
 	IngestDiscoveryMinWindowSeconds Key = "ingest.discovery.min_window_seconds"
 	IngestDiscoveryPageSize         Key = "ingest.discovery.page_size"
 	// IngestDiscoveryRateLimitFloor is discovery's own floor on the shared
-	// crawler budget. Higher than ingest.rate_limit_floor, so discovery
-	// yields before the issue crawl does.
+	// crawler budget, above the interactive reserve. Higher than
+	// ingest.rate_limit_floor, so discovery yields before the issue crawl does.
 	IngestDiscoveryRateLimitFloor Key = "ingest.discovery.rate_limit_floor"
 	// IngestDiscoveryIncrementalIntervalSeconds and
 	// IngestDiscoveryFullIntervalSeconds schedule the two sweep kinds: an
@@ -293,10 +299,11 @@ var Registry = map[Key]Spec{
 	IssuesRareLanguageThreshold:   intSpec(20000, 0, 1000000, "A language with fewer open issues than this is read repository-first and sorted when browsing, instead of walking the catalog index. 0 always walks the index."),
 	IssuesQueryTimeoutMs:          intSpec(10000, 100, 25000, "Deadline for the queries behind one GET /issues or GET /issues/{id}. A query that misses it is cancelled and the caller gets 503."),
 
-	IngestGraphQLPageSize:    intSpec(50, 1, 100, "Issues requested per GraphQL page. GitHub caps this at 100."),
-	IngestRateLimitFloor:     intSpec(100, 0, 5000, "Stop issuing GraphQL calls when the remaining point budget falls below this."),
-	IngestMaxAttempts:        intSpec(3, 1, 10, "Attempts per repository before a sync is recorded as failed."),
-	IngestBackoffBaseSeconds: intSpec(1, 1, 60, "Base for exponential retry backoff between sync attempts."),
+	IngestGraphQLPageSize:           intSpec(50, 1, 100, "Issues requested per GraphQL page. GitHub caps this at 100."),
+	IngestRateLimitFloor:            intSpec(100, 0, 5000, "Stop issuing GraphQL calls when the remaining point budget falls below this. On the crawler lane it is measured above the interactive reserve."),
+	IngestInteractiveReservePercent: intSpec(30, 0, 90, "Share of the GitHub rate limit the crawler lane never spends, kept for interactive work such as tracked-issue checks. 0 lets the crawler spend everything down to its floor."),
+	IngestMaxAttempts:               intSpec(3, 1, 10, "Attempts per repository before a sync is recorded as failed."),
+	IngestBackoffBaseSeconds:        intSpec(1, 1, 60, "Base for exponential retry backoff between sync attempts."),
 	// D20: ~4 total in-flight by default, sized for the 2 vCPU target
 	// deployment rather than a 20-vCPU dev box.
 	IngestRoutineWorkers:  intSpec(2, 1, 64, "Concurrent Initial/Freshness workers (one page per eligible repository)."),
@@ -336,7 +343,7 @@ var Registry = map[Key]Spec{
 	IngestDiscoveryWindowHours:                intSpec(24, 1, 720, "Pushed-date span of each search window a new sweep starts with; denser windows are halved."),
 	IngestDiscoveryMinWindowSeconds:           intSpec(60, 1, 86400, "Smallest window a dense one is halved down to. Past it, only GitHub's first 1,000 results are read and the window is marked truncated."),
 	IngestDiscoveryPageSize:                   intSpec(100, 1, 100, "Repositories requested per search page. GitHub caps this at 100."),
-	IngestDiscoveryRateLimitFloor:             intSpec(1000, 0, 12500, "Discovery stops searching when the shared crawler budget falls below this; kept above ingest.rate_limit_floor so the issue crawl keeps going after discovery yields."),
+	IngestDiscoveryRateLimitFloor:             intSpec(1000, 0, 12500, "Discovery stops searching when the shared budget falls below this plus the interactive reserve; kept above ingest.rate_limit_floor so the issue crawl keeps going after discovery yields."),
 	IngestDiscoveryIncrementalIntervalSeconds: intSpec(86400, 3600, 2592000, "How often an incremental sweep covers repositories pushed since the last completed sweep."),
 	IngestDiscoveryFullIntervalSeconds:        intSpec(2592000, 86400, 31536000, "How often a full sweep covers the whole pushed-within range, catching repositories that crossed the star floor without a new push."),
 
