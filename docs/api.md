@@ -46,6 +46,28 @@ works signed out, personalised when signed in; *none* = public; *admin* =
 
 `limit` and `page` are clamped, not refused: `/issues` to `api.issues.max_limit` / `api.issues.max_page`, `/recommendations` to `api.recommendations.max_limit` (`docs/settings.md`).
 
+**Paging `/issues`.** Two modes, chosen by whether `?cursor=` is present:
+
+- Without it, the response is a JSON array of issues and `?page` pages through it. Deep pages
+  cost more the deeper they go.
+- With it, the response is `{"issues": [...], "next_cursor": "…" | null}`. An empty `?cursor=`
+  is the first page; pass each page's `next_cursor` back for the next, until it is `null`. Every
+  page costs the same however deep. The token is opaque. Filters (`difficulty`, `language`,
+  `limit`) must stay the same across one walk.
+
+Both modes list the catalog in the same order: difficulty score ascending (unclassified last), then
+most recently updated, then id. A signed-in caller's preferred languages come first. Cursor paging
+is for browsing only: `?cursor=` with `?search=` is a 400, and so is a cursor the server did not
+issue.
+
+**Caching.** A signed-out `/issues` response carries `Cache-Control: public, max-age=…,
+stale-while-revalidate=…` (`api.cache.public_*`) and an `ETag`; `If-None-Match` gets a 304. A
+signed-in response is `private, no-store`, since its order depends on the caller.
+
+**Timeouts.** A catalog query that runs past `api.issues.query_timeout_ms` is cancelled and
+answered with 503; retry it. `/issues/{id}` is 404 only for an issue that does not exist, and 5xx
+for a failure.
+
 ## User
 
 | Method | Path | Auth | Purpose |

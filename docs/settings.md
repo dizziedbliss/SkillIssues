@@ -33,6 +33,8 @@ readable through the endpoint above and copied into backups.
 | `api.cache.hot_issues_ttl_seconds` | 120 | 0–3600 | Cache for the default unauthenticated catalog page (0 = off) |
 | `api.cache.search_ttl_seconds` | 60 | 0–3600 | Cache for unauthenticated search results (0 = off) |
 | `api.cache.recommendations_ttl_seconds` | 300 | 0–3600 | Cache for per-user recommendations (0 = off) |
+| `api.cache.public_max_age_seconds` | 60 | 0–3600 | `Cache-Control` max-age on catalog and search responses to signed-out callers (0 = `no-cache`) |
+| `api.cache.public_stale_seconds` | 300 | 0–86400 | `stale-while-revalidate` on the same responses |
 | `api.cache.redis_timeout_ms` | 250 | 10–5000 | Deadline for one Redis call, connecting included; a call that misses it fails open |
 | `api.cache.redis_retry_seconds` | 5 | 1–300 | After a failed Redis call, how long Redis is skipped before one call probes for recovery |
 | `api.http.max_body_bytes` | 1048576 | 1024–104857600 | Largest request body on any API route except the webhook; larger gets 413 |
@@ -41,6 +43,9 @@ readable through the endpoint above and copied into backups.
 | `api.issues.max_limit` | 100 | 1–500 | Largest `?limit` on `GET /issues`; larger is clamped |
 | `api.issues.max_page` | 200 | 1–10000 | Deepest `?page` on `GET /issues`; deeper is clamped |
 | `api.recommendations.max_limit` | 20 | 1–100 | Largest `?limit` on `GET /recommendations`; larger is clamped |
+| `api.issues.query_timeout_ms` | 10000 | 100–25000 | Deadline for the queries behind one `GET /issues` or `GET /issues/{id}`; a query that misses it is cancelled and the caller gets 503. Keep it below the server's 30 s write timeout |
+| `api.issues.rare_language_threshold` | 20000 | 0–1000000 | Browsing a language (`?language=`, or a signed-in caller's preferred languages) with fewer open issues than this sorts that language's issues instead of walking the catalog index (0 = always walk) |
+| `api.issues.language_count_ttl_seconds` | 600 | 0–86400 | How long each language's counted open issues are reused for that decision (0 = count every request) |
 
 ## Ingestion
 

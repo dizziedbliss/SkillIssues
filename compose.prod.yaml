@@ -62,6 +62,12 @@ services:
       - max_connections=${PG_MAX_CONNECTIONS:-60}
       - -c
       - max_parallel_workers_per_gather=${PG_MAX_PARALLEL_WORKERS_PER_GATHER:-1}
+      # The VPS disk is SSD; Postgres' default of 4 prices an index lookup as
+      # a spinning-disk seek and picks sequential scans of every issue where
+      # a few thousand index lookups would do (counting a language's issues
+      # took 990ms at 4 and 14ms at 1.1).
+      - -c
+      - random_page_cost=${PG_RANDOM_PAGE_COST:-1.1}
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
     healthcheck:

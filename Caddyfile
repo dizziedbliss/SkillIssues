@@ -48,7 +48,9 @@
 		reverse_proxy frontend:80
 	}
 
-	encode gzip
+	# zstd first for clients that accept it (smaller and cheaper to compress),
+	# gzip for the rest.
+	encode zstd gzip
 
 	log {
 		output stdout

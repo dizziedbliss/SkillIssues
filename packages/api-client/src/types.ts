@@ -186,11 +186,27 @@ export interface VerifyResult {
 }
 
 export interface IssueFilters {
-  difficulty?: "ALL" | "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+  difficulty?: "ALL" | "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "UNCLASSIFIED";
   language?: string;
   search?: string;
   limit?: number;
   page?: number;
+}
+
+// Filters for cursor paging (GET /issues?cursor=). Browsing only: a search
+// pages by `page`. Keep the filters the same for every page of one walk.
+export interface IssueBrowseFilters {
+  difficulty?: IssueFilters["difficulty"];
+  language?: string;
+  limit?: number;
+  // A previous page's nextCursor; omitted for the first page.
+  cursor?: string;
+}
+
+// One cursor page. nextCursor is null on the last page.
+export interface IssuePage {
+  issues: Issue[];
+  nextCursor: string | null;
 }
 
 export interface PreferenceOptions {
