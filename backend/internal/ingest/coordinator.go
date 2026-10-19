@@ -11,6 +11,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/flow"
 	"github.com/dizziedbliss/skillissues/internal/github"
+	"github.com/dizziedbliss/skillissues/internal/httpx"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/settings"
 	"github.com/dizziedbliss/skillissues/internal/worker"
@@ -25,6 +26,12 @@ type CoordinatorConfig struct {
 	Token func() string
 	// Settings supplies live operational values.
 	Settings func() *settings.Snapshot
+	// ArchiveURL is where GH Archive's hourly files are read from;
+	// DefaultArchiveURL when empty.
+	ArchiveURL string
+	// ArchiveHTTP downloads them. It must carry its own deadline: an hour's
+	// file takes longer than an ordinary outbound call.
+	ArchiveHTTP httpx.Doer
 }
 
 // Coordinator owns the Initial/Freshness, Deep Diver and Discovery worker
@@ -38,6 +45,7 @@ type Coordinator struct {
 	initialPool   *worker.Pool
 	deepPool      *worker.Pool
 	discoveryPool *worker.Pool
+	archivePool   *worker.Pool
 
 	owner string
 
@@ -48,6 +56,15 @@ type Coordinator struct {
 	lastLeaseReclaim     time.Time
 	lastClosedPrune      time.Time
 	lastExcludedPrune    time.Time
+	lastArchiveSeed      time.Time
+	// lastCandidateIdle is when a candidate lookup last came back short of
+	// a full batch: the backlog is drained, and lookups wait for
+	// ingest.archive.poll_seconds instead of querying every cycle.
+	lastCandidateIdle time.Time
+
+	// archiveFallback is whether the archive was last found too far behind
+	// to stand in for the freshness crawl, for logging the transitions.
+	archiveFallback bool
 
 	// dbSizePaused and lastDBSizeMB back Status()/the D6 disk guardrail —
 	// pg_database_size() is cheap (metadata lookup, not a scan), so it's
@@ -73,19 +90,29 @@ func NewCoordinator(pool *db.Pool, ghClient *github.Client, cfg CoordinatorConfi
 	initialCount := cfg.Settings().Int(settings.IngestRoutineWorkers)
 	deepCount := cfg.Settings().Int(settings.IngestPriorityWorkers)
 	discoveryCount := cfg.Settings().Int(settings.IngestDiscoveryWorkers)
+	archiveCount := cfg.Settings().Int(settings.IngestArchiveWorkers)
+
+	w := NewWorker(pool, ghClient, cfg.Token, cfg.Settings)
+	w.archive = archiveSource{baseURL: cfg.ArchiveURL, client: cfg.ArchiveHTTP}
+	if w.archive.baseURL == "" {
+		w.archive.baseURL = DefaultArchiveURL
+	}
 
 	return &Coordinator{
 		pool:        pool,
-		worker:      NewWorker(pool, ghClient, cfg.Token, cfg.Settings),
+		worker:      w,
 		live:        cfg.Settings,
 		initialPool: worker.NewPool("ingest-initial", initialCount, initialCount*8),
 		deepPool:    worker.NewPool("ingest-deep", deepCount, deepCount*8),
 		// One search page per claim; a deep queue would only hold leases on
 		// windows nobody is fetching yet.
 		discoveryPool: worker.NewPool("ingest-discovery", discoveryCount, discoveryCount*2),
-		owner:         "ingestd-" + uuid.NewString()[:8],
-		ctx:           ctx,
-		cancel:        cancel,
+		// Hours are claimed oldest first; holding more leases than workers
+		// would only delay the reclaim of a stalled one.
+		archivePool: worker.NewPool("ingest-archive", archiveCount, archiveCount),
+		owner:       "ingestd-" + uuid.NewString()[:8],
+		ctx:         ctx,
+		cancel:      cancel,
 	}
 }
 
@@ -96,6 +123,7 @@ func (c *Coordinator) ApplySettings(_ *settings.Snapshot) {
 	c.initialPool.SetConcurrency(s.Int(settings.IngestRoutineWorkers))
 	c.deepPool.SetConcurrency(s.Int(settings.IngestPriorityWorkers))
 	c.discoveryPool.SetConcurrency(s.Int(settings.IngestDiscoveryWorkers))
+	c.archivePool.SetConcurrency(s.Int(settings.IngestArchiveWorkers))
 }
 
 // Start boots the claim loop in a background goroutine.
@@ -141,13 +169,17 @@ func (c *Coordinator) cycle() {
 	publishPoolStats(c.initialPool)
 	publishPoolStats(c.deepPool)
 	publishPoolStats(c.discoveryPool)
+	publishPoolStats(c.archivePool)
 	c.completeSweeps()
 
 	// D6 disk guardrail: once the database itself has grown past the
 	// configured ceiling, stop enqueuing and claiming entirely — new work
 	// only adds rows, and existing "running" jobs still get to finish their
-	// current page rather than being killed mid-write.
-	if !c.checkDiskGuard(snap) {
+	// current page rather than being killed mid-write. The archive keeps
+	// updating stored issues, and inserts none.
+	proceed := c.checkDiskGuard(snap)
+	archiveCurrent := c.runArchive(snap, !proceed)
+	if !proceed {
 		return
 	}
 
@@ -161,7 +193,12 @@ func (c *Coordinator) cycle() {
 
 	// 3. Repositories whose first page is stale — the Freshness half of the
 	//    cycle. Without this the catalog stops moving once seeded.
+	//    While the archive keeps up it carries freshness, and this is only
+	//    the repair pass for what events cannot show.
 	freshnessAfter := snap.Seconds(settings.IngestFreshnessIntervalSeconds)
+	if archiveCurrent {
+		freshnessAfter = snap.Seconds(settings.IngestArchiveRepairIntervalSeconds)
+	}
 	if n, err := EnqueueFreshnessJobs(c.ctx, c.pool, batch, freshnessAfter); err != nil {
 		metrics.IngestCycleErrors.WithLabelValues("enqueue_freshness").Inc()
 		slog.Warn("failed to enqueue freshness jobs", "error", err)
@@ -175,8 +212,116 @@ func (c *Coordinator) cycle() {
 
 	// 4. Discovery: start a sweep when one is due, then feed its windows.
 	if snap.Bool(settings.IngestDiscoveryEnabled) {
-		c.scheduleDiscovery(snap)
+		c.scheduleDiscovery(snap, archiveCurrent)
 		c.claimDiscoveryWindows(lease)
+	}
+}
+
+// runArchive feeds the GH Archive reader: it queues newly ended hours (every
+// ingest.archive.poll_seconds), hands due hours to the archive pool, looks up
+// one batch of repository candidates, and reports whether the archive is
+// current — enabled, and no further behind than ingest.archive.max_lag_seconds
+// — so the caller can let it stand in for the daily freshness crawl and the
+// incremental discovery sweep. updateOnly is the disk guard.
+func (c *Coordinator) runArchive(snap *settings.Snapshot, updateOnly bool) bool {
+	if !snap.Bool(settings.IngestArchiveEnabled) {
+		metrics.ArchiveFallback.Set(0)
+		c.archiveFallback = false
+		return false
+	}
+
+	if time.Since(c.lastArchiveSeed) >= snap.Seconds(settings.IngestArchivePollSeconds) {
+		c.lastArchiveSeed = time.Now()
+		backfill := time.Duration(snap.Int(settings.IngestArchiveMaxBackfillHours)) * time.Hour
+		if n, err := SeedArchiveHours(c.ctx, c.pool, backfill); err != nil {
+			metrics.IngestCycleErrors.WithLabelValues("archive_seed").Inc()
+			slog.Warn("failed to queue archive hours", "error", err)
+		} else if n > 0 {
+			slog.Info("queued archive hours", "count", n)
+		}
+	}
+
+	c.claimArchiveHours(snap.Seconds(settings.IngestLeaseSeconds)+snap.Seconds(settings.IngestArchiveDownloadTimeoutSeconds), updateOnly)
+
+	// New repositories only add rows; they wait while the disk guard is on.
+	// A full batch means more are waiting, so the next cycle continues;
+	// otherwise the backlog is drained and the next look is a poll away.
+	if !updateOnly && time.Since(c.lastCandidateIdle) >= snap.Seconds(settings.IngestArchivePollSeconds) {
+		n, err := c.worker.ResolveRepoCandidates(c.ctx)
+		if err != nil {
+			metrics.IngestCycleErrors.WithLabelValues("archive_candidates").Inc()
+			slog.Warn("failed to look up repository candidates", "error", err)
+		}
+		if err != nil || n < snap.Int(settings.IngestArchiveCandidateBatchSize) {
+			c.lastCandidateIdle = time.Now()
+			recheck := time.Duration(snap.Int(settings.IngestArchiveCandidateRecheckDays)) * 24 * time.Hour
+			if pruned, err := PruneRepoCandidates(c.ctx, c.pool, recheck); err != nil {
+				metrics.IngestCycleErrors.WithLabelValues("archive_candidates_prune").Inc()
+				slog.Warn("failed to prune repository candidates", "error", err)
+			} else if pruned > 0 {
+				slog.Info("pruned quiet repository candidates", "deleted", pruned)
+			}
+		}
+	}
+
+	until, ok, err := ArchiveCoveredUntil(c.ctx, c.pool)
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("archive_coverage").Inc()
+		slog.Warn("failed to read archive coverage; the freshness crawl keeps its daily interval", "error", err)
+		return false
+	}
+	current := false
+	if ok {
+		lag := time.Since(until)
+		metrics.ArchiveLagSeconds.Set(lag.Seconds())
+		current = lag <= snap.Seconds(settings.IngestArchiveMaxLagSeconds)
+	}
+
+	fallback := !current
+	if fallback != c.archiveFallback {
+		if fallback {
+			slog.Warn("archive is behind ingest.archive.max_lag_seconds; the daily freshness crawl and incremental discovery take over",
+				"covered_until", until)
+		} else {
+			slog.Info("archive is current; freshness crawl drops to ingest.archive.repair_interval_seconds", "covered_until", until)
+		}
+	}
+	c.archiveFallback = fallback
+	if fallback {
+		metrics.ArchiveFallback.Set(1)
+	} else {
+		metrics.ArchiveFallback.Set(0)
+	}
+	return current
+}
+
+// claimArchiveHours leases due hours for the archive pool. The lease covers a
+// whole download as well as the writes after it.
+func (c *Coordinator) claimArchiveHours(lease time.Duration, updateOnly bool) {
+	stats := c.archivePool.Stats()
+	capacity := stats.QueueCapacity - stats.QueueLength
+	if capacity <= 0 {
+		return
+	}
+	hours, err := ClaimArchiveHours(c.ctx, c.pool, capacity, c.owner, lease)
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("archive_claim").Inc()
+		slog.Warn("failed to claim archive hours", "error", err)
+		return
+	}
+	for _, h := range hours {
+		hr := h
+		if err := c.archivePool.Submit(func(workerCtx context.Context) error {
+			if err := c.worker.ProcessArchiveHour(workerCtx, hr, updateOnly); err != nil {
+				slog.Warn("archive hour processing failed", "hour", hr.Hour, "error", err)
+			}
+			return nil
+		}); err != nil {
+			if err := releaseArchiveHour(c.ctx, c.pool, hr, 5*time.Second); err != nil {
+				metrics.IngestCycleErrors.WithLabelValues("archive_release").Inc()
+				slog.Warn("failed to release unsubmitted archive hour; its lease will expire", "hour", hr.Hour, "error", err)
+			}
+		}
 	}
 }
 
@@ -200,11 +345,16 @@ func (c *Coordinator) completeSweeps() {
 	}
 }
 
-// scheduleDiscovery starts a full or incremental sweep when one is due.
-func (c *Coordinator) scheduleDiscovery(snap *settings.Snapshot) {
+// scheduleDiscovery starts a full or incremental sweep when one is due. While
+// the archive is current its candidates find newly active repositories, so
+// only the full sweep runs, as a backstop.
+func (c *Coordinator) scheduleDiscovery(snap *settings.Snapshot, archiveCurrent bool) {
+	incremental := snap.Seconds(settings.IngestDiscoveryIncrementalIntervalSeconds)
+	if archiveCurrent {
+		incremental = 0
+	}
 	kind, due, err := DueSweep(c.ctx, c.pool,
-		snap.Seconds(settings.IngestDiscoveryFullIntervalSeconds),
-		snap.Seconds(settings.IngestDiscoveryIncrementalIntervalSeconds))
+		snap.Seconds(settings.IngestDiscoveryFullIntervalSeconds), incremental)
 	if err != nil {
 		metrics.IngestCycleErrors.WithLabelValues("discovery_schedule").Inc()
 		slog.Warn("failed to read the discovery schedule", "error", err)
@@ -453,6 +603,15 @@ func (c *Coordinator) reclaimLeases(snap *settings.Snapshot) {
 		metrics.IngestLeasesReclaimed.Add(float64(n))
 		slog.Warn("reclaimed expired discovery window leases", "count", n)
 	}
+
+	n, err = ReclaimExpiredArchiveLeases(c.ctx, c.pool)
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("reclaim_archive_leases").Inc()
+		slog.Warn("failed to reclaim expired archive hour leases", "error", err)
+	} else if n > 0 {
+		metrics.IngestLeasesReclaimed.Add(float64(n))
+		slog.Warn("reclaimed expired archive hour leases", "count", n)
+	}
 }
 
 // checkDiskGuard returns true if the coordinator should proceed with
@@ -526,6 +685,7 @@ func (c *Coordinator) Status() map[string]any {
 		"initial_pool":   c.initialPool.Stats(),
 		"deep_pool":      c.deepPool.Stats(),
 		"discovery_pool": c.discoveryPool.Stats(),
+		"archive_pool":   c.archivePool.Stats(),
 		"db_size_mb":     c.lastDBSizeMB.Load(),
 		"db_size_paused": c.dbSizePaused.Load(),
 	}
@@ -548,6 +708,9 @@ func (c *Coordinator) Shutdown(timeout time.Duration) error {
 		}
 		if err := c.discoveryPool.Shutdown(timeout); err != nil {
 			slog.Warn("discovery pool did not drain before shutdown", "error", err)
+		}
+		if err := c.archivePool.Shutdown(timeout); err != nil {
+			slog.Warn("archive pool did not drain before shutdown", "error", err)
 		}
 		close(done)
 	}()

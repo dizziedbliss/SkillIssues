@@ -34,7 +34,33 @@ func RefreshQueueMetrics(ctx context.Context, pool *db.Pool) error {
 	note(refreshRepositoryCounts(ctx, pool))
 	note(refreshBudget(ctx, pool))
 	note(refreshDiscovery(ctx, pool))
+	note(refreshArchive(ctx, pool))
 	return firstErr
+}
+
+// Mirrors the CHECK constraint on archive_hours.
+var archiveStatuses = []string{"pending", "running", "done", "failed", "missing"}
+
+func refreshArchive(ctx context.Context, pool *db.Pool) error {
+	counts := map[string]float64{}
+	err := pool.QueryRows(ctx,
+		`SELECT status, count(*) FROM archive_hours GROUP BY 1`, nil,
+		func(rows pgx.Rows) error {
+			var st string
+			var n int64
+			if err := rows.Scan(&st, &n); err != nil {
+				return err
+			}
+			counts[st] = float64(n)
+			return nil
+		})
+	if err != nil {
+		return fmt.Errorf("ingest: count archive hours: %w", err)
+	}
+	for _, st := range archiveStatuses {
+		metrics.ArchiveHours.WithLabelValues(st).Set(counts[st])
+	}
+	return nil
 }
 
 // Mirrors the CHECK constraints on discovery_windows and discovery_sweeps.
