@@ -18,6 +18,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/flow"
 	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/dizziedbliss/skillissues/internal/githubapp"
+	"github.com/dizziedbliss/skillissues/internal/httpx"
 	"github.com/dizziedbliss/skillissues/internal/ingest"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
@@ -124,6 +125,11 @@ func main() {
 	coordinator := ingest.NewCoordinator(dbPool, ghClient, ingest.CoordinatorConfig{
 		Token:    tokenFn,
 		Settings: live.Current,
+		// An hour's file is tens of megabytes: it gets its own deadline, not
+		// the outbound timeout sized for an API call.
+		ArchiveHTTP: httpx.New(func() time.Duration {
+			return live.Current().Seconds(settings.IngestArchiveDownloadTimeoutSeconds)
+		}, flow.Transport{}),
 	})
 	live.OnChange(coordinator.ApplySettings)
 
@@ -212,6 +218,38 @@ func main() {
 	// Manual admin trigger: start a full discovery sweep now instead of
 	// waiting for ingest.discovery.full_interval_seconds. Its windows are
 	// only searched while ingest.discovery.enabled is on.
+	// The issue body fallback (go-api's GET /issues/{id}/body on a cache miss):
+	// fetch one body from GitHub with the server credential, on the
+	// interactive lane, and cache it. 200 {body}; 202 {status, reason} when it
+	// cannot be fetched now; 404 when GitHub or the catalog has no such issue.
+	mux.Handle("POST /bodies/{id}", requireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		id, err := strconv.Atoi(r.PathValue("id"))
+		if err != nil || id <= 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "invalid issue id"})
+			return
+		}
+		body, outcome, err := coordinator.FetchIssueBody(r.Context(), id)
+		if err != nil {
+			slog.Error("issue body fetch failed", "issue_id", id, "error", err)
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "could not fetch the issue body"})
+			return
+		}
+		metrics.BodyFetches.WithLabelValues(string(outcome)).Inc()
+		switch outcome {
+		case ingest.BodyFetched:
+			_ = json.NewEncoder(w).Encode(map[string]any{"body": body})
+		case ingest.BodyGone, ingest.BodyNotStored:
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "issue not found"})
+		default:
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "queued", "reason": string(outcome)})
+		}
+	})))
+
 	mux.Handle("POST /sync/discovery", requireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		id, kind, err := coordinator.StartSweep(ingest.SweepFull)

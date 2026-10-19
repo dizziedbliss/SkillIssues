@@ -89,10 +89,21 @@ const (
 	// costs more than the page it decides, and a language's size moves slowly.
 	IssuesLanguageCountTTLSeconds Key = "api.issues.language_count_ttl_seconds"
 
-	IngestGraphQLPageSize    Key = "ingest.graphql_page_size"
-	IngestRateLimitFloor     Key = "ingest.rate_limit_floor"
-	IngestMaxAttempts        Key = "ingest.max_attempts"
-	IngestBackoffBaseSeconds Key = "ingest.backoff_base_seconds"
+	// BodiesFallbackMissesPerHour caps how many issue bodies one caller may
+	// have fetched from GitHub per hour through GET /issues/{id}/body. Cache
+	// hits are free; a miss spends the server's interactive budget.
+	BodiesFallbackMissesPerHour Key = "api.bodies.fallback_misses_per_hour"
+
+	IngestGraphQLPageSize Key = "ingest.graphql_page_size"
+	IngestRateLimitFloor  Key = "ingest.rate_limit_floor"
+	// IngestInteractiveReservePercent is the share of the GitHub rate limit
+	// the crawler lane never spends, kept for interactive work a user is
+	// waiting on (tracked-issue checks). The crawler lane's floors —
+	// ingest.rate_limit_floor and ingest.discovery.rate_limit_floor — are
+	// measured above it; the interactive lane stops at ingest.rate_limit_floor.
+	IngestInteractiveReservePercent Key = "ingest.interactive_reserve_percent"
+	IngestMaxAttempts               Key = "ingest.max_attempts"
+	IngestBackoffBaseSeconds        Key = "ingest.backoff_base_seconds"
 	// IngestRoutineWorkers backs the Initial/Freshness pool and
 	// IngestPriorityWorkers the Deep Diver pool (Phase 5) — same keys as
 	// before that split existed, repurposed meaning, not a priority queue.
@@ -186,8 +197,8 @@ const (
 	IngestDiscoveryMinWindowSeconds Key = "ingest.discovery.min_window_seconds"
 	IngestDiscoveryPageSize         Key = "ingest.discovery.page_size"
 	// IngestDiscoveryRateLimitFloor is discovery's own floor on the shared
-	// crawler budget. Higher than ingest.rate_limit_floor, so discovery
-	// yields before the issue crawl does.
+	// crawler budget, above the interactive reserve. Higher than
+	// ingest.rate_limit_floor, so discovery yields before the issue crawl does.
 	IngestDiscoveryRateLimitFloor Key = "ingest.discovery.rate_limit_floor"
 	// IngestDiscoveryIncrementalIntervalSeconds and
 	// IngestDiscoveryFullIntervalSeconds schedule the two sweep kinds: an
@@ -195,6 +206,32 @@ const (
 	// sweep, and a full one over the whole pushed-within range.
 	IngestDiscoveryIncrementalIntervalSeconds Key = "ingest.discovery.incremental_interval_seconds"
 	IngestDiscoveryFullIntervalSeconds        Key = "ingest.discovery.full_interval_seconds"
+
+	// IngestArchive* drive the GH Archive reader (internal/ingest/archive.go):
+	// hourly public event files applied to stored issues with no GitHub API
+	// call. While it keeps up (lag under IngestArchiveMaxLagSeconds) the
+	// freshness crawl runs every IngestArchiveRepairIntervalSeconds instead of
+	// ingest.freshness_interval_seconds, and archive candidates replace the
+	// incremental discovery sweep.
+	IngestArchiveEnabled                Key = "ingest.archive.enabled"
+	IngestArchiveWorkers                Key = "ingest.archive.workers"
+	IngestArchivePollSeconds            Key = "ingest.archive.poll_seconds"
+	IngestArchiveRetrySeconds           Key = "ingest.archive.retry_seconds"
+	IngestArchiveMissingAfterHours      Key = "ingest.archive.missing_after_hours"
+	IngestArchiveMaxBackfillHours       Key = "ingest.archive.max_backfill_hours"
+	IngestArchiveDownloadTimeoutSeconds Key = "ingest.archive.download_timeout_seconds"
+	IngestArchiveMaxFileMB              Key = "ingest.archive.max_file_mb"
+	IngestArchiveApplyBatchSize         Key = "ingest.archive.apply_batch_size"
+	IngestArchiveMaxLagSeconds          Key = "ingest.archive.max_lag_seconds"
+	IngestArchiveRepairIntervalSeconds  Key = "ingest.archive.repair_interval_seconds"
+	IngestArchiveCandidateBatchSize     Key = "ingest.archive.candidate_batch_size"
+	IngestArchiveCandidateRecheckDays   Key = "ingest.archive.candidate_recheck_days"
+
+	// IngestBodiesCacheMaxMB and IngestBodiesPruneIntervalSeconds bound the
+	// issue body cache (issue_bodies): ingestd trims it back to this size,
+	// least recently read first, never a saved issue's body.
+	IngestBodiesCacheMaxMB           Key = "ingest.bodies.cache_max_mb"
+	IngestBodiesPruneIntervalSeconds Key = "ingest.bodies.prune_interval_seconds"
 
 	// FlowEnabled turns the live visualizer's tap on in go-api and ingestd.
 	// Off, nothing is buffered or published; flowd keeps serving an idle stream.
@@ -293,10 +330,11 @@ var Registry = map[Key]Spec{
 	IssuesRareLanguageThreshold:   intSpec(20000, 0, 1000000, "A language with fewer open issues than this is read repository-first and sorted when browsing, instead of walking the catalog index. 0 always walks the index."),
 	IssuesQueryTimeoutMs:          intSpec(10000, 100, 25000, "Deadline for the queries behind one GET /issues or GET /issues/{id}. A query that misses it is cancelled and the caller gets 503."),
 
-	IngestGraphQLPageSize:    intSpec(50, 1, 100, "Issues requested per GraphQL page. GitHub caps this at 100."),
-	IngestRateLimitFloor:     intSpec(100, 0, 5000, "Stop issuing GraphQL calls when the remaining point budget falls below this."),
-	IngestMaxAttempts:        intSpec(3, 1, 10, "Attempts per repository before a sync is recorded as failed."),
-	IngestBackoffBaseSeconds: intSpec(1, 1, 60, "Base for exponential retry backoff between sync attempts."),
+	IngestGraphQLPageSize:           intSpec(50, 1, 100, "Issues requested per GraphQL page. GitHub caps this at 100."),
+	IngestRateLimitFloor:            intSpec(100, 0, 5000, "Stop issuing GraphQL calls when the remaining point budget falls below this. On the crawler lane it is measured above the interactive reserve."),
+	IngestInteractiveReservePercent: intSpec(30, 0, 90, "Share of the GitHub rate limit the crawler lane never spends, kept for interactive work such as tracked-issue checks. 0 lets the crawler spend everything down to its floor."),
+	IngestMaxAttempts:               intSpec(3, 1, 10, "Attempts per repository before a sync is recorded as failed."),
+	IngestBackoffBaseSeconds:        intSpec(1, 1, 60, "Base for exponential retry backoff between sync attempts."),
 	// D20: ~4 total in-flight by default, sized for the 2 vCPU target
 	// deployment rather than a 20-vCPU dev box.
 	IngestRoutineWorkers:  intSpec(2, 1, 64, "Concurrent Initial/Freshness workers (one page per eligible repository)."),
@@ -336,8 +374,24 @@ var Registry = map[Key]Spec{
 	IngestDiscoveryWindowHours:                intSpec(24, 1, 720, "Pushed-date span of each search window a new sweep starts with; denser windows are halved."),
 	IngestDiscoveryMinWindowSeconds:           intSpec(60, 1, 86400, "Smallest window a dense one is halved down to. Past it, only GitHub's first 1,000 results are read and the window is marked truncated."),
 	IngestDiscoveryPageSize:                   intSpec(100, 1, 100, "Repositories requested per search page. GitHub caps this at 100."),
-	IngestDiscoveryRateLimitFloor:             intSpec(1000, 0, 12500, "Discovery stops searching when the shared crawler budget falls below this; kept above ingest.rate_limit_floor so the issue crawl keeps going after discovery yields."),
+	IngestDiscoveryRateLimitFloor:             intSpec(1000, 0, 12500, "Discovery stops searching when the shared budget falls below this plus the interactive reserve; kept above ingest.rate_limit_floor so the issue crawl keeps going after discovery yields."),
 	IngestDiscoveryIncrementalIntervalSeconds: intSpec(86400, 3600, 2592000, "How often an incremental sweep covers repositories pushed since the last completed sweep."),
+	IngestArchiveEnabled:                      boolSpec(false, "Read GH Archive's hourly public event files and apply their issue events to stored repositories."),
+	IngestArchiveWorkers:                      intSpec(1, 1, 8, "Archive hours processed at once."),
+	IngestArchivePollSeconds:                  intSpec(300, 30, 3600, "How often newly ended hours are queued for the archive reader."),
+	IngestArchiveRetrySeconds:                 intSpec(600, 60, 86400, "Wait before retrying an archive hour whose file is not published yet, or whose processing failed."),
+	IngestArchiveMissingAfterHours:            intSpec(24, 1, 720, "An archive hour whose file is still not published this many hours after it ended is marked missing."),
+	IngestArchiveMaxBackfillHours:             intSpec(168, 1, 2160, "On first start, the archive reader goes back to the oldest completed crawl pass, but no further than this."),
+	IngestArchiveDownloadTimeoutSeconds:       intSpec(300, 10, 3600, "Deadline for downloading and reading one archive hour."),
+	IngestArchiveMaxFileMB:                    intSpec(512, 1, 4096, "Largest compressed archive file accepted; a larger one fails its hour."),
+	IngestArchiveApplyBatchSize:               intSpec(500, 1, 10000, "Issues from the archive written per transaction."),
+	IngestArchiveMaxLagSeconds:                intSpec(21600, 3600, 604800, "If the archive falls further behind than this, the freshness crawl returns to ingest.freshness_interval_seconds and the incremental discovery sweep resumes."),
+	IngestArchiveRepairIntervalSeconds:        intSpec(2592000, 86400, 31536000, "While the archive keeps up, the freshness crawl re-checks each repository this rarely, to catch what events miss (deleted or transferred issues)."),
+	IngestArchiveCandidateBatchSize:           intSpec(50, 1, 100, "Repositories seen in the archive but not stored, looked up on GitHub per call."),
+	IngestBodiesCacheMaxMB:                    intSpec(512, 0, 100000, "Size the issue body cache is trimmed back to, least recently read first; bodies of saved issues are always kept. 0 keeps only those."),
+	IngestBodiesPruneIntervalSeconds:          intSpec(3600, 60, 86400, "How often the issue body cache is trimmed."),
+	BodiesFallbackMissesPerHour:               intSpec(30, 0, 10000, "Issue bodies one caller may have fetched from GitHub per hour through GET /issues/{id}/body; cached bodies do not count. 0 serves the cache only."),
+	IngestArchiveCandidateRecheckDays:         intSpec(30, 1, 3650, "A looked-up candidate that was not stored is looked up again after this many days, if it is still active."),
 	IngestDiscoveryFullIntervalSeconds:        intSpec(2592000, 86400, 31536000, "How often a full sweep covers the whole pushed-within range, catching repositories that crossed the star floor without a new push."),
 
 	FlowEnabled:                  boolSpec(true, "Publish live flow events from go-api and ingestd for the public visualizer (flowd). Signed-in traffic is published as symbols only."),

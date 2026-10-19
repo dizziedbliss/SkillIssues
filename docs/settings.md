@@ -43,6 +43,7 @@ readable through the endpoint above and copied into backups.
 | `api.issues.max_limit` | 100 | 1–500 | Largest `?limit` on `GET /issues`; larger is clamped |
 | `api.issues.max_page` | 200 | 1–10000 | Deepest `?page` on `GET /issues`; deeper is clamped |
 | `api.recommendations.max_limit` | 20 | 1–100 | Largest `?limit` on `GET /recommendations`; larger is clamped |
+| `api.bodies.fallback_misses_per_hour` | 30 | 0–10000 | Issue bodies one caller may have fetched from GitHub per hour through `GET /issues/{id}/body`; cached bodies do not count (0 = cache only) |
 | `api.issues.query_timeout_ms` | 10000 | 100–25000 | Deadline for the queries behind one `GET /issues` or `GET /issues/{id}`; a query that misses it is cancelled and the caller gets 503. Keep it below the server's 30 s write timeout |
 | `api.issues.rare_language_threshold` | 20000 | 0–1000000 | Browsing a language (`?language=`, or a signed-in caller's preferred languages) with fewer open issues than this sorts that language's issues instead of walking the catalog index (0 = always walk) |
 | `api.issues.language_count_ttl_seconds` | 600 | 0–86400 | How long each language's counted open issues are reused for that decision (0 = count every request) |
@@ -57,7 +58,8 @@ readable through the endpoint above and copied into backups.
 | `ingest.routine_workers` | 2 | 1–64 | Concurrent Initial/Freshness workers |
 | `ingest.priority_workers` | 1 | 1–64 | Concurrent Deep Diver workers |
 | `ingest.graphql_page_size` | 50 | 1–100 | Issues per GraphQL page |
-| `ingest.rate_limit_floor` | 100 | 0–5000 | Crawler stops below this many remaining GitHub points |
+| `ingest.rate_limit_floor` | 100 | 0–5000 | Stop below this many remaining GitHub points. On the crawler lane it is measured above the interactive reserve; the interactive lane stops here |
+| `ingest.interactive_reserve_percent` | 30 | 0–90 | Share of the GitHub rate limit the crawler lane (crawl, discovery) never spends, kept for interactive work such as tracked-issue checks (0 = no reserve) |
 | `ingest.max_attempts` | 3 | 1–10 | Attempts before a job is left `failed` |
 | `ingest.backoff_base_seconds` | 1 | 1–60 | Base of the exponential retry backoff |
 | `ingest.freshness_interval_seconds` | 86400 | 300–2592000 | Age of a repository's last sync before a freshness pass (changes since its last completed pass) is queued |
@@ -80,9 +82,24 @@ readable through the endpoint above and copied into backups.
 | `ingest.discovery.window_hours` | 24 | 1–720 | Pushed-date span of each window a new sweep starts with |
 | `ingest.discovery.min_window_seconds` | 60 | 1–86400 | Smallest span a window over the 1,000-result search cap is halved to; past it the window is read truncated |
 | `ingest.discovery.page_size` | 100 | 1–100 | Repositories per search page |
-| `ingest.discovery.rate_limit_floor` | 1000 | 0–12500 | Discovery's floor on the shared crawler budget; above `ingest.rate_limit_floor` so discovery yields first |
-| `ingest.discovery.incremental_interval_seconds` | 86400 | 3600–2592000 | How often an incremental sweep covers repositories pushed since the last completed sweep |
+| `ingest.discovery.rate_limit_floor` | 1000 | 0–12500 | Discovery's floor on the shared budget, above the interactive reserve; above `ingest.rate_limit_floor` so discovery yields first |
+| `ingest.discovery.incremental_interval_seconds` | 86400 | 3600–2592000 | How often an incremental sweep covers repositories pushed since the last completed sweep. Not run while the archive reader is current |
 | `ingest.discovery.full_interval_seconds` | 2592000 | 86400–31536000 | How often a full sweep covers the whole `pushed_within_days` range |
+| `ingest.bodies.cache_max_mb` | 512 | 0–100000 | Size the issue body cache is trimmed back to, least recently read first; saved issues' bodies are always kept (0 = keep only those) |
+| `ingest.bodies.prune_interval_seconds` | 3600 | 60–86400 | How often the issue body cache is trimmed |
+| `ingest.archive.enabled` | false | — | Read GH Archive's hourly public event files and apply their issue events to stored repositories |
+| `ingest.archive.workers` | 1 | 1–8 | Archive hours processed at once |
+| `ingest.archive.poll_seconds` | 300 | 30–3600 | How often newly ended hours are queued |
+| `ingest.archive.retry_seconds` | 600 | 60–86400 | Wait before retrying an hour not published yet, or whose processing failed |
+| `ingest.archive.missing_after_hours` | 24 | 1–720 | An hour still unpublished this long after it ended is marked `missing` |
+| `ingest.archive.max_backfill_hours` | 168 | 1–2160 | How far back the first run goes, at most (it starts at the oldest completed crawl pass) |
+| `ingest.archive.download_timeout_seconds` | 300 | 10–3600 | Deadline for downloading and reading one hour |
+| `ingest.archive.max_file_mb` | 512 | 1–4096 | Largest compressed file accepted; a larger one fails its hour |
+| `ingest.archive.apply_batch_size` | 500 | 1–10000 | Issues written per transaction |
+| `ingest.archive.max_lag_seconds` | 21600 | 3600–604800 | Further behind than this, the archive is not current: the freshness crawl returns to `ingest.freshness_interval_seconds` and the incremental sweep resumes |
+| `ingest.archive.repair_interval_seconds` | 2592000 | 86400–31536000 | The freshness crawl's interval while the archive is current |
+| `ingest.archive.candidate_batch_size` | 50 | 1–100 | Archive candidates (repositories not stored) looked up per GitHub call |
+| `ingest.archive.candidate_recheck_days` | 30 | 1–3650 | A candidate that was not stored is looked up again after this long, if active since |
 
 Raising the eligibility thresholds takes effect on the next recheck. **Lowering** them only
 affects repositories already stored — anything that failed the old threshold was never imported,

@@ -244,18 +244,22 @@ Kaggle repository-metadata dataset      Discovery Sweeper (ingestd, off by defau
   filtered at import                             │
         │  only passers stored                   │  only passers stored
         ▼                                        ▼
-eligible repositories  (~278k after the first full crawl)
-        │
-        ▼
-Initial  — one first page of open issues per eligible repository
-        │  hasNextPage?
-        ▼
+eligible repositories  (~278k after the first full crawl)  ◀── archive candidates
+        │                                                       (looked up, passers stored)
+        ▼                                                              ▲
+Initial  — one first page of open issues per eligible repository       │
+        │  hasNextPage?                                                │
+        ▼                                                              │
 Deep Diver — every remaining page, from the stored cursor, until exhausted
-        │
-        ▼
+        │                                                              │
+        ▼                                                              │
 Freshness — once a repository's last sync is older than ingest.freshness_interval_seconds,
              fetch only what changed since its last completed pass: open issues
              updated since (upserted) and issues closed since (marked CLOSED)
+                                                                       │
+GH Archive reader (ingestd, off by default) — hourly public event files; issue events on
+             stored repositories applied when newer, unknown repositories → candidates.
+             While it is current, Freshness runs every ingest.archive.repair_interval_seconds.
 ```
 
 The coordinator (`internal/ingest/coordinator.go`) runs one cycle every
@@ -263,7 +267,9 @@ The coordinator (`internal/ingest/coordinator.go`) runs one cycle every
 (throttled), seed never-ingested repositories, re-queue stale ones, then
 check tracked (saved / in-progress) issues on GitHub, then claim and submit work to the Initial
 and Deep pools, then — if `ingest.discovery.enabled` — start a due discovery sweep and claim its
-windows for the Discovery pool. The first full crawl (every eligible repository through one pass)
+windows for the Discovery pool. If `ingest.archive.enabled`, the same cycle (before the disk-guard
+early return) queues newly ended archive hours, claims due ones for the Archive pool, and looks up
+one batch of repository candidates. The first full crawl (every eligible repository through one pass)
 took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
 
 ### Rules
@@ -340,12 +346,39 @@ took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
 - **Workers share one GitHub budget** (`github_budget`, lanes `crawler` and `interactive`) and
   claim work atomically with `FOR UPDATE SKIP LOCKED` plus a lease. Never assume a worker owns
   the whole API budget.
+- **The crawler never spends the interactive reserve.** Both lanes draw on one counter: GitHub
+  counts per credential, and `CanProceed` reads every lane's row as one. The crawler lane (crawl,
+  discovery) stops while `ingest.interactive_reserve_percent` of the limit is still left. Its floors
+  are measured above that reserve. Work a user is waiting on (the tracked-issue check) runs on
+  `interactive` and spends down to `ingest.rate_limit_floor`. A secondary limit pauses both lanes.
+  New user-facing GitHub work goes on `interactive`; new background work goes on `crawler`. There
+  is one GitHub App installation: never add an identity to get more limit.
 - **Every job write is fenced on its lease.** Expired leases are reclaimed continuously
   (`ingest.lease_reclaim_interval_seconds`), so a stalled worker's job can be re-claimed while
   it still runs. Any write that finishes a job must match `status = 'running' AND
   lease_owner = <claimer>` and treat zero rows as `ErrLeaseLost` (rolling back the page's
   transaction) — never a bare `WHERE id = $1`.
 - **Postgres is the queue.** `ingest_jobs` is the durable state store; Redis is not involved.
+- **The archive carries freshness only while it is current.** The GH Archive reader
+  (`internal/ingest/archive.go`) reads one gzipped file per hour from GH Archive, as a stream.
+  IssuesEvent and IssueCommentEvent carry the whole issue, and those for stored, eligible
+  repositories go through `writeIssueTx`: inserted, or updated only if newer than what is
+  stored. A closed issue that was never stored is not inserted, and while the disk guard is on
+  nothing is. Pull requests are skipped. `archive_hours` is a leased, fenced queue like
+  `ingest_jobs`. While every hour up to `ingest.archive.max_lag_seconds` ago is done or
+  `missing`, the freshness crawl drops to `ingest.archive.repair_interval_seconds` and the
+  incremental discovery sweep stops. A `failed` hour holds coverage back, so the daily crawl
+  resumes on its own (`archive_fallback`). Reset a failed hour with `UPDATE archive_hours SET
+  status = 'pending', attempts = 0 WHERE hour = ...`. Archive writes never touch
+  `repositories.last_synced_at` or `issues_synced_through`: the watermarks stay crawl
+  watermarks.
+- **Unknown repositories in the archive are candidates, not repositories.** `repo_candidates`
+  holds repositories with issue activity that are not stored. They are looked up with
+  `github.LookupRepositories` (aliased, ≤100 per call, on the crawler lane at discovery's floor)
+  and stored through the Discovery Sweeper's `upsertDiscoveredTx`, so eligibility, exclusion and
+  identity rules are the same. One that was not stored is looked up again after
+  `ingest.archive.candidate_recheck_days`, if it was active since. A quiet one is deleted then
+  (`PruneRepoCandidates`), which keeps the table from growing with every small repository.
 
 ### Not built
 
@@ -354,6 +387,9 @@ took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
   type no running coordinator claims.
 - **Freshness job type** — stale repositories are re-queued as `job_type='initial'`; nothing
   writes `'freshness'`.
+- **Pull requests from the archive** — the reader skips `PullRequestEvent` (and its `merged`
+  action). Nothing tracks pull requests yet. Bodies in issue events only refresh bodies already
+  cached; they never add one.
 
 ---
 
@@ -536,6 +572,14 @@ Every key with its default and bounds: `docs/settings.md`.
   A language with fewer than `api.issues.rare_language_threshold` open issues is sorted instead,
   because the planner cannot tell a rare language from a common one. Browse queries use
   `pgx.QueryExecModeExec` so they are never run from a cached generic plan.
+- **Issue bodies are the client's to fetch; the server is the fallback.** Clients read bodies
+  from GitHub (`ApiClient.loadIssueBody`) and call `GET /issues/{id}/body` only when GitHub
+  refuses them for their own rate limit. That route serves `issue_bodies` (a bounded cache,
+  `ingest.bodies.cache_max_mb`, saved issues' bodies never evicted). On a miss it is capped per
+  caller (`api.bodies.fallback_misses_per_hour`, refused when Redis cannot count) and fetched by
+  ingestd (`POST /bodies/{id}`, admin token) on the `interactive` lane. go-api holds no GitHub
+  credential and never writes a body. Bodies are attacker-controlled; render them only through
+  `packages/markdown`.
 - **Catalog responses are cacheable only when signed out**: public `Cache-Control` + `ETag` and a
   Redis copy shared through `singleflight`. A signed-in response is ordered by the caller's
   languages and is `private, no-store`.
@@ -553,9 +597,8 @@ Every key with its default and bounds: `docs/settings.md`.
 - **Contributions, XP, levels and badges.** Removed with the no-user-tokens redesign
   (migration 00027): the old design awarded XP from PRs verified with a stored user token.
   The rebuild is client-side work with server-side verification from public GitHub data.
-- **Issue bodies and live issue state.** The server never fetches a body or answers a
-  freshness check; clients call GitHub directly. ingestd's tracked-issue check keeps saved
-  issues' state correct.
+- **Live issue state on demand.** The server answers no freshness check; ingestd's
+  tracked-issue check keeps saved issues' state correct, and the archive reader everyone else's.
 
 ---
 

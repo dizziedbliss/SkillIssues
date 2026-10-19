@@ -104,7 +104,8 @@ func (s *Service) categoryCap() int {
 	return n
 }
 
-// No i.body here: the server stores no issue bodies; clients read them from GitHub.
+// No body here: bodies are large, attacker-controlled and fetched on their own
+// (GET /issues/{id}/body, issue_bodies).
 const baseIssueSelect = `
 	SELECT i.id, COALESCE(i.github_id, 0), i.number, i.title,
 	       i.url, i.state, i.updated_at::text,

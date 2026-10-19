@@ -127,7 +127,8 @@ func StartSweep(ctx context.Context, pool *db.Pool, kind SweepKind, p SweepParam
 // started (or none ever did); otherwise an incremental one once
 // incremental_interval has passed since any sweep started. A failed sweep
 // counts as started, so a persistently failing range is retried on the
-// incremental cadence rather than every cycle.
+// incremental cadence rather than every cycle. An incrementalEvery of 0 runs
+// no incremental sweep: the archive reader's candidates stand in for it.
 func DueSweep(ctx context.Context, pool *db.Pool, fullEvery, incrementalEvery time.Duration) (SweepKind, bool, error) {
 	var running bool
 	var lastFull, lastAny *time.Time
@@ -146,7 +147,7 @@ func DueSweep(ctx context.Context, pool *db.Pool, fullEvery, incrementalEvery ti
 		return "", false, nil
 	case lastFull == nil || now.Sub(*lastFull) >= fullEvery:
 		return SweepFull, true, nil
-	case lastAny == nil || now.Sub(*lastAny) >= incrementalEvery:
+	case incrementalEvery > 0 && (lastAny == nil || now.Sub(*lastAny) >= incrementalEvery):
 		return SweepIncremental, true, nil
 	}
 	return "", false, nil
@@ -540,7 +541,8 @@ func (w *Worker) processDiscoveryWindow(ctx context.Context, win DiscoveryWindow
 	}
 	snap := w.live()
 
-	proceed, err := CanProceed(ctx, w.pool, LaneCrawler, installationIdentity, snap.Int(settings.IngestDiscoveryRateLimitFloor))
+	proceed, err := CanProceed(ctx, w.pool, LaneCrawler, installationIdentity,
+		snap.Int(settings.IngestDiscoveryRateLimitFloor), snap.Int(settings.IngestInteractiveReservePercent))
 	if err != nil {
 		metrics.BudgetErrors.WithLabelValues("read", string(LaneCrawler)).Inc()
 		slog.Warn("budget check failed, searching anyway", "error", err)

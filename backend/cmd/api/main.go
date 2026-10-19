@@ -222,6 +222,7 @@ func buildRouter(
 	// ----- Issues -----
 	mux.Handle("GET /issues", optionalAuth(authSvc, http.HandlerFunc(h.listIssues)))
 	mux.HandleFunc("GET /issues/{id}", h.getIssue) // no auth required
+	mux.Handle("GET /issues/{id}/body", optionalAuth(authSvc, http.HandlerFunc(h.getIssueBody)))
 
 	// ----- Saved issues -----
 	mux.Handle("GET /saved", requireAuth(authSvc, http.HandlerFunc(h.getSaved)))
@@ -262,6 +263,7 @@ func buildRouter(
 		if err != nil {
 			return nil, err
 		}
+		h.trustedProxies = trustedProxies
 		// Read limits per request so a settings change applies without a restart.
 		publicHandler = middleware.RateLimiter(cacheClient, func() middleware.RateLimits {
 			s := live.Current()

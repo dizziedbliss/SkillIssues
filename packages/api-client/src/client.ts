@@ -134,8 +134,37 @@ export class ApiClient {
     return this.send<Issue>(`/issues/${id}`, { signal: opts?.signal });
   }
 
+  // getIssueBody is the server's body fallback: a cached body, or one the
+  // server fetches with its own GitHub budget, capped per caller (429 past
+  // it). Prefer loadIssueBody, which only falls back to this when GitHub has
+  // refused the caller itself.
   async getIssueBody(id: number, opts?: RequestOptions): Promise<IssueBodyResult | IssueBodyPending> {
     return this.send<IssueBodyResult | IssueBodyPending>(`/issues/${id}/body`, { signal: opts?.signal });
+  }
+
+  // loadIssueBody reads an issue's body from GitHub directly, and asks the
+  // server only when GitHub answers that the caller's own rate limit is spent
+  // (403/429 with x-ratelimit-remaining: 0) — the server's budget is for users
+  // who have no other way. Any other GitHub failure is thrown as an ApiError
+  // with GitHub's status. githubFetch lets a client route the GitHub call its
+  // own way (desktop, with its user token); it defaults to fetch.
+  async loadIssueBody(
+    issue: Pick<Issue, "id" | "repository" | "number">,
+    opts?: RequestOptions & { githubFetch?: typeof fetch },
+  ): Promise<IssueBodyResult | IssueBodyPending> {
+    const doFetch = opts?.githubFetch ?? fetch;
+    const res = await doFetch(`https://api.github.com/repos/${issue.repository}/issues/${issue.number}`, {
+      headers: { Accept: "application/vnd.github+json" },
+      signal: opts?.signal,
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { body?: string | null };
+      return { body: data.body ?? "" };
+    }
+    if ((res.status === 403 || res.status === 429) && res.headers.get("x-ratelimit-remaining") === "0") {
+      return this.getIssueBody(issue.id, opts);
+    }
+    throw new ApiError(res.status, `GitHub answered ${res.status} for ${issue.repository}#${issue.number}`);
   }
 
   async checkIssueFreshness(id: number, opts?: RequestOptions): Promise<FreshnessResult> {

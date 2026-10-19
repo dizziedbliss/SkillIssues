@@ -10,6 +10,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- The issue body fallback (migration 00038). `GET /issues/{id}/body` existed only in the clients:
+  the web and desktop apps called it and got 404, so issue descriptions never loaded.
+  - It serves a bounded cache (`issue_bodies`, trimmed to `ingest.bodies.cache_max_mb`, never a
+    saved issue's body).
+  - On a miss, ingestd fetches the body with the server credential on the interactive lane
+    (`POST /bodies/{id}`), capped at `api.bodies.fallback_misses_per_hour` per caller. The cap is
+    refused, not skipped, when Redis is down.
+  - The archive reader refreshes cached bodies. `ApiClient.loadIssueBody` reads from GitHub first
+    and uses the server only when GitHub refuses the caller's own rate limit.
+  - `body_fetches_total{outcome}` on ingestd.
+- GH Archive reader in `ingestd` (migration 00037). **Off by default** (`ingest.archive.enabled`).
+  - It reads GH Archive's hourly public event files as a stream and applies `IssuesEvent` and
+    `IssueCommentEvent` issues to stored, eligible repositories, with no GitHub API call. An issue
+    is inserted, or updated only when newer than what is stored. Pull requests are skipped.
+  - Hours are a leased queue (`archive_hours`). Repositories with issue activity that are not
+    stored become `repo_candidates`; they are looked up in batches with the new
+    `github.LookupRepositories` and stored through the Discovery Sweeper's rules.
+  - While the archive is current (`ingest.archive.max_lag_seconds`), the freshness crawl runs
+    every 30 days (`ingest.archive.repair_interval_seconds`) instead of daily, and the
+    incremental discovery sweep stops. If it falls behind, both resume by themselves.
+  - New metrics: `archive_*`. Grafana *Ingestion* has an Archive row.
+  - A real hour (2026-10-18 15:00 UTC, 19,226 events) applies in 1.2 s.
+- An interactive reserve on the GitHub budget (migration 00036,
+  `ingest.interactive_reserve_percent`, 30%). The crawl and discovery stop while that share of the
+  rate limit is still left, and their floors are now measured above it. The tracked-issue check moves
+  to the `interactive` lane and spends into the reserve, down to `ingest.rate_limit_floor`, so a
+  saturated crawl no longer delays it. The two lanes are read as the one counter GitHub keeps
+  per credential, and a secondary limit pauses both.
 - Cursor paging for the catalog: `GET /issues?cursor=` returns `{"issues", "next_cursor"}` and
   costs the same on every page, however deep. `?page` still works, in the same order; the order now
   breaks ties on id. Signed-out `/issues` responses carry `Cache-Control` and an `ETag`
