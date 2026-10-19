@@ -132,9 +132,13 @@ func (c *Client) observe(ctx context.Context, op string, err error) {
 
 // RateLimitResult holds the result of a rate limit check.
 type RateLimitResult struct {
-	Allowed    bool
-	Remaining  int64
-	ResetAfter time.Duration
+	// Unavailable is true when Redis could not be asked, and Allowed is the
+	// fail-open default rather than a count. A caller guarding something
+	// that costs more than a request (an outbound GitHub call) refuses on it.
+	Unavailable bool
+	Allowed     bool
+	Remaining   int64
+	ResetAfter  time.Duration
 }
 
 // CheckRateLimit is a fixed-window counter: the first request in a window
@@ -147,7 +151,7 @@ type RateLimitResult struct {
 func (c *Client) CheckRateLimit(ctx context.Context, key string, limit int64, window time.Duration) RateLimitResult {
 	callCtx, cancel, ok := c.begin(ctx, "rate_limit")
 	if !ok {
-		return RateLimitResult{Allowed: true}
+		return RateLimitResult{Allowed: true, Unavailable: true}
 	}
 	defer cancel()
 
@@ -164,7 +168,7 @@ func (c *Client) CheckRateLimit(ctx context.Context, key string, limit int64, wi
 	// ever gets symbols for it.
 	tap(ctx, "INCR ratelimit:"+flow.Symbols(), start, err)
 	if err != nil {
-		return RateLimitResult{Allowed: true}
+		return RateLimitResult{Allowed: true, Unavailable: true}
 	}
 
 	count := incr.Val()

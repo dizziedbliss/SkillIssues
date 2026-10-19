@@ -10,6 +10,8 @@
 package main
 
 import (
+	"net"
+
 	"github.com/dizziedbliss/skillissues/internal/auth"
 	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/config"
@@ -34,6 +36,11 @@ type handlers struct {
 	profileSvc      *profile.Service
 	issueSvc        *issue.Service
 	notificationSvc *notification.Service
+
+	// trustedProxies are the CIDRs whose X-Forwarded-For is believed, for
+	// per-caller caps beyond the global rate limiter. Nil without Redis,
+	// where those caps refuse anyway.
+	trustedProxies []*net.IPNet
 
 	// issuesFlight collapses concurrent identical signed-out catalog
 	// requests that miss the cache into one query (handlers_issues.go).

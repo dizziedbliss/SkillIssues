@@ -1,11 +1,21 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/dizziedbliss/skillissues/internal/config"
+	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/issue"
 	"github.com/dizziedbliss/skillissues/internal/settings"
+	"github.com/jackc/pgx/v5"
 )
 
 func TestEtagMatches(t *testing.T) {
@@ -74,5 +84,92 @@ func TestRespondIssuesCacheHeaders(t *testing.T) {
 	}
 	if rec.Header().Get("ETag") != "" {
 		t.Error("private response carries an ETag")
+	}
+}
+
+// bodyHandlers is a handlers value over the test database with no Redis and
+// no ingestd: enough for the cache and the refusals.
+func bodyHandlers(t *testing.T) (*handlers, *db.Pool) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping database test in short mode")
+	}
+	url := os.Getenv("TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("TEST_DATABASE_URL not set")
+	}
+	pool, err := db.New(context.Background(), db.DefaultConfig(url))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	return &handlers{
+		cfg:      &config.Config{},
+		live:     settings.NewLive(context.Background(), pool.Raw(), url),
+		db:       pool,
+		issueSvc: issue.New(pool, nil),
+	}, pool
+}
+
+// A cached body is served, publicly, and marked read; a miss without Redis
+// to count it is refused rather than fetched uncapped; an unknown issue is
+// 404.
+func TestGetIssueBody(t *testing.T) {
+	h, pool := bodyHandlers(t)
+	ctx := context.Background()
+
+	var repoID, cachedID, uncachedID int
+	scan := func(dst *int) func(pgx.Row) error { return func(row pgx.Row) error { return row.Scan(dst) } }
+	name := fmt.Sprintf("body-api-test/r%d", time.Now().UnixNano())
+	if err := pool.QueryRow(ctx, `INSERT INTO repositories (full_name, url) VALUES ($1, 'u') RETURNING id`, []any{name}, scan(&repoID)); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := pool.Exec(context.Background(), `DELETE FROM repositories WHERE id = $1`, repoID); err != nil {
+			t.Errorf("cleanup: %v", err)
+		}
+	})
+	for n, dst := range map[int]*int{1: &cachedID, 2: &uncachedID} {
+		if err := pool.QueryRow(ctx,
+			`INSERT INTO issues (repository_id, number, title, url, difficulty) VALUES ($1, $2, 't', 'u', 'UNCLASSIFIED') RETURNING id`,
+			[]any{repoID, n}, scan(dst)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := pool.Exec(ctx,
+		`INSERT INTO issue_bodies (issue_id, body, source, last_read_at) VALUES ($1, 'cached body', 'fetch', now() - interval '1 day')`,
+		cachedID); err != nil {
+		t.Fatal(err)
+	}
+
+	get := func(id string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/issues/"+id+"/body", nil)
+		req.SetPathValue("id", id)
+		rec := httptest.NewRecorder()
+		h.getIssueBody(rec, req)
+		return rec
+	}
+
+	rec := get(strconv.Itoa(cachedID))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"cached body"`) {
+		t.Fatalf("cached: %d %s", rec.Code, rec.Body.String())
+	}
+	if !strings.HasPrefix(rec.Header().Get("Cache-Control"), "public") {
+		t.Errorf("cached body Cache-Control = %q, want public", rec.Header().Get("Cache-Control"))
+	}
+	var readRecently bool
+	if err := pool.QueryRow(ctx, `SELECT last_read_at > now() - interval '1 minute' FROM issue_bodies WHERE issue_id = $1`,
+		[]any{cachedID}, func(row pgx.Row) error { return row.Scan(&readRecently) }); err != nil || !readRecently {
+		t.Errorf("serving the body did not mark it read (err %v)", err)
+	}
+
+	if rec := get(strconv.Itoa(uncachedID)); rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("miss without Redis: %d %s, want 503", rec.Code, rec.Body.String())
+	}
+	if rec := get("999999999"); rec.Code != http.StatusNotFound {
+		t.Errorf("unknown issue: %d, want 404", rec.Code)
+	}
+	if rec := get("nope"); rec.Code != http.StatusNotFound {
+		t.Errorf("malformed id: %d, want 404", rec.Code)
 	}
 }

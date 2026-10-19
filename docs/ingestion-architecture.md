@@ -19,12 +19,13 @@ this table is how you find out.
 | Deep Diver — remaining pages from the stored cursor | **Built** | `job_type='deep'`; capped by `ingest.max_pages_per_repo` |
 | Atomic claims with `FOR UPDATE SKIP LOCKED` + lease | **Built** | expired leases reclaimed continuously; job writes fenced on `lease_owner` |
 | Cursor + issues committed in one transaction | **Built** | `CompleteOrRequeue` runs in the page's transaction |
-| Shared GitHub budget (`github_budget`, crawler/interactive lanes) | **Built** | |
+| Shared GitHub budget (`github_budget`, crawler/interactive lanes) | **Built** | one counter read across both lanes; the crawler lane leaves `ingest.interactive_reserve_percent` for interactive work (tracked-issue checks) |
 | `RESOURCE_LIMITS_EXCEEDED` recovery | **Built, differently** | no GraphQL alias batching: one repository per call, and the *page size* is halved down to 1 (§4 describes splitting alias batches) |
 | Secondary rate limits | **Built, simplified** | fixed one-minute lane pause; `Retry-After` is not read |
 | `NOT_FOUND` isolates the repository | **Built** | job `failed`, repository marked ineligible |
 | NUL-byte sanitisation before persistence | **Built** | `ingest.SanitizeText` |
 | Metrics distinguishing retries from failures | **Built** | `ingest_job_outcomes_total{outcome}` on ingestd's `/metrics` |
+| GH Archive reader (hourly public events) | **Built** (off by default) | `ingest/archive.go`; its own queue (`archive_hours`). Applies issue events to stored repositories when newer; while it is current, freshness drops to `ingest.archive.repair_interval_seconds` and the incremental discovery sweep stops. See *GH Archive reader* below |
 | Discovery Sweeper (GitHub Search over date windows) | **Built** (off by default) | `ingest/discovery.go`; its own queue (`discovery_sweeps`, `discovery_windows`), not `ingest_jobs` — nothing writes `job_type='discovery'`. Windows are over **pushed** date (not created), deduplication is by `repositories.github_database_id`. See *Discovery Sweeper* below |
 
 Sections 4 and 6 record observations from the Python v6 prototype (still in `benchmark/`);
@@ -99,7 +100,9 @@ As built (migration 00032, `internal/ingest/discovery.go`), with `ingest.discove
   and a failed sweep does not move the watermark.
 - **Budget.** Discovery shares the `crawler` lane but checks it against
   `ingest.discovery.rate_limit_floor` (1,000), which is above the crawl's own floor, so
-  discovery stops first when points run low.
+  discovery stops first when points run low. Both floors sit above the interactive reserve
+  (`ingest.interactive_reserve_percent`, 30%): with a 12,500-point limit, the crawl stops at
+  3,850 remaining and discovery at 4,750.
 - **What it stores.**
   - New repository: inserted only if `ingest.Eligible` passes and it is not excluded, the same
     rule `cmd/repoimport` uses. `EnqueueInitialJobs` then queues it.
@@ -113,6 +116,57 @@ As built (migration 00032, `internal/ingest/discovery.go`), with `ingest.discove
     and left alone.
   - The crawl's first page of every pass fills the id for rows that lack it and applies the
     same `duplicate` rule.
+
+### GH Archive reader
+
+GH Archive publishes every public GitHub event as one gzipped JSON-lines file per hour,
+`https://data.gharchive.org/YYYY-MM-DD-H.json.gz` (UTC, hour not zero-padded), roughly an hour
+after the hour ends. Reading it costs no GitHub API budget.
+
+- **What a file holds** (checked against 2026-10-18 15:00 UTC: 9.3 MiB, 19,226 events).
+  - `IssuesEvent` (1,009) and `IssueCommentEvent` (1,240) carry the whole issue: labels, state,
+    `state_reason`, `updated_at`, assignees and body. Only `author_association` is gone (removed
+    from event payloads on 2025-10-07).
+  - `PullRequestEvent` is slimmed to id, number and head/base repository, with a distinct
+    `merged` action.
+  - Every event carries the numeric `repo.id`.
+- **Queue.** `archive_hours` has one row per hour, leased and fenced like `ingest_jobs`:
+  - Every `ingest.archive.poll_seconds` the coordinator queues each hour that has ended. The
+    first run starts at the oldest `issues_synced_through` of an eligible repository, but no
+    earlier than `ingest.archive.max_backfill_hours` ago.
+  - A 404 means not published yet: the hour is retried after `ingest.archive.retry_seconds`.
+    After `ingest.archive.missing_after_hours` it is marked `missing`.
+  - A processing failure counts an attempt, and the hour is `failed` after `ingest.max_attempts`.
+- **Reading.**
+  - The file is streamed, never held whole, and capped at `ingest.archive.max_file_mb`.
+  - Only the newest state of each issue in the hour is kept.
+  - Pull requests are skipped (issue events report them too).
+- **Applying.**
+  - An issue in a stored, eligible repository (matched by `github_database_id`, or by name for a
+    row the crawl has not recorded an id for) goes through the crawl's `writeIssueTx`: inserted,
+    or updated only if newer than what is stored. So hours can be read in any order, and again.
+  - A closed issue that was never stored is not inserted, and while the disk guard is on nothing
+    is.
+  - Writes are `ingest.archive.apply_batch_size` per transaction.
+  - Repository watermarks are never touched.
+- **Coverage.**
+  - Coverage ends at the first hour that is not `done` or `missing` (`archive_lag_seconds`).
+  - Within `ingest.archive.max_lag_seconds`, the archive is *current*. The freshness crawl then
+    runs every `ingest.archive.repair_interval_seconds` (30 days), to catch what events cannot
+    show, and the incremental discovery sweep stops.
+  - Otherwise both return to their normal cadence by themselves (`archive_fallback`). A `failed`
+    hour keeps it that way until it is set pending again.
+- **Candidates.**
+  - A repository with issue activity that is not stored goes to `repo_candidates`.
+  - Each coordinator cycle looks up one batch (`ingest.archive.candidate_batch_size`, aliased
+    `repository(owner, name)` queries) on the crawler lane at discovery's floor.
+  - Results are stored through the Discovery Sweeper's `upsertDiscoveredTx`: same eligibility,
+    exclusion and identity rules.
+  - One that was not stored is looked up again after `ingest.archive.candidate_recheck_days`, if
+    it was active since. A quiet one is deleted then; if it turns active again, it is queued afresh.
+  - Lookups continue each cycle while batches come back full; otherwise they wait
+    `ingest.archive.poll_seconds`.
+  - The 2026-10-18 15:00 hour named about 950 such repositories.
 
 ### Initial / Freshness Worker
 
