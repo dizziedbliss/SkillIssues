@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Catalog filters and sorts (migration 00041).
+  - **Filters:** `GET /issues` takes `labels`, `topics`, `tech` (any language the repository
+    uses), `language`, `difficulty` (each a comma-separated list, any of which matches), and
+    `comments_min` / `comments_max`. Malformed or oversized filters are a 400.
+  - **Sorts:** `sort=shuffle` is the new default for cursor paging. It gives every repository one
+    slot (its best open issue), in a random order ingestd redraws daily, so the feed spreads
+    across the whole backlog and still caches. `sort=newest` and `sort=easiest` are the other two.
+  - **Facets:** `GET /issues/facets` serves the dropdown values with counts, which ingestd
+    recomputes daily (`catalog_facets`).
+  - **New indexes:** open issues by repository in catalog order, by `created_at`, and by
+    lower-cased labels; `repositories.tech` and `topics` (GIN).
+  - **api-client:** `getIssuesPage` takes the filters and sort; `getIssueFacets` is new.
+  - **Issue JSON:** gains `created_at`.
+
 ### Fixed
 - Search returned 503 after about 12 s on the production catalog.
   - **Cause:** it was one query ORing four kinds of match across a join, which no index could

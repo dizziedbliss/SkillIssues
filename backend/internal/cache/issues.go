@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"time"
 )
 
@@ -30,12 +29,11 @@ func (c *Client) GetHotIssues(ctx context.Context) []byte {
 }
 
 // CacheSearchKey creates a deterministic key for one signed-out catalog or
-// search request. cursor is the ?cursor= token and cursorMode whether the
-// request had a ?cursor= at all (an empty one asks for the first page), since
-// that changes the response's shape as well as its contents.
-func CacheSearchKey(difficulty, language, query string, limit, page int, cursorMode bool, cursor string) string {
-	raw := fmt.Sprintf("d:%s|l:%s|q:%s|lim:%d|p:%d|cm:%t|c:%s", difficulty, language, query, limit, page, cursorMode, cursor)
-	hash := sha256.Sum256([]byte(raw))
+// search request from its canonical form: every filter, the sort, the page or
+// cursor, and whether it was a cursor request at all (that changes the
+// response's shape as well as its contents).
+func CacheSearchKey(canonical string) string {
+	hash := sha256.Sum256([]byte(canonical))
 	return searchKeyPrefix + hex.EncodeToString(hash[:8])
 }
 

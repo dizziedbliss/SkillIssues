@@ -4,7 +4,6 @@ package issue
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/db"
@@ -20,6 +19,8 @@ type Issue struct {
 	URL       string `json:"url"`
 	State     string `json:"state"`
 	UpdatedAt string `json:"updated_at"`
+	// CreatedAt is when the issue was opened on GitHub; "" when unknown.
+	CreatedAt string `json:"created_at"`
 	// DifficultyScore is nil for UNCLASSIFIED issues (D6) — never defaulted
 	// to a number that would imply BEGINNER or any other difficulty.
 	DifficultyScore       *int     `json:"difficulty_score"`
@@ -41,18 +42,31 @@ type Issue struct {
 	WhyRecommended      []string `json:"why_recommended,omitempty"`
 	MatchCategory       string   `json:"match_category,omitempty"`
 
-	// updated is updated_at as a timestamp rather than text, for the browse
-	// cursor (browse.go): it must name an exact position, to the microsecond.
+	// updated and created are updated_at and created_at as timestamps rather
+	// than text, for the browse cursors (browse.go): a cursor must name an
+	// exact position, to the microsecond. created is zero when unknown.
 	updated time.Time
+	created time.Time
 }
 
-// Filters for issue catalog queries.
+// Filters for issue catalog queries. Within one list any value matches;
+// across filters every one must (filters.go).
 type Filters struct {
-	Difficulty string
-	Language   string
-	Search     string
-	Limit      int
-	Page       int
+	Search string
+	Limit  int
+	Page   int
+	// Sort orders a browse; "" is the caller's default (the handler picks
+	// shuffle for cursor paging, easiest for page numbers). A search orders
+	// by match category and ignores it.
+	Sort Sort
+
+	Difficulties []string // upper-cased, from Difficulties
+	Languages    []string // the repository's main language
+	Labels       []string // issue labels, case-insensitively
+	Topics       []string // the repository's GitHub topics
+	Tech         []string // any language GitHub reports in the repository
+	CommentsMin  *int
+	CommentsMax  *int
 
 	// RareLanguageBelow is api.issues.rare_language_threshold for this
 	// request: BrowseIssues reads a language with fewer open issues than this
@@ -123,13 +137,14 @@ const baseIssueSelect = `
 	       i.comments, COALESCE(i.author, split_part(r.full_name, '/', 1)),
 	       r.full_name, r.url, COALESCE(r.description, ''),
 	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, ''),
-	       i.updated_at
+	       i.updated_at, COALESCE(i.created_at::text, ''), i.created_at
 	FROM issues i
 	JOIN repositories r ON r.id = i.repository_id
 `
 
 func scanIssue(rows pgx.Rows) (Issue, error) {
 	var it Issue
+	var created *time.Time
 	err := rows.Scan(
 		&it.ID, &it.GitHubID, &it.Number, &it.Title,
 		&it.URL, &it.State, &it.UpdatedAt,
@@ -138,8 +153,11 @@ func scanIssue(rows pgx.Rows) (Issue, error) {
 		&it.Comments, &it.Author,
 		&it.Repository, &it.RepositoryURL, &it.RepositoryDescription,
 		&it.Language, &it.Stars, &it.License,
-		&it.updated,
+		&it.updated, &it.CreatedAt, &created,
 	)
+	if created != nil {
+		it.created = *created
+	}
 	return it, err
 }
 
@@ -159,62 +177,29 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 	}
 	offset := (page - 1) * limit
 
-	var args []any
-	argIdx := 1
-
 	if f.Search != "" {
 		return s.searchCategories(ctx, f, limit, offset)
 	}
 
-	// Browsing by page number: an OFFSET into the catalog order. Kept for
+	// Browsing by page number: an OFFSET into the easiest order. Kept for
 	// callers that page with ?page; BrowseIssues serves the first page and
 	// every cursor page without the cost of skipping rows.
-	var sb strings.Builder
-	sb.WriteString(baseIssueSelect)
-	sb.WriteString(" WHERE i.state = 'OPEN'")
+	var q browseQuery
+	q.sb.WriteString(baseIssueSelect)
+	q.sb.WriteString(" WHERE i.state = 'OPEN'")
+	q.sb.WriteString(f.conds(q.arg))
 
-	if f.Difficulty != "" {
-		sb.WriteString(fmt.Sprintf(" AND i.difficulty = $%d", argIdx))
-		args = append(args, strings.ToUpper(f.Difficulty))
-		argIdx++
-	}
-
-	if f.Language != "" {
-		sb.WriteString(fmt.Sprintf(" AND lower(r.language) = lower($%d)", argIdx))
-		args = append(args, f.Language)
-		argIdx++
-	}
-
-	if len(prefLangs) > 0 {
-		var normLangs []string
-		for _, l := range prefLangs {
-			if tl := strings.TrimSpace(l); tl != "" {
-				normLangs = append(normLangs, strings.ToLower(tl))
-			}
-		}
-		sb.WriteString(fmt.Sprintf(` ORDER BY
-			CASE WHEN lower(r.language) = ANY($%d) THEN 0 ELSE 1 END ASC,
-			i.difficulty_score ASC,
-			i.updated_at DESC,
-			i.id DESC`, argIdx))
-		args = append(args, normLangs)
-		argIdx++
+	// As in easiestPage, a language filter makes the preference moot.
+	langs := normaliseLanguages(prefLangs)
+	if len(langs) > 0 && len(f.Languages) == 0 {
+		q.sb.WriteString(` ORDER BY
+			CASE WHEN lower(r.language) = ANY(` + q.arg(langs) + `) THEN 0 ELSE 1 END ASC, ` + catalogOrder)
 	} else {
-		sb.WriteString(" ORDER BY " + catalogOrder)
+		q.sb.WriteString(" ORDER BY " + catalogOrder)
 	}
+	q.sb.WriteString(" LIMIT " + q.arg(limit) + " OFFSET " + q.arg(offset))
 
-	sb.WriteString(fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx, argIdx+1))
-	args = append(args, limit, offset)
-
-	var all []Issue
-	err := s.db.QueryRows(ctx, sb.String(), args, func(rows pgx.Rows) error {
-		it, err := scanIssue(rows)
-		if err != nil {
-			return err
-		}
-		all = append(all, it)
-		return nil
-	})
+	all, err := s.queryIssues(ctx, q.sb.String(), q.args)
 	if err != nil {
 		return nil, fmt.Errorf("issue: query issues: %w", err)
 	}

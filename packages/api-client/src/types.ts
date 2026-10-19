@@ -14,6 +14,8 @@ export interface Issue {
   url: string;
   state: string; // "OPEN" | "CLOSED"
   updated_at: string;
+  // When the issue was opened on GitHub; "" when unknown.
+  created_at: string;
   // null for UNCLASSIFIED (D6) — never defaulted to a number that would
   // imply BEGINNER or any other difficulty.
   difficulty_score: number | null;
@@ -189,7 +191,7 @@ export interface VerifyResult {
   xp_info?: Record<string, unknown>;
 }
 
-export interface IssueFilters {
+export interface IssueFilters extends IssueFilterSet {
   difficulty?: "ALL" | "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "UNCLASSIFIED";
   language?: string;
   search?: string;
@@ -197,14 +199,47 @@ export interface IssueFilters {
   page?: number;
 }
 
+// shuffle: every repository's best issue, repositories in a random order
+// redrawn daily (the default for cursor paging). easiest: difficulty, then
+// recently updated. newest: most recently opened.
+export type IssueSort = "shuffle" | "easiest" | "newest";
+
+// The catalog filters. Within one list any value matches; across filters every
+// one must. Values for labels, topics, tech and languages come from
+// getIssueFacets(); labels match case-insensitively.
+export interface IssueFilterSet {
+  difficulties?: Difficulty[];
+  languages?: string[]; // the repository's main language
+  labels?: string[];
+  topics?: string[];
+  tech?: string[]; // any language GitHub reports in the repository
+  commentsMin?: number;
+  commentsMax?: number; // commentsMax: 0 is "no comments yet"
+}
+
 // Filters for cursor paging (GET /issues?cursor=). Browsing only: a search
 // pages by `page`. Keep the filters the same for every page of one walk.
-export interface IssueBrowseFilters {
-  difficulty?: IssueFilters["difficulty"];
-  language?: string;
+export interface IssueBrowseFilters extends IssueFilterSet {
+  sort?: IssueSort;
   limit?: number;
   // A previous page's nextCursor; omitted for the first page.
   cursor?: string;
+}
+
+// One filter dropdown value and how many open issues have it.
+export interface IssueFacet {
+  value: string;
+  issues: number;
+}
+
+// GET /issues/facets: each filter's values, the most common first, refreshed
+// daily by the server. refreshed_at is null until the first refresh.
+export interface IssueFacets {
+  labels: IssueFacet[];
+  topics: IssueFacet[];
+  tech: IssueFacet[];
+  languages: IssueFacet[];
+  refreshed_at: string | null;
 }
 
 // One cursor page. nextCursor is null on the last page.
