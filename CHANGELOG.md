@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Ready for Cloudflare in front of the site. Caddy believes `CF-Connecting-IP` only from
+  Cloudflare's published ranges, and passes go-api exactly the resolved visitor in
+  `X-Forwarded-For`. Without that, every visitor behind one Cloudflare edge would share one
+  rate-limit bucket.
+  - A direct client cannot spoof its address either way: tested with a forged
+    `CF-Connecting-IP` from an untrusted peer and from a trusted one.
+  - Nothing changes until DNS is proxied.
+
+### Added
 - The issue body fallback (migration 00038). `GET /issues/{id}/body` existed only in the clients:
   the web and desktop apps called it and got 404, so issue descriptions never loaded.
   - It serves a bounded cache (`issue_bodies`, trimmed to `ingest.bodies.cache_max_mb`, never a
