@@ -10,7 +10,9 @@ import type {
   Issue,
   IssueBodyPending,
   IssueBodyResult,
+  IssueBrowseFilters,
   IssueFilters,
+  IssuePage,
   PreferenceOptions,
   Profile,
   ProfileUpdate,
@@ -109,6 +111,23 @@ export class ApiClient {
     if (filters.search) params.set("search", filters.search);
     const qs = params.toString();
     return this.send<Issue[]>(`/issues${qs ? `?${qs}` : ""}`, { signal: opts?.signal });
+  }
+
+  // getIssuesPage browses the catalog by cursor: every page costs the server
+  // the same, however deep, unlike `page`. Pass each page's nextCursor back
+  // for the next one until it is null.
+  async getIssuesPage(filters: IssueBrowseFilters = {}, opts?: RequestOptions): Promise<IssuePage> {
+    const params = new URLSearchParams();
+    if (filters.limit) params.set("limit", String(filters.limit));
+    if (filters.difficulty && filters.difficulty !== "ALL") params.set("difficulty", filters.difficulty);
+    if (filters.language) params.set("language", filters.language);
+    // Present even when empty: an empty cursor asks for the first page in
+    // the cursor response shape.
+    params.set("cursor", filters.cursor ?? "");
+    const res = await this.send<{ issues: Issue[]; next_cursor: string | null }>(`/issues?${params.toString()}`, {
+      signal: opts?.signal,
+    });
+    return { issues: res.issues, nextCursor: res.next_cursor };
   }
 
   async getIssue(id: number, opts?: RequestOptions): Promise<Issue> {
