@@ -142,7 +142,11 @@ export interface IssueBodyResult {
 
 export interface IssueBodyPending {
   status: "queued";
-  reason: "budget" | "no-credential" | "fetching";
+  // budget: the server's GitHub budget is spent for now; no-credential: the
+  // server has no GitHub token; disabled: the fallback serves cached bodies
+  // only (api.bodies.fallback_misses_per_hour is 0). "fetching" is kept for
+  // older servers.
+  reason: "budget" | "no-credential" | "disabled" | "fetching";
 }
 
 export interface PullRequestSummary {

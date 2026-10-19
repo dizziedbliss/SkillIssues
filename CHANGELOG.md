@@ -10,6 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- The issue body fallback (migration 00038). `GET /issues/{id}/body` existed only in the clients:
+  the web and desktop apps called it and got 404, so issue descriptions never loaded.
+  - It serves a bounded cache (`issue_bodies`, trimmed to `ingest.bodies.cache_max_mb`, never a
+    saved issue's body).
+  - On a miss, ingestd fetches the body with the server credential on the interactive lane
+    (`POST /bodies/{id}`), capped at `api.bodies.fallback_misses_per_hour` per caller. The cap is
+    refused, not skipped, when Redis is down.
+  - The archive reader refreshes cached bodies. `ApiClient.loadIssueBody` reads from GitHub first
+    and uses the server only when GitHub refuses the caller's own rate limit.
+  - `body_fetches_total{outcome}` on ingestd.
 - GH Archive reader in `ingestd` (migration 00037). **Off by default** (`ingest.archive.enabled`).
   - It reads GH Archive's hourly public event files as a stream and applies `IssuesEvent` and
     `IssueCommentEvent` issues to stored, eligible repositories, with no GitHub API call. An issue

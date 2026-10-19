@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/cache"
 	"github.com/dizziedbliss/skillissues/internal/db"
@@ -323,4 +324,130 @@ func (h *handlers) getIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	middleware.RespondJSON(w, http.StatusOK, it)
+}
+
+// getIssueBody is the issue body fallback, for a client that cannot read the
+// body from GitHub itself (a signed-out browser past GitHub's 60
+// unauthenticated requests an hour). A cached body is served to anyone. A
+// miss spends the server's GitHub budget, so it is capped per caller at
+// api.bodies.fallback_misses_per_hour, refused outright when Redis cannot
+// count it, and fetched by ingestd, which holds the GitHub credential.
+//
+// 200 {"body"}; 202 {"status": "queued", "reason"} when the body cannot be
+// fetched now; 404 when the issue does not exist; 429 past the cap.
+func (h *handlers) getIssueBody(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		middleware.RespondError(w, http.StatusNotFound, "invalid issue id")
+		return
+	}
+	cfg := h.live.Current()
+	ctx, cancel := context.WithTimeout(r.Context(), cfg.Millis(settings.IssuesQueryTimeoutMs))
+	defer cancel()
+
+	body, ok, err := h.issueSvc.CachedBody(ctx, id)
+	if err != nil {
+		respondIssueQueryError(w, r, err)
+		return
+	}
+	if ok {
+		h.respondBody(w, r, cfg, body)
+		return
+	}
+	if _, err := h.issueSvc.GetIssue(ctx, id); errors.Is(err, db.ErrNotFound) {
+		middleware.RespondError(w, http.StatusNotFound, "issue not found")
+		return
+	} else if err != nil {
+		respondIssueQueryError(w, r, err)
+		return
+	}
+
+	limit := cfg.Int(settings.BodiesFallbackMissesPerHour)
+	if limit == 0 {
+		respondBodyQueued(w, "disabled")
+		return
+	}
+	if h.cache == nil {
+		middleware.RespondError(w, http.StatusServiceUnavailable, "issue bodies cannot be fetched right now")
+		return
+	}
+	// Fixed window, as the global limiter counts.
+	res := h.cache.CheckRateLimit(r.Context(), "bodies:"+middleware.ClientKey(r, h.trustedProxies), int64(limit), time.Hour)
+	if res.Unavailable {
+		// An uncounted miss would be an uncapped one.
+		middleware.RespondError(w, http.StatusServiceUnavailable, "issue bodies cannot be fetched right now")
+		return
+	}
+	if !res.Allowed {
+		w.Header().Set("Retry-After", strconv.Itoa(max(1, int(res.ResetAfter.Seconds()))))
+		middleware.RespondError(w, http.StatusTooManyRequests, "too many issue bodies fetched; try again later")
+		return
+	}
+
+	base := strings.TrimRight(h.cfg.SyncdURL, "/")
+	if base == "" {
+		middleware.RespondError(w, http.StatusInternalServerError, "ingestion service not configured")
+		return
+	}
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, fmt.Sprintf("%s/bodies/%d", base, id), nil)
+	if err != nil {
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to create body request")
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+h.cfg.AdminSyncToken)
+	resp, err := h.outbound.Do(req)
+	if err != nil {
+		slog.Error("issue body fetch from ingestd failed", "issue_id", id, "error", err)
+		middleware.RespondError(w, http.StatusBadGateway, "ingestion service unavailable")
+		return
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxIngestdBodyBytes))
+	if err != nil {
+		slog.Error("reading the issue body from ingestd failed", "issue_id", id, "error", err)
+		middleware.RespondError(w, http.StatusBadGateway, "ingestion service unavailable")
+		return
+	}
+
+	if resp.StatusCode == http.StatusOK {
+		var fetched struct {
+			Body string `json:"body"`
+		}
+		if err := json.Unmarshal(data, &fetched); err != nil {
+			slog.Error("ingestd returned an unreadable issue body", "issue_id", id, "error", err)
+			middleware.RespondError(w, http.StatusBadGateway, "ingestion service returned an unreadable body")
+			return
+		}
+		h.respondBody(w, r, cfg, fetched.Body)
+		return
+	}
+	// 202 queued, 404 gone, 5xx: ingestd's answer already has the API's shape.
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	_, _ = w.Write(data)
+}
+
+// maxIngestdBodyBytes bounds ingestd's reply to a body fetch. GitHub caps an
+// issue body at 65,536 characters; JSON-escaped at four bytes each plus
+// escaping that is still under 1 MiB, so a larger reply is not a body.
+const maxIngestdBodyBytes = 1 << 20
+
+// respondBody answers with a body. It is the same for every caller, so it is
+// public whoever asked.
+func (h *handlers) respondBody(w http.ResponseWriter, r *http.Request, cfg *settings.Snapshot, body string) {
+	data, err := json.Marshal(map[string]string{"body": body})
+	if err != nil {
+		slog.Error("encoding an issue body failed", "error", err)
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to encode the issue body")
+		return
+	}
+	respondIssues(w, r, cfg, data, true)
+}
+
+// respondBodyQueued tells the client the body cannot be had now, in the
+// shape the clients already poll for.
+func respondBodyQueued(w http.ResponseWriter, reason string) {
+	w.Header().Set("Cache-Control", "no-store")
+	middleware.RespondJSON(w, http.StatusAccepted, map[string]string{"status": "queued", "reason": reason})
 }

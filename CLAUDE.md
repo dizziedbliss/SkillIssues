@@ -387,9 +387,9 @@ took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
   type no running coordinator claims.
 - **Freshness job type** — stale repositories are re-queued as `job_type='initial'`; nothing
   writes `'freshness'`.
-- **Pull requests and bodies from the archive** — the reader skips `PullRequestEvent` (and its
-  `merged` action) and the issue `body` every issue event carries. Nothing tracks pull requests
-  or caches bodies yet.
+- **Pull requests from the archive** — the reader skips `PullRequestEvent` (and its `merged`
+  action). Nothing tracks pull requests yet. Bodies in issue events only refresh bodies already
+  cached; they never add one.
 
 ---
 
@@ -572,6 +572,14 @@ Every key with its default and bounds: `docs/settings.md`.
   A language with fewer than `api.issues.rare_language_threshold` open issues is sorted instead,
   because the planner cannot tell a rare language from a common one. Browse queries use
   `pgx.QueryExecModeExec` so they are never run from a cached generic plan.
+- **Issue bodies are the client's to fetch; the server is the fallback.** Clients read bodies
+  from GitHub (`ApiClient.loadIssueBody`) and call `GET /issues/{id}/body` only when GitHub
+  refuses them for their own rate limit. That route serves `issue_bodies` (a bounded cache,
+  `ingest.bodies.cache_max_mb`, saved issues' bodies never evicted). On a miss it is capped per
+  caller (`api.bodies.fallback_misses_per_hour`, refused when Redis cannot count) and fetched by
+  ingestd (`POST /bodies/{id}`, admin token) on the `interactive` lane. go-api holds no GitHub
+  credential and never writes a body. Bodies are attacker-controlled; render them only through
+  `packages/markdown`.
 - **Catalog responses are cacheable only when signed out**: public `Cache-Control` + `ETag` and a
   Redis copy shared through `singleflight`. A signed-in response is ordered by the caller's
   languages and is `private, no-store`.
@@ -589,9 +597,8 @@ Every key with its default and bounds: `docs/settings.md`.
 - **Contributions, XP, levels and badges.** Removed with the no-user-tokens redesign
   (migration 00027): the old design awarded XP from PRs verified with a stored user token.
   The rebuild is client-side work with server-side verification from public GitHub data.
-- **Issue bodies and live issue state.** The server never fetches a body or answers a
-  freshness check; clients call GitHub directly. ingestd's tracked-issue check keeps saved
-  issues' state correct.
+- **Live issue state on demand.** The server answers no freshness check; ingestd's
+  tracked-issue check keeps saved issues' state correct, and the archive reader everyone else's.
 
 ---
 

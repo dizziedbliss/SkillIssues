@@ -50,3 +50,27 @@ func TestLookupRepositoriesFailsOnOtherErrors(t *testing.T) {
 		t.Fatal("want an error")
 	}
 }
+
+func TestFetchIssueBody(t *testing.T) {
+	c, vars, _ := fakeGraphQL(t, `{"data":{"repository":{"issue":{"body":"## Steps\n1. run","updatedAt":"2026-10-19T08:00:00Z"}},
+		"rateLimit":{"limit":12500,"remaining":12499,"used":1,"resetAt":"2026-10-19T09:00:00Z","cost":1}}}`)
+	got, rl, err := c.FetchIssueBody(context.Background(), "t", IssueRef{Owner: "o", Name: "r", Number: 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Found || got.Body != "## Steps\n1. run" || got.UpdatedAt.IsZero() || rl.Remaining != 12499 {
+		t.Errorf("got %+v, rate limit %+v", got, rl)
+	}
+	if (*vars)["number"] != float64(7) || (*vars)["owner"] != "o" {
+		t.Errorf("variables = %v", *vars)
+	}
+}
+
+func TestFetchIssueBodyNotFound(t *testing.T) {
+	c, _, _ := fakeGraphQL(t, `{"data":{"repository":null,"rateLimit":{"limit":1,"remaining":1,"used":0,"resetAt":"2026-10-19T09:00:00Z","cost":1}},
+		"errors":[{"type":"NOT_FOUND","message":"Could not resolve"}]}`)
+	got, _, err := c.FetchIssueBody(context.Background(), "t", IssueRef{Owner: "o", Name: "gone", Number: 1})
+	if err != nil || got.Found {
+		t.Errorf("got %+v, err %v; want not found and no error", got, err)
+	}
+}
