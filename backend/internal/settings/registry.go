@@ -89,6 +89,11 @@ const (
 	// costs more than the page it decides, and a language's size moves slowly.
 	IssuesLanguageCountTTLSeconds Key = "api.issues.language_count_ttl_seconds"
 
+	// BodiesFallbackMissesPerHour caps how many issue bodies one caller may
+	// have fetched from GitHub per hour through GET /issues/{id}/body. Cache
+	// hits are free; a miss spends the server's interactive budget.
+	BodiesFallbackMissesPerHour Key = "api.bodies.fallback_misses_per_hour"
+
 	IngestGraphQLPageSize Key = "ingest.graphql_page_size"
 	IngestRateLimitFloor  Key = "ingest.rate_limit_floor"
 	// IngestInteractiveReservePercent is the share of the GitHub rate limit
@@ -221,6 +226,12 @@ const (
 	IngestArchiveRepairIntervalSeconds  Key = "ingest.archive.repair_interval_seconds"
 	IngestArchiveCandidateBatchSize     Key = "ingest.archive.candidate_batch_size"
 	IngestArchiveCandidateRecheckDays   Key = "ingest.archive.candidate_recheck_days"
+
+	// IngestBodiesCacheMaxMB and IngestBodiesPruneIntervalSeconds bound the
+	// issue body cache (issue_bodies): ingestd trims it back to this size,
+	// least recently read first, never a saved issue's body.
+	IngestBodiesCacheMaxMB           Key = "ingest.bodies.cache_max_mb"
+	IngestBodiesPruneIntervalSeconds Key = "ingest.bodies.prune_interval_seconds"
 
 	// FlowEnabled turns the live visualizer's tap on in go-api and ingestd.
 	// Off, nothing is buffered or published; flowd keeps serving an idle stream.
@@ -377,6 +388,9 @@ var Registry = map[Key]Spec{
 	IngestArchiveMaxLagSeconds:                intSpec(21600, 3600, 604800, "If the archive falls further behind than this, the freshness crawl returns to ingest.freshness_interval_seconds and the incremental discovery sweep resumes."),
 	IngestArchiveRepairIntervalSeconds:        intSpec(2592000, 86400, 31536000, "While the archive keeps up, the freshness crawl re-checks each repository this rarely, to catch what events miss (deleted or transferred issues)."),
 	IngestArchiveCandidateBatchSize:           intSpec(50, 1, 100, "Repositories seen in the archive but not stored, looked up on GitHub per call."),
+	IngestBodiesCacheMaxMB:                    intSpec(512, 0, 100000, "Size the issue body cache is trimmed back to, least recently read first; bodies of saved issues are always kept. 0 keeps only those."),
+	IngestBodiesPruneIntervalSeconds:          intSpec(3600, 60, 86400, "How often the issue body cache is trimmed."),
+	BodiesFallbackMissesPerHour:               intSpec(30, 0, 10000, "Issue bodies one caller may have fetched from GitHub per hour through GET /issues/{id}/body; cached bodies do not count. 0 serves the cache only."),
 	IngestArchiveCandidateRecheckDays:         intSpec(30, 1, 3650, "A looked-up candidate that was not stored is looked up again after this many days, if it is still active."),
 	IngestDiscoveryFullIntervalSeconds:        intSpec(2592000, 86400, 31536000, "How often a full sweep covers the whole pushed-within range, catching repositories that crossed the star floor without a new push."),
 

@@ -288,6 +288,8 @@ type archiveIssuePayload struct {
 		Labels []struct {
 			Name string `json:"name"`
 		} `json:"labels"`
+		// Body is null for an issue opened without one.
+		Body *string `json:"body"`
 		// Present only when the "issue" is a pull request, which GitHub's
 		// issue events also report.
 		PullRequest json.RawMessage `json:"pull_request"`
@@ -299,6 +301,8 @@ type archiveIssue struct {
 	repoID   int64
 	repoName string
 	node     github.GraphQLIssueNode
+	// body refreshes the issue's cached body, if it has one (bodies.go).
+	body string
 }
 
 type archiveIssueKey struct {
@@ -366,7 +370,11 @@ func readArchiveHour(r io.Reader) (map[archiveIssueKey]archiveIssue, int, error)
 		for _, l := range it.Labels {
 			node.Labels = append(node.Labels, l.Name)
 		}
-		issues[key] = archiveIssue{repoID: ev.Repo.ID, repoName: ev.Repo.Name, node: node}
+		ai := archiveIssue{repoID: ev.Repo.ID, repoName: ev.Repo.Name, node: node}
+		if it.Body != nil {
+			ai.body = *it.Body
+		}
+		issues[key] = ai
 	}
 	return issues, events, nil
 }
@@ -454,6 +462,7 @@ func applyArchiveIssues(ctx context.Context, pool *db.Pool, hour time.Time, issu
 	type write struct {
 		repo archiveRepo
 		node github.GraphQLIssueNode
+		body string
 	}
 	var writes []write
 	candidates := map[int64]string{}
@@ -466,7 +475,7 @@ func applyArchiveIssues(ctx context.Context, pool *db.Pool, hour time.Time, issu
 		case !repo.eligible:
 			results["ineligible_repo"]++
 		default:
-			writes = append(writes, write{repo, it.node})
+			writes = append(writes, write{repo, it.node, it.body})
 		}
 	}
 
@@ -481,6 +490,11 @@ func applyArchiveIssues(ctx context.Context, pool *db.Pool, hour time.Time, issu
 				applied, err := writeIssueTx(ctx, tx, w.repo.id, w.node, w.repo.language, mode)
 				if err != nil {
 					return fmt.Errorf("ingest: apply archive issue %d of repository %d: %w", w.node.Number, w.repo.id, err)
+				}
+				if applied {
+					if err := refreshCachedBodyTx(ctx, tx, w.repo.id, w.node.Number, w.body); err != nil {
+						return fmt.Errorf("ingest: refresh cached body of issue %d of repository %d: %w", w.node.Number, w.repo.id, err)
+					}
 				}
 				switch {
 				case applied:

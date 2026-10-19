@@ -57,6 +57,7 @@ type Coordinator struct {
 	lastClosedPrune      time.Time
 	lastExcludedPrune    time.Time
 	lastArchiveSeed      time.Time
+	lastBodyPrune        time.Time
 	// lastCandidateIdle is when a candidate lookup last came back short of
 	// a full batch: the backlog is drained, and lookups wait for
 	// ingest.archive.poll_seconds instead of querying every cycle.
@@ -166,6 +167,7 @@ func (c *Coordinator) cycle() {
 	c.checkTrackedIssues(snap)
 	c.pruneClosedIssues(snap)
 	c.pruneExcludedIssues(snap)
+	c.pruneIssueBodies(snap)
 	publishPoolStats(c.initialPool)
 	publishPoolStats(c.deepPool)
 	publishPoolStats(c.discoveryPool)
@@ -560,6 +562,32 @@ func (c *Coordinator) pruneExcludedIssues(snap *settings.Snapshot) {
 	if total > 0 {
 		slog.Info("pruned issues of excluded and archived repositories", "deleted", total)
 	}
+}
+
+// pruneIssueBodies trims the issue body cache back to
+// ingest.bodies.cache_max_mb, no more often than
+// ingest.bodies.prune_interval_seconds. It runs whatever the disk guard says:
+// it only ever deletes.
+func (c *Coordinator) pruneIssueBodies(snap *settings.Snapshot) {
+	if time.Since(c.lastBodyPrune) < snap.Seconds(settings.IngestBodiesPruneIntervalSeconds) {
+		return
+	}
+	c.lastBodyPrune = time.Now()
+	n, err := PruneIssueBodies(c.ctx, c.pool, int64(snap.Int(settings.IngestBodiesCacheMaxMB))<<20)
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("body_prune").Inc()
+		slog.Warn("failed to prune the issue body cache", "error", err)
+		return
+	}
+	if n > 0 {
+		slog.Info("pruned the issue body cache", "deleted", n)
+	}
+}
+
+// FetchIssueBody fetches and caches one issue's body for go-api, on the
+// interactive lane (bodies.go).
+func (c *Coordinator) FetchIssueBody(ctx context.Context, issueID int) (string, BodyOutcome, error) {
+	return c.worker.FetchIssueBody(ctx, issueID)
 }
 
 // refreshMetrics re-reads the Postgres-backed /metrics gauges no more often

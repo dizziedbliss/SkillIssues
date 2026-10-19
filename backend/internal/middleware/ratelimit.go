@@ -83,6 +83,17 @@ func RateLimiter(c *cache.Client, limits func() RateLimits, keyPrefix string, tr
 	}
 }
 
+// ClientKey is the identity the rate limiter counts a request against: the
+// user for a signed-in request, the client address otherwise. Other per-caller
+// caps (the issue body fallback) key on it too, so one caller is one caller
+// everywhere.
+func ClientKey(r *http.Request, trustedProxies []*net.IPNet) string {
+	if uid := GetUserID(r.Context()); uid > 0 {
+		return fmt.Sprintf("u%d", uid)
+	}
+	return "anon:" + clientIdentifier(r, trustedProxies)
+}
+
 // clientIdentifier resolves the rate-limit identity of an unauthenticated caller.
 //
 // X-Forwarded-For is honoured only when the immediate peer (r.RemoteAddr) is a

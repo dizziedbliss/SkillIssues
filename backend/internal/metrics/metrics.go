@@ -234,6 +234,11 @@ var (
 		Help: "Repositories seen in the archive but not stored, looked up on GitHub, by outcome: new, updated, renamed, ineligible, excluded, conflict, not_found.",
 	}, []string{"outcome"})
 
+	BodyFetches = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "body_fetches_total",
+		Help: "Issue bodies ingestd was asked to fetch for the body fallback, by outcome: fetched, budget, no-credential, gone, not-stored.",
+	}, []string{"outcome"})
+
 	RepositoryIdentityConflicts = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "repository_identity_conflicts_total",
 		Help: "Repository rows whose GitHub id or name collided with another row: duplicate (an id-less twin marked duplicate), rename_blocked (a rename onto a name another repository's row holds), id_mismatch (a name now resolving to a different repository).",
@@ -297,5 +302,6 @@ func RegisterIngest() {
 		DiscoveryWindowOutcomes, DiscoveryRepositories, DiscoveryWindowsTruncated, DiscoveryWindows,
 		DiscoveryLastSweepCompleted, RepositoryIdentityConflicts,
 		ArchiveHourOutcomes, ArchiveIssueEvents, ArchiveHours, ArchiveLagSeconds, ArchiveFallback, ArchiveCandidates,
+		BodyFetches,
 	)
 }

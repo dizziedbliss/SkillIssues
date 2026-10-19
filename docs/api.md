@@ -41,6 +41,7 @@ works signed out, personalised when signed in; *none* = public; *admin* =
 |---|---|---|---|
 | GET | `/issues` | optional | Browse or search (`?search=`, filters); search is balanced across Repository / Title / Language / Author |
 | GET | `/issues/{id}` | none | One issue |
+| GET | `/issues/{id}/body` | optional | The body fallback, for a client GitHub refused for its own rate limit: `{"body"}` from the cache, or fetched by ingestd. `202 {"status": "queued", "reason": "budget" \| "no-credential" \| "disabled"}` when it cannot be fetched now; `429` past `api.bodies.fallback_misses_per_hour` misses (cache hits are free); `503` when the cap cannot be counted |
 | GET | `/recommendations` | session | Issues ranked for the user's profile (`difficulty`, `page`, `limit`) |
 | GET | `/preferences/options` | none | Selectable languages/interests for the profile form |
 
