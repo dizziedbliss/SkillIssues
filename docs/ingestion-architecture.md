@@ -19,7 +19,7 @@ this table is how you find out.
 | Deep Diver — remaining pages from the stored cursor | **Built** | `job_type='deep'`; capped by `ingest.max_pages_per_repo` |
 | Atomic claims with `FOR UPDATE SKIP LOCKED` + lease | **Built** | expired leases reclaimed continuously; job writes fenced on `lease_owner` |
 | Cursor + issues committed in one transaction | **Built** | `CompleteOrRequeue` runs in the page's transaction |
-| Shared GitHub budget (`github_budget`, crawler/interactive lanes) | **Built** | |
+| Shared GitHub budget (`github_budget`, crawler/interactive lanes) | **Built** | one counter read across both lanes; the crawler lane leaves `ingest.interactive_reserve_percent` for interactive work (tracked-issue checks) |
 | `RESOURCE_LIMITS_EXCEEDED` recovery | **Built, differently** | no GraphQL alias batching: one repository per call, and the *page size* is halved down to 1 (§4 describes splitting alias batches) |
 | Secondary rate limits | **Built, simplified** | fixed one-minute lane pause; `Retry-After` is not read |
 | `NOT_FOUND` isolates the repository | **Built** | job `failed`, repository marked ineligible |
@@ -99,7 +99,9 @@ As built (migration 00032, `internal/ingest/discovery.go`), with `ingest.discove
   and a failed sweep does not move the watermark.
 - **Budget.** Discovery shares the `crawler` lane but checks it against
   `ingest.discovery.rate_limit_floor` (1,000), which is above the crawl's own floor, so
-  discovery stops first when points run low.
+  discovery stops first when points run low. Both floors sit above the interactive reserve
+  (`ingest.interactive_reserve_percent`, 30%): with a 12,500-point limit, the crawl stops at
+  3,850 remaining and discovery at 4,750.
 - **What it stores.**
   - New repository: inserted only if `ingest.Eligible` passes and it is not excluded, the same
     rule `cmd/repoimport` uses. `EnqueueInitialJobs` then queues it.

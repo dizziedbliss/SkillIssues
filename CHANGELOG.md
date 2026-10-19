@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- An interactive reserve on the GitHub budget (migration 00036,
+  `ingest.interactive_reserve_percent`, 30%). The crawl and discovery stop while that share of the
+  rate limit is still left, and their floors are now measured above it. The tracked-issue check moves
+  to the `interactive` lane and spends into the reserve, down to `ingest.rate_limit_floor`, so a
+  saturated crawl no longer delays it. The two lanes are read as the one counter GitHub keeps
+  per credential, and a secondary limit pauses both.
 - Cursor paging for the catalog: `GET /issues?cursor=` returns `{"issues", "next_cursor"}` and
   costs the same on every page, however deep. `?page` still works, in the same order; the order now
   breaks ties on id. Signed-out `/issues` responses carry `Cache-Control` and an `ETag`

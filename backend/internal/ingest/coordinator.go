@@ -288,7 +288,8 @@ func (c *Coordinator) recheckEligibility(snap *settings.Snapshot) {
 // are working on once they are older than ingest.tracked_issue_check_seconds,
 // one batch per cycle. It runs before the disk guard: it adds no rows, and
 // a user's tracked issue closing matters even while new crawling is paused.
-// It shares the crawler lane's budget and floor.
+// It is user work, so it runs on the interactive lane: it may spend the
+// reserve the crawler leaves, and stops only at ingest.rate_limit_floor.
 func (c *Coordinator) checkTrackedIssues(snap *settings.Snapshot) {
 	due, err := DueTrackedIssues(c.ctx, c.pool,
 		snap.Seconds(settings.IngestTrackedIssueCheckSeconds), snap.Int(settings.IngestTrackedIssueBatchSize))
@@ -312,9 +313,10 @@ func (c *Coordinator) checkTrackedIssues(snap *settings.Snapshot) {
 		return
 	}
 
-	proceed, err := CanProceed(c.ctx, c.pool, LaneCrawler, installationIdentity, snap.Int(settings.IngestRateLimitFloor))
+	proceed, err := CanProceed(c.ctx, c.pool, LaneInteractive, installationIdentity,
+		snap.Int(settings.IngestRateLimitFloor), snap.Int(settings.IngestInteractiveReservePercent))
 	if err != nil {
-		metrics.BudgetErrors.WithLabelValues("read", string(LaneCrawler)).Inc()
+		metrics.BudgetErrors.WithLabelValues("read", string(LaneInteractive)).Inc()
 		slog.Warn("budget check failed, checking tracked issues anyway", "error", err)
 	} else if !proceed {
 		return
@@ -332,8 +334,8 @@ func (c *Coordinator) checkTrackedIssues(snap *settings.Snapshot) {
 		slog.Warn("failed to fetch tracked issue states", "count", len(refs), "error", err)
 		return
 	}
-	if err := UpdateBudget(c.ctx, c.pool, LaneCrawler, installationIdentity, rl); err != nil {
-		metrics.BudgetErrors.WithLabelValues("write", string(LaneCrawler)).Inc()
+	if err := UpdateBudget(c.ctx, c.pool, LaneInteractive, installationIdentity, rl); err != nil {
+		metrics.BudgetErrors.WithLabelValues("write", string(LaneInteractive)).Inc()
 		slog.Warn("failed to persist budget", "error", err)
 	}
 

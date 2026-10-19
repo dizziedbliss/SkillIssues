@@ -57,7 +57,8 @@ readable through the endpoint above and copied into backups.
 | `ingest.routine_workers` | 2 | 1–64 | Concurrent Initial/Freshness workers |
 | `ingest.priority_workers` | 1 | 1–64 | Concurrent Deep Diver workers |
 | `ingest.graphql_page_size` | 50 | 1–100 | Issues per GraphQL page |
-| `ingest.rate_limit_floor` | 100 | 0–5000 | Crawler stops below this many remaining GitHub points |
+| `ingest.rate_limit_floor` | 100 | 0–5000 | Stop below this many remaining GitHub points. On the crawler lane it is measured above the interactive reserve; the interactive lane stops here |
+| `ingest.interactive_reserve_percent` | 30 | 0–90 | Share of the GitHub rate limit the crawler lane (crawl, discovery) never spends, kept for interactive work such as tracked-issue checks (0 = no reserve) |
 | `ingest.max_attempts` | 3 | 1–10 | Attempts before a job is left `failed` |
 | `ingest.backoff_base_seconds` | 1 | 1–60 | Base of the exponential retry backoff |
 | `ingest.freshness_interval_seconds` | 86400 | 300–2592000 | Age of a repository's last sync before a freshness pass (changes since its last completed pass) is queued |
@@ -80,7 +81,7 @@ readable through the endpoint above and copied into backups.
 | `ingest.discovery.window_hours` | 24 | 1–720 | Pushed-date span of each window a new sweep starts with |
 | `ingest.discovery.min_window_seconds` | 60 | 1–86400 | Smallest span a window over the 1,000-result search cap is halved to; past it the window is read truncated |
 | `ingest.discovery.page_size` | 100 | 1–100 | Repositories per search page |
-| `ingest.discovery.rate_limit_floor` | 1000 | 0–12500 | Discovery's floor on the shared crawler budget; above `ingest.rate_limit_floor` so discovery yields first |
+| `ingest.discovery.rate_limit_floor` | 1000 | 0–12500 | Discovery's floor on the shared budget, above the interactive reserve; above `ingest.rate_limit_floor` so discovery yields first |
 | `ingest.discovery.incremental_interval_seconds` | 86400 | 3600–2592000 | How often an incremental sweep covers repositories pushed since the last completed sweep |
 | `ingest.discovery.full_interval_seconds` | 2592000 | 86400–31536000 | How often a full sweep covers the whole `pushed_within_days` range |
 
