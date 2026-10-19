@@ -19,6 +19,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/notification"
 	"github.com/dizziedbliss/skillissues/internal/profile"
 	"github.com/dizziedbliss/skillissues/internal/settings"
+	"golang.org/x/sync/singleflight"
 )
 
 // handlers bundles all service dependencies for the handler functions.
@@ -33,4 +34,8 @@ type handlers struct {
 	profileSvc      *profile.Service
 	issueSvc        *issue.Service
 	notificationSvc *notification.Service
+
+	// issuesFlight collapses concurrent identical signed-out catalog
+	// requests that miss the cache into one query (handlers_issues.go).
+	issuesFlight singleflight.Group
 }

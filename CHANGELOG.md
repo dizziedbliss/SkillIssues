@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Cursor paging for the catalog: `GET /issues?cursor=` returns `{"issues", "next_cursor"}` and
+  costs the same on every page, however deep. `?page` still works, in the same order; the order now
+  breaks ties on id. Signed-out `/issues` responses carry `Cache-Control` and an `ETag`
+  (`api.cache.public_max_age_seconds`, `api.cache.public_stale_seconds`), and answer
+  `If-None-Match` with 304. Signed-in responses are `private, no-store`. `ApiClient.getIssuesPage`
+  pages by cursor.
+
 - Three more excluded repositories (migration 00034): `type-challenges/type-challenges`,
   `haizlin/fe-interview` and `microsoft/JARVIS`, none of which is work a contributor can pick up.
 - Live flow tap and `flowd`, the backend of the public data-flow visualizer. go-api and ingestd
@@ -41,6 +48,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   trackers used as databases, one public archive). Applied by the eligibility recompute, the
   importer and job claiming; their stored issues, and those of archived repositories, are
   pruned unless a user saved them.
+
+### Fixed
+- A cold catalog page took 35 s and returned 502. Nothing indexed the catalog order, so every cache
+  miss sorted every open issue; the query outlived the 30 s write timeout and kept running after
+  the connection dropped. Signed-in callers, who skip the cache and sort by preferred language,
+  paid it on every page. Migration 00035 adds `issues_open_browse_idx` and
+  `issues_open_difficulty_browse_idx` (built `CONCURRENTLY`), and `repositories_lower_language_idx`
+  for language statistics. The first page and every cursor page now read in index order, a few
+  milliseconds on 2M open issues. A rare language (`api.issues.rare_language_threshold`, counted
+  once per `api.issues.language_count_ttl_seconds`) is sorted instead, since walking the index for
+  it scans most of it.
+- Catalog queries have a deadline, `api.issues.query_timeout_ms` (10 s), answered with 503. Signed-out
+  requests that miss the cache together share one query instead of each running their own.
+- `GET /issues/{id}` returned 404 for any database error; it is now 404 only for a missing issue. A
+  failed catalog query, or a failed profile load for a signed-in browse, is logged instead of being
+  answered silently.
+- Postgres runs with `random_page_cost=1.1` (`PG_RANDOM_PAGE_COST`), since the host's disk is SSD.
+  The default of 4 chose a sequential scan of every issue over a few thousand index lookups
+  (990 ms vs 14 ms).
+- Caddy compresses with zstd as well as gzip.
+
+### Removed
+- `cache.InvalidateHotIssues`, which nothing called.
 
 ### Security
 - Production secrets are stored encrypted in the repo (`secrets/prod.env.sops`, SOPS + age) and
