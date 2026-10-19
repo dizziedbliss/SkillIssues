@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Grafana. Every panel was run through Grafana's own query API against production: 107 of
+  121 queries returned values. The rest are fixed:
+  - **Product dashboard:** six panels queried the contributions and XP tables migration 00027
+    removed. They now show saves (7d, per day, users who saved), saved issues by state,
+    notifications sent and read, and the issue body cache.
+  - **Timeout:** "Open issues by difficulty" counted 7.5M rows past `metrics_ro`'s 15 s
+    timeout. It now reads Postgres column statistics, labelled as an estimate.
+  - **Empty panels:** panels that are legitimately empty say so, instead of a bare "No data".
+  - **Grant:** migration 00039 gives `metrics_ro` the body cache's bookkeeping columns, never
+    the bodies.
+
 ### Added
 - The issue body fallback (migration 00038). `GET /issues/{id}/body` existed only in the clients:
   the web and desktop apps called it and got 404, so issue descriptions never loaded.

@@ -978,7 +978,7 @@
             "mode": "palette-classic-by-name"
           },
           "min": 0,
-          "noValue": "No failures"
+          "noValue": "No step failures"
         },
         "overrides": []
       },
@@ -1725,7 +1725,8 @@
         "defaults": {
           "custom": {
             "align": "auto"
-          }
+          },
+          "noValue": "No job running right now"
         },
         "overrides": []
       },
@@ -2997,7 +2998,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(archive_candidates_total[24h]))",
+          "expr": "sum(increase(archive_candidates_total[24h])) or vector(0)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
