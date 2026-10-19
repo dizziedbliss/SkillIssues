@@ -528,6 +528,17 @@ Every key with its default and bounds: `docs/settings.md`.
   (`ROW_NUMBER() OVER (PARTITION BY match_category)`) and caps results per category
   (`api.search.per_category_cap`) rather than flooding one. Categories: Repository, Title,
   Language, Author.
+- **Catalog browsing reads in index order**: the catalog order (`difficulty_score`, `updated_at
+  DESC`, `id DESC`) is exactly `issues_open_browse_idx` / `issues_open_difficulty_browse_idx`
+  (migration 00035). Change one and you must change the other, or every page sorts every open issue.
+  `issue.BrowseIssues` serves the first page and every `?cursor=` page as a run of ordered index
+  ranges, never a UNION, which Postgres sorts in full. `?page` > 1 is the OFFSET query.
+  A language with fewer than `api.issues.rare_language_threshold` open issues is sorted instead,
+  because the planner cannot tell a rare language from a common one. Browse queries use
+  `pgx.QueryExecModeExec` so they are never run from a cached generic plan.
+- **Catalog responses are cacheable only when signed out**: public `Cache-Control` + `ETag` and a
+  Redis copy shared through `singleflight`. A signed-in response is ordered by the caller's
+  languages and is `private, no-store`.
 - **One account per GitHub id**: web and desktop sign-in both resolve to the `github_id`
   row. The case-insensitive unique index on `lower(username)` is why a username that moved to
   another account is cleared on the old row first.

@@ -42,6 +42,13 @@ const (
 	CacheSearchTTLSeconds         Key = "api.cache.search_ttl_seconds"
 	CacheRecommendationsTTLSecond Key = "api.cache.recommendations_ttl_seconds"
 
+	// CachePublicMaxAgeSeconds and CachePublicStaleSeconds are the
+	// Cache-Control a signed-out catalog or search response carries, so a
+	// browser or an edge cache can answer a repeat visit without reaching the
+	// API. A response to a signed-in caller is always private, no-store.
+	CachePublicMaxAgeSeconds Key = "api.cache.public_max_age_seconds"
+	CachePublicStaleSeconds  Key = "api.cache.public_stale_seconds"
+
 	// CacheRedisTimeoutMs and CacheRedisRetrySeconds keep a Redis outage from
 	// slowing requests down: each call gets a deadline, and after a failure
 	// Redis is skipped (rate limiting and caching fail open) and probed once
@@ -66,6 +73,21 @@ const (
 	IssuesMaxLimit          Key = "api.issues.max_limit"
 	IssuesMaxPage           Key = "api.issues.max_page"
 	RecommendationsMaxLimit Key = "api.recommendations.max_limit"
+
+	// IssuesQueryTimeoutMs is the deadline on the queries behind one
+	// GET /issues or GET /issues/{id}. It sits below the server's write
+	// timeout, so a slow query is cancelled and answered with a 503 instead of
+	// running on after the connection has been dropped.
+	IssuesQueryTimeoutMs Key = "api.issues.query_timeout_ms"
+
+	// IssuesRareLanguageThreshold is where browsing by a language (a filter,
+	// or a signed-in caller's preferred languages) switches from walking the
+	// catalog index to sorting that language's issues: below it, the issues
+	// are few enough to sort and too sparse in the index to walk to.
+	IssuesRareLanguageThreshold Key = "api.issues.rare_language_threshold"
+	// IssuesLanguageCountTTLSeconds is how long that count is reused: it
+	// costs more than the page it decides, and a language's size moves slowly.
+	IssuesLanguageCountTTLSeconds Key = "api.issues.language_count_ttl_seconds"
 
 	IngestGraphQLPageSize    Key = "ingest.graphql_page_size"
 	IngestRateLimitFloor     Key = "ingest.rate_limit_floor"
@@ -254,6 +276,8 @@ var Registry = map[Key]Spec{
 	CacheHotIssuesTTLSeconds:      intSpec(120, 0, 3600, "Cache lifetime for the default unauthenticated catalog page. 0 disables."),
 	CacheSearchTTLSeconds:         intSpec(60, 0, 3600, "Cache lifetime for unauthenticated search results. 0 disables."),
 	CacheRecommendationsTTLSecond: intSpec(300, 0, 3600, "Cache lifetime for per-user recommendations. 0 disables."),
+	CachePublicMaxAgeSeconds:      intSpec(60, 0, 3600, "Cache-Control max-age on catalog and search responses to signed-out callers. 0 sends no-cache."),
+	CachePublicStaleSeconds:       intSpec(300, 0, 86400, "Cache-Control stale-while-revalidate on catalog and search responses to signed-out callers."),
 	CacheRedisTimeoutMs:           intSpec(250, 10, 5000, "Deadline for one Redis call, connecting included. A call that misses it fails open."),
 	CacheRedisRetrySeconds:        intSpec(5, 1, 300, "After a failed Redis call, how long Redis is skipped before one call probes whether it has recovered."),
 
@@ -262,9 +286,12 @@ var Registry = map[Key]Spec{
 
 	HTTPOutboundTimeoutSeconds: intSpec(15, 1, 120, "Deadline for each outbound call to GitHub or ingestd; a call that exceeds it fails."),
 
-	IssuesMaxLimit:          intSpec(100, 1, 500, "Largest ?limit honoured by GET /issues; a larger request is clamped."),
-	IssuesMaxPage:           intSpec(200, 1, 10000, "Deepest ?page honoured by GET /issues; a deeper request is clamped. Deep offsets are expensive."),
-	RecommendationsMaxLimit: intSpec(20, 1, 100, "Largest ?limit honoured by GET /recommendations; a larger request is clamped."),
+	IssuesMaxLimit:                intSpec(100, 1, 500, "Largest ?limit honoured by GET /issues; a larger request is clamped."),
+	IssuesMaxPage:                 intSpec(200, 1, 10000, "Deepest ?page honoured by GET /issues; a deeper request is clamped. Deep offsets are expensive."),
+	RecommendationsMaxLimit:       intSpec(20, 1, 100, "Largest ?limit honoured by GET /recommendations; a larger request is clamped."),
+	IssuesLanguageCountTTLSeconds: intSpec(600, 0, 86400, "How long a language's counted open issues are reused when deciding how to browse it. 0 counts on every request."),
+	IssuesRareLanguageThreshold:   intSpec(20000, 0, 1000000, "A language with fewer open issues than this is read repository-first and sorted when browsing, instead of walking the catalog index. 0 always walks the index."),
+	IssuesQueryTimeoutMs:          intSpec(10000, 100, 25000, "Deadline for the queries behind one GET /issues or GET /issues/{id}. A query that misses it is cancelled and the caller gets 503."),
 
 	IngestGraphQLPageSize:    intSpec(50, 1, 100, "Issues requested per GraphQL page. GitHub caps this at 100."),
 	IngestRateLimitFloor:     intSpec(100, 0, 5000, "Stop issuing GraphQL calls when the remaining point budget falls below this."),

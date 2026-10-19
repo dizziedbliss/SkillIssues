@@ -40,6 +40,10 @@ type Issue struct {
 	RecommendationScore int      `json:"recommendation_score,omitempty"`
 	WhyRecommended      []string `json:"why_recommended,omitempty"`
 	MatchCategory       string   `json:"match_category,omitempty"`
+
+	// updated is updated_at as a timestamp rather than text, for the browse
+	// cursor (browse.go): it must name an exact position, to the microsecond.
+	updated time.Time
 }
 
 // Filters for issue catalog queries.
@@ -49,11 +53,24 @@ type Filters struct {
 	Search     string
 	Limit      int
 	Page       int
+
+	// RareLanguageBelow is api.issues.rare_language_threshold for this
+	// request: BrowseIssues reads a language with fewer open issues than this
+	// repository-first and sorts it, rather than walking the catalog index.
+	// 0 always walks the index.
+	RareLanguageBelow int
+	// LanguageCountTTL is api.issues.language_count_ttl_seconds: how long a
+	// language's counted issues are reused before it is counted again.
+	LanguageCountTTL time.Duration
 }
 
 // Service manages issue queries and bookmarks.
 type Service struct {
 	db *db.Pool
+
+	// languages remembers how many open issues each language has, for
+	// BrowseIssues to choose how to read it.
+	languages languageCounts
 
 	// perCategoryCap is read per query so the search shape can be retuned on a
 	// running system. It is a narrow function rather than a config object so the
@@ -97,7 +114,8 @@ const baseIssueSelect = `
 	       COALESCE(i.learning_tags, '{}'),
 	       i.comments, COALESCE(i.author, split_part(r.full_name, '/', 1)),
 	       r.full_name, r.url, COALESCE(r.description, ''),
-	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, '')
+	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, ''),
+	       i.updated_at
 	FROM issues i
 	JOIN repositories r ON r.id = i.repository_id
 `
@@ -112,6 +130,7 @@ func scanIssue(rows pgx.Rows) (Issue, error) {
 		&it.Comments, &it.Author,
 		&it.Repository, &it.RepositoryURL, &it.RepositoryDescription,
 		&it.Language, &it.Stars, &it.License,
+		&it.updated,
 	)
 	return it, err
 }
@@ -276,7 +295,9 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 		return all, nil
 	}
 
-	// Normal browsing query without search
+	// Browsing by page number: an OFFSET into the catalog order. Kept for
+	// callers that page with ?page; BrowseIssues serves the first page and
+	// every cursor page without the cost of skipping rows.
 	var sb strings.Builder
 	sb.WriteString(baseIssueSelect)
 	sb.WriteString(" WHERE i.state = 'OPEN'")
@@ -303,11 +324,12 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 		sb.WriteString(fmt.Sprintf(` ORDER BY
 			CASE WHEN lower(r.language) = ANY($%d) THEN 0 ELSE 1 END ASC,
 			i.difficulty_score ASC,
-			i.updated_at DESC`, argIdx))
+			i.updated_at DESC,
+			i.id DESC`, argIdx))
 		args = append(args, normLangs)
 		argIdx++
 	} else {
-		sb.WriteString(" ORDER BY i.difficulty_score ASC, i.updated_at DESC")
+		sb.WriteString(" ORDER BY " + catalogOrder)
 	}
 
 	sb.WriteString(fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx, argIdx+1))

@@ -1,14 +1,20 @@
 package main
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/dizziedbliss/skillissues/internal/cache"
+	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/issue"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
 	"github.com/dizziedbliss/skillissues/internal/settings"
@@ -53,6 +59,22 @@ func syncPath(rawRepoID string) (string, error) {
 	return fmt.Sprintf("/sync/priority/%d", id), nil
 }
 
+// issuePage is GET /issues' response when the caller pages by ?cursor=.
+// next_cursor is null on the last page.
+type issuePage struct {
+	Issues     []issue.Issue `json:"issues"`
+	NextCursor *string       `json:"next_cursor"`
+}
+
+// listIssues serves the catalog. Without ?cursor= the response is a bare JSON
+// array of issues, paged by ?page; with ?cursor= (empty for the first page)
+// it is an issuePage, paged by the cursor each page returns. Cursor paging is
+// for browsing only: a search ranks by match category and pages by ?page.
+//
+// A signed-out response is the same for every signed-out caller, so it is
+// cached in Redis, shared by concurrent misses, and marked public for browsers
+// and edge caches. A signed-in caller's browse is ordered by their preferred
+// languages and is never shared.
 func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	cfg := h.live.Current()
@@ -82,69 +104,204 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 		Search:     q.Get("search"),
 		Limit:      limit,
 		Page:       page,
+
+		RareLanguageBelow: cfg.Int(settings.IssuesRareLanguageThreshold),
+		LanguageCountTTL:  cfg.Seconds(settings.IssuesLanguageCountTTLSeconds),
+	}
+
+	_, cursorMode := q["cursor"]
+	rawCursor := q.Get("cursor")
+	var after *issue.Cursor
+	if cursorMode {
+		if f.Search != "" {
+			middleware.RespondError(w, http.StatusBadRequest, "cursor paging is for browsing; page a search with ?page")
+			return
+		}
+		if rawCursor != "" {
+			c, err := issue.DecodeCursor(rawCursor)
+			if err != nil {
+				middleware.RespondError(w, http.StatusBadRequest, "invalid cursor")
+				return
+			}
+			after = &c
+		}
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	load := func(ctx context.Context) ([]byte, error) {
+		ctx, cancel := context.WithTimeout(ctx, cfg.Millis(settings.IssuesQueryTimeoutMs))
+		defer cancel()
+		return h.loadIssues(ctx, userID, f, cursorMode, after)
+	}
+
+	if userID != 0 {
+		data, err := load(r.Context())
+		if err != nil {
+			respondIssueQueryError(w, r, err)
+			return
+		}
+		respondIssues(w, r, cfg, data, false)
+		return
 	}
 
 	// The hot path is the unfiltered first page at the default size. This
 	// previously compared against a literal 50 while the default was 20, so the
 	// cache was unreachable; comparing against the configured default fixes it.
-	isDefaultHot := f.Difficulty == "" && f.Language == "" && f.Search == "" &&
+	isDefaultHot := !cursorMode && f.Difficulty == "" && f.Language == "" && f.Search == "" &&
 		f.Limit == cfg.Int(settings.IssuesDefaultPageSize) && f.Page == 1
-	userID := middleware.GetUserID(r.Context())
-
-	// Fast path: cached hot issues for unauthenticated or default views
-	if isDefaultHot && userID == 0 && h.cache != nil {
-		if cached := h.cache.GetHotIssues(r.Context()); cached != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(cached)
-			return
+	key := cache.CacheSearchKey(f.Difficulty, f.Language, f.Search, f.Limit, f.Page, cursorMode, rawCursor)
+	get := func() []byte { return h.cache.GetCachedSearch(r.Context(), key) }
+	set := func(data []byte) {
+		// A TTL of zero means caching is switched off for that path.
+		if ttl := cfg.Seconds(settings.CacheSearchTTLSeconds); ttl > 0 {
+			h.cache.SetCachedSearch(r.Context(), key, data, ttl)
 		}
 	}
-
-	searchKey := ""
-	if !isDefaultHot && userID == 0 && h.cache != nil {
-		searchKey = cache.CacheSearchKey(f.Difficulty, f.Language, f.Search, f.Limit, f.Page)
-		if cached := h.cache.GetCachedSearch(r.Context(), searchKey); cached != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(cached)
-			return
-		}
-	}
-
-	var prefLangs []string
-	var userName string
-	if userID != 0 {
-		if p, err := h.profileSvc.GetFullProfile(r.Context(), userID); err == nil {
-			prefLangs = p.PreferredLanguages
-			userName = p.Username
-		}
-	}
-
-	issues, err := h.issueSvc.SearchIssues(r.Context(), f, prefLangs, userName)
-	if err != nil {
-		middleware.RespondError(w, http.StatusInternalServerError, "failed to search issues")
-		return
-	}
-	if issues == nil {
-		issues = []issue.Issue{}
-	}
-
-	// Populate cache. A TTL of zero means caching is switched off for that path.
-	if userID == 0 && h.cache != nil {
-		hotTTL := cfg.Seconds(settings.CacheHotIssuesTTLSeconds)
-		searchTTL := cfg.Seconds(settings.CacheSearchTTLSeconds)
-
-		if data, err := json.Marshal(issues); err == nil {
-			if isDefaultHot && hotTTL > 0 {
-				h.cache.SetHotIssues(r.Context(), data, hotTTL)
-			} else if searchKey != "" && searchTTL > 0 {
-				h.cache.SetCachedSearch(r.Context(), searchKey, data, searchTTL)
+	if isDefaultHot {
+		key = "hot"
+		get = func() []byte { return h.cache.GetHotIssues(r.Context()) }
+		set = func(data []byte) {
+			if ttl := cfg.Seconds(settings.CacheHotIssuesTTLSeconds); ttl > 0 {
+				h.cache.SetHotIssues(r.Context(), data, ttl)
 			}
 		}
 	}
 
-	middleware.RespondJSON(w, http.StatusOK, issues)
+	if cached := get(); cached != nil {
+		respondIssues(w, r, cfg, cached, true)
+		return
+	}
+
+	// Every request that misses at once waits on one query rather than each
+	// running its own: a cold cache under load is exactly when the catalog
+	// query is slowest. The shared query must not die with whichever caller
+	// happened to start it, so it runs detached from that request's
+	// cancellation, bounded by the query timeout alone.
+	v, err, _ := h.issuesFlight.Do(key, func() (any, error) {
+		data, err := load(context.WithoutCancel(r.Context()))
+		if err != nil {
+			return nil, err
+		}
+		set(data)
+		return data, nil
+	})
+	if err != nil {
+		respondIssueQueryError(w, r, err)
+		return
+	}
+	respondIssues(w, r, cfg, v.([]byte), true)
+}
+
+// loadIssues runs the catalog or search query and encodes the response body.
+func (h *handlers) loadIssues(ctx context.Context, userID int, f issue.Filters, cursorMode bool, after *issue.Cursor) ([]byte, error) {
+	var prefLangs []string
+	var userName string
+	if userID != 0 {
+		p, err := h.profileSvc.GetFullProfile(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("load profile for catalog order: %w", err)
+		}
+		prefLangs = p.PreferredLanguages
+		userName = p.Username
+	}
+
+	// The first page of a browse and every cursor page are read in index
+	// order; only a deeper ?page, or a search, takes the OFFSET query.
+	if f.Search == "" && (cursorMode || f.Page == 1) {
+		issues, next, err := h.issueSvc.BrowseIssues(ctx, f, after, prefLangs)
+		if err != nil {
+			return nil, err
+		}
+		if issues == nil {
+			issues = []issue.Issue{}
+		}
+		if !cursorMode {
+			return json.Marshal(issues)
+		}
+		body := issuePage{Issues: issues}
+		if next != nil {
+			token := next.Encode()
+			body.NextCursor = &token
+		}
+		return json.Marshal(body)
+	}
+
+	issues, err := h.issueSvc.SearchIssues(ctx, f, prefLangs, userName)
+	if err != nil {
+		return nil, err
+	}
+	if issues == nil {
+		issues = []issue.Issue{}
+	}
+	return json.Marshal(issues)
+}
+
+// respondIssues writes a catalog body with the caching headers it is allowed.
+// A signed-out body is public — the same for every signed-out caller — and
+// carries an ETag, so a repeat visit can be answered with a 304. A signed-in
+// body depends on who asked and must not be stored anywhere.
+func respondIssues(w http.ResponseWriter, r *http.Request, cfg *settings.Snapshot, data []byte, public bool) {
+	w.Header().Add("Vary", "Cookie, Authorization")
+	if !public {
+		w.Header().Set("Cache-Control", "private, no-store")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(data)
+		return
+	}
+
+	if maxAge := cfg.Int(settings.CachePublicMaxAgeSeconds); maxAge > 0 {
+		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, stale-while-revalidate=%d",
+			maxAge, cfg.Int(settings.CachePublicStaleSeconds)))
+	} else {
+		w.Header().Set("Cache-Control", "no-cache")
+	}
+
+	sum := sha256.Sum256(data)
+	etag := `W/"` + hex.EncodeToString(sum[:16]) + `"`
+	w.Header().Set("ETag", etag)
+	if etagMatches(r.Header.Get("If-None-Match"), etag) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
+// etagMatches reports whether an If-None-Match header names etag. The
+// comparison is weak, as RFC 9110 requires for If-None-Match: W/"x" and "x"
+// are the same entity tag.
+func etagMatches(header, etag string) bool {
+	if header == "" {
+		return false
+	}
+	want := strings.TrimPrefix(etag, "W/")
+	for _, candidate := range strings.Split(header, ",") {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "*" || strings.TrimPrefix(candidate, "W/") == want {
+			return true
+		}
+	}
+	return false
+}
+
+// respondIssueQueryError answers a failed catalog or issue query. A query
+// that ran past api.issues.query_timeout_ms was cancelled: that is load, not a
+// bug, and the caller may retry, so it is a 503 rather than a 500.
+func respondIssueQueryError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		slog.Warn("issue query timed out", "route", r.Pattern, "error", err)
+		middleware.RespondError(w, http.StatusServiceUnavailable, "the catalog is busy, try again shortly")
+	case errors.Is(err, context.Canceled) && r.Context().Err() != nil:
+		// The caller went away; there is nobody to answer.
+		slog.Debug("issue query abandoned by client", "route", r.Pattern)
+	default:
+		slog.Error("issue query failed", "route", r.Pattern, "error", err)
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to load issues")
+	}
 }
 
 func (h *handlers) getIssue(w http.ResponseWriter, r *http.Request) {
@@ -154,9 +311,15 @@ func (h *handlers) getIssue(w http.ResponseWriter, r *http.Request) {
 		middleware.RespondError(w, http.StatusNotFound, "invalid issue id")
 		return
 	}
-	it, err := h.issueSvc.GetIssue(r.Context(), id)
-	if err != nil {
+	ctx, cancel := context.WithTimeout(r.Context(), h.live.Current().Millis(settings.IssuesQueryTimeoutMs))
+	defer cancel()
+	it, err := h.issueSvc.GetIssue(ctx, id)
+	if errors.Is(err, db.ErrNotFound) {
 		middleware.RespondError(w, http.StatusNotFound, "issue not found")
+		return
+	}
+	if err != nil {
+		respondIssueQueryError(w, r, err)
 		return
 	}
 	middleware.RespondJSON(w, http.StatusOK, it)
