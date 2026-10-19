@@ -82,8 +82,21 @@ readable through the endpoint above and copied into backups.
 | `ingest.discovery.min_window_seconds` | 60 | 1–86400 | Smallest span a window over the 1,000-result search cap is halved to; past it the window is read truncated |
 | `ingest.discovery.page_size` | 100 | 1–100 | Repositories per search page |
 | `ingest.discovery.rate_limit_floor` | 1000 | 0–12500 | Discovery's floor on the shared budget, above the interactive reserve; above `ingest.rate_limit_floor` so discovery yields first |
-| `ingest.discovery.incremental_interval_seconds` | 86400 | 3600–2592000 | How often an incremental sweep covers repositories pushed since the last completed sweep |
+| `ingest.discovery.incremental_interval_seconds` | 86400 | 3600–2592000 | How often an incremental sweep covers repositories pushed since the last completed sweep. Not run while the archive reader is current |
 | `ingest.discovery.full_interval_seconds` | 2592000 | 86400–31536000 | How often a full sweep covers the whole `pushed_within_days` range |
+| `ingest.archive.enabled` | false | — | Read GH Archive's hourly public event files and apply their issue events to stored repositories |
+| `ingest.archive.workers` | 1 | 1–8 | Archive hours processed at once |
+| `ingest.archive.poll_seconds` | 300 | 30–3600 | How often newly ended hours are queued |
+| `ingest.archive.retry_seconds` | 600 | 60–86400 | Wait before retrying an hour not published yet, or whose processing failed |
+| `ingest.archive.missing_after_hours` | 24 | 1–720 | An hour still unpublished this long after it ended is marked `missing` |
+| `ingest.archive.max_backfill_hours` | 168 | 1–2160 | How far back the first run goes, at most (it starts at the oldest completed crawl pass) |
+| `ingest.archive.download_timeout_seconds` | 300 | 10–3600 | Deadline for downloading and reading one hour |
+| `ingest.archive.max_file_mb` | 512 | 1–4096 | Largest compressed file accepted; a larger one fails its hour |
+| `ingest.archive.apply_batch_size` | 500 | 1–10000 | Issues written per transaction |
+| `ingest.archive.max_lag_seconds` | 21600 | 3600–604800 | Further behind than this, the archive is not current: the freshness crawl returns to `ingest.freshness_interval_seconds` and the incremental sweep resumes |
+| `ingest.archive.repair_interval_seconds` | 2592000 | 86400–31536000 | The freshness crawl's interval while the archive is current |
+| `ingest.archive.candidate_batch_size` | 50 | 1–100 | Archive candidates (repositories not stored) looked up per GitHub call |
+| `ingest.archive.candidate_recheck_days` | 30 | 1–3650 | A candidate that was not stored is looked up again after this long, if active since |
 
 Raising the eligibility thresholds takes effect on the next recheck. **Lowering** them only
 affects repositories already stored — anything that failed the old threshold was never imported,

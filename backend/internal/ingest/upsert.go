@@ -19,6 +19,29 @@ import (
 // row whenever two repositories' issue numbers coincided with a stale
 // github_id (defect fixed here, not carried forward from internal/sync).
 func UpsertIssueTx(ctx context.Context, tx pgx.Tx, repoID int, issue github.GraphQLIssueNode, repoLanguage string) error {
+	_, err := writeIssueTx(ctx, tx, repoID, issue, repoLanguage, writeAlways)
+	return err
+}
+
+// issueWrite is when writeIssueTx may write an issue.
+type issueWrite int
+
+const (
+	// writeAlways is the crawl: GitHub's answer as of now, written whatever
+	// is stored.
+	writeAlways issueWrite = iota
+	// writeIfNewer is an archive event: the issue as it stood when the event
+	// happened, which may be older than what is stored (hours are read in any
+	// order, and a crawl may have run since). Inserted if not stored, updated
+	// only if newer.
+	writeIfNewer
+	// updateIfNewer is writeIfNewer that never inserts: for a closed issue
+	// nobody stored (it would only be pruned), or while the disk guard is on.
+	updateIfNewer
+)
+
+// writeIssueTx writes one issue as mode allows and reports whether it did.
+func writeIssueTx(ctx context.Context, tx pgx.Tx, repoID int, issue github.GraphQLIssueNode, repoLanguage string, mode issueWrite) (bool, error) {
 	labels := SanitizeSlice(issue.Labels)
 	score, difficulty, hasValid, skills, tech, tags := sync.ExtractMetadata(labels, repoLanguage)
 
@@ -41,7 +64,30 @@ func UpsertIssueTx(ctx context.Context, tx pgx.Tx, repoID int, issue github.Grap
 		updatedAt = time.Now().UTC()
 	}
 
-	_, err := tx.Exec(ctx,
+	args := []any{
+		issue.DatabaseID, repoID, issue.Number, SanitizeText(issue.Title), issue.URL, issue.State,
+		difficultyScore, difficulty, skills, tech, tags,
+		labels, issue.CommentsCount, createdAt, updatedAt, author,
+	}
+
+	if mode == updateIfNewer {
+		// The INSERT's arguments without created_at, which an update never
+		// rewrites.
+		tag, err := tx.Exec(ctx,
+			`UPDATE issues SET
+				github_id = $1, title = $4, url = $5, state = $6,
+				difficulty_score = $7, difficulty = $8, required_skills = $9, technologies = $10, learning_tags = $11,
+				labels = $12, comments = $13, updated_at = $14, last_synced_at = now(), author = $15
+			 WHERE repository_id = $2 AND number = $3 AND updated_at < $14`,
+			append(append([]any{}, args[:13]...), args[14:]...)...)
+		return tag.RowsAffected() > 0, err
+	}
+
+	newer := ""
+	if mode == writeIfNewer {
+		newer = " WHERE issues.updated_at < EXCLUDED.updated_at"
+	}
+	tag, err := tx.Exec(ctx,
 		`INSERT INTO issues (
 			github_id, repository_id, number, title, url, state,
 			difficulty_score, difficulty, required_skills, technologies, learning_tags,
@@ -62,10 +108,7 @@ func UpsertIssueTx(ctx context.Context, tx pgx.Tx, repoID int, issue github.Grap
 			comments                     = EXCLUDED.comments,
 			updated_at                   = EXCLUDED.updated_at,
 			last_synced_at               = now(),
-			author                       = EXCLUDED.author`,
-		issue.DatabaseID, repoID, issue.Number, SanitizeText(issue.Title), issue.URL, issue.State,
-		difficultyScore, difficulty, skills, tech, tags,
-		labels, issue.CommentsCount, createdAt, updatedAt, author,
-	)
-	return err
+			author                       = EXCLUDED.author`+newer,
+		args...)
+	return tag.RowsAffected() > 0, err
 }

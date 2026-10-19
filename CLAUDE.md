@@ -244,18 +244,22 @@ Kaggle repository-metadata dataset      Discovery Sweeper (ingestd, off by defau
   filtered at import                             │
         │  only passers stored                   │  only passers stored
         ▼                                        ▼
-eligible repositories  (~278k after the first full crawl)
-        │
-        ▼
-Initial  — one first page of open issues per eligible repository
-        │  hasNextPage?
-        ▼
+eligible repositories  (~278k after the first full crawl)  ◀── archive candidates
+        │                                                       (looked up, passers stored)
+        ▼                                                              ▲
+Initial  — one first page of open issues per eligible repository       │
+        │  hasNextPage?                                                │
+        ▼                                                              │
 Deep Diver — every remaining page, from the stored cursor, until exhausted
-        │
-        ▼
+        │                                                              │
+        ▼                                                              │
 Freshness — once a repository's last sync is older than ingest.freshness_interval_seconds,
              fetch only what changed since its last completed pass: open issues
              updated since (upserted) and issues closed since (marked CLOSED)
+                                                                       │
+GH Archive reader (ingestd, off by default) — hourly public event files; issue events on
+             stored repositories applied when newer, unknown repositories → candidates.
+             While it is current, Freshness runs every ingest.archive.repair_interval_seconds.
 ```
 
 The coordinator (`internal/ingest/coordinator.go`) runs one cycle every
@@ -263,7 +267,9 @@ The coordinator (`internal/ingest/coordinator.go`) runs one cycle every
 (throttled), seed never-ingested repositories, re-queue stale ones, then
 check tracked (saved / in-progress) issues on GitHub, then claim and submit work to the Initial
 and Deep pools, then — if `ingest.discovery.enabled` — start a due discovery sweep and claim its
-windows for the Discovery pool. The first full crawl (every eligible repository through one pass)
+windows for the Discovery pool. If `ingest.archive.enabled`, the same cycle (before the disk-guard
+early return) queues newly ended archive hours, claims due ones for the Archive pool, and looks up
+one batch of repository candidates. The first full crawl (every eligible repository through one pass)
 took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
 
 ### Rules
@@ -353,6 +359,26 @@ took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
   lease_owner = <claimer>` and treat zero rows as `ErrLeaseLost` (rolling back the page's
   transaction) — never a bare `WHERE id = $1`.
 - **Postgres is the queue.** `ingest_jobs` is the durable state store; Redis is not involved.
+- **The archive carries freshness only while it is current.** The GH Archive reader
+  (`internal/ingest/archive.go`) reads one gzipped file per hour from GH Archive, as a stream.
+  IssuesEvent and IssueCommentEvent carry the whole issue, and those for stored, eligible
+  repositories go through `writeIssueTx`: inserted, or updated only if newer than what is
+  stored. A closed issue that was never stored is not inserted, and while the disk guard is on
+  nothing is. Pull requests are skipped. `archive_hours` is a leased, fenced queue like
+  `ingest_jobs`. While every hour up to `ingest.archive.max_lag_seconds` ago is done or
+  `missing`, the freshness crawl drops to `ingest.archive.repair_interval_seconds` and the
+  incremental discovery sweep stops. A `failed` hour holds coverage back, so the daily crawl
+  resumes on its own (`archive_fallback`). Reset a failed hour with `UPDATE archive_hours SET
+  status = 'pending', attempts = 0 WHERE hour = ...`. Archive writes never touch
+  `repositories.last_synced_at` or `issues_synced_through`: the watermarks stay crawl
+  watermarks.
+- **Unknown repositories in the archive are candidates, not repositories.** `repo_candidates`
+  holds repositories with issue activity that are not stored. They are looked up with
+  `github.LookupRepositories` (aliased, ≤100 per call, on the crawler lane at discovery's floor)
+  and stored through the Discovery Sweeper's `upsertDiscoveredTx`, so eligibility, exclusion and
+  identity rules are the same. One that was not stored is looked up again after
+  `ingest.archive.candidate_recheck_days`, if it was active since. A quiet one is deleted then
+  (`PruneRepoCandidates`), which keeps the table from growing with every small repository.
 
 ### Not built
 
@@ -361,6 +387,9 @@ took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
   type no running coordinator claims.
 - **Freshness job type** — stale repositories are re-queued as `job_type='initial'`; nothing
   writes `'freshness'`.
+- **Pull requests and bodies from the archive** — the reader skips `PullRequestEvent` (and its
+  `merged` action) and the issue `body` every issue event carries. Nothing tracks pull requests
+  or caches bodies yet.
 
 ---
 

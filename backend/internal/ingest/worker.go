@@ -23,10 +23,11 @@ const installationIdentity = "installation"
 
 // Worker fetches and persists one page for a claimed job.
 type Worker struct {
-	pool   *db.Pool
-	github *github.Client
-	token  func() string
-	live   func() *settings.Snapshot
+	pool    *db.Pool
+	github  *github.Client
+	archive archiveSource
+	token   func() string
+	live    func() *settings.Snapshot
 }
 
 // NewWorker builds a Worker. token is read per call (not captured once) so

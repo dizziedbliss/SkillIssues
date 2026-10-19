@@ -10,6 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- GH Archive reader in `ingestd` (migration 00037). **Off by default** (`ingest.archive.enabled`).
+  - It reads GH Archive's hourly public event files as a stream and applies `IssuesEvent` and
+    `IssueCommentEvent` issues to stored, eligible repositories, with no GitHub API call. An issue
+    is inserted, or updated only when newer than what is stored. Pull requests are skipped.
+  - Hours are a leased queue (`archive_hours`). Repositories with issue activity that are not
+    stored become `repo_candidates`; they are looked up in batches with the new
+    `github.LookupRepositories` and stored through the Discovery Sweeper's rules.
+  - While the archive is current (`ingest.archive.max_lag_seconds`), the freshness crawl runs
+    every 30 days (`ingest.archive.repair_interval_seconds`) instead of daily, and the
+    incremental discovery sweep stops. If it falls behind, both resume by themselves.
+  - New metrics: `archive_*`. Grafana *Ingestion* has an Archive row.
+  - A real hour (2026-10-18 15:00 UTC, 19,226 events) applies in 1.2 s.
 - An interactive reserve on the GitHub budget (migration 00036,
   `ingest.interactive_reserve_percent`, 30%). The crawl and discovery stop while that share of the
   rate limit is still left, and their floors are now measured above it. The tracked-issue check moves

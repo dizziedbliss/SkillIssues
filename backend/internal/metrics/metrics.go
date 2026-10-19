@@ -204,6 +204,36 @@ var (
 		Help: "Unix time the latest successful sweep of each kind completed; 0 = never.",
 	}, []string{"kind"})
 
+	ArchiveHourOutcomes = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "archive_hour_outcomes_total",
+		Help: "GH Archive hours processed, by outcome (done, not_published, missing, fetch_error, parse_error, persist_error, lease_lost).",
+	}, []string{"outcome"})
+
+	ArchiveIssueEvents = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "archive_issue_events_total",
+		Help: "Issues the GH Archive reader took from an hour, by what it did with them: applied, stale (not newer than stored), stale_or_not_stored (an update-only write — a closed issue, or the disk guard on — that wrote nothing: not newer, or never stored), ineligible_repo, candidate (repository not stored).",
+	}, []string{"result"})
+
+	ArchiveHours = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "archive_hours",
+		Help: "Rows in archive_hours by status, as of the last refresh.",
+	}, []string{"status"})
+
+	ArchiveLagSeconds = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "archive_lag_seconds",
+		Help: "How far behind now the GH Archive reader's complete coverage ends: every hour before it is done or missing.",
+	})
+
+	ArchiveFallback = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "archive_fallback",
+		Help: "1 while the archive reader is enabled but further behind than ingest.archive.max_lag_seconds, so the daily freshness crawl and the incremental discovery sweep run instead.",
+	})
+
+	ArchiveCandidates = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "archive_candidates_total",
+		Help: "Repositories seen in the archive but not stored, looked up on GitHub, by outcome: new, updated, renamed, ineligible, excluded, conflict, not_found.",
+	}, []string{"outcome"})
+
 	RepositoryIdentityConflicts = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "repository_identity_conflicts_total",
 		Help: "Repository rows whose GitHub id or name collided with another row: duplicate (an id-less twin marked duplicate), rename_blocked (a rename onto a name another repository's row holds), id_mismatch (a name now resolving to a different repository).",
@@ -266,5 +296,6 @@ func RegisterIngest() {
 		WorkerPool, BudgetErrors,
 		DiscoveryWindowOutcomes, DiscoveryRepositories, DiscoveryWindowsTruncated, DiscoveryWindows,
 		DiscoveryLastSweepCompleted, RepositoryIdentityConflicts,
+		ArchiveHourOutcomes, ArchiveIssueEvents, ArchiveHours, ArchiveLagSeconds, ArchiveFallback, ArchiveCandidates,
 	)
 }

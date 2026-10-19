@@ -18,6 +18,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/flow"
 	"github.com/dizziedbliss/skillissues/internal/github"
 	"github.com/dizziedbliss/skillissues/internal/githubapp"
+	"github.com/dizziedbliss/skillissues/internal/httpx"
 	"github.com/dizziedbliss/skillissues/internal/ingest"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
@@ -124,6 +125,11 @@ func main() {
 	coordinator := ingest.NewCoordinator(dbPool, ghClient, ingest.CoordinatorConfig{
 		Token:    tokenFn,
 		Settings: live.Current,
+		// An hour's file is tens of megabytes: it gets its own deadline, not
+		// the outbound timeout sized for an API call.
+		ArchiveHTTP: httpx.New(func() time.Duration {
+			return live.Current().Seconds(settings.IngestArchiveDownloadTimeoutSeconds)
+		}, flow.Transport{}),
 	})
 	live.OnChange(coordinator.ApplySettings)
 

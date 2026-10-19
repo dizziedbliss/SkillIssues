@@ -53,35 +53,120 @@ type RepositorySearchPage struct {
 	RateLimit       GraphQLRateLimit
 }
 
+// repositoryFragment is every field a SearchedRepository is built from, shared
+// by the search and by LookupRepositories so both describe a repository the
+// same way.
+const repositoryFragment = `fragment RepositoryFields on Repository {
+    databaseId
+    nameWithOwner
+    url
+    description
+    primaryLanguage { name }
+    languages(first: 10, orderBy: {field: SIZE, direction: DESC}) { edges { size node { name } } }
+    repositoryTopics(first: 20) { nodes { topic { name } } }
+    licenseInfo { spdxId }
+    stargazerCount
+    forkCount
+    watchers { totalCount }
+    isFork
+    isArchived
+    forkingAllowed
+    issues { totalCount }
+    openIssues: issues(states: OPEN) { totalCount }
+    createdAt
+    pushedAt
+}`
+
 const searchRepositoriesQuery = `query SearchRepositories($q: String!, $first: Int!, $after: String) {
     search(query: $q, type: REPOSITORY, first: $first, after: $after) {
         repositoryCount
         pageInfo { hasNextPage endCursor }
-        nodes {
-            ... on Repository {
-                databaseId
-                nameWithOwner
-                url
-                description
-                primaryLanguage { name }
-                languages(first: 10, orderBy: {field: SIZE, direction: DESC}) { edges { size node { name } } }
-                repositoryTopics(first: 20) { nodes { topic { name } } }
-                licenseInfo { spdxId }
-                stargazerCount
-                forkCount
-                watchers { totalCount }
-                isFork
-                isArchived
-                forkingAllowed
-                issues { totalCount }
-                openIssues: issues(states: OPEN) { totalCount }
-                createdAt
-                pushedAt
-            }
-        }
+        nodes { ... on Repository { ...RepositoryFields } }
     }
     rateLimit { limit remaining used resetAt cost }
-}`
+}
+` + repositoryFragment
+
+type totalCount struct {
+	TotalCount int `json:"totalCount"`
+}
+
+// repositoryNode is a repository as repositoryFragment returns it.
+type repositoryNode struct {
+	DatabaseID      int64   `json:"databaseId"`
+	NameWithOwner   string  `json:"nameWithOwner"`
+	URL             string  `json:"url"`
+	Description     *string `json:"description"`
+	PrimaryLanguage *struct {
+		Name string `json:"name"`
+	} `json:"primaryLanguage"`
+	Languages struct {
+		Edges []struct {
+			Size int64 `json:"size"`
+			Node struct {
+				Name string `json:"name"`
+			} `json:"node"`
+		} `json:"edges"`
+	} `json:"languages"`
+	RepositoryTopics struct {
+		Nodes []struct {
+			Topic struct {
+				Name string `json:"name"`
+			} `json:"topic"`
+		} `json:"nodes"`
+	} `json:"repositoryTopics"`
+	LicenseInfo *struct {
+		SpdxID *string `json:"spdxId"`
+	} `json:"licenseInfo"`
+	StargazerCount int        `json:"stargazerCount"`
+	ForkCount      int        `json:"forkCount"`
+	Watchers       totalCount `json:"watchers"`
+	IsFork         bool       `json:"isFork"`
+	IsArchived     bool       `json:"isArchived"`
+	ForkingAllowed bool       `json:"forkingAllowed"`
+	Issues         totalCount `json:"issues"`
+	OpenIssues     totalCount `json:"openIssues"`
+	CreatedAt      *string    `json:"createdAt"`
+	PushedAt       *string    `json:"pushedAt"`
+}
+
+func (n repositoryNode) repository() (SearchedRepository, error) {
+	r := SearchedRepository{
+		DatabaseID:     n.DatabaseID,
+		NameWithOwner:  n.NameWithOwner,
+		URL:            n.URL,
+		Description:    n.Description,
+		Stars:          n.StargazerCount,
+		Forks:          n.ForkCount,
+		Watchers:       n.Watchers.TotalCount,
+		IsFork:         n.IsFork,
+		IsArchived:     n.IsArchived,
+		ForkingAllowed: n.ForkingAllowed,
+		IssueCount:     n.Issues.TotalCount,
+		OpenIssueCount: n.OpenIssues.TotalCount,
+	}
+	if n.PrimaryLanguage != nil && n.PrimaryLanguage.Name != "" {
+		name := n.PrimaryLanguage.Name
+		r.PrimaryLanguage = &name
+	}
+	for _, e := range n.Languages.Edges {
+		r.Languages = append(r.Languages, RepositoryLanguage{Name: e.Node.Name, Size: e.Size})
+	}
+	for _, t := range n.RepositoryTopics.Nodes {
+		r.Topics = append(r.Topics, t.Topic.Name)
+	}
+	if n.LicenseInfo != nil {
+		r.License = n.LicenseInfo.SpdxID
+	}
+	var err error
+	if r.CreatedAt, err = parseOptionalTime(n.CreatedAt); err != nil {
+		return SearchedRepository{}, fmt.Errorf("github: parse createdAt of %s: %w", n.NameWithOwner, err)
+	}
+	if r.PushedAt, err = parseOptionalTime(n.PushedAt); err != nil {
+		return SearchedRepository{}, fmt.Errorf("github: parse pushedAt of %s: %w", n.NameWithOwner, err)
+	}
+	return r, nil
+}
 
 // SearchRepositories runs one page of a GitHub repository search. query is
 // GitHub search syntax (e.g. "stars:>=25 pushed:2026-01-01..2026-01-02").
@@ -95,9 +180,6 @@ func (c *Client) SearchRepositories(ctx context.Context, token, query string, fi
 		variables["after"] = *after
 	}
 
-	type totalCount struct {
-		TotalCount int `json:"totalCount"`
-	}
 	var raw struct {
 		Data struct {
 			Search *struct {
@@ -106,43 +188,7 @@ func (c *Client) SearchRepositories(ctx context.Context, token, query string, fi
 					HasNextPage bool   `json:"hasNextPage"`
 					EndCursor   string `json:"endCursor"`
 				} `json:"pageInfo"`
-				Nodes []struct {
-					DatabaseID      int64   `json:"databaseId"`
-					NameWithOwner   string  `json:"nameWithOwner"`
-					URL             string  `json:"url"`
-					Description     *string `json:"description"`
-					PrimaryLanguage *struct {
-						Name string `json:"name"`
-					} `json:"primaryLanguage"`
-					Languages struct {
-						Edges []struct {
-							Size int64 `json:"size"`
-							Node struct {
-								Name string `json:"name"`
-							} `json:"node"`
-						} `json:"edges"`
-					} `json:"languages"`
-					RepositoryTopics struct {
-						Nodes []struct {
-							Topic struct {
-								Name string `json:"name"`
-							} `json:"topic"`
-						} `json:"nodes"`
-					} `json:"repositoryTopics"`
-					LicenseInfo *struct {
-						SpdxID *string `json:"spdxId"`
-					} `json:"licenseInfo"`
-					StargazerCount int        `json:"stargazerCount"`
-					ForkCount      int        `json:"forkCount"`
-					Watchers       totalCount `json:"watchers"`
-					IsFork         bool       `json:"isFork"`
-					IsArchived     bool       `json:"isArchived"`
-					ForkingAllowed bool       `json:"forkingAllowed"`
-					Issues         totalCount `json:"issues"`
-					OpenIssues     totalCount `json:"openIssues"`
-					CreatedAt      *string    `json:"createdAt"`
-					PushedAt       *string    `json:"pushedAt"`
-				} `json:"nodes"`
+				Nodes []repositoryNode `json:"nodes"`
 			} `json:"search"`
 			RateLimit rawRateLimit `json:"rateLimit"`
 		} `json:"data"`
@@ -166,39 +212,9 @@ func (c *Client) SearchRepositories(ctx context.Context, token, query string, fi
 		if n.NameWithOwner == "" {
 			continue
 		}
-		r := SearchedRepository{
-			DatabaseID:     n.DatabaseID,
-			NameWithOwner:  n.NameWithOwner,
-			URL:            n.URL,
-			Description:    n.Description,
-			Stars:          n.StargazerCount,
-			Forks:          n.ForkCount,
-			Watchers:       n.Watchers.TotalCount,
-			IsFork:         n.IsFork,
-			IsArchived:     n.IsArchived,
-			ForkingAllowed: n.ForkingAllowed,
-			IssueCount:     n.Issues.TotalCount,
-			OpenIssueCount: n.OpenIssues.TotalCount,
-		}
-		if n.PrimaryLanguage != nil && n.PrimaryLanguage.Name != "" {
-			name := n.PrimaryLanguage.Name
-			r.PrimaryLanguage = &name
-		}
-		for _, e := range n.Languages.Edges {
-			r.Languages = append(r.Languages, RepositoryLanguage{Name: e.Node.Name, Size: e.Size})
-		}
-		for _, t := range n.RepositoryTopics.Nodes {
-			r.Topics = append(r.Topics, t.Topic.Name)
-		}
-		if n.LicenseInfo != nil {
-			r.License = n.LicenseInfo.SpdxID
-		}
-		var err error
-		if r.CreatedAt, err = parseOptionalTime(n.CreatedAt); err != nil {
-			return nil, fmt.Errorf("github: parse createdAt of %s: %w", n.NameWithOwner, err)
-		}
-		if r.PushedAt, err = parseOptionalTime(n.PushedAt); err != nil {
-			return nil, fmt.Errorf("github: parse pushedAt of %s: %w", n.NameWithOwner, err)
+		r, err := n.repository()
+		if err != nil {
+			return nil, err
 		}
 		repos = append(repos, r)
 	}
