@@ -99,6 +99,9 @@ function AppShell() {
   const [selectedBodyErrorDetail, setSelectedBodyErrorDetail] = useState("");
   const issuesAbortRef = useRef<AbortController | null>(null);
   const [query, setQuery] = useState("");
+  // What is typed in the search box. Nothing happens until Search is pressed:
+  // only then does it become `query`, the search the page shows and pages through.
+  const [searchInput, setSearchInput] = useState(query);
   const [searchCategory, setSearchCategory] = useState<string>("ALL");
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -209,10 +212,12 @@ function AppShell() {
 
   async function handleSearch(e?: React.FormEvent) {
     if (e) e.preventDefault();
+    const submitted = searchInput.trim();
+    setQuery(submitted);
     setPage(1);
     setSearchCategory("ALL");
     setExpandedCategories({});
-    await loadIssues(1, difficultyFilter, query);
+    await loadIssues(1, difficultyFilter, submitted);
   }
 
   function handleDifficultyChange(diff: DifficultyFilter) {
@@ -560,15 +565,16 @@ function AppShell() {
           <form className="web-search" onSubmit={(event) => void handleSearch(event)}>
             <Search size={16} className="search-icon" />
             <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
               placeholder="Search issues by language, repo, author, title, or description..."
             />
-            {query && (
+            {(searchInput || query) && (
               <button
                 type="button"
                 className="clear-button"
                 onClick={() => {
+                  setSearchInput("");
                   setQuery("");
                   setPage(1);
                   setSearchCategory("ALL");
