@@ -1,0 +1,14 @@
+# A light/dark pair in one theme: Appearance's switch moves between them.
+[meta]
+schema = 1
+name = "Paper and night"
+
+[colors]
+background = "#fafafa"
+text = "#111111"
+link = "#0050c8"
+
+[dark]
+background = "#101014"
+text = "#eeeeee"
+link = "#7ab0ff"

@@ -4,7 +4,7 @@ slug: /docs/changelog
 section: SkillIssues
 summary: Where releases are published, and a summary of the notable changes made recently.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 ## Releases
@@ -15,11 +15,23 @@ The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/
 
 ## October 2026
 
+### The app, from its designs
+
+- **Explore.** The catalog as designed: search, a filter panel where every filter explains itself, difficulty buttons that start from your profile's level, and pages you can go back through. Click a card anywhere to open its issue, or its repository's name to see that repository's issues.
+- **Search, everywhere.** Press `/` or Ctrl+K on any page in the app. Results come as you type, sorted into repositories, titles and labels, and languages and tech, each with View more. See all results on the search page. See [Finding issues](/docs/finding-issues).
+- **Issue pages.** The description (with its images), labels, the repository's details, links to more issues from the repository and its owner, and a button that opens the desktop app. If GitHub says the issue has just been closed, the page tells you.
+- **Your profile and contributions.** Your public pull requests, merged ones and the repositories you've worked on, a graph of your year, and achievements. Your browser reads these from GitHub's public search, so we still hold no GitHub token for you.
+- **Saved issues and updates.** Your saved issues, with a note when one closes on GitHub, and a red dot on Profile until you've read it.
+- **Settings.** Your profile, themes, the desktop app, your account and support, each on its own page.
+- **Dark by default.** The whole site starts dark. The footer's theme button switches the landing page and docs to light.
+- **Ready for translations.** Every word of the interface can now be translated. English is the only language so far.
+- **Docs search.** Press `/` on any docs page.
+
 ### Catalog and search
 
 - **Filters.** Filter the catalog by labels, main language, technologies a repository uses, repository topics, difficulty, and how many comments an issue has. See [Finding issues](/docs/finding-issues).
 - **A fair default feed.** The default order gives every repository one slot, showing its easiest open issue, in an order that is redrawn daily. Sorting by easiest or newest is still available.
-- **Faster search.** Search had started timing out on the full catalog. Each kind of match (repository, title, language, author) is now looked up separately and the results are interleaved.
+- **Faster search.** Search had started timing out on the full catalog. Each kind of match is now looked up separately and the results are interleaved. Search now looks at repository names, titles and labels, and languages and tech; it no longer matches the people who opened issues.
 - **Live counts.** The landing page reads live catalog counts from a new public `GET /stats` endpoint.
 - **Cursor paging.** The API can page through the catalog by cursor, which costs the same however deep you go. See [Public API](/docs/public-api).
 
@@ -32,6 +44,10 @@ The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/
 ### Themes
 
 - **User themes.** Restyle the signed-in app with a theme file of design tokens and an optional stylesheet. Themes sync to your account and can be shared. See [Themes](/docs/themes).
+- **Built-in themes.** Twelve built-ins, including Catppuccin, Dracula, Nord, Gruvbox, Solarized, Tokyo Night and Rosé Pine. Use one as it is, or customise your own copy.
+- **An editor with a live preview.** Problems are shown as you type, with their line. A preview shows the app in your draft, with a map of which token paints what.
+- **More for theme authors.** Light and dark halves in one theme, more fonts, more tokens, page transitions, `@property` and scroll-driven animation, stable hooks for stylesheets, and `POST /themes/validate` to check a theme without saving it.
+- **Appearance.** The profile menu lists your recent themes to switch between.
 
 ### Website
 

@@ -67,7 +67,7 @@ export function Footer() {
   const t = useT();
   const theme = useThemeToggle();
   return (
-    <footer className={s.footer}>
+    <footer className={s.footer} data-ui="footer">
       <div className={s.columns}>
         {columns.map((c) => (
           <nav key={c.title} aria-label={t(c.title)}>

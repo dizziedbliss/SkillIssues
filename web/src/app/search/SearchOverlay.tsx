@@ -70,6 +70,7 @@ export function SearchOverlay({ onClose }: { onClose: () => void }) {
     <dialog
       ref={dialog}
       className={s.dialog}
+      data-ui="search-dialog"
       aria-labelledby="search-title"
       aria-describedby="search-sub"
       onClose={onClose}

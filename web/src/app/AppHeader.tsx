@@ -2,10 +2,10 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { Logo } from "../landing/Logo";
 import { LOCALES, useI18n } from "../i18n";
-import { useThemeToggle } from "../lib/themeToggle";
 import { useSession, useSignIn, useSignOut } from "./session";
 import { useSearchOverlay } from "./search/context";
 import { useNotifications } from "./notifications";
+import { choiceName, useAppearance } from "./theme";
 import s from "./AppHeader.module.css";
 
 /**
@@ -22,13 +22,13 @@ export function AppHeader() {
   const exploring = pathname === "/app" || pathname === "/app/" || pathname.startsWith("/app/issues/");
 
   return (
-    <header className={s.header}>
+    <header className={s.header} data-ui="header">
       <div className={s.bar}>
         {/* Inside the app the wordmark is home: Explore. */}
         <Link to="/app" className={s.home} aria-label={t("app.home")}>
           <Logo size="header" />
         </Link>
-        <nav className={s.nav} aria-label={t("app.nav")}>
+        <nav className={s.nav} aria-label={t("app.nav")} data-ui="nav">
           <Link to="/app" className={exploring ? s.active : undefined} aria-current={exploring ? "page" : undefined}>
             {t("app.nav.explore")}
           </Link>
@@ -69,7 +69,7 @@ export function AppHeader() {
 /** Profile's menu: settings, light and dark, language, sign out. */
 function ProfileMenu() {
   const { t, locale, setLocale } = useI18n();
-  const theme = useThemeToggle();
+  const appearance = useAppearance();
   const signOut = useSignOut();
   const [open, setOpen] = useState(false);
   const [languages, setLanguages] = useState(false);
@@ -123,7 +123,7 @@ function ProfileMenu() {
         )}
       </button>
       {open && (
-        <div id={id} className={s.menu}>
+        <div id={id} className={s.menu} data-ui="menu">
           <ul>
             <li>
               <Link to="/app/profile" className={s.item}>{t("app.menu.profile")}</Link>
@@ -138,13 +138,32 @@ function ProfileMenu() {
               <Link to="/app/contributions" className={s.item}>{t("app.menu.contributions")}</Link>
             </li>
             <li>
-              <Link to="/app/settings" className={s.item}>{t("app.menu.settings")}</Link>
+              <Link to="/app/settings/profile" className={s.item}>{t("app.menu.settings")}</Link>
             </li>
             <li>
-              <button type="button" role="switch" aria-checked={theme.on} className={s.item} onClick={theme.toggle} title={theme.label(t)}>
-                <span>{t("app.menu.appearance")}</span>
-                <span className={s.switch} aria-hidden="true" />
-              </button>
+              <span className={`${s.item} ${s.heading}`}>{t("app.menu.appearance")}</span>
+              {/* The last few themes, to switch between in one click. */}
+              <ul className={s.recent}>
+                {appearance.recent.map((c) => {
+                  const name = choiceName(c);
+                  const inUse = choiceName(appearance.current) === name;
+                  return (
+                    <li key={name}>
+                      <button
+                        type="button"
+                        className={`${s.item} ${s.subItem}`}
+                        aria-current={inUse ? "true" : undefined}
+                        disabled={inUse || appearance.choosing}
+                        onClick={() => appearance.choose(c)}
+                      >
+                        <span>{name}</span>
+                        {inUse && <span className={s.value}>{t("app.menu.inUse")}</span>}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <Link to="/app/settings/themes" className={`${s.item} ${s.subItem} ${s.more}`}>{t("app.menu.seeMore")}</Link>
             </li>
             <li>
               <button type="button" className={s.item} aria-expanded={languages} onClick={() => setLanguages((l) => !l)}>

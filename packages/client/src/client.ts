@@ -1,7 +1,7 @@
 import type { Transport } from "./transport";
 import type {
-  AccountDeleted, Facets, Issue, IssueBody, IssueFilters, IssuePage, Notifications, Profile, RepositoryLookup,
-  SavedChange, SearchCategory, Session, SignInStart, Stats, Theme, ThemeInput,
+  AccountDeleted, ActiveTheme, Facets, Issue, IssueBody, IssueFilters, IssuePage, Notifications, Profile, ProfileUpdate,
+  RepositoryLookup, SavedChange, SearchCategory, Session, SignInStart, Stats, Theme, ThemeCheck, ThemeInput,
 } from "./types";
 
 function query(params: Record<string, string | number | undefined>): string {
@@ -103,6 +103,16 @@ export class Client {
     return this.get("/me", o);
   }
 
+  /** Replaces the editable profile; refused whole (400, with the reason) when out of bounds. */
+  updateProfile(input: ProfileUpdate): Promise<Profile> {
+    return this.send({ method: "PUT", path: "/profile", body: input }) as Promise<Profile>;
+  }
+
+  /** The languages and frameworks a profile may choose from. */
+  async preferenceOptions(o?: Opts): Promise<string[]> {
+    return (await this.get<{ options: string[] }>("/preferences/options", o)).options;
+  }
+
   /** The signed-in person's latest notifications and how many are unread. */
   notifications(o?: Opts): Promise<Notifications> {
     return this.get("/notifications", o);
@@ -145,13 +155,23 @@ export class Client {
     await this.send({ method: "DELETE", path: `/themes/${encodeURIComponent(id)}`, body: {} });
   }
 
-  activeTheme(o?: Opts): Promise<Theme | null> {
+  activeTheme(o?: Opts): Promise<ActiveTheme> {
     return this.get("/me/theme", o);
   }
 
   /** Apply a theme (your own or a public one); null goes back to the default. */
-  setActiveTheme(id: string | null): Promise<Theme | null> {
-    return this.send({ method: "PUT", path: "/me/theme", body: { id } }) as Promise<Theme | null>;
+  setActiveTheme(id: string | null): Promise<ActiveTheme> {
+    return this.send({ method: "PUT", path: "/me/theme", body: { id } }) as Promise<ActiveTheme>;
+  }
+
+  /** Apply a built-in theme as it is (packages/theme's PRESETS). */
+  setActivePreset(preset: string): Promise<ActiveTheme> {
+    return this.send({ method: "PUT", path: "/me/theme", body: { preset } }) as Promise<ActiveTheme>;
+  }
+
+  /** Check a theme as a save would, storing nothing: refused with ApiError (422) and its problems. */
+  validateTheme(input: { toml: string; css: string }): Promise<ThemeCheck> {
+    return this.send({ method: "POST", path: "/themes/validate", body: { ...input, public: false } }) as Promise<ThemeCheck>;
   }
 
   /** Who is signed in, if anyone. */

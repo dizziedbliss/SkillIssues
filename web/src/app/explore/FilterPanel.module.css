@@ -236,7 +236,7 @@
 
 .apply:hover,
 .apply:focus-visible {
-  background-color: var(--colors-text);
+  background-color: var(--accent-hover);
   color: var(--colors-accent);
 }
 

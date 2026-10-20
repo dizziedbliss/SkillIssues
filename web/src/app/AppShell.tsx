@@ -9,13 +9,14 @@ import { IssuePage } from "./IssuePage";
 import { SavedPage } from "./SavedPage";
 import { ProfilePage } from "./profile/ProfilePage";
 import { ContributionsPage } from "./profile/ContributionsPage";
-import { Settings } from "./Settings";
-import { useAppTheme } from "./theme";
+import { Settings } from "./settings/Settings";
+import { AppearanceProvider, useAppTheme } from "./theme";
 import { useRouteSettled, useTransitionNavigate } from "./transition";
 import { SearchContext } from "./search/context";
 import { SearchOverlay } from "./search/SearchOverlay";
 import { SearchPage } from "./search/SearchPage";
 import "./transition.css";
+import "./fonts.css";
 import s from "./App.module.css";
 
 /** The fixed codes the API's sign-in callback can return (?error=). */
@@ -34,7 +35,8 @@ const signInErrors: Record<string, MessageKey> = {
 export default function AppShell() {
   const t = useT();
   const root = useRef<HTMLDivElement>(null);
-  const { toggle, problem } = useAppTheme(root);
+  const { appearance, toggle } = useAppTheme(root);
+  const problem = appearance.problem;
   const [params, setParams] = useSearchParams();
   const go = useTransitionNavigate();
   useRouteSettled();
@@ -80,6 +82,7 @@ export default function AppShell() {
 
   return (
     <ThemeToggleContext.Provider value={toggle}>
+      <AppearanceProvider value={appearance}>
       <SearchContext.Provider value={search}>
         {/* data-app is APP_SCOPE: the theme applies here and nowhere else. */}
         <div ref={root} className={s.app} data-app="" onClickCapture={onClickCapture}>
@@ -95,7 +98,7 @@ export default function AppShell() {
               {t("theme.failed", { reason: problem })}
             </p>
           )}
-          <main className={s.main}>
+          <main className={s.main} data-ui="page">
             <Routes>
               <Route index element={<Explore />} />
               <Route path="issues/:id" element={<IssuePage />} />
@@ -103,7 +106,7 @@ export default function AppShell() {
               <Route path="profile" element={<ProfilePage />} />
               <Route path="contributions" element={<ContributionsPage />} />
               <Route path="saved" element={<SavedPage />} />
-              <Route path="settings" element={<Settings />} />
+              <Route path="settings/*" element={<Settings />} />
               <Route path="*" element={<AppNotFound />} />
             </Routes>
           </main>
@@ -111,6 +114,7 @@ export default function AppShell() {
           {searching && <SearchOverlay onClose={() => setSearching(false)} />}
         </div>
       </SearchContext.Provider>
+      </AppearanceProvider>
     </ThemeToggleContext.Provider>
   );
 }

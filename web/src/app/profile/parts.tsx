@@ -26,7 +26,7 @@ export function StatBoxes({ data }: { data: Contributions | undefined }) {
   return (
     <dl className={s.stats}>
       {boxes.map((b) => (
-        <div key={b.label} className={s.stat} title={b.help}>
+        <div key={b.label} className={s.stat} title={b.help} data-ui="stat">
           <dt className={s.statLabel}>{b.label}</dt>
           <dd className={s.statValue}>{n(b.value)}</dd>
         </div>
@@ -67,7 +67,7 @@ export function Graph({ data, large = false }: { data: Contributions | undefined
   const level = (n: number) => (n === 0 ? 0 : n === 1 ? 1 : n <= 3 ? 2 : n <= 6 ? 3 : 4);
 
   return (
-    <figure className={`${s.graph} ${large ? s.graphLarge : ""}`} aria-labelledby={caption}>
+    <figure className={`${s.graph} ${large ? s.graphLarge : ""}`} aria-labelledby={caption} data-ui="graph">
       <figcaption id={caption} className={s.graphTitle}>
         {data ? t("contrib.graph.label", { count: total }) : t("contrib.graph")}
       </figcaption>
@@ -106,7 +106,7 @@ export function Achievements({ data }: { data: Contributions | undefined }) {
         const have = data ? a.have(data) : 0;
         const done = have >= a.need;
         return (
-          <li key={a.name} className={`${s.achievement} ${done ? s.done : ""}`}>
+          <li key={a.name} className={`${s.achievement} ${done ? s.done : ""}`} data-ui="achievement" data-ui-state={done ? "done" : "locked"}>
             <span className={s.statValue}>{a.need}</span>
             <span className={s.statLabel}>{t(a.name)}</span>
             <span className={s.progress}>

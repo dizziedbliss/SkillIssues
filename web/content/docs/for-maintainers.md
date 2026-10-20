@@ -4,7 +4,7 @@ slug: /maintainers
 section: Guides
 summary: How your repository gets listed, how to help contributors find the right issues, and how to ask to be excluded.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 If you maintain an open-source project, SkillIssues can send you contributors who picked your issue on purpose. This page explains how your repository gets listed, what you can do to make the match better, and how to opt out.
@@ -68,8 +68,8 @@ Explain how to run the project and its tests, how you like changes made, and how
 
 ## Not listed, or want out?
 
-- **Should be listed and isn't.** Check the reason with the lookup first, then [open an issue](https://github.com/dizziedbliss/SkillIssues/issues/new) with the repository's `owner/repo` name.
-- **Want your repository excluded.** [Open an issue](https://github.com/dizziedbliss/SkillIssues/issues/new) with the `owner/repo` name and say you'd like it excluded. We keep a list of repositories that are never crawled. Once yours is on it, it is dropped from the catalog and its issues are removed, except any that a signed-in user has saved.
+- **Should be listed and isn't.** Check the reason with the lookup first, then [open a repository report](https://github.com/dizziedbliss/SkillIssues/issues/new?template=repository_coverage.yml) with the repository's `owner/repo` name.
+- **Want your repository excluded.** [Ask for it to be excluded](https://github.com/dizziedbliss/SkillIssues/issues/new?template=exclude_repository.yml) with the `owner/repo` name. We keep a list of repositories that are never crawled. Once yours is on it, it is dropped from the catalog and its issues are removed, except any that a signed-in user has saved.
 - **You want us to stop mentioning a particular issue.** Close it or remove its labels on GitHub, and the change follows. We don't keep issues that GitHub says are closed past a short retention period.
 
 ## Related

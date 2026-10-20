@@ -1,0 +1,3 @@
+stylesheet line 3: url() may only hold a data:image (png, jpeg, gif or webp) in base64
+stylesheet line 4: @import is not allowed
+stylesheet line 5: expression() is not allowed

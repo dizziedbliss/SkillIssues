@@ -24,6 +24,7 @@ export function SaveButton({ issue, label = false }: { issue: Issue; label?: boo
       <button
         type="button"
         className={`${s.button} ${label ? s.labelled : ""}`}
+        data-ui="bookmark"
         aria-pressed={user ? saved : undefined}
         aria-label={label ? undefined : name}
         title={name}

@@ -113,6 +113,12 @@ const (
 	IssuesShuffleWalkMaxRepos Key = "api.issues.shuffle_walk_max_repos"
 	IssuesShuffleWalkBudgetMs Key = "api.issues.shuffle_walk_budget_ms"
 
+	// ProfileBioMaxChars, ProfileMaxLanguages and ProfileMaxInterests bound
+	// what PUT /profile stores; past them it is refused, not trimmed.
+	ProfileBioMaxChars  Key = "api.profile.bio_max_chars"
+	ProfileMaxLanguages Key = "api.profile.max_languages"
+	ProfileMaxInterests Key = "api.profile.max_interests"
+
 	// BodiesFallbackMissesPerHour caps how many issue bodies one caller may
 	// have fetched from GitHub per hour through GET /issues/{id}/body. Cache
 	// hits are free; a miss spends the server's interactive budget.
@@ -378,6 +384,9 @@ var Registry = map[Key]Spec{
 	IssuesLanguageCountTTLSeconds: intSpec(600, 0, 86400, "How long a language's counted open issues are reused when deciding how to browse it. 0 counts on every request."),
 	IssuesRareProbeMs:             intSpec(500, 0, 10000, "How long counting a combination of filters may take when deciding how to browse it; one that takes longer is read in index order. 0 does not bound it."),
 	IssuesShuffleWalkBudgetMs:     intSpec(2000, 0, 9000, "How long one page of the shuffled feed may look for matches before it is returned short, with a cursor to continue from. 0 does not bound it."),
+	ProfileBioMaxChars:            intSpec(280, 0, 2000, "The longest bio a profile may hold, in characters."),
+	ProfileMaxLanguages:           intSpec(12, 1, 100, "The most preferred languages a profile may list."),
+	ProfileMaxInterests:           intSpec(12, 1, 100, "The most interests a profile may list."),
 	IssuesShuffleWalkMaxRepos:     intSpec(3000, 0, 1000000, "Repositories one page of the shuffled feed walks before reading the rest of the page from the matching issues. 0 walks without a bound."),
 	IssuesRareLanguageThreshold:   intSpec(20000, 0, 1000000, "A language with fewer open issues than this is read repository-first and sorted when browsing, instead of walking the catalog index. 0 always walks the index."),
 	IssuesQueryTimeoutMs:          intSpec(10000, 100, 25000, "Deadline for the queries behind one GET /issues or GET /issues/{id}. A query that misses it is cancelled and the caller gets 503."),
