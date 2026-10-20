@@ -1,0 +1,57 @@
+.footer {
+  border-top: 1px solid var(--signal);
+  padding: 1.6rem clamp(1rem, 10vw, 9.5rem) 1rem;
+  font-size: 0.66rem;
+  line-height: 1.6;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 2rem;
+}
+
+.title {
+  font-size: 0.6rem;
+  font-weight: 400;
+  margin-bottom: 0.9rem;
+}
+
+.columns a {
+  color: var(--quiet);
+  text-decoration: none;
+}
+
+.columns a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.sign {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.base {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2.2rem;
+  padding: 0 1rem;
+  font-size: 0.62rem;
+}
+
+@media (max-width: 900px) {
+  .columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .base {
+    flex-direction: column;
+    padding: 0;
+  }
+}
