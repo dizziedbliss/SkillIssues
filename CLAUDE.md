@@ -197,12 +197,16 @@ path reaching outside the importing project). Both apps are built on `client`; t
   motion. Fonts are
   self-hosted through `@fontsource` (Instrument Serif headings and nav, JetBrains Mono everything
   else, Krona One for the wordmark at 9% tracking over its 24:8 JetBrains Mono line).
-- **`pages/`** — the written pages (`pages/content.ts`); every claim must describe what the code does.
-  Pages marked `draft` say so on the page.
+- **`pages/`** — the written pages; every claim must describe what the code does. The docs are Markdown in
+  `web/content/docs/` (frontmatter `slug`, `title`, `section`, `summary`), read and rendered at build
+  time by `docs.ts` (markdown-it, raw HTML off: first-party text, so not through `packages/markdown`,
+  whose DOMPurify needs a DOM) and shown by `DocPage.tsx` with a sidebar by section. The four legal pages
+  (privacy, terms, security, licenses) stay in `content.ts` by the owner's choice. Pages marked
+  `draft` say so on the page. The footer links only to these pages and `/app`.
 - **`app/`** — the signed-in app. Until its designs arrive, a plain working catalog with an account bar
   (`Account.tsx`: GitHub sign-in, sign-out, delete account — the Privacy policy points there). Sign-in
   returns to `/?auth=ok` or `/?error=<code>`, which `App.tsx` forwards to `/app`.
-- **Prerendered**: `npm run build` renders `/` and every content page to HTML
+- **Prerendered**: `npm run build` renders `/`, the legal pages and every docs page to HTML
   (`scripts/prerender.mjs`, `src/entry-server.tsx`); the client hydrates a page only when its
   `data-route` matches. Vercel serves `shell.html` (no markup) for every other route.
 - CSS Modules over custom properties; no Tailwind, no CSS-in-JS. Live counts poll `GET /stats`

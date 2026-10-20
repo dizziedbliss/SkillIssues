@@ -1,56 +1,61 @@
 import { Link } from "react-router";
 import { Logo } from "./Logo";
-import { external } from "../lib/links";
 import s from "./Footer.module.css";
 
 type Item = { label: string; to?: string; href?: string };
 
+/** Every footer link goes to its page; only Discussions and the live site leave this site. */
 const columns: { title: string; items: Item[] }[] = [
   {
     title: "SkillIssues",
     items: [
       { label: "About us", to: "/about" },
-      { label: "Browse Issues", to: "/app" },
-      { label: "Desktop App", to: "/download" },
+      { label: "Browse issues", to: "/app" },
+      { label: "Desktop app", to: "/download" },
       { label: "Documentation", to: "/docs" },
-      { label: "SkillIssues Live", href: external.live },
-      { label: "Changelogs", href: external.releases },
+      { label: "SkillIssues Live", to: "/docs/skillissues-live" },
+      { label: "Changelog", to: "/docs/changelog" },
+    ],
+  },
+  {
+    title: "Guides",
+    items: [
+      { label: "Getting started", to: "/docs/getting-started" },
+      { label: "How it works", to: "/how-it-works" },
+      { label: "Finding issues", to: "/docs/finding-issues" },
+      { label: "Difficulty ratings", to: "/docs/difficulty-ratings" },
+      { label: "Themes", to: "/docs/themes" },
+      { label: "Public API", to: "/docs/public-api" },
     ],
   },
   {
     title: "Community",
     items: [
       { label: "Contribute", to: "/contribute" },
-      { label: "Discussions", href: external.discussions },
-      { label: "Suggest a Repository", to: "/maintainers" },
+      { label: "Contribution guide", to: "/docs/contributing" },
+      { label: "For maintainers", to: "/maintainers" },
+      { label: "Suggest a repository", to: "/docs/suggest-a-repository" },
+      { label: "Discussions", to: "/docs/discussions" },
       { label: "Leaderboard", to: "/leaderboard" },
-      { label: "Sponsor Us", to: "/sponsor" },
-    ],
-  },
-  {
-    title: "Resources",
-    items: [
-      { label: "Getting Started", to: "/docs/getting-started" },
-      { label: "How It Works", to: "/how-it-works" },
-      { label: "FAQ", to: "/faq" },
-      { label: "Contribution Guide", to: "/docs/contributing" },
+      { label: "Sponsor us", to: "/sponsor" },
     ],
   },
   {
     title: "Support",
     items: [
-      { label: "Contact Us", to: "/contact" },
-      { label: "Report a Bug", href: external.reportBug },
-      { label: "Request a Feature", href: external.requestFeature },
+      { label: "FAQ", to: "/faq" },
+      { label: "Contact us", to: "/contact" },
+      { label: "Report a bug", to: "/docs/report-a-bug" },
+      { label: "Request a feature", to: "/docs/request-a-feature" },
     ],
   },
   {
     title: "Legal & Trust",
     items: [
-      { label: "Privacy Policy", to: "/privacy" },
-      { label: "Terms of Service", to: "/terms" },
+      { label: "Privacy policy", to: "/privacy" },
+      { label: "Terms of service", to: "/terms" },
       { label: "Security", to: "/security" },
-      { label: "Licenses & Attributions", to: "/licenses" },
+      { label: "Licenses and attributions", to: "/licenses" },
     ],
   },
 ];
