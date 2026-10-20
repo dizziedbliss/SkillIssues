@@ -1,0 +1,51 @@
+name: "🏷️ Wrong difficulty or stale issue data"
+description: An issue shows the wrong difficulty, or what we show differs from what's on GitHub.
+title: "[Data]: "
+labels: ["data-quality", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Difficulty comes from the labels maintainers put on issues**, like "good first issue" or "difficulty/hard". An issue with no such label shows as unrated; we never guess that an unlabelled issue is easy. If the labels on GitHub are wrong, the fix is a label change in that repository. If we read the labels wrong, that is a bug we want to hear about.
+
+        Data follows GitHub with a delay: changes usually show up within about two hours, and an issue is only recorded as closed when GitHub says it closed. See [How it works](https://skillissues.dizziedbliss.lol/how-it-works).
+
+        Please never paste tokens or secrets. Security problems go to [private vulnerability reporting](https://github.com/dizziedbliss/SkillIssues/security/advisories/new), not issues.
+
+  - type: input
+    id: issue-url
+    attributes:
+      label: The GitHub issue
+      description: Link to the issue on GitHub.
+      placeholder: "https://github.com/owner/repo/issues/123"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: problem
+    attributes:
+      label: What is wrong?
+      options:
+        - The difficulty is wrong
+        - The issue is closed on GitHub but shows as open here
+        - The issue is open on GitHub but is missing or shows as closed here
+        - The title, labels or other details are out of date
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: shown
+    attributes:
+      label: What does SkillIssues show?
+      description: Difficulty, state, labels, and a link to the page or a screenshot.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reality
+    attributes:
+      label: What is true on GitHub?
+      description: The issue's current state and labels, and when it changed if you know.
+    validations:
+      required: true

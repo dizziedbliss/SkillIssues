@@ -1,0 +1,67 @@
+name: "🎨 Theme bug or theme engine request"
+description: A theme won't apply, a preset looks wrong, or the theme format can't express something you need.
+title: "[Theme]: "
+labels: ["themes", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Themes restyle the signed-in app (not the landing page). A theme is a TOML file of design tokens plus an optional stylesheet. Both are checked against a strict allowlist: unknown keys are errors, and a stylesheet can't load anything from elsewhere. If your CSS is rejected, it may be working as designed, but tell us what you were trying to achieve.
+
+        Want to show off a theme you made? Share it in [Show and tell](https://github.com/dizziedbliss/SkillIssues/discussions/categories/show-and-tell).
+
+        Please never paste tokens or secrets. Security problems, including a theme that gets around the allowlist, go to [private vulnerability reporting](https://github.com/dizziedbliss/SkillIssues/security/advisories/new), not issues.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is this?
+      options:
+        - A theme doesn't apply or shows an error
+        - A preset looks wrong
+        - A shared theme has a problem
+        - Request to extend the theme engine (new token, new allowed CSS)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: preset
+    attributes:
+      label: Preset
+      description: Which built-in preset were you using or starting from?
+      options:
+        - default
+        - midnight
+        - terminal
+        - contrast
+        - None / custom
+        - Not applicable
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, or what do you need?
+      description: For a bug, what you expected and what you saw. For a request, what you can't do today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: toml
+    attributes:
+      label: Theme TOML
+      description: The tokens, trimmed to the relevant part if long. Remove anything private.
+      render: toml
+
+  - type: textarea
+    id: css
+    attributes:
+      label: Theme CSS (if any)
+      render: css
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: "Firefox 140 on Ubuntu 24.04"
+    validations:
+      required: true

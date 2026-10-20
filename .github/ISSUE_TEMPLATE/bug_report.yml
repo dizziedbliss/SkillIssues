@@ -1,5 +1,5 @@
-name: 🐛 Bug report
-description: Something broken or behaving suspiciously? Help us squash it.
+name: "🐛 Bug report"
+description: Something broken or behaving suspiciously in the web app or the backend? Help us squash it.
 title: "[Bug]: "
 labels: ["bug", "triage"]
 body:
@@ -7,14 +7,17 @@ body:
     attributes:
       value: |
         Thanks for taking the time to report this! Every bug squashed leaves the catalog a little less cursed.
-        *Reminder: Please do not paste GitHub tokens, client secrets, or private keys anywhere in this issue!*
+
+        - **Never paste tokens, client secrets, cookies or private keys** into this issue.
+        - **Security problems do not belong here.** Report them [privately](https://github.com/dizziedbliss/SkillIssues/security/advisories/new).
+        - Wrong data about one repository or issue has its own form (repository coverage, wrong difficulty or stale data), and so do the desktop app, themes and accessibility.
 
   - type: textarea
     id: what-happened
     attributes:
       label: What happened?
       description: A clear, concise description of what went sideways.
-      placeholder: "I tried to clone a repository through the desktop client, and instead of cloning it stared back at me with an error..."
+      placeholder: "I filtered by Rust and Beginner, and the page said there were no issues, but the count above it said 214..."
     validations:
       required: true
 
@@ -22,11 +25,11 @@ body:
     id: reproduction
     attributes:
       label: Steps to reproduce
-      description: How do we trigger the behavior?
+      description: How do we trigger the behavior? If it only happens with certain filters or a search, include them.
       placeholder: |
-        1. Open the desktop app (or web dashboard)
-        2. Click on '...'
-        3. Search for '...'
+        1. Open the issue catalog
+        2. Set the language filter to '...'
+        3. Scroll to '...'
         4. See error
     validations:
       required: true
@@ -36,16 +39,15 @@ body:
     attributes:
       label: Expected behavior
       description: What did you expect to happen instead?
-      placeholder: "It should have cleanly cloned the repo and opened VS Code without freezing."
     validations:
       required: true
 
   - type: textarea
     id: logs-screenshots
     attributes:
-      label: Logs, terminal output, or screenshots
-      description: Paste relevant logs or drag-and-drop screenshots here. Double check that no tokens or secrets are visible!
-      placeholder: "Paste console / docker compose / electron logs here..."
+      label: Logs, console output, or screenshots
+      description: Paste relevant output or drag-and-drop screenshots. Double check that no tokens, cookies or secrets are visible.
+      render: shell
 
   - type: dropdown
     id: area
@@ -53,13 +55,14 @@ body:
       label: Area of the project
       description: Where is the bug occurring?
       options:
-        - Desktop App (Electron)
-        - Web App (React / Vite)
+        - Web app (catalog, search, filters, saved issues)
+        - Sign-in / account
         - Backend API (Go)
         - Ingestion engine (ingestd)
-        - Database / Migrations
-        - Docker Compose / Kubernetes
-        - Documentation
+        - Live visualizer
+        - Database / migrations
+        - Docker Compose / self-hosting
+        - Not sure
     validations:
       required: true
 
@@ -67,12 +70,10 @@ body:
     id: environment
     attributes:
       label: Environment details
-      description: OS version, Docker version, Node/Go version, browser, etc.
+      description: Browser and version, OS. If you run it yourself, add Docker / Node / Go versions and the commit.
       placeholder: |
-        - OS: Windows 11 / macOS Sonoma / Ubuntu 24.04
-        - Node.js: v22.x
-        - Go: 1.26
-        - Docker: 24.x
+        - Browser: Firefox 140
+        - OS: Ubuntu 24.04
     validations:
       required: true
 
@@ -81,5 +82,7 @@ body:
     attributes:
       label: Secret-safety checklist
       options:
-        - label: I verified that no personal access tokens, client secrets, or sensitive private keys are included in this issue.
+        - label: I checked that this issue contains no tokens, client secrets, cookies or private keys.
+          required: true
+        - label: This is not a security vulnerability (those go to private vulnerability reporting).
           required: true
