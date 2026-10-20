@@ -127,3 +127,38 @@
   display: inline-block;
   margin-top: 1.5rem;
 }
+
+/*
+ * Checkboxes and radios in the theme's colours: an empty accent-bordered box
+ * (or ring) until chosen, then filled, with the surface showing as an inner
+ * edge so the fill reads as a mark.
+ */
+.app input[type="checkbox"],
+.app input[type="radio"] {
+  appearance: none;
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  border: 1px solid var(--colors-accent);
+  border-radius: var(--radius-small);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+
+.app input[type="radio"] {
+  border-radius: var(--radius-pill);
+}
+
+.app input[type="checkbox"]:checked,
+.app input[type="radio"]:checked {
+  background: var(--colors-accent);
+  box-shadow: inset 0 0 0 2px var(--colors-surface);
+}
+
+.app input[type="checkbox"]:focus-visible,
+.app input[type="radio"]:focus-visible {
+  outline: 2px solid var(--colors-focus);
+  outline-offset: 2px;
+}

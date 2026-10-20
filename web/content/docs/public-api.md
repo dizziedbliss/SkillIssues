@@ -59,12 +59,15 @@ curl "$API/issues?cursor=&difficulty=beginner&language=Go&limit=10"
 | Parameter | Meaning |
 |---|---|
 | `search` | A search term. See [Finding issues](/docs/finding-issues) for how search works. |
+| `category` | With `search`: `repository`, `title` or `language` returns that kind of match alone, paged on its own with `page`. |
 | `sort` | `shuffle`, `easiest` or `newest`. Browsing only; a search ignores it. See Sorting. |
 | `difficulty` | `BEGINNER`, `INTERMEDIATE`, `ADVANCED` or `UNCLASSIFIED`, in any case. `UNCLASSIFIED` means unranked. |
 | `language` | The repository's main language. |
 | `tech` | Any language GitHub reports for the repository. |
 | `topics` | The repository's GitHub topics. |
 | `labels` | The issue's labels, not case sensitive. |
+| `repo` | A repository as `owner/name`, not case sensitive. |
+| `owner` | Everything from one user or organisation (the part of `owner/name` before the slash), not case sensitive. The shuffled feed still shows one issue per repository; sort by `easiest` or `newest` to see them all. |
 | `comments_min` | The fewest comments, inclusive. A whole number, 0 or more. |
 | `comments_max` | The most comments, inclusive. `0` means no comments yet. |
 | `limit` | Issues per page. The default is 20 for browsing and 50 for a search. Anything over 100 is lowered to 100. |
@@ -146,7 +149,7 @@ A few rules for cursors:
 | `created_at` | When the issue was opened on GitHub. Empty when unknown. |
 | `labels` | The issue's labels exactly as GitHub has them. |
 | `tech` | The repository's three largest languages, largest first, by GitHub's names. Empty when unknown. The `tech` filter takes the same names in any case. |
-| `match_category` | Search results only: `Repository`, `Title`, `Language` or `Author`. |
+| `match_category` | Search results only: `Repository`, `Title` or `Language`. |
 
 `recommendation_score` and `why_recommended` appear only on personalised results, which need an account, so you won't see them on public calls.
 

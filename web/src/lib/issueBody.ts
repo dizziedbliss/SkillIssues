@@ -9,7 +9,13 @@ import { api } from "./api";
  * them only through @skillissues/markdown.
  */
 
-export type BodyResult = { body: string; from: "github" | "cache" } | { queued: string };
+/** What GitHub says of the issue now, when it answered: newer than the catalog's copy. */
+export interface Live {
+  closed: boolean;
+  closedAt: string | null;
+}
+
+export type BodyResult = { body: string; from: "github"; live: Live } | { body: string; from: "cache" } | { queued: string };
 
 export async function loadIssueBody(issue: Issue, signal?: AbortSignal): Promise<BodyResult> {
   const [owner, repo] = issue.repository.split("/");
@@ -18,8 +24,8 @@ export async function loadIssueBody(issue: Issue, signal?: AbortSignal): Promise
     { headers: { Accept: "application/vnd.github+json" }, signal, credentials: "omit" },
   );
   if (res.ok) {
-    const data = (await res.json()) as { body?: string | null };
-    return { body: data.body ?? "", from: "github" };
+    const data = (await res.json()) as { body?: string | null; state?: string; closed_at?: string | null };
+    return { body: data.body ?? "", from: "github", live: { closed: data.state === "closed", closedAt: data.closed_at ?? null } };
   }
   // 403 or 429 with no requests left is GitHub's rate limit: fall back to
   // our cache. Anything else (gone, moved, GitHub down) is the answer.

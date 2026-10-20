@@ -86,13 +86,13 @@
 
 .filterToggle {
   color: var(--colors-accent);
-  background: linear-gradient(var(--chip), var(--chip)) no-repeat 0 0 / 0% 100%;
-  transition: background-size var(--slow) var(--ease);
+  background: transparent;
+  transition: background-color var(--slow) var(--ease);
 }
 
 .filterToggle:hover,
 .filterToggle[aria-expanded="true"] {
-  background-size: 100% 100%;
+  background-color: var(--chip);
 }
 
 .submit {
@@ -100,19 +100,55 @@
   padding: 0.55rem 0.9rem;
   border: 0;
   border-radius: var(--radius-medium);
-  background: linear-gradient(var(--colors-text), var(--colors-text)) no-repeat 0 0 / 0% 100%, var(--colors-accent);
+  background: var(--colors-accent);
   color: var(--colors-accent-text);
   font: inherit;
   font-size: var(--label-size);
   cursor: pointer;
-  transition: background-size var(--slow) var(--ease), color var(--slow) var(--ease);
+  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
 }
 
-/* Buttons fill from the left. */
+/* Buttons fade to ink. */
 .submit:hover,
 .submit:focus-visible {
-  background-size: 100% 100%, auto;
+  background-color: var(--colors-text);
   color: var(--colors-accent);
+}
+
+/* Under the bar: what this search does, and the overlay that sorts results by kind. */
+.hint,
+.scope {
+  margin-top: 0.75rem;
+  padding: 0 clamp(0rem, 5vw, 5rem);
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+}
+
+.hintLink {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--colors-text);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--colors-text);
+}
+
+.scopeChip {
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-small);
+  background: var(--chip);
+  box-shadow: var(--shadow-small);
 }
 
 /* ---- difficulty ---- */

@@ -4,6 +4,7 @@ import { useI18n } from "../i18n";
 import { ago } from "../lib/time";
 import { CommentIcon } from "./icons";
 import { SaveButton } from "./SaveButton";
+import { scopeURL } from "./explore/query";
 import s from "./IssueCard.module.css";
 
 /** Labels shown on a card before "+n". */
@@ -12,7 +13,8 @@ const LABELS = 4;
 /**
  * One issue in a list, as designed: the title and number, the repository,
  * then its age, comments and labels on the left, the repository's languages,
- * View Issue and the bookmark on the right.
+ * View Issue and the bookmark on the right. The whole card opens the issue
+ * (the title's link covers it); the repository's name opens its issues.
  */
 export function IssueCard({ issue }: { issue: Issue }) {
   const { t, locale } = useI18n();
@@ -26,9 +28,14 @@ export function IssueCard({ issue }: { issue: Issue }) {
           {issue.title} <span className={s.number}>#{issue.number}</span>
         </Link>
       </h2>
-      <p className={s.repo}>{issue.repository}</p>
+      <p className={s.repo}>
+        <Link to={scopeURL({ repo: issue.repository })} className={s.repoLink} title={t("issue.moreRepo", { repo: issue.repository })}>
+          {issue.repository}
+        </Link>
+      </p>
       <div className={s.row}>
         <ul className={s.chips}>
+          {issue.state === "CLOSED" && <li className={s.closed}>{t("issue.closedChip")}</li>}
           {updated && (
             <li className={s.chip} title={t("issue.updated", { ago: updated })}>
               {updated}

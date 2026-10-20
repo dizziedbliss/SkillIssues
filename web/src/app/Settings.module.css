@@ -63,25 +63,24 @@
   padding: 0.5em 0.9em;
   border: var(--border-width) solid var(--colors-accent);
   border-radius: var(--radius-medium);
-  background: linear-gradient(var(--colors-accent), var(--colors-accent)) no-repeat 0 0 / 0% 100%;
+  background: transparent;
   color: var(--colors-text);
   font: inherit;
   font-size: var(--button-size);
   cursor: pointer;
-  transition: background-size var(--slow) var(--ease), color var(--slow) var(--ease);
+  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
 }
 
-/* Buttons fill from the left, as on the landing page. */
+/* Buttons fill with a fade, as on the landing page. */
 .button:hover,
 .button:focus-visible {
-  background-size: 100% 100%;
+  background-color: var(--colors-accent);
   color: var(--colors-accent-text);
 }
 
 .danger {
-  background-size: 100% 100%;
   border-color: var(--colors-danger);
-  background-image: linear-gradient(var(--colors-danger), var(--colors-danger));
+  background: var(--colors-danger);
   color: var(--colors-accent-text);
 }
 

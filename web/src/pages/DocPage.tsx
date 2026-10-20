@@ -5,6 +5,7 @@ import { Header } from "../landing/Header";
 import { Footer } from "../landing/Footer";
 import { SECTIONS, inSection, type DocPage as Doc } from "./docs";
 import { useI18n } from "../i18n";
+import { DocSearch } from "./DocSearch";
 import s from "./DocPage.module.css";
 
 /** A documentation page: the sidebar of every page by section, and the rendered Markdown. */
@@ -28,6 +29,9 @@ export function DocPage({ doc }: { doc: Doc }) {
     <div className={tokens.page}>
       <Header />
       <div className={s.layout}>
+        <div className={s.searchArea}>
+          <DocSearch />
+        </div>
         <nav className={s.sidebar} aria-label={t("docs.nav")}>
           {SECTIONS.map((section) => {
             const pages = inSection(section);

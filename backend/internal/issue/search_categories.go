@@ -12,12 +12,11 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Search is balanced across four match categories, in this precedence:
+// Search is balanced across three match categories, in this precedence:
 //
 //	Repository  the repository's name contains the term
 //	Title       the issue's title or labels match it (full-text, search_vector)
-//	Language    the repository's language is the term
-//	Author      the issue's author's login contains it
+//	Language    the repository's language, or one of its tech, is the term
 //
 // An issue appears once, in the first category it matches, and each category
 // contributes at most api.search.per_category_cap issues. Results interleave
@@ -26,17 +25,35 @@ import (
 //
 // Each category is its own query on its own index, run concurrently, rather
 // than one query ORing every kind of match across a join: no index serves
-// that, and on the 7.5M-issue catalog it ran past the query timeout. Title and
-// Author matches can number in the hundreds of thousands for a common word, so
-// they are ordered by stars within a sample of api.search.sample_size matches
-// read straight off the index, which bounds the work whatever the word.
+// that, and on the 7.5M-issue catalog it ran past the query timeout. Title
+// matches can number in the hundreds of thousands for a common word, so they
+// are ordered by stars within a sample of api.search.sample_size matches read
+// straight off the index, which bounds the work whatever the word.
+//
+// Filters.Category asks for one category alone, paged on its own ("view more"
+// on the web app's search). It reads at most api.search.sample_size issues,
+// so a page past that is empty.
 
 // matchCategories in precedence order, as the API names them.
-var matchCategories = []string{"Repository", "Title", "Language", "Author"}
+var matchCategories = []string{"Repository", "Title", "Language"}
 
-// minSubstringRunes is the shortest term the substring categories (Repository,
-// Author) search for: their trigram indexes cannot serve a shorter pattern,
-// which would scan every row. Title and Language still match it.
+// ParseCategory accepts "" (every category) or one category, in any case,
+// returning the API's name for it.
+func ParseCategory(s string) (string, error) {
+	if s == "" {
+		return "", nil
+	}
+	for _, c := range matchCategories {
+		if strings.EqualFold(s, c) {
+			return c, nil
+		}
+	}
+	return "", fmt.Errorf("%w: unknown search category %q (repository, title or language)", ErrBadFilter, s)
+}
+
+// minSubstringRunes is the shortest term the Repository category searches for:
+// its trigram index cannot serve a shorter pattern, which would scan every row.
+// Title and Language still match it.
 const minSubstringRunes = 3
 
 // searchQuery accumulates one category query and its arguments.
@@ -65,9 +82,52 @@ func escapeLike(s string) string {
 	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }
 
+// categoryQueries is one query per category, in matchCategories' order.
+func (s *Service) categoryQueries(f Filters, term string, substr bool, fetch, sample int) []func(context.Context) ([]int, error) {
+	return []func(context.Context) ([]int, error){
+		func(ctx context.Context) ([]int, error) {
+			if !substr {
+				return nil, nil
+			}
+			return s.repositoryMatches(ctx, f, term, fetch)
+		},
+		func(ctx context.Context) ([]int, error) { return s.titleMatches(ctx, f, term, fetch, sample) },
+		func(ctx context.Context) ([]int, error) {
+			if len(f.Languages) > 0 && !slices.Contains(lowerAll(f.Languages), strings.ToLower(term)) {
+				return nil, nil // filtered to other languages: nothing can match
+			}
+			return s.languageMatches(ctx, f, term, fetch)
+		},
+	}
+}
+
+// searchOneCategory pages through a single category's matches, up to
+// api.search.sample_size of them.
+func (s *Service) searchOneCategory(ctx context.Context, f Filters, limit, offset int) ([]Issue, error) {
+	bound := max(f.SearchSample, limit)
+	if offset >= bound {
+		return []Issue{}, nil
+	}
+	fetch := min(offset+limit, bound)
+	term := strings.TrimSpace(f.Search)
+	c := slices.Index(matchCategories, f.Category)
+	ids, err := s.categoryQueries(f, term, utf8.RuneCountInString(term) >= minSubstringRunes, fetch, max(f.SearchSample, fetch))[c](ctx)
+	if err != nil {
+		return nil, fmt.Errorf("issue: search %s matches: %w", f.Category, err)
+	}
+	if offset >= len(ids) {
+		return []Issue{}, nil
+	}
+	ids = ids[offset:min(offset+limit, len(ids))]
+	return s.loadMatches(ctx, ids, func(int) string { return f.Category })
+}
+
 // searchCategories runs the category queries and returns one page of the
 // interleaved result.
 func (s *Service) searchCategories(ctx context.Context, f Filters, limit, offset int) ([]Issue, error) {
+	if f.Category != "" {
+		return s.searchOneCategory(ctx, f, limit, offset)
+	}
 	perCategory := s.categoryCap()
 	// Fetch more than the cap so that, once issues a higher category already
 	// took are removed, a category can still fill its share.
@@ -79,27 +139,7 @@ func (s *Service) searchCategories(ctx context.Context, f Filters, limit, offset
 	term := strings.TrimSpace(f.Search)
 	substr := utf8.RuneCountInString(term) >= minSubstringRunes
 
-	queries := make([]func(context.Context) ([]int, error), len(matchCategories))
-	queries[0] = func(ctx context.Context) ([]int, error) {
-		if !substr {
-			return nil, nil
-		}
-		return s.repositoryMatches(ctx, f, term, fetch)
-	}
-	queries[1] = func(ctx context.Context) ([]int, error) { return s.titleMatches(ctx, f, term, fetch, sample) }
-	queries[2] = func(ctx context.Context) ([]int, error) {
-		if len(f.Languages) > 0 && !slices.Contains(lowerAll(f.Languages), strings.ToLower(term)) {
-			return nil, nil // filtered to other languages: nothing can match
-		}
-		return s.languageMatches(ctx, f, term, fetch)
-	}
-	queries[3] = func(ctx context.Context) ([]int, error) {
-		if !substr {
-			return nil, nil
-		}
-		return s.authorMatches(ctx, f, term, fetch, sample)
-	}
-
+	queries := s.categoryQueries(f, term, substr, fetch, sample)
 	found := make([][]int, len(matchCategories))
 	g, gctx := errgroup.WithContext(ctx)
 	for i, q := range queries {
@@ -149,9 +189,17 @@ func (s *Service) searchCategories(ctx context.Context, f Filters, limit, offset
 	order = order[offset:min(offset+limit, len(order))]
 
 	ids := make([]int, len(order))
+	category := make(map[int]string, len(order))
 	for i, h := range order {
 		ids[i] = h.id
+		category[h.id] = h.category
 	}
+	return s.loadMatches(ctx, ids, func(id int) string { return category[id] })
+}
+
+// loadMatches loads the issues by id, in that order, each marked with its
+// category. One gone between the queries is skipped.
+func (s *Service) loadMatches(ctx context.Context, ids []int, categoryOf func(int) string) ([]Issue, error) {
 	byID := make(map[int]Issue, len(ids))
 	err := s.db.QueryRows(ctx, baseIssueSelect+" WHERE i.id = ANY($1)", []any{ids}, func(rows pgx.Rows) error {
 		it, err := scanIssue(rows)
@@ -164,10 +212,10 @@ func (s *Service) searchCategories(ctx context.Context, f Filters, limit, offset
 	if err != nil {
 		return nil, fmt.Errorf("issue: load search results: %w", err)
 	}
-	out := make([]Issue, 0, len(order))
-	for _, h := range order {
-		if it, ok := byID[h.id]; ok { // gone between the queries: skipped
-			it.MatchCategory = h.category
+	out := make([]Issue, 0, len(ids))
+	for _, id := range ids {
+		if it, ok := byID[id]; ok {
+			it.MatchCategory = categoryOf(id)
 			out = append(out, it)
 		}
 	}
@@ -244,16 +292,18 @@ func (s *Service) repositoryMatches(ctx context.Context, f Filters, term string,
 	return s.matchIDs(ctx, sql, q.args)
 }
 
-// languageMatches: issues of repositories written in the term, most-starred
-// repositories first.
+// languageMatches: issues of repositories whose main language is the term
+// (first), or that use it at all (repositories.tech), most-starred first.
 func (s *Service) languageMatches(ctx context.Context, f Filters, term string, fetch int) ([]int, error) {
 	var q searchQuery
-	lang := q.arg(term)
+	lang := q.arg(strings.ToLower(term))
+	repoFilter := q.repoFilter(f)
 	repoLimit := q.arg(reposFor(fetch, f.searchPerRepo()))
 	sql := `WITH repos AS (
-		  SELECT r.id, r.stars, 1 AS rk FROM repositories r
-		  WHERE lower(r.language) = lower(` + lang + `)
-		  ORDER BY r.stars DESC LIMIT ` + repoLimit + `
+		  SELECT r.id, r.stars, CASE WHEN lower(r.language) = ` + lang + ` THEN 1 ELSE 2 END AS rk
+		  FROM repositories r
+		  WHERE (lower(r.language) = ` + lang + ` OR r.tech @> ARRAY[` + lang + `]::text[])` + repoFilter + `
+		  ORDER BY rk, r.stars DESC LIMIT ` + repoLimit + `
 		)` + issuesOfRepos(&q, f, fetch, f.searchPerRepo())
 	return s.matchIDs(ctx, sql, q.args)
 }
@@ -275,12 +325,5 @@ func (s *Service) sampledByStars(ctx context.Context, q *searchQuery, f Filters,
 func (s *Service) titleMatches(ctx context.Context, f Filters, term string, fetch, sample int) ([]int, error) {
 	var q searchQuery
 	where := "i.search_vector @@ websearch_to_tsquery('english', " + q.arg(term) + ")"
-	return s.sampledByStars(ctx, &q, f, where, fetch, sample)
-}
-
-// authorMatches: issues whose author's login contains the term.
-func (s *Service) authorMatches(ctx context.Context, f Filters, term string, fetch, sample int) ([]int, error) {
-	var q searchQuery
-	where := "i.author ILIKE " + q.arg("%"+escapeLike(term)+"%")
 	return s.sampledByStars(ctx, &q, f, where, fetch, sample)
 }

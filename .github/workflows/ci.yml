@@ -140,7 +140,9 @@ jobs:
         run: |
           cd backend
           go run ./cmd/migrate
-          go test -count=1 ./internal/...
+          # -p 1: these packages share one database, and run side by side
+          # one's table-wide UPDATE can deadlock against another's writes.
+          go test -count=1 -p 1 ./internal/...
 
   # Known-vulnerable dependencies that the code actually reaches. Runs when the
   # backend changes; a CVE published against unchanged code is Dependabot's

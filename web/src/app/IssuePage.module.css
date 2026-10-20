@@ -95,29 +95,29 @@
   border-radius: var(--radius-medium);
   font-size: var(--button-size);
   text-decoration: none;
-  transition: background-size var(--slow) var(--ease), color var(--slow) var(--ease);
+  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
 }
 
 .primary {
-  background: linear-gradient(var(--colors-text), var(--colors-text)) no-repeat 0 0 / 0% 100%, var(--colors-accent);
+  background: var(--colors-accent);
   color: var(--colors-accent-text);
 }
 
 .primary:hover,
 .primary:focus-visible {
-  background-size: 100% 100%, auto;
+  background-color: var(--colors-text);
   color: var(--colors-accent);
 }
 
 .secondary {
   border: var(--border-width) solid var(--colors-accent);
-  background: linear-gradient(var(--colors-accent), var(--colors-accent)) no-repeat 0 0 / 0% 100%;
+  background: transparent;
   color: var(--colors-text);
 }
 
 .secondary:hover,
 .secondary:focus-visible {
-  background-size: 100% 100%;
+  background-color: var(--colors-accent);
   color: var(--colors-accent-text);
 }
 
@@ -147,6 +147,19 @@
 
 .description {
   margin-top: 0.5rem;
+}
+
+.more {
+  display: grid;
+  gap: 0.4rem;
+  margin: 1rem 0;
+  font-size: 0.9375rem;
+}
+
+.more a {
+  color: var(--colors-text);
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
 }
 
 .facts {

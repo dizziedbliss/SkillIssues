@@ -9,6 +9,12 @@
  * A message that takes values is a function of them, so a translation can
  * reorder the words around them.
  */
+/** The same choice all day, a different one tomorrow. */
+function dayPick(n: number): number {
+  const d = new Date();
+  return (d.getFullYear() * 372 + d.getMonth() * 31 + d.getDate()) % n;
+}
+
 export const en = {
   // ---- the site's header and footer ----
   "site.home": "SkillIssues home",
@@ -130,10 +136,13 @@ export const en = {
   "page.notFound.cta": "Explore open issues",
   "docs.nav": "Documentation",
   "docs.legal": "Legal & Trust",
+  "docs.search": "Search the docs",
+  "docs.searchNone": "No page mentions that.",
   "docs.updated": (p: { date: string }) => `Last updated ${p.date}.`,
 
   // ---- the app: header and menu ----
   "app.nav": "App",
+  "app.home": "SkillIssues: Explore",
   "app.nav.explore": "Explore",
   "app.nav.profile": "Profile",
   "app.nav.signIn": "Sign in",
@@ -168,6 +177,10 @@ export const en = {
   "explore.filter": "filter",
   "explore.search": "Search",
   "explore.next": "Find your next issue",
+  "explore.searchHint": "This search mixes every kind of match (repositories, titles and labels, languages, authors) in one list.",
+  "explore.searchHintLink": "Search with / to see them by kind.",
+  "explore.scope": "Showing issues from",
+  "explore.scopeClear": "Show all repositories",
   "explore.difficulties": "Difficulty",
   "explore.results": (p: { term: string }) => `Results for “${p.term}”`,
   "explore.loading": "Loading issues…",
@@ -205,19 +218,52 @@ export const en = {
   "filters.find": (p: { name: string }) => `Find ${p.name}`,
   "filters.none": "Nothing matches.",
   "filters.loading": "Loading the choices…",
-  "filters.min": "At least",
-  "filters.max": "At most",
+  "filters.comments.any": "Any number",
+  "filters.comments.none": "None yet",
+  "filters.comments.few": "1–5",
+  "filters.comments.some": "6–20",
+  "filters.comments.many": "More than 20",
   "filters.clear": "Clear",
   "filters.apply": "Apply",
   "sort.shuffle": "Shuffle",
   "sort.easiest": "Easiest",
   "sort.newest": "Newest",
 
+  // ---- the app: the search overlay ----
+  "search.title": "Search",
+  "search.close": "Close",
+  "search.sub":
+    "Looks in three places at once: repository names, issue titles and labels, and languages and tech. Results come as you type, each kind on its own, with View more for the rest. Open with / or Ctrl+K from anywhere.",
+  "search.short": "Type at least two characters.",
+  "search.searching": "Searching…",
+  "search.all": (p: { term: string }) => `See all results for “${p.term}”`,
+  "search.cat.Repository": "Repositories",
+  "search.cat.Title": "Titles and labels",
+  "search.cat.Language": "Languages and tech",
+  "search.viewMore": "View more",
+  "search.page.title": "Search",
+  "search.page.sub":
+    "Looks in three places at once: repository names, issue titles and labels, and languages and tech. Each kind is listed on its own; View more pages through the rest of it.",
+  "search.page.results": (p: { term: string }) => `Results for “${p.term}”`,
+  "search.page.in": (p: { kind: string; term: string }) => `${p.kind} matching “${p.term}”`,
+  "search.page.all": "All kinds of results",
+  "search.page.empty": "Type something to search for: a repository, words from an issue, or a language.",
+  "search.page.none": "Nothing of this kind matches.",
+  "app.nav.search": "Search",
+  "app.nav.contribute": "Contributions",
+  "app.nav.unread": (p: { count: number }) => (p.count === 1 ? "1 unread notification" : `${p.count} unread notifications`),
+  "app.menu.profile": "Profile",
+  "app.menu.saved": "Saved issues",
+  "app.menu.contributions": "My contributions",
+
   // ---- the app: an issue ----
   "issue.updated": (p: { ago: string }) => `updated ${p.ago}`,
   "issue.comments": (p: { count: number }) => (p.count === 1 ? "1 comment" : `${p.count} comments`),
   "issue.moreLabels": (p: { count: number }) => `+${p.count}`,
   "issue.view": "View Issue",
+  "issue.moreRepo": (p: { repo: string }) => `More issues from ${p.repo}`,
+  "issue.moreOwner": (p: { owner: string }) => `More issues from ${p.owner}`,
+  "issue.onGitHub": "On GitHub",
   "issue.save": "Save issue",
   "issue.unsave": "Remove from saved",
   "issue.saveSignIn": "Sign in to save issues",
@@ -225,9 +271,14 @@ export const en = {
   "issue.back": "Back to Explore",
   "issue.openGitHub": "Open on GitHub",
   "issue.desktop": "Work on it in the desktop app",
+  "desktop.notOpened": "The desktop app didn’t open. Don’t have it yet?",
+  "desktop.download": "Download the desktop app",
+  "desktop.github": "Or carry on, on GitHub",
   "issue.saved": "Saved",
   "issue.saveLong": "Save",
-  "issue.closed": "Closed on GitHub",
+  "issue.closed": "This issue is closed on GitHub.",
+  "issue.closedNow": (p: { ago: string }) =>
+    `This issue was closed on GitHub ${p.ago}. It leaves SkillIssues at the next check, so pick another to work on.`,
   "issue.loading": "Loading the issue…",
   "issue.notFound": "This issue isn’t in the catalog. It may have been closed for a while and removed.",
   "issue.body": "Description",
@@ -241,6 +292,84 @@ export const en = {
   "issue.license": (p: { license: string }) => `Licence: ${p.license}`,
   "issue.author": (p: { login: string }) => `Opened by ${p.login}`,
   "issue.opened": (p: { date: string }) => `Opened ${p.date}`,
+
+  // ---- the app: signed-in pages ----
+  "signin.title": "Sign in to see this",
+  "signin.body": "Your profile, contributions and saved issues need a GitHub sign-in. SkillIssues reads only your public profile.",
+
+  // ---- the app: profile ----
+  // Greetings by the reader's own clock; one is picked per day.
+  "profile.greet.morning": (p: { name: string }) =>
+    [`Good morning, ${p.name}`, `Morning, ${p.name}. Coffee first?`, `Rise and ship, ${p.name}`][dayPick(3)]!,
+  "profile.greet.afternoon": (p: { name: string }) =>
+    [`Good afternoon, ${p.name}`, `Afternoon, ${p.name}. Got an issue in you?`, `Hey ${p.name}, back at it`][dayPick(3)]!,
+  "profile.greet.evening": (p: { name: string }) =>
+    [`Good evening, ${p.name}`, `Evening, ${p.name}. One more fix?`, `Winding down, ${p.name}?`][dayPick(3)]!,
+  "profile.greet.night": (p: { name: string }) =>
+    [`Burning the midnight oil, ${p.name}?`, `Up late, ${p.name}?`, `Hello, night owl`][dayPick(3)]!,
+  "profile.joined": (p: { date: string }) => `joined on ${p.date}`,
+  "profile.noBio": "No bio yet.",
+  "profile.editBio": "Add one in Settings",
+  "profile.noLanguages": "Choose the languages you like in Settings.",
+  "profile.languages": "Your languages",
+  "profile.activity": "Activity",
+  "profile.prs": "Pull Requests",
+  "profile.resolved": "Resolved issues",
+  "profile.saved": "Saved issues",
+  "profile.allSaved": "All saved issues",
+  "profile.allContributions": "All contributions",
+  "profile.noPRs": "No public pull requests yet. Find an issue on Explore and open your first.",
+  "profile.noResolved": "Nothing merged yet. Your first merged pull request will show here.",
+  "profile.noSaved": "Nothing saved yet. Press the bookmark on any issue to keep it here.",
+  "profile.loading": "Loading…",
+
+  // ---- the app: contributions ----
+  "contrib.title": "Your contributions",
+  "contrib.lede": "Counted from your public pull requests on GitHub, read by your browser.",
+  "contrib.stat.total": "Contributions",
+  "contrib.stat.total.help": "Every public pull request you’ve opened on GitHub.",
+  "contrib.stat.resolved": "issues resolved",
+  "contrib.stat.resolved.help": "Your merged pull requests: each one landed a fix or change.",
+  "contrib.stat.repos": "repositories worked on",
+  "contrib.stat.repos.help": "Different repositories among your merged pull requests.",
+  "contrib.stat.reposPartial": (p: { count: number }) => `Counted from your latest ${p.count} merged pull requests.`,
+  "contrib.graph": "Contributions",
+  "contrib.graph.label": (p: { count: number }) =>
+    p.count === 1 ? "1 pull request opened in the last year" : `${p.count} pull requests opened in the last year`,
+  "contrib.graph.partial": "Showing your latest 300 pull requests of the year.",
+  "contrib.graph.day": (p: { date: string; count: number }) =>
+    p.count === 1 ? `1 pull request on ${p.date}` : `${p.count} pull requests on ${p.date}`,
+  "contrib.graph.less": "Less",
+  "contrib.graph.more": "More",
+  "contrib.updated": (p: { ago: string }) => `Read from GitHub ${p.ago}.`,
+  "contrib.refresh": "Read again",
+  "contrib.allOnGitHub": "See every one on GitHub",
+  "contrib.limited": (p: { when: string }) => `GitHub limits how often a browser can search without signing in. Try again ${p.when}.`,
+  "contrib.limitedSoon": "GitHub limits how often a browser can search without signing in. Try again in a minute.",
+  "contrib.failed": (p: { reason: string }) => `Your contributions couldn’t be read from GitHub: ${p.reason}`,
+  "contrib.merged": "merged",
+  "contrib.open": "open",
+  "contrib.closed": "closed",
+
+  "achieve.title": "Achievements",
+  "achieve.firstPR": "First pull request",
+  "achieve.firstMerge": "First merge",
+  "achieve.tenMerged": "Ten merged",
+  "achieve.fiftyMerged": "Fifty merged",
+  "achieve.fiveRepos": "Five repositories",
+  "achieve.busyMonth": "Ten in a month",
+  "achieve.done": "Unlocked",
+  "achieve.progress": (p: { have: number; need: number }) => `${p.have} of ${p.need}`,
+
+  // ---- the app: saved ----
+  "saved.title": "Saved issues",
+  "saved.updates": "Updates",
+  "saved.closedOn": (p: { title: string }) => `“${p.title}” was closed on GitHub.`,
+  "saved.markRead": "Mark as read",
+  "saved.markAll": "Mark all as read",
+  "saved.empty": "Nothing saved yet. Press the bookmark on any issue to keep it here.",
+  "saved.explore": "Explore issues",
+  "issue.closedChip": "Closed",
 
   // ---- the app: settings ----
   "settings.title": "Settings",

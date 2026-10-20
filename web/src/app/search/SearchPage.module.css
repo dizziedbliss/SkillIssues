@@ -1,0 +1,61 @@
+/* The search page: Explore's bar and cards, results grouped by kind under red-ruled heads. */
+
+.note {
+  margin-top: 2rem;
+  color: var(--colors-text-muted);
+}
+
+.error {
+  margin-top: 2rem;
+  color: var(--colors-danger);
+}
+
+.error button {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--colors-text);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.resultsTitle {
+  margin-top: 2rem;
+}
+
+.kind {
+  margin-top: 2rem;
+}
+
+.kindHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: var(--border-width) var(--border-style) var(--rule);
+}
+
+.kindTitle {
+  font-family: var(--typography-mono-font);
+  font-size: 1.15rem;
+  font-weight: 400;
+}
+
+.more,
+.back {
+  color: var(--colors-accent);
+  font-size: var(--label-size);
+  text-decoration: none;
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 100% / 0% 1px;
+  transition: background-size var(--slow) var(--ease);
+}
+
+.more:hover,
+.more:focus-visible,
+.back:hover,
+.back:focus-visible {
+  background-size: 100% 1px;
+}

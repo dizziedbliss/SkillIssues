@@ -2,8 +2,11 @@ package issue
 
 import (
 	"context"
+	"fmt"
 	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -50,5 +53,64 @@ func TestIssueLabelsAndTech(t *testing.T) {
 	}
 	if got.Labels == nil || got.Tech == nil || len(got.Labels)+len(got.Tech) != 0 {
 		t.Errorf("empty: labels = %#v, tech = %#v, want two empty lists", got.Labels, got.Tech)
+	}
+}
+
+// repo and owner narrow the catalog to one repository or one owner's,
+// whatever the case, both ways of reading.
+func TestBrowseIssuesRepoAndOwnerFilters(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	owner := fmt.Sprintf("Owner%d", time.Now().UnixNano())
+	repo := func(name string) {
+		var id int
+		if err := pool.QueryRow(ctx, `INSERT INTO repositories (full_name, url, language) VALUES ($1, 'u', 'Go') RETURNING id`,
+			[]any{owner + "/" + name}, func(row pgx.Row) error { return row.Scan(&id) }); err != nil {
+			t.Fatalf("insert repository: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := pool.Exec(context.Background(), `DELETE FROM repositories WHERE id = $1`, id); err != nil {
+				t.Errorf("cleanup: %v", err)
+			}
+		})
+		seedBrowseIssues(t, pool, id, 3)
+	}
+	repo("Alpha")
+	repo("beta")
+	other, _ := seedBrowseRepo(t, pool, "not-this-owner")
+	seedBrowseIssues(t, pool, other, 3)
+
+	svc := New(pool, nil)
+	reposOf := func(f Filters) map[string]int {
+		got := map[string]int{}
+		for _, id := range walkCatalog(t, svc, f, nil, nil) {
+			it, err := svc.GetIssue(ctx, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got[it.Repository]++
+		}
+		return got
+	}
+	for _, rareBelow := range rareThresholds {
+		base := Filters{Sort: SortEasiest, Limit: 2, RareLanguageBelow: rareBelow}
+
+		f := base
+		f.Repos = []string{strings.ToLower(owner) + "/ALPHA"}
+		if got := reposOf(f); len(got) != 1 || got[owner+"/Alpha"] != 3 {
+			t.Errorf("rare below %d: repo filter listed %v, want the 3 issues of %s/Alpha", rareBelow, got, owner)
+		}
+
+		f = base
+		f.Owners = []string{strings.ToUpper(owner)}
+		if got := reposOf(f); len(got) != 2 || got[owner+"/Alpha"] != 3 || got[owner+"/beta"] != 3 {
+			t.Errorf("rare below %d: owner filter listed %v, want both of %s's repositories", rareBelow, got, owner)
+		}
+
+		// The shuffled feed still gives each repository one slot.
+		f.Sort = SortShuffle
+		if got := reposOf(f); len(got) != 2 || got[owner+"/Alpha"] != 1 || got[owner+"/beta"] != 1 {
+			t.Errorf("rare below %d: shuffled owner filter listed %v, want one issue from each repository", rareBelow, got)
+		}
 	}
 }
