@@ -190,8 +190,9 @@ app still uses the last three until its own rebuild.
 
 ### Web (`web/src/`)
 - **`landing/`** — the landing page, the owner's design. Its look is **locked**
-  (`landing/tokens.module.css`) and outside the theme system: no user theme reaches it. Each open
-  half of the zig-zag holds a live or explanatory filler (`landing/fillers/`). Fonts are
+  (`landing/tokens.module.css`) and outside the theme system: no user theme reaches it. One centred
+  column with equal margins and its white space left empty, over a faint glyph noise
+  (`GlyphNoise.tsx`, canvas, still under reduced motion). Body text is never under 16px. Fonts are
   self-hosted through `@fontsource` (Instrument Serif headings and nav, JetBrains Mono everything
   else, Krona One for the wordmark at 9% tracking over its 24:8 JetBrains Mono line).
 - **`pages/`** — the written pages (`pages/content.ts`); every claim must describe what the code does.
@@ -199,9 +200,6 @@ app still uses the last three until its own rebuild.
 - **`app/`** — the signed-in app. Until its designs arrive, a plain working catalog with an account bar
   (`Account.tsx`: GitHub sign-in, sign-out, delete account — the Privacy policy points there). Sign-in
   returns to `/?auth=ok` or `/?error=<code>`, which `App.tsx` forwards to `/app`.
-- **`lab/`** — backdrop drafts for the owner to judge, with a switcher, behind `/` and `/lab/backdrop`
-  until one is picked. They load after hydration (`DeferredBackdrop` in `App.tsx`), so the
-  prerendered page and first paint never include them.
 - **Prerendered**: `npm run build` renders `/` and every content page to HTML
   (`scripts/prerender.mjs`, `src/entry-server.tsx`); the client hydrates a page only when its
   `data-route` matches. Vercel serves `shell.html` (no markup) for every other route.
