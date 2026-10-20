@@ -596,6 +596,19 @@ Every key with its default and bounds: `docs/settings.md`.
   ingestd (`POST /bodies/{id}`, admin token) on the `interactive` lane. go-api holds no GitHub
   credential and never writes a body. Bodies are attacker-controlled; render them only through
   `packages/markdown`.
+- **The default feed is a fair shuffle**: `sort=shuffle` (the cursor-paging default) walks
+  repositories in `repositories.shuffle_key` order and shows each one's best open issue, so a
+  repository with thousands of issues gets the same one slot as one with three. The goal is the
+  whole backlog, not the biggest projects. ingestd redraws the order every
+  `ingest.catalog.shuffle_interval_seconds`. In between it's the same for everyone, so pages
+  cache. Don't add popularity weighting to it; a user who wants an order picks `easiest` or
+  `newest`.
+- **Catalog filters share one builder** (`issue/filters.go`): any-of within a list, all-of across
+  filters. Labels match case-insensitively through `catalog_lower_labels()`, tech through the
+  generated `repositories.tech`. A filtered page whose matches are rare (`issue.isRare`, under
+  `api.issues.rare_language_threshold`) is read through the filters' own indexes and sorted,
+  rather than by walking an order index. The dropdown values are `catalog_facets`, recomputed by
+  ingestd every `ingest.catalog.facets_refresh_seconds`; never count them per request.
 - **Catalog responses are cacheable only when signed out**: public `Cache-Control` + `ETag` and a
   Redis copy shared through `singleflight`. A signed-in response is ordered by the caller's
   languages and is `private, no-store`.

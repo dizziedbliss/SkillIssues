@@ -10,6 +10,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -99,18 +101,18 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 			page = min(p, cfg.Int(settings.IssuesMaxPage))
 		}
 	}
-	f := issue.Filters{
-		Difficulty: q.Get("difficulty"),
-		Language:   q.Get("language"),
-		Search:     q.Get("search"),
-		Limit:      limit,
-		Page:       page,
-
-		RareLanguageBelow: cfg.Int(settings.IssuesRareLanguageThreshold),
-		LanguageCountTTL:  cfg.Seconds(settings.IssuesLanguageCountTTLSeconds),
-		SearchSample:      cfg.Int(settings.SearchSampleSize),
-		SearchPerRepo:     cfg.Int(settings.SearchPerRepoCap),
+	f, err := parseIssueFilters(q, cfg)
+	if err != nil {
+		middleware.RespondError(w, http.StatusBadRequest, err.Error())
+		return
 	}
+	f.Search = q.Get("search")
+	f.Limit = limit
+	f.Page = page
+	f.RareLanguageBelow = cfg.Int(settings.IssuesRareLanguageThreshold)
+	f.LanguageCountTTL = cfg.Seconds(settings.IssuesLanguageCountTTLSeconds)
+	f.SearchSample = cfg.Int(settings.SearchSampleSize)
+	f.SearchPerRepo = cfg.Int(settings.SearchPerRepoCap)
 
 	_, cursorMode := q["cursor"]
 	rawCursor := q.Get("cursor")
@@ -128,6 +130,18 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 			}
 			after = &c
 		}
+	}
+	// Cursor paging defaults to the shuffled feed; paging by number keeps the
+	// easiest order it always had. Shuffle and newest page only by cursor.
+	if f.Sort == "" {
+		f.Sort = issue.SortEasiest
+		if cursorMode {
+			f.Sort = issue.SortShuffle
+		}
+	}
+	if !cursorMode && f.Page > 1 && f.Search == "" && f.Sort != issue.SortEasiest {
+		middleware.RespondError(w, http.StatusBadRequest, "page through the "+string(f.Sort)+" sort with ?cursor")
+		return
 	}
 
 	userID := middleware.GetUserID(r.Context())
@@ -150,9 +164,9 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 	// The hot path is the unfiltered first page at the default size. This
 	// previously compared against a literal 50 while the default was 20, so the
 	// cache was unreachable; comparing against the configured default fixes it.
-	isDefaultHot := !cursorMode && f.Difficulty == "" && f.Language == "" && f.Search == "" &&
+	isDefaultHot := !cursorMode && f.Search == "" && f.Sort == issue.SortEasiest && !hasIssueFilters(f) &&
 		f.Limit == cfg.Int(settings.IssuesDefaultPageSize) && f.Page == 1
-	key := cache.CacheSearchKey(f.Difficulty, f.Language, f.Search, f.Limit, f.Page, cursorMode, rawCursor)
+	key := cache.CacheSearchKey(issueCacheKey(f, cursorMode, rawCursor))
 	get := func() []byte { return h.cache.GetCachedSearch(r.Context(), key) }
 	set := func(data []byte) {
 		// A TTL of zero means caching is switched off for that path.
@@ -295,6 +309,8 @@ func etagMatches(header, etag string) bool {
 // bug, and the caller may retry, so it is a 503 rather than a 500.
 func respondIssueQueryError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
+	case errors.Is(err, issue.ErrBadCursor):
+		middleware.RespondError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, context.DeadlineExceeded):
 		slog.Warn("issue query timed out", "route", r.Pattern, "error", err)
 		middleware.RespondError(w, http.StatusServiceUnavailable, "the catalog is busy, try again shortly")
@@ -452,4 +468,101 @@ func (h *handlers) respondBody(w http.ResponseWriter, r *http.Request, cfg *sett
 func respondBodyQueued(w http.ResponseWriter, reason string) {
 	w.Header().Set("Cache-Control", "no-store")
 	middleware.RespondJSON(w, http.StatusAccepted, map[string]string{"status": "queued", "reason": reason})
+}
+
+// parseIssueFilters reads GET /issues' filters and sort. A list filter takes
+// comma-separated values, any of which matches; filters combine with AND.
+// Anything malformed is an error for a 400, never silently dropped.
+func parseIssueFilters(q url.Values, cfg *settings.Snapshot) (issue.Filters, error) {
+	maxValues := cfg.Int(settings.IssuesFilterMaxValues)
+	var f issue.Filters
+	var err error
+	if f.Difficulties, err = issue.ParseDifficulties(q.Get("difficulty"), maxValues); err != nil {
+		return f, err
+	}
+	for _, list := range []struct {
+		name string
+		dst  *[]string
+	}{
+		{"language", &f.Languages}, {"labels", &f.Labels}, {"topics", &f.Topics}, {"tech", &f.Tech},
+	} {
+		if *list.dst, err = issue.ParseList(list.name, q.Get(list.name), maxValues); err != nil {
+			return f, err
+		}
+	}
+	for _, bound := range []struct {
+		name string
+		dst  **int
+	}{
+		{"comments_min", &f.CommentsMin}, {"comments_max", &f.CommentsMax},
+	} {
+		raw := q.Get(bound.name)
+		if raw == "" {
+			continue
+		}
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 {
+			return f, fmt.Errorf("%s must be a whole number of comments, 0 or more", bound.name)
+		}
+		*bound.dst = &n
+	}
+	if f.CommentsMin != nil && f.CommentsMax != nil && *f.CommentsMin > *f.CommentsMax {
+		return f, fmt.Errorf("comments_min is more than comments_max")
+	}
+	if f.Sort, err = issue.ParseSort(q.Get("sort")); err != nil {
+		return f, err
+	}
+	return f, nil
+}
+
+func hasIssueFilters(f issue.Filters) bool {
+	return len(f.Difficulties) > 0 || len(f.Languages) > 0 || len(f.Labels) > 0 || len(f.Topics) > 0 ||
+		len(f.Tech) > 0 || f.CommentsMin != nil || f.CommentsMax != nil
+}
+
+// issueCacheKey is the canonical form of everything a signed-out catalog
+// response depends on: the same query, however spelled, shares one entry.
+func issueCacheKey(f issue.Filters, cursorMode bool, cursor string) string {
+	list := func(vals []string) string {
+		out := make([]string, len(vals))
+		for i, v := range vals {
+			out[i] = strings.ToLower(v)
+		}
+		slices.Sort(out)
+		return strings.Join(out, ",")
+	}
+	bound := func(p *int) string {
+		if p == nil {
+			return ""
+		}
+		return strconv.Itoa(*p)
+	}
+	return strings.Join([]string{
+		"sort=" + string(f.Sort), "q=" + f.Search,
+		"d=" + list(f.Difficulties), "lang=" + list(f.Languages), "labels=" + list(f.Labels),
+		"topics=" + list(f.Topics), "tech=" + list(f.Tech),
+		"cmin=" + bound(f.CommentsMin), "cmax=" + bound(f.CommentsMax),
+		"limit=" + strconv.Itoa(f.Limit), "page=" + strconv.Itoa(f.Page),
+		"cursor_mode=" + strconv.FormatBool(cursorMode), "cursor=" + cursor,
+	}, "|")
+}
+
+// getIssueFacets serves the filter dropdowns' values (issue.Facets): the
+// same for everyone, and public.
+func (h *handlers) getIssueFacets(w http.ResponseWriter, r *http.Request) {
+	cfg := h.live.Current()
+	ctx, cancel := context.WithTimeout(r.Context(), cfg.Millis(settings.IssuesQueryTimeoutMs))
+	defer cancel()
+	facets, err := h.issueSvc.Facets(ctx)
+	if err != nil {
+		respondIssueQueryError(w, r, err)
+		return
+	}
+	data, err := json.Marshal(facets)
+	if err != nil {
+		slog.Error("encoding facets failed", "error", err)
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to encode facets")
+		return
+	}
+	respondIssues(w, r, cfg, data, true)
 }

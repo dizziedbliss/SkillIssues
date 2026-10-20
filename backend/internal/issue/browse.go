@@ -19,29 +19,51 @@ import (
 // 00035) are built in exactly this order.
 const catalogOrder = "i.difficulty_score ASC, i.updated_at DESC, i.id DESC"
 
-// Cursor is the position of the last issue on a browse page; the next page
-// starts right after it.
+// newestOrder is the Newest sort, issues_open_newest_idx's order (00041).
+const newestOrder = "i.created_at DESC, i.id DESC"
+
+// Cursor is the position of the last item on a browse page; the next page
+// starts right after it. Which fields mean anything depends on Sort.
 type Cursor struct {
-	// Bucket is 0 for a caller's preferred languages and 1 for every other
-	// issue. Without preferred languages there is one bucket, 0.
+	Sort Sort
+
+	// Easiest. Bucket is 0 for a caller's preferred languages and 1 for every
+	// other issue (one bucket, 0, without preferences); Score is nil for an
+	// UNCLASSIFIED issue; Updated is updated_at in Unix microseconds,
+	// Postgres' own precision; ID is the issue.
 	Bucket int
-	// Score is nil for an UNCLASSIFIED issue.
-	Score *int
-	// Updated is updated_at in Unix microseconds, Postgres' own precision.
+	Score  *int
+
+	// Easiest: updated_at. Newest: created_at. Unix microseconds.
 	Updated int64
-	ID      int
+	// Easiest and newest: the issue. Shuffle: the repository.
+	ID int
+
+	// Shuffle: the repository's shuffle_key.
+	Key int
 }
 
-// ErrBadCursor is returned for a cursor this package did not produce.
+// ErrBadCursor is returned for a cursor this package did not produce, or one
+// produced for another sort.
 var ErrBadCursor = errors.New("issue: malformed cursor")
 
-// Encode renders the cursor as an opaque, URL-safe token.
+// Encode renders the cursor as an opaque, URL-safe token. An easiest cursor
+// keeps the four-field form it had before there were other sorts, so tokens
+// clients already hold stay valid.
 func (c Cursor) Encode() string {
-	score := ""
-	if c.Score != nil {
-		score = strconv.Itoa(*c.Score)
+	var raw string
+	switch c.Sort {
+	case SortNewest:
+		raw = fmt.Sprintf("n.%d.%d", c.Updated, c.ID)
+	case SortShuffle:
+		raw = fmt.Sprintf("s.%d.%d", c.Key, c.ID)
+	default:
+		score := ""
+		if c.Score != nil {
+			score = strconv.Itoa(*c.Score)
+		}
+		raw = fmt.Sprintf("%d.%s.%d.%d", c.Bucket, score, c.Updated, c.ID)
 	}
-	raw := fmt.Sprintf("%d.%s.%d.%d", c.Bucket, score, c.Updated, c.ID)
 	return base64.RawURLEncoding.EncodeToString([]byte(raw))
 }
 
@@ -52,24 +74,37 @@ func DecodeCursor(token string) (Cursor, error) {
 		return Cursor{}, ErrBadCursor
 	}
 	parts := strings.Split(string(raw), ".")
-	if len(parts) != 4 {
-		return Cursor{}, ErrBadCursor
-	}
 	var c Cursor
-	if c.Bucket, err = strconv.Atoi(parts[0]); err != nil || c.Bucket < 0 || c.Bucket > 1 {
-		return Cursor{}, ErrBadCursor
-	}
-	if parts[1] != "" {
-		score, err := strconv.Atoi(parts[1])
-		if err != nil {
+	switch {
+	case len(parts) == 3 && parts[0] == "n":
+		c.Sort = SortNewest
+		if c.Updated, err = strconv.ParseInt(parts[1], 10, 64); err != nil {
 			return Cursor{}, ErrBadCursor
 		}
-		c.Score = &score
-	}
-	if c.Updated, err = strconv.ParseInt(parts[2], 10, 64); err != nil {
+	case len(parts) == 3 && parts[0] == "s":
+		c.Sort = SortShuffle
+		if c.Key, err = strconv.Atoi(parts[1]); err != nil {
+			return Cursor{}, ErrBadCursor
+		}
+	case len(parts) == 4:
+		c.Sort = SortEasiest
+		if c.Bucket, err = strconv.Atoi(parts[0]); err != nil || c.Bucket < 0 || c.Bucket > 1 {
+			return Cursor{}, ErrBadCursor
+		}
+		if parts[1] != "" {
+			score, err := strconv.Atoi(parts[1])
+			if err != nil {
+				return Cursor{}, ErrBadCursor
+			}
+			c.Score = &score
+		}
+		if c.Updated, err = strconv.ParseInt(parts[2], 10, 64); err != nil {
+			return Cursor{}, ErrBadCursor
+		}
+	default:
 		return Cursor{}, ErrBadCursor
 	}
-	if c.ID, err = strconv.Atoi(parts[3]); err != nil || c.ID <= 0 {
+	if c.ID, err = strconv.Atoi(parts[len(parts)-1]); err != nil || c.ID <= 0 {
 		return Cursor{}, ErrBadCursor
 	}
 	return c, nil
@@ -87,11 +122,38 @@ func (q *browseQuery) arg(v any) string {
 	return "$" + strconv.Itoa(len(q.args))
 }
 
+// pageLimit clamps a requested page size.
+func pageLimit(n int) int {
+	if n <= 0 {
+		return 20
+	}
+	return min(n, 100)
+}
+
 // BrowseIssues returns one page of the catalog without a search term, in
-// catalogOrder, starting after the cursor (at the top for nil), and the cursor
-// for the page after it — nil once the catalog is exhausted. With preferred
-// languages, issues in those languages come first and every other issue after
-// them, as SearchIssues orders them.
+// f.Sort (easiest when empty), starting after the cursor (at the top for nil),
+// and the cursor for the page after it — nil once the catalog is exhausted.
+// Preferred languages reorder the easiest sort only: shuffle and newest are
+// the same for everyone.
+func (s *Service) BrowseIssues(ctx context.Context, f Filters, after *Cursor, prefLangs []string) ([]Issue, *Cursor, error) {
+	sort := f.Sort
+	if sort == "" {
+		sort = SortEasiest
+	}
+	if after != nil && after.Sort != sort {
+		return nil, nil, fmt.Errorf("%w: the cursor is for the %s sort, not %s", ErrBadCursor, after.Sort, sort)
+	}
+	switch sort {
+	case SortShuffle:
+		return s.shuffleFeed(ctx, f, after)
+	case SortNewest:
+		return s.newestPage(ctx, f, after)
+	default:
+		return s.easiestPage(ctx, f, after, prefLangs)
+	}
+}
+
+// easiestPage reads the catalog in catalogOrder.
 //
 // A page is read as a run of ordered index scans rather than one query. "After
 // the cursor" mixes an ascending key with descending ones, which no single
@@ -100,20 +162,14 @@ func (q *browseQuery) arg(v any) string {
 // range by range — the rest of the cursor's score, then higher scores, then
 // unclassified issues, per bucket — each an index range read in order, until
 // the page is full. A first page is one query; a typical page is one or two.
-func (s *Service) BrowseIssues(ctx context.Context, f Filters, after *Cursor, prefLangs []string) ([]Issue, *Cursor, error) {
-	limit := f.Limit
-	if limit <= 0 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
+func (s *Service) easiestPage(ctx context.Context, f Filters, after *Cursor, prefLangs []string) ([]Issue, *Cursor, error) {
+	limit := pageLimit(f.Limit)
 
 	// Under a language filter every issue falls in the same bucket (all in
 	// the preferred languages or none), so the preference changes nothing
 	// and is dropped.
 	langs := normaliseLanguages(prefLangs)
-	if f.Language != "" {
+	if len(f.Languages) > 0 {
 		langs = nil
 	}
 	buckets := 1
@@ -121,9 +177,22 @@ func (s *Service) BrowseIssues(ctx context.Context, f Filters, after *Cursor, pr
 		buckets = 2
 	}
 
-	order, err := s.browseOrder(ctx, f, langs)
-	if err != nil {
-		return nil, nil, err
+	orders := make([]string, buckets)
+	for b := range orders {
+		var bucketLangs []string
+		if b == 0 {
+			bucketLangs = langs
+		}
+		// Everything outside the preferred languages is rare only if the
+		// filters make it so.
+		rare, err := s.isRare(ctx, f, bucketLangs)
+		if err != nil {
+			return nil, nil, err
+		}
+		orders[b] = catalogOrder
+		if rare {
+			orders[b] = sortedOrder
+		}
 	}
 
 	var page []Issue
@@ -142,17 +211,12 @@ func (s *Service) BrowseIssues(ctx context.Context, f Filters, after *Cursor, pr
 			}
 		}
 		for _, seg := range segmentsAfter(from) {
-			segOrder := order
-			if bucket == 1 {
-				// Everything outside the preferred languages is never rare.
-				segOrder = catalogOrder
-			}
-			rows, err := s.browseSegment(ctx, f, bucket, langs, seg, segOrder, limit-len(page))
+			rows, err := s.browseSegment(ctx, f, bucket, langs, seg, orders[bucket], limit-len(page))
 			if err != nil {
 				return nil, nil, err
 			}
 			for _, it := range rows {
-				last = Cursor{Bucket: bucket, Score: it.DifficultyScore, Updated: it.updated.UnixMicro(), ID: it.ID}
+				last = Cursor{Sort: SortEasiest, Bucket: bucket, Score: it.DifficultyScore, Updated: it.updated.UnixMicro(), ID: it.ID}
 			}
 			page = append(page, rows...)
 			if len(page) == limit {
@@ -195,52 +259,20 @@ func segmentsAfter(c *Cursor) []segment {
 }
 
 // sortedOrder is catalogOrder in a form no index provides, so Postgres reads
-// the matching issues by repository and sorts them instead of walking the
-// catalog index in order. "+ 0" leaves every value, NULL included, as it is.
+// the matching issues through the filters' own indexes and sorts them instead
+// of walking the catalog index in order. "+ 0" leaves every value, NULL
+// included, as it is.
 const sortedOrder = "i.difficulty_score + 0 ASC, i.updated_at DESC, i.id DESC"
 
-// browseOrder chooses how a browse reads a language-constrained page. The
-// planner cannot: language lives on repositories and score on issues, so it
-// assumes a language's issues are spread evenly through the catalog index
-// and, for a small LIMIT, bets on walking the index until it meets enough of
-// them. For a common language that is right and takes a millisecond. For a
-// rare one it walks most of the index — 4 seconds on 2M open issues for a
-// language with a few. So the language's open issues are counted, up to the
-// threshold (languageCounts), and a rare one is sorted.
-func (s *Service) browseOrder(ctx context.Context, f Filters, langs []string) (string, error) {
-	constrained := langs
-	if f.Language != "" {
-		constrained = []string{strings.ToLower(f.Language)}
-	}
-	if len(constrained) == 0 || f.RareLanguageBelow <= 0 {
-		return catalogOrder, nil
-	}
-
-	counts, err := s.languages.counts(ctx, s.db, constrained, f.RareLanguageBelow, f.LanguageCountTTL)
-	if err != nil {
-		return "", err
-	}
-	total := 0
-	for _, n := range counts {
-		total += n
-	}
-	if total < f.RareLanguageBelow {
-		return sortedOrder, nil
-	}
-	return catalogOrder, nil
-}
+// sortedNewestOrder is newestOrder in a form no index provides, for a rare
+// filter.
+const sortedNewestOrder = "i.created_at + interval '0 seconds' DESC, i.id DESC"
 
 func (s *Service) browseSegment(ctx context.Context, f Filters, bucket int, langs []string, seg segment, order string, limit int) ([]Issue, error) {
 	var q browseQuery
 	q.sb.WriteString(baseIssueSelect)
 	q.sb.WriteString(" WHERE i.state = 'OPEN'")
-
-	if f.Difficulty != "" {
-		q.sb.WriteString(" AND i.difficulty = " + q.arg(strings.ToUpper(f.Difficulty)))
-	}
-	if f.Language != "" {
-		q.sb.WriteString(" AND lower(r.language) = lower(" + q.arg(f.Language) + ")")
-	}
+	q.sb.WriteString(f.conds(q.arg))
 	if len(langs) > 0 {
 		// Bucket 1 is everything bucket 0 is not, a repository without a
 		// language included — the same split as SearchIssues' CASE.
@@ -266,13 +298,47 @@ func (s *Service) browseSegment(ctx context.Context, f Filters, bucket int, lang
 	}
 
 	q.sb.WriteString(" ORDER BY " + order + " LIMIT " + q.arg(limit))
+	return s.queryIssues(ctx, q.sb.String(), q.args)
+}
 
-	// Planned for these values, never from a cached generic plan, which
-	// estimates for an average language rather than this one.
-	args := append([]any{pgx.QueryExecModeExec}, q.args...)
+// newestPage reads open issues by created_at, newest first, as one index
+// range after the cursor. An issue whose opening time is unknown is not in it.
+func (s *Service) newestPage(ctx context.Context, f Filters, after *Cursor) ([]Issue, *Cursor, error) {
+	limit := pageLimit(f.Limit)
+	rare, err := s.isRare(ctx, f, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	order := newestOrder
+	if rare {
+		order = sortedNewestOrder
+	}
 
+	var q browseQuery
+	q.sb.WriteString(baseIssueSelect)
+	q.sb.WriteString(" WHERE i.state = 'OPEN' AND i.created_at IS NOT NULL")
+	q.sb.WriteString(f.conds(q.arg))
+	if after != nil {
+		q.sb.WriteString(" AND (i.created_at, i.id) < (" + q.arg(time.UnixMicro(after.Updated)) + ", " + q.arg(after.ID) + ")")
+	}
+	q.sb.WriteString(" ORDER BY " + order + " LIMIT " + q.arg(limit))
+	page, err := s.queryIssues(ctx, q.sb.String(), q.args)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(page) < limit {
+		return page, nil, nil
+	}
+	lastIssue := page[len(page)-1]
+	return page, &Cursor{Sort: SortNewest, Updated: lastIssue.created.UnixMicro(), ID: lastIssue.ID}, nil
+}
+
+// queryIssues runs a catalog query selecting baseIssueSelect's columns.
+// Planned for these values, never from a cached generic plan, which estimates
+// for average filters rather than these.
+func (s *Service) queryIssues(ctx context.Context, sql string, args []any) ([]Issue, error) {
 	var out []Issue
-	err := s.db.QueryRows(ctx, q.sb.String(), args, func(rows pgx.Rows) error {
+	err := s.db.QueryRows(ctx, sql, append([]any{pgx.QueryExecModeExec}, args...), func(rows pgx.Rows) error {
 		it, err := scanIssue(rows)
 		if err != nil {
 			return err

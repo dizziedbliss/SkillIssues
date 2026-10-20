@@ -46,6 +46,7 @@ readable through the endpoint above and copied into backups.
 | `api.issues.max_page` | 200 | 1–10000 | Deepest `?page` on `GET /issues`; deeper is clamped |
 | `api.recommendations.max_limit` | 20 | 1–100 | Largest `?limit` on `GET /recommendations`; larger is clamped |
 | `api.bodies.fallback_misses_per_hour` | 30 | 0–10000 | Issue bodies one caller may have fetched from GitHub per hour through `GET /issues/{id}/body`; cached bodies do not count (0 = cache only) |
+| `api.issues.filter_max_values` | 20 | 1–100 | Most values one `GET /issues` filter may name; more is a 400 |
 | `api.issues.query_timeout_ms` | 10000 | 100–25000 | Deadline for the queries behind one `GET /issues` or `GET /issues/{id}`; a query that misses it is cancelled and the caller gets 503. Keep it below the server's 30 s write timeout |
 | `api.issues.rare_language_threshold` | 20000 | 0–1000000 | Browsing a language (`?language=`, or a signed-in caller's preferred languages) with fewer open issues than this sorts that language's issues instead of walking the catalog index (0 = always walk) |
 | `api.issues.language_count_ttl_seconds` | 600 | 0–86400 | How long each language's counted open issues are reused for that decision (0 = count every request) |
@@ -87,6 +88,9 @@ readable through the endpoint above and copied into backups.
 | `ingest.discovery.rate_limit_floor` | 1000 | 0–12500 | Discovery's floor on the shared budget, above the interactive reserve; above `ingest.rate_limit_floor` so discovery yields first |
 | `ingest.discovery.incremental_interval_seconds` | 86400 | 3600–2592000 | How often an incremental sweep covers repositories pushed since the last completed sweep. Not run while the archive reader is current |
 | `ingest.discovery.full_interval_seconds` | 2592000 | 86400–31536000 | How often a full sweep covers the whole `pushed_within_days` range |
+| `ingest.catalog.shuffle_interval_seconds` | 86400 | 3600–2592000 | How often the shuffled feed's repository order is redrawn |
+| `ingest.catalog.facets_refresh_seconds` | 86400 | 3600–2592000 | How often the filter dropdowns' values and counts (`catalog_facets`) are recomputed |
+| `ingest.catalog.facets_max_values` | 300 | 10–5000 | Values kept per filter kind, most common first |
 | `ingest.bodies.cache_max_mb` | 512 | 0–100000 | Size the issue body cache is trimmed back to, least recently read first; saved issues' bodies are always kept (0 = keep only those) |
 | `ingest.bodies.prune_interval_seconds` | 3600 | 60–86400 | How often the issue body cache is trimmed |
 | `ingest.archive.enabled` | false | — | Read GH Archive's hourly public event files and apply their issue events to stored repositories |

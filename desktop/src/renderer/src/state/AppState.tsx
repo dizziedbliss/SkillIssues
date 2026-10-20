@@ -49,6 +49,7 @@ function issueFromContribution(item: ContributionDetail): Issue {
     url: item.issue_url,
     state: "OPEN",
     updated_at: item.issue_updated_at || item.updated_at,
+    created_at: "",
     difficulty_score: null,
     difficulty: item.difficulty,
     required_skills: item.required_skills || [],

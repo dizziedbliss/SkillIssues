@@ -11,6 +11,8 @@ import type {
   IssueBodyPending,
   IssueBodyResult,
   IssueBrowseFilters,
+  IssueFacets,
+  IssueFilterSet,
   IssueFilters,
   IssuePage,
   PreferenceOptions,
@@ -78,6 +80,21 @@ export function clearRecommendationsCache(): void {
   }
 }
 
+// setFilterParams writes the catalog filters as GET /issues expects them:
+// comma-separated lists, any value of which matches.
+function setFilterParams(params: URLSearchParams, f: IssueFilterSet) {
+  const list = (name: string, vals?: string[]) => {
+    if (vals && vals.length > 0) params.set(name, vals.join(","));
+  };
+  list("difficulty", f.difficulties);
+  list("language", f.languages);
+  list("labels", f.labels);
+  list("topics", f.topics);
+  list("tech", f.tech);
+  if (f.commentsMin !== undefined) params.set("comments_min", String(f.commentsMin));
+  if (f.commentsMax !== undefined) params.set("comments_max", String(f.commentsMax));
+}
+
 export class ApiClient {
   private readonly transport: Transport;
 
@@ -106,8 +123,11 @@ export class ApiClient {
     const params = new URLSearchParams();
     if (filters.limit) params.set("limit", String(filters.limit));
     if (filters.page) params.set("page", String(filters.page));
-    if (filters.difficulty && filters.difficulty !== "ALL") params.set("difficulty", filters.difficulty);
-    if (filters.language) params.set("language", filters.language);
+    setFilterParams(params, {
+      ...filters,
+      difficulties: filters.difficulties ?? (filters.difficulty && filters.difficulty !== "ALL" ? [filters.difficulty] : undefined),
+      languages: filters.languages ?? (filters.language ? [filters.language] : undefined),
+    });
     if (filters.search) params.set("search", filters.search);
     const qs = params.toString();
     return this.send<Issue[]>(`/issues${qs ? `?${qs}` : ""}`, { signal: opts?.signal });
@@ -119,8 +139,8 @@ export class ApiClient {
   async getIssuesPage(filters: IssueBrowseFilters = {}, opts?: RequestOptions): Promise<IssuePage> {
     const params = new URLSearchParams();
     if (filters.limit) params.set("limit", String(filters.limit));
-    if (filters.difficulty && filters.difficulty !== "ALL") params.set("difficulty", filters.difficulty);
-    if (filters.language) params.set("language", filters.language);
+    if (filters.sort) params.set("sort", filters.sort);
+    setFilterParams(params, filters);
     // Present even when empty: an empty cursor asks for the first page in
     // the cursor response shape.
     params.set("cursor", filters.cursor ?? "");
@@ -128,6 +148,12 @@ export class ApiClient {
       signal: opts?.signal,
     });
     return { issues: res.issues, nextCursor: res.next_cursor };
+  }
+
+  // getIssueFacets returns the values each filter dropdown offers, the most
+  // common first. The server refreshes them daily; cache them client-side.
+  async getIssueFacets(opts?: RequestOptions): Promise<IssueFacets> {
+    return this.send<IssueFacets>("/issues/facets", { signal: opts?.signal });
   }
 
   async getIssue(id: number, opts?: RequestOptions): Promise<Issue> {

@@ -3,6 +3,7 @@ package issue
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -48,21 +49,11 @@ func (q *searchQuery) arg(v any) string {
 	return "$" + strconv.Itoa(len(q.args))
 }
 
-// issueFilter and repoFilter render the request's difficulty and language
-// filters, on issues alias i and repositories alias r.
-func (q *searchQuery) issueFilter(f Filters) string {
-	if f.Difficulty == "" {
-		return ""
-	}
-	return " AND i.difficulty = " + q.arg(strings.ToUpper(f.Difficulty))
-}
+// issueFilter and repoFilter render the request's filters (filters.go) on
+// issues alias i and repositories alias r.
+func (q *searchQuery) issueFilter(f Filters) string { return f.issueConds(q.arg) }
 
-func (q *searchQuery) repoFilter(f Filters) string {
-	if f.Language == "" {
-		return ""
-	}
-	return " AND lower(r.language) = lower(" + q.arg(f.Language) + ")"
-}
+func (q *searchQuery) repoFilter(f Filters) string { return f.repoConds(q.arg) }
 
 // searchPerRepo is api.search.per_repo_cap, at least 1.
 func (f Filters) searchPerRepo() int {
@@ -97,8 +88,8 @@ func (s *Service) searchCategories(ctx context.Context, f Filters, limit, offset
 	}
 	queries[1] = func(ctx context.Context) ([]int, error) { return s.titleMatches(ctx, f, term, fetch, sample) }
 	queries[2] = func(ctx context.Context) ([]int, error) {
-		if f.Language != "" && !strings.EqualFold(f.Language, term) {
-			return nil, nil // filtered to another language: nothing can match
+		if len(f.Languages) > 0 && !slices.Contains(lowerAll(f.Languages), strings.ToLower(term)) {
+			return nil, nil // filtered to other languages: nothing can match
 		}
 		return s.languageMatches(ctx, f, term, fetch)
 	}
