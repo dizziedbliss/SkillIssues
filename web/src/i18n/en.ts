@@ -149,6 +149,8 @@ export const en = {
   "app.menu.appearance": "Appearance",
   "app.menu.seeMore": "See more themes",
   "app.menu.inUse": "in use",
+  "app.menu.dark": "Dark",
+  "app.menu.light": "Light",
   "app.menu.language": "Language",
   "app.menu.signOut": "Sign out",
   "app.menu.signingOut": "Signing out",
