@@ -4,13 +4,14 @@ import tokens from "../landing/tokens.module.css";
 import { Header } from "../landing/Header";
 import { Footer } from "../landing/Footer";
 import { SECTIONS, inSection, type DocPage as Doc } from "./docs";
+import { useI18n } from "../i18n";
 import s from "./DocPage.module.css";
-
-const dateFormat = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
 /** A documentation page: the sidebar of every page by section, and the rendered Markdown. */
 export function DocPage({ doc }: { doc: Doc }) {
   const navigate = useNavigate();
+  const { t, locale } = useI18n();
+  const dateFormat = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
   // Links inside the rendered Markdown to the site's own pages navigate in the
   // app rather than reloading it; anything else behaves as a normal link.
@@ -27,7 +28,7 @@ export function DocPage({ doc }: { doc: Doc }) {
     <div className={tokens.page}>
       <Header />
       <div className={s.layout}>
-        <nav className={s.sidebar} aria-label="Documentation">
+        <nav className={s.sidebar} aria-label={t("docs.nav")}>
           {SECTIONS.map((section) => {
             const pages = inSection(section);
             if (!pages.length) return null;
@@ -47,12 +48,12 @@ export function DocPage({ doc }: { doc: Doc }) {
             );
           })}
           <div className={s.group}>
-            <p className={s.groupTitle}>Legal &amp; Trust</p>
+            <p className={s.groupTitle}>{t("docs.legal")}</p>
             <ul>
-              <li><Link to="/privacy">Privacy policy</Link></li>
-              <li><Link to="/terms">Terms of service</Link></li>
-              <li><Link to="/security">Security</Link></li>
-              <li><Link to="/licenses">Licenses and attributions</Link></li>
+              <li><Link to="/privacy">{t("footer.privacy")}</Link></li>
+              <li><Link to="/terms">{t("footer.terms")}</Link></li>
+              <li><Link to="/security">{t("footer.security")}</Link></li>
+              <li><Link to="/licenses">{t("footer.licenses")}</Link></li>
             </ul>
           </div>
         </nav>
@@ -63,7 +64,7 @@ export function DocPage({ doc }: { doc: Doc }) {
             <p className={s.summary}>{doc.summary}</p>
             {/* First-party Markdown from content/docs, rendered with raw HTML off (docs.ts). */}
             <div className={s.prose} onClick={onClick} dangerouslySetInnerHTML={{ __html: doc.html }} />
-            {doc.updated && <p className={s.updated}>Last updated {dateFormat.format(new Date(doc.updated))}.</p>}
+            {doc.updated && <p className={s.updated}>{t("docs.updated", { date: dateFormat.format(new Date(doc.updated)) })}</p>}
           </article>
         </main>
       </div>

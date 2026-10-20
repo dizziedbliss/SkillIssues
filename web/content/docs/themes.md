@@ -130,6 +130,8 @@ Fonts a theme may name: `Instrument Serif`, `JetBrains Mono`, `Krona One`, `syst
 | `large` | length | `0px` to `48px`. |
 | `pill` | length | `0px` to `999px`. |
 
+In the app, `small` rounds tags and chips, `medium` buttons and fields, `large` panels, menus and dialogs, and `pill` the switches.
+
 ### `[border]`
 
 | Key | Type | Allowed values |
@@ -139,7 +141,7 @@ Fonts a theme may name: `Instrument Serif`, `JetBrains Mono`, `Krona One`, `syst
 
 ### `[shadow]`
 
-`small`, `medium` and `large` each take a shadow.
+`small`, `medium` and `large` each take a shadow. In the app, `small` sits under tags and buttons, `medium` under menus and `large` under dialogs such as search.
 
 ### `[motion]`
 
@@ -148,6 +150,7 @@ Fonts a theme may name: `Instrument Serif`, `JetBrains Mono`, `Krona One`, `syst
 | `duration` | duration | A whole number of milliseconds from `0ms` to `2000ms`, such as `160ms`. |
 | `easing` | choice | `linear`, `ease`, `ease-in`, `ease-out` or `ease-in-out`. |
 | `reduce` | boolean | `true` or `false`. |
+| `transition` | choice | How the app moves from one page to the next: `wipe` (the new page sweeps in from the left), `fade`, `slide` or `none`. Every transition stops when your system asks for reduced motion. |
 
 ## Value types
 

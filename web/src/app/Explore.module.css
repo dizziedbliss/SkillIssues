@@ -1,7 +1,4 @@
-.main {
-  padding: clamp(2rem, 4vw, 3.5rem) var(--gutter) 5rem;
-  max-width: 64rem;
-}
+/* The plain catalog, until Explore's design replaces it. */
 
 .notice {
   display: inline-block;
@@ -88,6 +85,7 @@
   padding: 0.35rem 0.4rem;
   border: 1px solid var(--hair);
   background: var(--paper);
+  color: var(--ink);
   border-radius: 0;
 }
 

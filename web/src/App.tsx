@@ -6,6 +6,7 @@ import { NotFound } from "./pages/NotFound";
 import { pages } from "./pages/content";
 import { DocPage } from "./pages/DocPage";
 import { docs } from "./pages/docs";
+import { I18nProvider } from "./i18n";
 
 // The signed-in app is its own chunk: the landing page never loads it.
 const AppShell = lazy(() => import("./app/AppShell"));
@@ -24,31 +25,33 @@ function SignInReturn() {
 
 export function App() {
   return (
-    <Routes>
-      <Route
-        path="/"
-        element={
-          <>
-            <SignInReturn />
-            <Landing />
-          </>
-        }
-      />
-      {pages.map((p) => (
-        <Route key={p.path} path={p.path} element={<ContentPage page={p} />} />
-      ))}
-      {docs.map((d) => (
-        <Route key={d.path} path={d.path} element={<DocPage doc={d} />} />
-      ))}
-      <Route
-        path="/app/*"
-        element={
-          <Suspense fallback={null}>
-            <AppShell />
-          </Suspense>
-        }
-      />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <I18nProvider>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <>
+              <SignInReturn />
+              <Landing />
+            </>
+          }
+        />
+        {pages.map((p) => (
+          <Route key={p.path} path={p.path} element={<ContentPage page={p} />} />
+        ))}
+        {docs.map((d) => (
+          <Route key={d.path} path={d.path} element={<DocPage doc={d} />} />
+        ))}
+        <Route
+          path="/app/*"
+          element={
+            <Suspense fallback={null}>
+              <AppShell />
+            </Suspense>
+          }
+        />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </I18nProvider>
   );
 }

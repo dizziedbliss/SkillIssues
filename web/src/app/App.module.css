@@ -1,0 +1,129 @@
+/*
+ * The app's root. Everything inside reads the active theme's tokens
+ * (--colors-*, --typography-*, …; packages/theme), applied to [data-app]. The
+ * names the shared pieces use (the footer, the logo, the language picker:
+ * --ink, --paper, --signal, …) are mapped onto them here, so those pieces
+ * follow the theme in the app and keep the locked look outside it.
+ */
+.app {
+  --ink: var(--colors-text);
+  --paper: var(--colors-background);
+  --signal: var(--colors-accent);
+  --quiet: var(--colors-text-muted);
+  --hair: var(--colors-border);
+  --wash: var(--colors-surface-raised);
+  --serif: var(--typography-heading-font);
+  --mono: var(--typography-body-font);
+  --logo: "Krona One", sans-serif;
+
+  --ease: var(--motion-easing);
+  --slow: var(--motion-duration);
+  --fast: calc(var(--motion-duration) * 0.45);
+
+  --gutter: clamp(16px, 4vw, var(--spacing-page-gutter));
+  --container: var(--spacing-max-width);
+  --label-size: 0.875rem;
+  --body-size: var(--typography-base-size);
+  --button-size: 0.9375rem;
+
+  /* Derived from the theme's colours, so every theme gets them. */
+  --rule: color-mix(in srgb, var(--colors-accent) 55%, var(--colors-background));
+  --chip: color-mix(in srgb, var(--colors-accent) 20%, var(--colors-surface));
+  --chip-strong: color-mix(in srgb, var(--colors-accent) 55%, var(--colors-surface));
+  --menu-shadow: var(--shadow-medium);
+
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--colors-background);
+  background-image: var(--background-image);
+  background-size: cover;
+  background-attachment: fixed;
+  color: var(--colors-text);
+  font-family: var(--typography-body-font);
+  font-size: var(--typography-base-size);
+  font-weight: var(--typography-body-weight);
+  line-height: var(--typography-line-height);
+}
+
+.app ::selection {
+  background: var(--colors-selection);
+}
+
+.app :focus-visible {
+  outline-color: var(--colors-focus);
+}
+
+.app[data-pattern="grid"] {
+  background-image:
+    linear-gradient(var(--background-pattern-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--background-pattern-color) 1px, transparent 1px),
+    var(--background-image);
+  background-size: var(--background-pattern-size) var(--background-pattern-size), var(--background-pattern-size) var(--background-pattern-size), cover;
+}
+
+.app[data-pattern="dots"] {
+  background-image: radial-gradient(var(--background-pattern-color) 1px, transparent 1.5px), var(--background-image);
+  background-size: var(--background-pattern-size) var(--background-pattern-size), cover;
+}
+
+.app[data-pattern="lines"] {
+  background-image: linear-gradient(var(--background-pattern-color) 1px, transparent 1px), var(--background-image);
+  background-size: 100% var(--background-pattern-size), cover;
+}
+
+/* A theme can ask for stillness ([motion] reduce), as the system can. */
+.app[data-reduce="1"] *,
+.app[data-reduce="1"] *::before,
+.app[data-reduce="1"] *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
+.main {
+  flex: 1;
+  width: min(var(--container), 100% - 2 * var(--gutter));
+  margin-inline: auto;
+  padding: clamp(2rem, 4vw, 3.5rem) 0 clamp(3rem, 6vw, 5rem);
+}
+
+.notice,
+.problem {
+  width: min(var(--container), 100% - 2 * var(--gutter));
+  margin: 1rem auto 0;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--colors-accent);
+  font-size: 0.9375rem;
+}
+
+.problem {
+  border-color: var(--colors-danger);
+}
+
+.notice button {
+  margin-left: 0.5rem;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* The app's not-found page. */
+.title {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: clamp(2.25rem, 1.4rem + 2.6vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.lede {
+  margin-top: 1rem;
+  color: var(--colors-text-muted);
+}
+
+.link {
+  display: inline-block;
+  margin-top: 1.5rem;
+}
