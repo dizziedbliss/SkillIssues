@@ -1,0 +1,2 @@
+@media (prefers-reduced-motion: no-preference) { .x { animation: pulse 2s steps(4) infinite; } }
+@keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }

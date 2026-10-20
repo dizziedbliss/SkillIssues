@@ -1,0 +1,1 @@
+.card { background: linear-gradient(90deg, var(--colors-accent), color-mix(in oklch, red 40%, white)); border-radius: calc(var(--radius-small) * 2); }
