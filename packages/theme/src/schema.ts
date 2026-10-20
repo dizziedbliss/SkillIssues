@@ -24,7 +24,10 @@ const isColor = (s: string) => hexColor.test(s) || funcColor.test(s) || namedCol
 /** Fonts a theme may name: self-hosted, so a theme never fetches a font. */
 export const FONTS = ["Instrument Serif", "JetBrains Mono", "Krona One", "system-ui", "serif", "sans-serif", "monospace"] as const;
 /** Presets a theme may start from (meta.base). */
-export const PRESETS = ["default", "midnight", "terminal", "contrast"] as const;
+export const PRESETS = [
+  "default", "midnight", "terminal", "contrast",
+  "catppuccin-mocha", "catppuccin-latte", "dracula", "nord", "gruvbox", "solarized-light", "tokyo-night", "rose-pine",
+] as const;
 
 const color: Kind = { name: "color", check: str(isColor) };
 const font: Kind = { name: "font", check: str((s) => (FONTS as readonly string[]).includes(s)) };

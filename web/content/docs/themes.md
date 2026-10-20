@@ -50,6 +50,20 @@ Set `base` in the `[meta]` table to start from one of these:
 | `midnight` | The same page, after dark. |
 | `terminal` | Green on black, all mono. |
 | `contrast` | Larger type, heavier lines. |
+| `catppuccin-mocha` | Catppuccin's dark pastels. |
+| `catppuccin-latte` | Catppuccin's light flavour. |
+| `dracula` | Dracula's purples and pinks. |
+| `nord` | Nord's arctic blues. |
+| `gruvbox` | Gruvbox dark, warm and earthy. |
+| `solarized-light` | Solarized, light, with its orange as the accent so buttons stay readable. |
+| `tokyo-night` | Tokyo Night's blues. |
+| `rose-pine` | Rosé Pine's muted dark. |
+
+The palettes come from each project's published colours. The rounded ones also round corners and fade between pages.
+
+## Starting a theme in the app
+
+In the app, **Settings → Themes** lists every built-in with its colours; **Use** applies one. **New theme** starts from the theme you're using, or any built-in, as a full copy: every token written out, so you change only the lines you want. Delete a line and it falls back to the base preset.
 
 ## Tables and keys
 
@@ -63,7 +77,7 @@ A theme file may contain only the tables and keys below. Each token becomes a CS
 | `author` | text | Up to 60 bytes. |
 | `version` | text | Up to 20 bytes. |
 | `description` | text | Up to 280 bytes. |
-| `base` | choice | `default`, `midnight`, `terminal` or `contrast`. |
+| `base` | choice | One of the base presets below: `default`, `midnight`, `terminal`, `contrast`, `catppuccin-mocha`, `catppuccin-latte`, `dracula`, `nord`, `gruvbox`, `solarized-light`, `tokyo-night` or `rose-pine`. |
 | `schema` | number | Exactly `1`. This is the file format version. |
 
 Text limits count bytes, so plain English text uses one per character and accented letters or emoji use more. A theme without a `name` is called "Untitled". Text can't contain `<`, `>` or null characters.
