@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Sort is the order a browse lists the catalog in.
@@ -109,6 +110,7 @@ func (f Filters) issueConds(arg func(any) string) string {
 	var b strings.Builder
 	if len(f.Difficulties) > 0 {
 		b.WriteString(" AND i.difficulty = ANY(" + arg(f.Difficulties) + "::text[])")
+		b.WriteString(difficultyScoreCond(f.Difficulties, arg))
 	}
 	if len(f.Labels) > 0 {
 		// Case-insensitively, through issues_open_labels_lower_idx (00041):
@@ -122,6 +124,35 @@ func (f Filters) issueConds(arg func(any) string) string {
 		b.WriteString(" AND i.comments <= " + arg(*f.CommentsMax))
 	}
 	return b.String()
+}
+
+// difficultyScores is the score sync.ClassifyLabels gives each difficulty;
+// UNCLASSIFIED has none (NULL). TestDifficultyScoresMatchClassifier pins it.
+var difficultyScores = map[string]int{"BEGINNER": 2, "INTERMEDIATE": 5, "ADVANCED": 8}
+
+// difficultyScoreCond restates a difficulty filter on difficulty_score, which
+// leads the catalog's order indexes: every index range then starts at the
+// wanted difficulties instead of reading past the others, the per-repository
+// lookups of the shuffled feed above all. The difficulty condition stays, so
+// this only narrows how rows are found, never which.
+func difficultyScoreCond(difficulties []string, arg func(any) string) string {
+	var scores []int
+	unclassified := false
+	for _, d := range difficulties {
+		if score, ok := difficultyScores[d]; ok {
+			scores = append(scores, score)
+		} else {
+			unclassified = true
+		}
+	}
+	switch {
+	case len(scores) == 0:
+		return " AND i.difficulty_score IS NULL"
+	case unclassified:
+		return " AND (i.difficulty_score = ANY(" + arg(scores) + "::int[]) OR i.difficulty_score IS NULL)"
+	default:
+		return " AND i.difficulty_score = ANY(" + arg(scores) + "::int[])"
+	}
 }
 
 // repoConds renders the filters on repositories (alias r).
@@ -179,7 +210,11 @@ func (s *Service) isRare(ctx context.Context, f Filters, prefLangs []string) (bo
 
 	// Any other combination is counted on the spot, up to the threshold. No
 	// ORDER BY, so the planner reads it through the most selective filter's
-	// index and stops at the threshold.
+	// index and stops at the threshold — usually. Two common filters whose
+	// overlap is large can make it build a bitmap of every match before the
+	// LIMIT applies (enhancement and UNCLASSIFIED took 34s on production), so
+	// the count gets f.RareProbe: matches too many to count in that time are
+	// too many to sort, and walking an order index finds them quickly.
 	var q searchQuery
 	sql := `SELECT count(*) FROM (
 		  SELECT 1 FROM issues i JOIN repositories r ON r.id = i.repository_id
@@ -187,8 +222,19 @@ func (s *Service) isRare(ctx context.Context, f Filters, prefLangs []string) (bo
 		  LIMIT ` + q.arg(f.RareLanguageBelow) + `
 		) t`
 	var n int
-	err := s.db.QueryRow(ctx, sql, append([]any{pgx.QueryExecModeExec}, q.args...),
-		func(row pgx.Row) error { return row.Scan(&n) })
+	err := s.db.InTx(ctx, func(tx pgx.Tx) error {
+		if f.RareProbe > 0 {
+			if _, err := tx.Exec(ctx, fmt.Sprintf("SET LOCAL statement_timeout = %d", max(1, f.RareProbe.Milliseconds()))); err != nil {
+				return err
+			}
+		}
+		return tx.QueryRow(ctx, sql, append([]any{pgx.QueryExecModeExec}, q.args...)...).Scan(&n)
+	})
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "57014" && ctx.Err() == nil {
+		// query_canceled by the probe's statement_timeout, not the request's.
+		return false, nil
+	}
 	if err != nil {
 		return false, fmt.Errorf("issue: count filtered issues: %w", err)
 	}

@@ -101,6 +101,11 @@ const (
 	// IssuesLanguageCountTTLSeconds is how long that count is reused: it
 	// costs more than the page it decides, and a language's size moves slowly.
 	IssuesLanguageCountTTLSeconds Key = "api.issues.language_count_ttl_seconds"
+	// IssuesRareProbeMs bounds counting a combination of filters to decide
+	// how to read it; IssuesShuffleWalkMaxRepos bounds how many repositories
+	// one page of the shuffled feed walks (issue/filters.go, shuffle.go).
+	IssuesRareProbeMs         Key = "api.issues.rare_probe_ms"
+	IssuesShuffleWalkMaxRepos Key = "api.issues.shuffle_walk_max_repos"
 
 	// BodiesFallbackMissesPerHour caps how many issue bodies one caller may
 	// have fetched from GitHub per hour through GET /issues/{id}/body. Cache
@@ -363,6 +368,8 @@ var Registry = map[Key]Spec{
 	RecommendationsMaxLimit:       intSpec(20, 1, 100, "Largest ?limit honoured by GET /recommendations; a larger request is clamped."),
 	RecommendationsCandidatePool:  intSpec(200, 10, 1000, "Open issues GET /recommendations reads off the shuffled feed, matching the caller's languages and level, before scoring them."),
 	IssuesLanguageCountTTLSeconds: intSpec(600, 0, 86400, "How long a language's counted open issues are reused when deciding how to browse it. 0 counts on every request."),
+	IssuesRareProbeMs:             intSpec(500, 0, 10000, "How long counting a combination of filters may take when deciding how to browse it; one that takes longer is read in index order. 0 does not bound it."),
+	IssuesShuffleWalkMaxRepos:     intSpec(3000, 0, 1000000, "Repositories one page of the shuffled feed walks before reading the rest of the page from the matching issues. 0 walks without a bound."),
 	IssuesRareLanguageThreshold:   intSpec(20000, 0, 1000000, "A language with fewer open issues than this is read repository-first and sorted when browsing, instead of walking the catalog index. 0 always walks the index."),
 	IssuesQueryTimeoutMs:          intSpec(10000, 100, 25000, "Deadline for the queries behind one GET /issues or GET /issues/{id}. A query that misses it is cancelled and the caller gets 503."),
 

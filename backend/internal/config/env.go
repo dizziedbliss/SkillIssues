@@ -34,6 +34,15 @@ type Config struct {
 	// Postgres max_connections ceiling).
 	DBMaxConns int
 
+	// DBWorkMemMB sets Postgres's work_mem (MB) on every connection the pool
+	// opens; 0 leaves the server's default. go-api raises it so the catalog's
+	// bitmap scans over common labels stay exact: a lossy bitmap re-checks
+	// every row of every page it covers, which turned a 0.9s filtered query
+	// into 8s on production. A per-connection value is held only while a query
+	// sorts or builds a bitmap, but it multiplies by the pool size, so it is
+	// sized against both.
+	DBWorkMemMB int
+
 	// FrontendURL drives CORS — it may be a comma-separated list of allowed
 	// origins — and is fixed at startup rather than reloadable.
 	FrontendURL string
@@ -121,6 +130,7 @@ func Load(required ...Secret) (*Config, error) {
 		RedisURL:            strEnv("REDIS_URL", "redis://localhost:6379/0"),
 		TrustedProxies:      strListEnv("TRUSTED_PROXIES", []string{"127.0.0.1/32", "::1/128"}),
 		DBMaxConns:          intEnv("DB_MAX_CONNS", 0),
+		DBWorkMemMB:         intEnv("DB_WORK_MEM_MB", 0),
 		SessionCookieDomain: strEnv("SESSION_COOKIE_DOMAIN", ""),
 		FlowAllowedOrigins:  strListEnv("FLOW_ALLOWED_ORIGINS", nil),
 		PrometheusURL:       strEnv("PROMETHEUS_URL", ""),

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/sync"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -164,10 +165,14 @@ func TestShuffleFeedOneIssuePerRepository(t *testing.T) {
 
 	want := []int{smallOnly, bigBest, otherBest} // shuffle keys 10, 30, 40
 	for _, rareBelow := range []int{0, 1000} {   // 0 walks repositories; 1000 makes them rare
-		for _, limit := range []int{1, 2, 10} {
-			got := f.walk(t, Filters{Sort: SortShuffle, Limit: limit, RareLanguageBelow: rareBelow})
-			if !slices.Equal(got, want) {
-				t.Errorf("rare below %d, limit %d: %v, want %v", rareBelow, limit, got, want)
+		// A walk cut short after 1 or 2 repositories finishes the page from
+		// the matches, and the feed is the same.
+		for _, walkMax := range []int{0, 1, 2} {
+			for _, limit := range []int{1, 2, 10} {
+				got := f.walk(t, Filters{Sort: SortShuffle, Limit: limit, RareLanguageBelow: rareBelow, ShuffleWalkMaxRepos: walkMax})
+				if !slices.Equal(got, want) {
+					t.Errorf("rare below %d, walk max %d, limit %d: %v, want %v", rareBelow, walkMax, limit, got, want)
+				}
 			}
 		}
 	}
@@ -226,13 +231,17 @@ func TestFilters(t *testing.T) {
 	} {
 		for _, rareBelow := range []int{0, 1000} {
 			fl := tc.f
-			fl.Sort, fl.Limit, fl.RareLanguageBelow = SortEasiest, 2, rareBelow
-			got := f.walk(t, fl)
-			slices.Sort(got)
 			want := slices.Clone(tc.want)
 			slices.Sort(want)
-			if !slices.Equal(got, want) {
-				t.Errorf("%s (rare below %d): %v, want %v", name, rareBelow, got, want)
+			// A probe that times out reads the filter as common; the answer
+			// is the same either way.
+			for _, probe := range []time.Duration{0, time.Millisecond} {
+				fl.Sort, fl.Limit, fl.RareLanguageBelow, fl.RareProbe = SortEasiest, 2, rareBelow, probe
+				got := f.walk(t, fl)
+				slices.Sort(got)
+				if !slices.Equal(got, want) {
+					t.Errorf("%s (rare below %d, probe %v): %v, want %v", name, rareBelow, probe, got, want)
+				}
 			}
 		}
 	}
@@ -298,5 +307,19 @@ func TestRecommendationCandidates(t *testing.T) {
 		if len(slices.Compact(ids)) != 8 {
 			t.Errorf("rare below %d, widened: an issue listed twice", rareBelow)
 		}
+	}
+}
+
+// The difficulty filter's score restatement must agree with the classifier,
+// or filtering by difficulty would silently drop issues.
+func TestDifficultyScoresMatchClassifier(t *testing.T) {
+	for label, want := range map[string]string{"good first issue": "BEGINNER", "difficulty/medium": "INTERMEDIATE", "difficulty/hard": "ADVANCED"} {
+		_, difficulty, score := sync.ClassifyLabels([]string{label})
+		if difficulty != want || difficultyScores[difficulty] != score {
+			t.Errorf("%q classifies as %s/%d; difficultyScores has %s → %d", label, difficulty, score, want, difficultyScores[want])
+		}
+	}
+	if len(difficultyScores) != len(Difficulties)-1 {
+		t.Errorf("difficultyScores covers %d difficulties, want every one but UNCLASSIFIED", len(difficultyScores))
 	}
 }

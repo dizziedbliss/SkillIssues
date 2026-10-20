@@ -115,6 +115,7 @@ services:
       target: api
     environment:
       DATABASE_URL: postgresql://skillissues_api:${API_DB_PASSWORD:-skillissues_api_dev}@postgres:5432/skillissues
+      DB_WORK_MEM_MB: ${API_DB_WORK_MEM_MB:-32}
       REDIS_URL: redis://redis:6379/0
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
