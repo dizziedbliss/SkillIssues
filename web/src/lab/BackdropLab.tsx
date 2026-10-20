@@ -1,14 +1,15 @@
 import { useSearchParams } from "react-router";
 import type { ReactNode } from "react";
-import { Landing } from "../landing/Landing";
 import { ThreeLines } from "./ThreeLines";
 import { Hud } from "./Hud";
 import { GlyphField } from "./GlyphField";
 import { PixelGrid } from "./PixelGrid";
 
 /*
- * DRAFTS for the owner to judge: each backdrop behind the real landing page.
- * Nothing here ships on / until one is chosen. ?v= picks the variant.
+ * DRAFTS for the owner to judge: each backdrop behind the real landing page,
+ * with a switcher pinned to the bottom. Shown on / and on /lab/backdrop until
+ * one is chosen. ?v= picks the variant; the last pick is remembered in this
+ * browser.
  */
 const variants: { id: string; label: string; render: () => ReactNode }[] = [
   { id: "none", label: "None (as designed)", render: () => null },
@@ -20,16 +21,39 @@ const variants: { id: string; label: string; render: () => ReactNode }[] = [
   { id: "hud-lines", label: "Frame + lines", render: () => (<><Hud /><ThreeLines /></>) },
 ];
 
-export default function BackdropLab() {
+const storageKey = "skillissues.backdrop";
+
+function remembered(): string | null {
+  try {
+    return window.localStorage.getItem(storageKey);
+  } catch {
+    return null;
+  }
+}
+
+function remember(id: string) {
+  try {
+    window.localStorage.setItem(storageKey, id);
+  } catch {
+    // A blocked storage only means the pick is not remembered.
+  }
+}
+
+/** The chosen backdrop and the switcher. Client-only: it reads the URL and this browser's storage. */
+export default function BackdropPicker() {
   const [params, setParams] = useSearchParams();
-  const current = variants.find((v) => v.id === params.get("v")) ?? variants[1]!;
+  const current =
+    variants.find((v) => v.id === params.get("v")) ??
+    variants.find((v) => v.id === remembered()) ??
+    variants[1]!;
   return (
     <>
       <nav
         aria-label="Backdrop drafts"
         style={{
           position: "fixed", left: "50%", bottom: 16, transform: "translateX(-50%)", zIndex: 10,
-          display: "flex", gap: 4, padding: 4, background: "#fff", border: "1px solid #000",
+          display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 4, padding: 4,
+          maxWidth: "calc(100vw - 32px)", background: "#fff", border: "1px solid #000",
           fontFamily: "JetBrains Mono, monospace", fontSize: 11,
         }}
       >
@@ -37,7 +61,13 @@ export default function BackdropLab() {
           <button
             key={v.id}
             type="button"
-            onClick={() => setParams({ v: v.id })}
+            onClick={() => {
+              remember(v.id);
+              setParams((p) => {
+                p.set("v", v.id);
+                return p;
+              }, { replace: true, preventScrollReset: true });
+            }}
             aria-pressed={v.id === current.id}
             style={{
               border: 0, padding: "6px 9px", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit",
@@ -48,7 +78,7 @@ export default function BackdropLab() {
           </button>
         ))}
       </nav>
-      <Landing key={current.id} backdrop={current.render()} />
+      <div key={current.id}>{current.render()}</div>
     </>
   );
 }

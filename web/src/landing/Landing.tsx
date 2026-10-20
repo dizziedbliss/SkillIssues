@@ -32,7 +32,7 @@ function measure(heading: string | undefined, body: string): CSSProperties {
 export function Landing({ backdrop }: { backdrop?: ReactNode } = {}) {
   return (
     <div className={`${tokens.page} ${s.page}`}>
-      {/* An experimental layer behind the page (/lab/backdrop); none in production. */}
+      {/* The backdrop drafts and their switcher (lab/BackdropLab.tsx), until the owner picks one. */}
       {backdrop}
       <Header />
       <main>
