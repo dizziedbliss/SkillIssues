@@ -8,7 +8,7 @@ services:
   # most important setting: the issue catalog working set must stay cached.
   # --------------------------------------------------------------------------
   postgres:
-    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     # Docker's default /dev/shm is 64MB, which is below what a parallel query
     # needs to size its shared hash/sort segments: aggregates over the
     # multi-million-row repositories table fail outright with
@@ -89,7 +89,7 @@ services:
   # owner. Runs after every migrate so a changed password lands.
   # --------------------------------------------------------------------------
   app-roles:
-    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     environment:
       PGHOST: postgres
       PGUSER: skillissues
@@ -230,7 +230,7 @@ services:
   # Prometheus on http://localhost:9090.
   # --------------------------------------------------------------------------
   metrics-role:
-    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     environment:
       PGHOST: postgres
       PGUSER: skillissues

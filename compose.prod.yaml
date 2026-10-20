@@ -34,7 +34,7 @@ networks:
 
 services:
   postgres:
-    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     restart: unless-stopped
     shm_size: ${PG_SHM_SIZE:-256mb}
     mem_limit: ${PG_MEM_LIMIT:-1536m}
@@ -116,7 +116,7 @@ services:
   # and 00033 create (go-api connects as skillissues_api, ingestd as
   # skillissues_ingest, flowd as skillissues_flow, never as the owner). Runs after every migrate so a rotated password lands.
   app-roles:
-    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     mem_limit: 64m
     cpus: 0.25
     logging: *default-logging
@@ -295,7 +295,7 @@ services:
   # One-shot: enables login for the metrics_ro role (migration 00017) with
   # METRICS_DB_PASSWORD. Runs after every migrate so a rotated password lands.
   metrics-role:
-    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     mem_limit: 64m
     cpus: 0.25
     logging: *default-logging
