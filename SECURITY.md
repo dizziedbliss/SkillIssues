@@ -15,9 +15,8 @@ reports are taken seriously.
 - steps to reproduce, or a proof of concept;
 - whether you have seen it exploited.
 
-The repository is private today, so GitHub's private vulnerability reporting is not available
-for it. If the repository becomes public, that feature will be enabled and becomes the preferred
-channel.
+The repository is public. Until GitHub's private vulnerability reporting is enabled for it,
+contact the maintainer privately as above; once it is, that becomes the preferred channel.
 
 ## What matters most
 
