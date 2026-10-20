@@ -1,9 +1,8 @@
 # HTTP API
 
 Routes registered by `backend/cmd/api/main.go`. Locally the API is `http://localhost:8000`; in
-production it is `https://<domain>/api` (Caddy strips the `/api` prefix — go-api's own routes
-have none). Both clients call it through `packages/api-client`, which is the typed reference for
-request and response shapes.
+production it is `https://skillissues-api.dizziedbliss.lol`, with routes at the root. Both clients
+call it through `packages/client`, which is the typed reference for request and response shapes.
 
 **Auth column:** *session* = a valid session cookie is required (401 otherwise); *optional* =
 works signed out, personalised when signed in; *none* = public; *admin* =
@@ -30,6 +29,7 @@ works signed out, personalised when signed in; *none* = public; *admin* =
 | GET | `/auth/session` | none | Current session's user, or signed out |
 | GET | `/auth/github` | none | Start Login app sign-in (sets the `__Host-oauth_state` cookie) |
 | GET | `/auth/github/callback` | none | Login app callback; needs the state cookie; errors redirect with a fixed `?error=` code |
+| GET | `/auth/github/device` | none | `{enabled, client_id}`: what the desktop app needs to start the Login app's device flow itself |
 | POST | `/auth/github/device` | none | Desktop sign-in: body `{"access_token"}` from the Login app's device flow; returns a bearer session. The token is checked with GitHub and discarded |
 | POST | `/auth/logout` | none | Clear the session |
 | POST | `/auth/logout-all` | session | End every session of the user |

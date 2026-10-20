@@ -8,16 +8,16 @@ reports are taken seriously.
 
 ## Reporting a vulnerability
 
-**Do not open a public issue or pull request for a vulnerability.** Contact the maintainer,
-[@dizziedbliss](https://github.com/dizziedbliss), privately on GitHub, with:
+**Do not open a public issue, discussion or pull request for a vulnerability.** Use GitHub's
+[private vulnerability reporting](https://github.com/dizziedbliss/SkillIssues/security/advisories/new),
+which only the maintainers can see, and include:
 
 - what is affected (endpoint, component or file) and what an attacker gains;
 - steps to reproduce, or a proof of concept;
 - whether you have seen it exploited.
 
-The repository is private today, so GitHub's private vulnerability reporting is not available
-for it. If the repository becomes public, that feature will be enabled and becomes the preferred
-channel.
+If you cannot use that form, contact the maintainer, [@dizziedbliss](https://github.com/dizziedbliss),
+privately on GitHub instead.
 
 ## What matters most
 

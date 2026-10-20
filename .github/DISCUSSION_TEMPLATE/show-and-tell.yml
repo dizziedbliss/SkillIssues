@@ -1,0 +1,47 @@
+title: ""
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share a theme you made, or a contribution you landed through SkillIssues. Please never paste tokens or secrets, and don't share a theme or screenshot containing anything private.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What are you sharing?
+      options:
+        - A theme
+        - A contribution I made after finding the issue on SkillIssues
+        - Something else
+    validations:
+      required: true
+
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      description: The theme's name, or the project and issue for a contribution.
+    validations:
+      required: true
+
+  - type: input
+    id: link
+    attributes:
+      label: Link
+      description: For a theme, the link to it on the site. For a contribution, the pull request or issue on GitHub.
+
+  - type: textarea
+    id: preview
+    attributes:
+      label: Preview or story
+      description: For a theme, drag in a screenshot of it in use. For a contribution, what you fixed and what you learned.
+    validations:
+      required: true
+
+  - type: textarea
+    id: toml
+    attributes:
+      label: Theme TOML (optional)
+      description: Paste the tokens so others can try or remix it.
+      render: toml

@@ -157,7 +157,7 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_LOGIN_CLIENT_ID: ${GITHUB_LOGIN_CLIENT_ID:-}
       GITHUB_LOGIN_CLIENT_SECRET: ${GITHUB_LOGIN_CLIENT_SECRET:-}
-      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:?GITHUB_REDIRECT_URI must be https://<domain>/api/auth/github/callback}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:?GITHUB_REDIRECT_URI must be https://<API_DOMAIN>/auth/github/callback}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:?GITHUB_WEBHOOK_SECRET must be set in production}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:?ADMIN_SYNC_TOKEN must be set in production}
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}
@@ -252,17 +252,7 @@ services:
       retries: 10
       start_period: 3s
 
-  frontend:
-    image: ${WEB_IMAGE:-ghcr.io/dizziedbliss/skillissues-web:${IMAGE_TAG:-latest}}
-    restart: unless-stopped
-    mem_limit: ${FRONTEND_MEM_LIMIT:-128m}
-    cpus: ${FRONTEND_CPUS:-0.25}
-    logging: *default-logging
-    # No published port: Caddy proxies to it over skillissues_prod_net.
-    depends_on:
-      go-api:
-        condition: service_healthy
-
+  # The site is on Vercel (vercel.json); Caddy serves only the API and the stream.
   caddy:
     image: caddy:2-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
     restart: unless-stopped
@@ -270,8 +260,8 @@ services:
     cpus: ${CADDY_CPUS:-0.25}
     logging: *default-logging
     environment:
-      DOMAIN: ${DOMAIN:?DOMAIN must be set, e.g. skillissues.dizziedbliss.lol}
       STREAM_DOMAIN: ${STREAM_DOMAIN:?STREAM_DOMAIN must be set, e.g. stream.dizziedbliss.lol}
+      API_DOMAIN: ${API_DOMAIN:?API_DOMAIN must be set, e.g. skillissues-api.dizziedbliss.lol}
     ports:
       - "80:80"
       - "443:443"
@@ -280,8 +270,6 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      frontend:
-        condition: service_started
       go-api:
         condition: service_healthy
 

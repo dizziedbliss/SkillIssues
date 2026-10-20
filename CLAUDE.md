@@ -98,7 +98,8 @@ npm run typecheck # tsc --noEmit
 cd desktop
 npm run dev       # electron-vite dev server, renderer HMR
 npm run build && npm start   # build then run the built app (no HMR)
-npm run check     # tsc --noEmit over src/main, src/preload
+npm run check     # tsc --noEmit over main, preload, shared and renderer
+npm test          # the security rules (src/main/security.test.ts)
 npm run dist      # build, then electron-builder release artifacts
 ```
 
@@ -174,8 +175,8 @@ emit after each committed crawl or discovery page (repository, counts, first tit
 
 ### Shared packages (`packages/`)
 npm workspace members, imported as `@skillissues/*` (a real `node_modules` symlink, not a relative
-path reaching outside the importing project). The web app was rebuilt on the first two; the desktop
-app still uses the last three until its own rebuild.
+path reaching outside the importing project). Both apps are built on `client`; the web app also on
+`theme`.
 - **`packages/client`** — the typed API client: response types, `ApiError` (`status`, `problems`;
   status 0 = never answered), abort support, a pluggable `Transport` (`fetchTransport` for the
   browser). Cursor paging always sends `?cursor=`, even empty: it is what selects the shuffled feed.
@@ -185,53 +186,75 @@ app still uses the last three until its own rebuild.
   it through constructed stylesheets scoped to the app's root. `npm test` runs the checks.
 - **`packages/markdown`** — sanitised Markdown rendering (`markdown-it` + DOMPurify). Issue bodies
   are attacker-controlled; never hand-roll rendering in either client.
-- **`packages/api-client`**, **`packages/ui`** — the previous client and component kit, used only
-  by the desktop app now. Don't build anything new on them.
 
 ### Web (`web/src/`)
 - **`landing/`** — the landing page, the owner's design. Its look is **locked**
-  (`landing/tokens.module.css`) and outside the theme system: no user theme reaches it. Each open
-  half of the zig-zag holds a live or explanatory filler (`landing/fillers/`). Fonts are
+  (`landing/tokens.module.css`) and outside the theme system: no user theme reaches it. A zig-zag:
+  each section in the left or right part of one container with equal margins, the other side left
+  white (one column under 860px), over a faint glyph noise (`GlyphNoise.tsx`, canvas). Body text is
+  never under 16px. Motion shares one easing (`--ease`, `--fast`, `--slow`): buttons fill from the
+  left, links draw their underline, live counts glide between polls; all of it stops under reduced
+  motion. Fonts are
   self-hosted through `@fontsource` (Instrument Serif headings and nav, JetBrains Mono everything
   else, Krona One for the wordmark at 9% tracking over its 24:8 JetBrains Mono line).
 - **`pages/`** — the written pages (`pages/content.ts`); every claim must describe what the code does.
   Pages marked `draft` say so on the page.
-- **`app/`** — the signed-in app. Until its designs arrive, a plain working catalog.
-- **`lab/`** — drafts for the owner to judge (`/lab/backdrop`); nothing there ships on `/`.
+- **`app/`** — the signed-in app. Until its designs arrive, a plain working catalog with an account bar
+  (`Account.tsx`: GitHub sign-in, sign-out, delete account — the Privacy policy points there). Sign-in
+  returns to `/?auth=ok` or `/?error=<code>`, which `App.tsx` forwards to `/app`.
 - **Prerendered**: `npm run build` renders `/` and every content page to HTML
   (`scripts/prerender.mjs`, `src/entry-server.tsx`); the client hydrates a page only when its
-  `data-route` matches. nginx serves `shell.html` (no markup) for every other route.
+  `data-route` matches. Vercel serves `shell.html` (no markup) for every other route.
 - CSS Modules over custom properties; no Tailwind, no CSS-in-JS. Live counts poll `GET /stats`
   every 10s (React Query, paused in background tabs).
-- nginx sends a CSP that allows fetching nothing from elsewhere (a theme stylesheet is someone
-  else's code); widen it only deliberately.
+- The CSP (`vercel.json`) allows fetching nothing from elsewhere but the API host, GitHub's API and
+  avatars (a theme stylesheet is someone else's code); widen it only deliberately.
 
 Runs **React 19**.
 
 ### Desktop (`desktop/`)
-`electron-vite` layout: `src/main/index.ts` (windows, IPC, git — TypeScript, non-strict),
-`src/preload/index.ts` (context bridge — `contextIsolation: true` is mandatory),
-`src/renderer/` (React + TypeScript on `packages/ui`/`packages/api-client`, entry
-`src/renderer/src/main.tsx`; it reaches the API only via the preload bridge). Builds to
-`out/main`, `out/preload`, `out/renderer`. Git operations run as async child processes so
-the UI never blocks.
+`electron-vite`, TypeScript strict throughout. **`src/shared/contract.ts` is the only interface between
+the page and the main process**: every channel, its arguments and its `Result` (errors cross as data).
+The preload exposes exactly one `window.skillissues` method per channel, and the main process will not
+start with a channel unhandled (`src/main/ipc.ts`); each handler checks the caller is the app's own
+top frame.
+- **`src/main/security.ts`** holds the boundaries as pure functions, pinned by `security.test.ts`
+  (`npm test`, CI): the window's `webPreferences` (`contextIsolation`, `sandbox`, no Node), the API
+  paths the page may reach through the main process's proxy (`api.ts`), the links that may open in
+  the browser (GitHub and the site), repository and branch names, workspace containment, and how the
+  push token reaches git. Loosen one only deliberately.
+- **Sign-in** (`auth.ts`): a no-scope GitHub device flow on the Login app (client id from `GET
+  /auth/github/device`), posted once to `POST /auth/github/device`; the app keeps only the session.
+  **Pushing** takes a second device flow for `public_repo`, whose token never leaves the machine and
+  must belong to the signed-in account.
+- **Tokens** (`store.ts`) are kept with `safeStorage`. Where the OS has no real encryption (Linux's
+  `basic_text` backend) they stay in memory only and the person signs in each launch; they are never
+  written in clear.
+- **Git** (`git.ts`, `workspace.ts`) runs as async child processes with argument lists, never a shell.
+  The push token reaches git through `GIT_CONFIG_*` environment entries (an `http.extraheader` for
+  github.com), never argv, and is redacted from anything shown. A workspace is the person's fork,
+  cloned into the workspace folder, on `skillissues/<number>-<slug>`, with the original as `upstream`;
+  every path is re-checked to be inside that folder after resolving links. VS Code opens through its
+  `vscode://` link.
+- **The renderer** (`src/renderer/src`) is React on `@skillissues/client` over the IPC proxy. Its CSP
+  lets it reach no network itself. Until the designs arrive: sign-in, catalog, an issue panel from
+  fork to pull request, and settings (workspace folder, push connection, sign out, delete account).
 
-Runs **Electron 44**.
+Runs **Electron 44**. Release builds: `.github/workflows/release.yml`.
 
 ### Database (`backend/internal/migrate/migrations/`)
 Goose migrations, embedded into the binaries with `go:embed`. **This directory is the single
 source of truth for the schema** — there is no separate `schema.sql`.
 
 ### Docker images
-One root **`Dockerfile`** with named targets (`api`, `ingestd`, `migrate`, `web`, `repoimport`),
-built from the **repo root** — not `backend/` or `web/` — because the `web` target needs to
-see the npm workspace (`packages/*`), which a narrower context can't reach. Root
-**`.dockerignore`** keeps the build context small despite that (excludes `data/`, `.git`,
+One root **`Dockerfile`** with named targets (`api`, `ingestd`, `flowd`, `migrate`, `repoimport`),
+built from the **repo root**. The site has no image: it deploys to Vercel. Root
+**`.dockerignore`** keeps the build context small (excludes `data/`, `.git`,
 `node_modules`, secrets). `compose.prod.yaml` (prod) only ever pulls pre-built images from
 GHCR and never builds anything on the host; the deploy pipeline builds against these targets.
 **`web/Dockerfile`** is the one exception — a dev-only Vite HMR image used by `compose.yaml`'s
-`frontend` service, also built from the repo root for the same workspace reason. Don't add a
-third one back.
+`frontend` service, built from the repo root because it needs the npm workspace (`packages/*`).
+Don't add a third one back.
 
 ---
 
@@ -403,7 +426,19 @@ took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
 
 ## Deployment
 
-Single VPS, `compose.prod.yaml`, Caddy same-origin. Full runbook: `DEPLOYMENT.md` (local only).
+Single VPS, `compose.prod.yaml`, Caddy, for everything but the site, which is on Vercel.
+Full runbook: `DEPLOYMENT.md` (local only).
+
+- **The site is on Vercel; the API has its own host.** `vercel.json` (repo root) builds the npm
+  workspace, serves `web/dist` with the CSP and security headers, and falls back to `shell.html`.
+  deploy.yml's `web` job builds and deploys it with the Vercel CLI after the API deploy succeeds,
+  skipped until the `VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` variables exist; Vercel's own deploys from
+  git are off, so nothing ships without CI. The bundle calls `VITE_API_URL`
+  (`https://skillissues-api.dizziedbliss.lol`, Caddy's `{$API_DOMAIN}`, routes at the root) cross-origin:
+  the two hosts are one site, so the Lax session cookie travels, and go-api's CORS and CSRF trust
+  `FRONTEND_URL`. The job fails if `vercel.json`'s `connect-src` does not list that host. The
+  Vercel project is linked by id only: its git integration is disconnected, and must stay so.
+  Rollback for the site is Vercel's Instant Rollback.
 
 **Local-only documents.** `DEPLOYMENT.md` and `docs/runbook.md` (the operator runbook) describe
 how production is run, so they live only on the owner's machine: they are in `.gitignore`, were
@@ -414,16 +449,17 @@ link to them from tracked docs (`README.md`, `ARCHITECTURE.md`); code comments m
 remain in earlier git history, which is not rewritten.
 
 - `.github/workflows/ci.yml` gates everything: backend (vet/gofmt/build/test), web/desktop
-  (typecheck then a real build, not just a type check), and a buildx build of the five
-  deployed Dockerfile targets (`api`, `ingestd`, `flowd`, `migrate`, `web` — not `repoimport`) plus
+  (typecheck then a real build, not just a type check), and a buildx build of the four
+  deployed Dockerfile targets (`api`, `ingestd`, `flowd`, `migrate` — not `repoimport`) plus
   `docker compose config` on both compose files and `caddy validate` on the Caddyfile. It runs on pull requests and as the deploy
   gate, not on plain pushes, and a `changes` job (`dorny/paths-filter`) skips any job whose
   paths did not change. A skipped job counts as passing, so when adding a job, add its paths
   to the filter. `workflow_dispatch` runs everything.
 - `.github/workflows/deploy.yml` runs on push to `main`: `ci` → `build-push` (builds and pushes
-  `ghcr.io/dizziedbliss/skillissues-{api,ingestd,flowd,migrate,web}` tagged `sha-<short>` and
-  `latest`) → `deploy` (scp + ssh, runs `scripts/deploy-remote.sh` on the host). A deploy cannot
-  happen without CI passing. Rollback is `workflow_dispatch` with an older `sha-` tag — deploys
+  `ghcr.io/dizziedbliss/skillissues-{api,ingestd,flowd,migrate}` tagged `sha-<short>` and
+  `latest`) → `deploy` (scp + ssh, runs `scripts/deploy-remote.sh` on the host) → `web` (Vercel). A deploy cannot
+  happen without CI passing, and runs queue (`concurrency: production-deploy`): two at once on the host
+  replace each other's containers. Rollback is `workflow_dispatch` with an older `sha-` tag — deploys
   always pin that, never `latest`. `build-push` attests provenance and cosign-signs each image by
   digest; `deploy-remote.sh` resolves the tag to a digest, runs `cosign verify` (signer: `deploy.yml`
   on `refs/heads/main`) and deploys that digest, so the host needs `cosign`. Actions are pinned to
@@ -434,10 +470,11 @@ remain in earlier git history, which is not rewritten.
   in `X-Forwarded-For` (`header_up X-Forwarded-For {client_ip}`). That works with or without
   Cloudflare proxying: without it the header is ignored and the peer is the client. Keep the
   ranges current with https://www.cloudflare.com/ips/.
-- Caddy is the only service publishing a public port. `handle_path /api/*` strips the prefix
-  before proxying to `go-api` (whose routes have no `/api` prefix of their own) and returns
-  **404 for `/metrics`, `/health/detail` and `/admin/*`** — those are internal only (admin is reached over ssh, see `DEPLOYMENT.md`); everything else goes
-  to the `frontend` (nginx) image. A second site, `{$STREAM_DOMAIN}`, proxies only `GET /stream`
+- Caddy is the only service publishing a public port. `{$API_DOMAIN}` proxies to `go-api` at the
+  root and returns **404 for `/metrics`, `/health/detail` and `/admin/*`** — those are internal only
+  (admin is reached over ssh, see `DEPLOYMENT.md`). Cloudflare's "Always Use HTTPS" must stay off:
+  it redirects the ACME HTTP-01 challenge before it reaches Caddy, which redirects plain HTTP
+  itself. A second site, `{$STREAM_DOMAIN}`, proxies only `GET /stream`
   to `flowd` (`flush_interval -1`) and returns 404 for everything else. `go-api`, `ingestd` and
   `flowd` have no published ports in prod.
 - **Secrets are in git, encrypted.** `secrets/prod.env.sops` (SOPS + age, to the owner's key and
@@ -619,7 +656,9 @@ Every key with its default and bounds: `docs/settings.md`.
   matches too many to count quickly are too many to sort. A difficulty filter is restated on
   `difficulty_score` (fixed per difficulty by `sync.ClassifyLabels`) so the order indexes can range
   over it, and functional-dependency statistics (`issues_difficulty_dep`, migration 00046) keep the
-  planner from multiplying the two conditions' selectivities. The shuffled feed walks repositories
+  planner from multiplying the two conditions' selectivities. Expression statistics on `catalog_lower_labels(labels)` and a larger sample for
+  `repositories.tech` (00048) keep it from guessing 0.5% for a label, which made it probe the labels index
+  once per repository of a tech (bug + Go: 7s, 41ms once estimated). The shuffled feed walks repositories
   without a rarity count (only a languages-only filter checks the cached counts), finds each one's
   labelled issues a batch of repositories at a time (`repository_id = ANY(batch)`: a common label's GIN
   posting list read once per batch, not once per repository), after

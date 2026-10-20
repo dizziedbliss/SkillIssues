@@ -172,19 +172,22 @@ or OAuth state. See DEPLOYMENT.md → *Monitoring*.
 
 ## 9. Clients
 
-Both clients share three npm workspace packages: `@skillissues/api-client` (typed client,
-`ApiError` with status and detail, pluggable fetch or IPC transport), `@skillissues/ui` (Modal
-with focus trap and scroll lock, issue lists, …) and `@skillissues/markdown`
-(markdown-it + DOMPurify — issue bodies are attacker-controlled).
+Both clients use the npm workspace package `@skillissues/client` (typed client, `ApiError` with
+status and problems, a pluggable transport: fetch in the browser, IPC on the desktop).
+`@skillissues/theme` checks and applies user themes, and `@skillissues/markdown` (markdown-it +
+DOMPurify) is the only way issue bodies, which are attacker-controlled, may be rendered.
 
-**Web** (`web/`): React 19 single-page app. Signed-out visitors get `LandingPage`; signed-in
-users get the catalog.
+**Web** (`web/`, on Vercel): React 19. The landing and written pages are prerendered; `/app` is the
+catalog, with GitHub sign-in and account deletion.
 
-**Desktop** (`desktop/`, electron-vite): the renderer runs with `contextIsolation`, `sandbox`
-and no Node integration, behind a Content Security Policy, and reaches the API only through the
-preload bridge. The main process holds a single-instance lock, opens only allow-listed GitHub
-URLs, and registers the `skillissues://` protocol. Workspace flow: fork with the user's token,
-clone into the chosen workspace folder (default `~/Documents/SkillIssues`; git commands refuse
-to run outside it), point `origin` at the fork and `upstream` at the original, create a branch,
-push, open VS Code. Git runs as async child processes and every command is logged to
-`.skillissues/commands.log` in the clone. Cloned code is never executed.
+**Desktop** (`desktop/`, electron-vite): the page runs with `contextIsolation`, `sandbox` and no
+Node, behind a CSP that lets it reach no network itself. It talks to the main process only through
+the typed contract in `src/shared/contract.ts`; the main process proxies an allowlist of API calls
+with the session, opens only GitHub and site links, and refuses calls from any frame but its own
+page. Sign-in is a no-scope GitHub device flow whose token is posted once to the API and dropped;
+pushing takes a second, `public_repo` device flow whose token stays on the machine (in the OS
+keychain, or memory only where there is none). Workspace flow: fork with that token, clone the fork
+into the workspace folder (default `~/Documents/SkillIssues`; every path is checked to stay inside
+it), `upstream` at the original, a branch per issue, commit and push, open the pull request, open
+VS Code. Git runs as async child processes; the token reaches it through the environment, never the
+command line. Cloned code is never executed.
