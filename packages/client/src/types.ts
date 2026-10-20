@@ -114,3 +114,23 @@ export interface ThemeInput {
   css: string;
   public: boolean;
 }
+
+/** GET /auth/session. */
+export interface Session {
+  authenticated: boolean;
+  user?: { id: number; username: string; avatar_url: string };
+}
+
+/** GET /auth/github. enabled is false while sign-in is not configured on the server. */
+export interface SignInStart {
+  enabled: boolean;
+  authorize_url: string;
+  error?: string;
+}
+
+/** POST /auth/purge. */
+export interface AccountDeleted {
+  purged: boolean;
+  /** GitHub's authorised-apps page, where the sign-in app can be removed too. */
+  authorized_apps_url: string;
+}
