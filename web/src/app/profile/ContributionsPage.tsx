@@ -44,7 +44,7 @@ export function ContributionsPage() {
 }
 
 /** Pull requests listed at first, and added with each View more. */
-const STEP = 8;
+const STEP = 4;
 
 /** Every one of a person's public pull requests on GitHub, merged or all. */
 function gitHubPulls(login: string, merged: boolean): string {

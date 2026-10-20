@@ -15,8 +15,8 @@ function greeting() {
   return "profile.greet.night" as const;
 }
 
-/** Saved issues listed on the profile before "All saved issues". */
-const SAVED_SHOWN = 5;
+/** Items each activity box lists before its View more. */
+const SHOWN = 4;
 
 /**
  * Your profile, as designed: who you are and your numbers on the left,
@@ -90,14 +90,14 @@ export function ProfilePage() {
           <h2 id="activity-title" className={s.heading}>{t("profile.activity")}</h2>
           <div className={s.box}>
             <h3 className={s.boxTitle}>{t("profile.prs")}</h3>
-            <PRList items={contributions.data?.recent} empty={t("profile.noPRs")} limit={5} />
-            {contributions.data && contributions.data.total > 5 && (
+            <PRList items={contributions.data?.recent} empty={t("profile.noPRs")} limit={SHOWN} />
+            {contributions.data && contributions.data.total > SHOWN && (
               <Link to="/app/contributions" className={s.more}>{t("search.viewMore")}</Link>
             )}
           </div>
           <div className={s.box}>
             <h3 className={s.boxTitle}>{t("profile.resolved")}</h3>
-            <PRList items={contributions.data?.recentMerged} empty={t("profile.noResolved")} limit={5} />
+            <PRList items={contributions.data?.recentMerged} empty={t("profile.noResolved")} limit={SHOWN} />
             {contributions.data && contributions.data.total > 0 && (
               <Link to="/app/contributions" className={s.more}>{t("profile.allContributions")}</Link>
             )}
@@ -109,7 +109,7 @@ export function ProfilePage() {
             {saved.data && saved.data.length > 0 && (
               <>
                 <ul className={s.savedList}>
-                  {saved.data.slice(0, SAVED_SHOWN).map((i) => (
+                  {saved.data.slice(0, SHOWN).map((i) => (
                     <li key={i.id}>
                       <Link to={`/app/issues/${i.id}`}>
                         {i.title} <span className={s.muted}>#{i.number}</span>

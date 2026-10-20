@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useLocation, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { useT } from "../../i18n";
@@ -15,7 +15,7 @@ import s from "./SearchPage.module.css";
 /** Issues on a page of one kind. */
 const PAGE_SIZE = 20;
 /** Each kind's issues shown when every kind is listed. */
-const PER_KIND = 5;
+const PER_KIND = 4;
 
 /**
  * The search page (/app/search): every kind of match, each with View more,
@@ -26,6 +26,7 @@ export function SearchPage() {
   const t = useT();
   const [params, setParams] = useSearchParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const query = readQuery(params);
   const overlay = useSearchOverlay();
   const kind = CATEGORIES.find((c) => c.param === params.get("in"));
@@ -109,8 +110,13 @@ export function SearchPage() {
             value={query}
             difficulty={difficulty}
             onApply={(panel, levels) => {
-              update({ ...panel, difficulty: levels });
               setFiltersOpen(false);
+              // Filters with nothing to search are browsing: Explore, filtered.
+              if (!query.search) {
+                void navigate(`/app?${writeQuery({ ...query, ...panel, difficulty: levels }).toString()}`);
+                return;
+              }
+              update({ ...panel, difficulty: levels });
             }}
           />
         </div>
@@ -157,7 +163,7 @@ export function SearchPage() {
           <h2 className={`${es.next} ${s.resultsTitle}`}>{t("search.page.results", { term: query.search })}</h2>
           {data.length === 0 && <p className={s.note}>{t("explore.emptySearch")}</p>}
           {CATEGORIES.map((c) => {
-            const issues = data.filter((i) => i.match_category === c.key);
+            const issues = data.filter((i) => i.match_category === c.key).slice(0, PER_KIND);
             if (!issues.length) return null;
             return (
               <section key={c.key} className={s.kind} aria-label={t(c.label)}>

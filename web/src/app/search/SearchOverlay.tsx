@@ -9,8 +9,8 @@ import { CATEGORIES, searchURL } from "./categories";
 import s from "./SearchOverlay.module.css";
 
 /** Results read while typing, across the kinds; each kind shows a few and "View more". */
-const QUICK = 15;
-const PER_KIND = 5;
+const QUICK = 12;
+const PER_KIND = 4;
 /** Typing pause before searching, so each word doesn't cost a request. */
 const PAUSE_MS = 300;
 
@@ -106,7 +106,8 @@ export function SearchOverlay({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               className={`${s.inBox} ${s.filter}`}
-              onClick={() => leave(draft.trim() ? searchURL(draft.trim()) : "/app/search", { filters: true })}
+              // Nothing typed: filters alone are browsing, so Explore with its filters open.
+              onClick={() => leave(draft.trim() ? searchURL(draft.trim()) : "/app", { filters: true })}
             >
               {t("explore.filter")}
             </button>
