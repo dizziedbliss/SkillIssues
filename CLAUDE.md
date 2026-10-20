@@ -650,7 +650,7 @@ Every key with its default and bounds: `docs/settings.md`.
   `CLOSED` transition — whichever path closed it.
   Never add a Go code path that writes them for issue closure; `internal/notification` only
   reads and marks them read (`GET /notifications`, `POST /notifications/{id}/read`,
-  `POST /notifications/read-all`). No client shows them yet.
+  `POST /notifications/read-all`). The web app shows them on Saved issues, with a dot on Profile while any are unread.
 
 ### Frontend
 - Use a maintained Markdown library with sanitisation; never hand-roll Markdown rendering.

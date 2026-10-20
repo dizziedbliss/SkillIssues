@@ -4,7 +4,7 @@ slug: /docs/request-a-feature
 section: Support
 summary: How to suggest an improvement so that it can be weighed and built.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 Ideas are collected as GitHub issues. [Open a feature request](https://github.com/dizziedbliss/SkillIssues/issues/new?labels=enhancement).
@@ -22,7 +22,7 @@ Describe the problem before the solution.
 
 - Search the [existing issues](https://github.com/dizziedbliss/SkillIssues/issues). If someone already asked, add your use case to that thread instead.
 - Look at [Finding issues](/docs/finding-issues). The filter or sort you want may already exist.
-- Some things are known gaps, not oversights. Notifications are recorded but no client shows them yet, there is no leaderboard yet (see [Leaderboard](/leaderboard)), and there is no sponsorship yet (see [Sponsor](/sponsor)).
+- Some things are known gaps, not oversights. Notifications cover only saved issues that close, there is no leaderboard yet (see [Leaderboard](/leaderboard)), and there is no sponsorship yet (see [Sponsor](/sponsor)).
 
 ## Things that are unlikely to be accepted
 
