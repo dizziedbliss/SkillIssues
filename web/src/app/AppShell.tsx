@@ -1,10 +1,13 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { Difficulty, Issue, Sort } from "@skillissues/client";
 import tokens from "../landing/tokens.module.css";
 import { Header } from "../landing/Header";
 import { api } from "../lib/api";
 import s from "./AppShell.module.css";
+
+/** Empty pages to read on its own before saying nothing matches. */
+const AUTO_PAGES = 5;
 
 /*
  * A plain, working catalog for /app while the signed-in app's designs are on
@@ -57,7 +60,16 @@ export default function AppShell() {
 
   const issues: Issue[] = term ? search.data ?? [] : browse.data?.pages.flatMap((p) => p.issues) ?? [];
   const error = term ? search.error : browse.error;
-  const loading = term ? search.isPending : browse.isPending;
+
+  // A page can come back short, even empty, with a cursor: the server
+  // stopped looking to answer quickly, not because it ran out. Keep looking
+  // a few pages before saying nothing matches.
+  const pagesFetched = browse.data?.pages.length ?? 0;
+  const stillLooking = !term && !browse.error && issues.length === 0 && browse.hasNextPage && pagesFetched < AUTO_PAGES;
+  useEffect(() => {
+    if (stillLooking && !browse.isFetchingNextPage) void browse.fetchNextPage();
+  }, [stillLooking, browse]);
+  const loading = term ? search.isPending : browse.isPending || stillLooking;
 
   function submit(e: FormEvent) {
     e.preventDefault();
