@@ -107,6 +107,10 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.Search = q.Get("search")
+	if f.Category, err = issue.ParseCategory(q.Get("category")); err != nil {
+		middleware.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	f.Limit = limit
 	f.Page = page
 	f.RareLanguageBelow = cfg.Int(settings.IssuesRareLanguageThreshold)
@@ -494,6 +498,7 @@ func parseIssueFilters(q url.Values, cfg *settings.Snapshot) (issue.Filters, err
 		dst  *[]string
 	}{
 		{"language", &f.Languages}, {"labels", &f.Labels}, {"topics", &f.Topics}, {"tech", &f.Tech},
+		{"repo", &f.Repos}, {"owner", &f.Owners},
 	} {
 		if *list.dst, err = issue.ParseList(list.name, q.Get(list.name), maxValues); err != nil {
 			return f, err
@@ -526,7 +531,7 @@ func parseIssueFilters(q url.Values, cfg *settings.Snapshot) (issue.Filters, err
 
 func hasIssueFilters(f issue.Filters) bool {
 	return len(f.Difficulties) > 0 || len(f.Languages) > 0 || len(f.Labels) > 0 || len(f.Topics) > 0 ||
-		len(f.Tech) > 0 || f.CommentsMin != nil || f.CommentsMax != nil
+		len(f.Tech) > 0 || len(f.Repos) > 0 || len(f.Owners) > 0 || f.CommentsMin != nil || f.CommentsMax != nil
 }
 
 // issueCacheKey is the canonical form of everything a signed-out catalog
@@ -547,9 +552,10 @@ func issueCacheKey(f issue.Filters, cursorMode bool, cursor string) string {
 		return strconv.Itoa(*p)
 	}
 	return strings.Join([]string{
-		"sort=" + string(f.Sort), "q=" + f.Search,
+		"sort=" + string(f.Sort), "q=" + f.Search, "cat=" + f.Category,
 		"d=" + list(f.Difficulties), "lang=" + list(f.Languages), "labels=" + list(f.Labels),
 		"topics=" + list(f.Topics), "tech=" + list(f.Tech),
+		"repo=" + list(f.Repos), "owner=" + list(f.Owners),
 		"cmin=" + bound(f.CommentsMin), "cmax=" + bound(f.CommentsMax),
 		"limit=" + strconv.Itoa(f.Limit), "page=" + strconv.Itoa(f.Page),
 		"cursor_mode=" + strconv.FormatBool(cursorMode), "cursor=" + cursor,

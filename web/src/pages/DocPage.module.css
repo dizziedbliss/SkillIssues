@@ -5,13 +5,20 @@
   margin-inline: auto;
   display: grid;
   grid-template-columns: 15rem minmax(0, 1fr);
-  gap: clamp(2rem, 5vw, 5rem);
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "search main" "nav main";
+  column-gap: clamp(2rem, 5vw, 5rem);
   padding: clamp(3rem, 6vw, 5rem) 0 clamp(4rem, 8vw, 7rem);
 }
 
 /* ---- sidebar ---- */
 
+.searchArea {
+  grid-area: search;
+}
+
 .sidebar {
+  grid-area: nav;
   position: sticky;
   top: 1.5rem;
   align-self: start;
@@ -60,6 +67,7 @@
 /* ---- the page ---- */
 
 .main {
+  grid-area: main;
   min-width: 0;
 }
 
@@ -212,13 +220,14 @@
   .layout {
     /* minmax(0, …): a wide table or code block scrolls inside the column instead of widening it. */
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas: "search" "main" "nav";
   }
 
   /* On a phone the page comes first; the full list follows it. */
   .sidebar {
     position: static;
     max-height: none;
-    order: 2;
     padding-top: 2rem;
     border-top: 1px solid var(--ink);
   }

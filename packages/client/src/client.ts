@@ -1,7 +1,7 @@
 import type { Transport } from "./transport";
 import type {
-  AccountDeleted, Facets, Issue, IssueBody, IssueFilters, IssuePage, Profile, RepositoryLookup, SavedChange, Session,
-  SignInStart, Stats, Theme, ThemeInput,
+  AccountDeleted, Facets, Issue, IssueBody, IssueFilters, IssuePage, Notifications, Profile, RepositoryLookup,
+  SavedChange, SearchCategory, Session, SignInStart, Stats, Theme, ThemeInput,
 } from "./types";
 
 function query(params: Record<string, string | number | undefined>): string {
@@ -22,6 +22,8 @@ function filterParams(f: IssueFilters): Record<string, string | number | undefin
     labels: list(f.labels),
     topics: list(f.topics),
     tech: list(f.tech),
+    repo: list(f.repo),
+    owner: list(f.owner),
     comments_min: f.comments_min,
     comments_max: f.comments_max,
     limit: f.limit,
@@ -29,6 +31,14 @@ function filterParams(f: IssueFilters): Record<string, string | number | undefin
 }
 
 type Opts = { signal?: AbortSignal };
+
+/**
+ * labels and tech arrived after the rest of an issue: a response cached before
+ * then (by the edge, or the API's own cache) has neither, which means none.
+ */
+function withLists(i: Issue): Issue {
+  return { ...i, labels: i.labels ?? [], tech: i.tech ?? [] };
+}
 
 /** One typed method per API endpoint. */
 export class Client {
@@ -44,21 +54,26 @@ export class Client {
   }
 
   /** One page of the catalog; pass the previous page's next_cursor, or "" for the first. */
-  browse(filters: IssueFilters, cursor = "", o?: Opts): Promise<IssuePage> {
+  async browse(filters: IssueFilters, cursor = "", o?: Opts): Promise<IssuePage> {
     // ?cursor= must be present even when empty: it is what selects cursor
     // paging (and the shuffled feed) over page numbers.
     const q = query(filterParams(filters));
-    return this.get(`/issues${q}${q ? "&" : "?"}cursor=${encodeURIComponent(cursor)}`, o);
+    const page = await this.get<IssuePage>(`/issues${q}${q ? "&" : "?"}cursor=${encodeURIComponent(cursor)}`, o);
+    return { ...page, issues: page.issues.map(withLists) };
   }
 
   /** Issues matching a search term, best category first. */
-  search(term: string, filters: IssueFilters & { page?: number } = {}, o?: Opts): Promise<Issue[]> {
-    return this.get(`/issues${query({ ...filterParams(filters), search: term, page: filters.page })}`, o);
+  async search(term: string, filters: IssueFilters & { page?: number; category?: SearchCategory } = {}, o?: Opts): Promise<Issue[]> {
+    const issues = await this.get<Issue[]>(
+      `/issues${query({ ...filterParams(filters), search: term, page: filters.page, category: filters.category })}`,
+      o,
+    );
+    return issues.map(withLists);
   }
 
   /** One issue by SkillIssues' id. */
-  issue(id: number, o?: Opts): Promise<Issue> {
-    return this.get(`/issues/${id}`, o);
+  async issue(id: number, o?: Opts): Promise<Issue> {
+    return withLists(await this.get<Issue>(`/issues/${id}`, o));
   }
 
   /**
@@ -71,8 +86,8 @@ export class Client {
   }
 
   /** The signed-in person's saved issues, closed ones included. */
-  saved(o?: Opts): Promise<Issue[]> {
-    return this.get("/saved", o);
+  async saved(o?: Opts): Promise<Issue[]> {
+    return (await this.get<Issue[]>("/saved", o)).map(withLists);
   }
 
   save(issueID: number): Promise<SavedChange> {
@@ -86,6 +101,19 @@ export class Client {
   /** The signed-in person's profile. */
   me(o?: Opts): Promise<Profile> {
     return this.get("/me", o);
+  }
+
+  /** The signed-in person's latest notifications and how many are unread. */
+  notifications(o?: Opts): Promise<Notifications> {
+    return this.get("/notifications", o);
+  }
+
+  async readNotification(id: number): Promise<void> {
+    await this.send({ method: "POST", path: `/notifications/${id}/read`, body: {} });
+  }
+
+  async readAllNotifications(): Promise<void> {
+    await this.send({ method: "POST", path: "/notifications/read-all", body: {} });
   }
 
   facets(o?: Opts): Promise<Facets> {

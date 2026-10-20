@@ -2,6 +2,8 @@
 
 export type Difficulty = "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "UNCLASSIFIED";
 export type Sort = "shuffle" | "easiest" | "newest";
+/** A search's kinds of match, as match_category names them. */
+export type SearchCategory = "Repository" | "Title" | "Language";
 
 export interface Issue {
   id: number;
@@ -33,7 +35,7 @@ export interface Issue {
   license: string;
   recommendation_score?: number;
   why_recommended?: string[];
-  match_category?: string;
+  match_category?: SearchCategory;
 }
 
 /** GET /issues with ?cursor=: one page and the cursor of the next, null at the end. */
@@ -50,6 +52,9 @@ export interface IssueFilters {
   labels?: string[];
   topics?: string[];
   tech?: string[];
+  /** owner/name */
+  repo?: string[];
+  owner?: string[];
   comments_min?: number;
   comments_max?: number;
   limit?: number;
@@ -162,4 +167,21 @@ export interface Profile {
   demonstrated_skills: string[];
   interests: string[];
   preferred_languages: string[];
+  /** When the account was created here (RFC 3339). */
+  joined_at: string;
+}
+
+/** One notification: today only an issue you saved being closed on GitHub. */
+export interface Notification {
+  id: number;
+  kind: "issue_closed";
+  created_at: string;
+  read_at: string | null;
+  issue: { id: number; repository: string; number: number; title: string; url: string; state: "OPEN" | "CLOSED" };
+}
+
+/** GET /notifications. */
+export interface Notifications {
+  notifications: Notification[];
+  unread_count: number;
 }

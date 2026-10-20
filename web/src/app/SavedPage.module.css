@@ -1,0 +1,92 @@
+.page {
+  width: min(100%, 80rem);
+  margin-inline: auto;
+}
+
+.title {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: clamp(2.25rem, 1.5rem + 2.4vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  padding-left: clamp(0rem, 5vw, 5rem);
+  padding-bottom: 1.5rem;
+  border-bottom: var(--border-width) var(--border-style) var(--rule);
+}
+
+.updates {
+  margin-top: 1.5rem;
+  padding: 0.75rem 1rem;
+  border: var(--border-width) solid var(--colors-accent);
+  border-radius: var(--radius-large);
+}
+
+.updatesHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.heading {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: 1.4rem;
+  letter-spacing: -0.03em;
+}
+
+.update {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  padding: 0.5rem 0;
+}
+
+.update + .update {
+  border-top: 1px solid color-mix(in srgb, var(--rule) 50%, transparent);
+}
+
+.update a {
+  color: inherit;
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+}
+
+.link {
+  flex: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--colors-accent);
+  font: inherit;
+  font-size: var(--label-size);
+  cursor: pointer;
+}
+
+.muted {
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+}
+
+.empty {
+  margin-top: 2rem;
+  color: var(--colors-text-muted);
+}
+
+.empty a {
+  color: var(--colors-text);
+  text-decoration-color: var(--colors-accent);
+}
+
+.error {
+  margin-top: 1rem;
+  color: var(--colors-danger);
+}
+
+@media (max-width: 640px) {
+  .update {
+    flex-direction: column;
+  }
+}

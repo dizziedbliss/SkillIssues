@@ -1,0 +1,87 @@
+/* The docs' search, at the top of the sidebar, in the locked look. */
+
+.search {
+  position: relative;
+  margin-bottom: 1.75rem;
+}
+
+.box {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--signal);
+  background: var(--paper);
+}
+
+.box input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.9375rem;
+}
+
+.box input:focus {
+  outline: none;
+}
+
+.box:focus-within {
+  box-shadow: 0 0 0 1px var(--signal);
+}
+
+.kbd {
+  margin-right: 0.5rem;
+  padding: 0 0.35rem;
+  border: 1px solid var(--quiet);
+  color: var(--quiet);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+}
+
+.results {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 10;
+  width: max(100%, 22rem);
+  max-height: 70vh;
+  overflow-y: auto;
+  border: 1px solid var(--signal);
+  background: var(--paper);
+}
+
+.results li + li {
+  border-top: 1px solid color-mix(in srgb, var(--signal) 30%, transparent);
+}
+
+.results a {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.65rem 0.75rem;
+  color: var(--ink);
+  text-decoration: none;
+  transition: background-color var(--fast) var(--ease);
+}
+
+.results a:hover,
+.results a:focus-visible {
+  background: color-mix(in srgb, var(--signal) 12%, transparent);
+}
+
+.title {
+  font-weight: 700;
+}
+
+.snippet {
+  color: var(--quiet);
+  font-size: var(--label-size);
+  line-height: 1.45;
+}
+
+.none {
+  padding: 0.65rem 0.75rem;
+  color: var(--quiet);
+  font-size: var(--label-size);
+}

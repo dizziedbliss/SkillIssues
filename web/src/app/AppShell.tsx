@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Link, Route, Routes, useSearchParams } from "react-router";
 import { Footer } from "../landing/Footer";
 import { useT, type MessageKey } from "../i18n";
@@ -6,8 +6,16 @@ import { ThemeToggleContext } from "../lib/themeToggle";
 import { AppHeader } from "./AppHeader";
 import { Explore } from "./explore/Explore";
 import { IssuePage } from "./IssuePage";
+import { SavedPage } from "./SavedPage";
+import { ProfilePage } from "./profile/ProfilePage";
+import { ContributionsPage } from "./profile/ContributionsPage";
 import { Settings } from "./Settings";
 import { useAppTheme } from "./theme";
+import { useRouteSettled, useTransitionNavigate } from "./transition";
+import { SearchContext } from "./search/context";
+import { SearchOverlay } from "./search/SearchOverlay";
+import { SearchPage } from "./search/SearchPage";
+import "./transition.css";
 import s from "./App.module.css";
 
 /** The fixed codes the API's sign-in callback can return (?error=). */
@@ -28,6 +36,35 @@ export default function AppShell() {
   const root = useRef<HTMLDivElement>(null);
   const { toggle, problem } = useAppTheme(root);
   const [params, setParams] = useSearchParams();
+  const go = useTransitionNavigate();
+  useRouteSettled();
+
+  const [searching, setSearching] = useState(false);
+  const openSearch = useCallback(() => setSearching(true), []);
+  const search = useMemo(() => ({ isOpen: searching, open: openSearch }), [searching, openSearch]);
+
+  // "/" (outside a text field) and Ctrl/⌘K open search.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName));
+      if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey)) {
+        e.preventDefault();
+        setSearching(true);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // A plain click on a link to another app page moves with the theme's transition.
+  function onClickCapture(e: MouseEvent<HTMLDivElement>) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = (e.target as HTMLElement).closest("a");
+    const href = a?.getAttribute("href");
+    if (!a || !href || a.target || a.hasAttribute("download") || !/^\/app(\/|\?|$)/.test(href)) return;
+    e.preventDefault();
+    go(href);
+  }
 
   // Back from GitHub: ?auth=ok is done with; ?error= is shown until dismissed.
   const callbackError = params.get("error");
@@ -43,30 +80,37 @@ export default function AppShell() {
 
   return (
     <ThemeToggleContext.Provider value={toggle}>
-      {/* data-app is APP_SCOPE: the theme applies here and nowhere else. */}
-      <div ref={root} className={s.app} data-app="">
-        <AppHeader />
-        {callbackError && (
-          <p className={s.notice} role="alert">
-            {t(signInErrors[callbackError] ?? "auth.error.other")}
-            <button type="button" onClick={dismiss}>{t("auth.dismiss")}</button>
-          </p>
-        )}
-        {problem && (
-          <p className={s.problem} role="alert">
-            {t("theme.failed", { reason: problem })}
-          </p>
-        )}
-        <main className={s.main}>
-          <Routes>
-            <Route index element={<Explore />} />
-            <Route path="issues/:id" element={<IssuePage />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="*" element={<AppNotFound />} />
-          </Routes>
-        </main>
-        <Footer />
-      </div>
+      <SearchContext.Provider value={search}>
+        {/* data-app is APP_SCOPE: the theme applies here and nowhere else. */}
+        <div ref={root} className={s.app} data-app="" onClickCapture={onClickCapture}>
+          <AppHeader />
+          {callbackError && (
+            <p className={s.notice} role="alert">
+              {t(signInErrors[callbackError] ?? "auth.error.other")}
+              <button type="button" onClick={dismiss}>{t("auth.dismiss")}</button>
+            </p>
+          )}
+          {problem && (
+            <p className={s.problem} role="alert">
+              {t("theme.failed", { reason: problem })}
+            </p>
+          )}
+          <main className={s.main}>
+            <Routes>
+              <Route index element={<Explore />} />
+              <Route path="issues/:id" element={<IssuePage />} />
+              <Route path="search" element={<SearchPage />} />
+              <Route path="profile" element={<ProfilePage />} />
+              <Route path="contributions" element={<ContributionsPage />} />
+              <Route path="saved" element={<SavedPage />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="*" element={<AppNotFound />} />
+            </Routes>
+          </main>
+          <Footer />
+          {searching && <SearchOverlay onClose={() => setSearching(false)} />}
+        </div>
+      </SearchContext.Provider>
     </ThemeToggleContext.Provider>
   );
 }
