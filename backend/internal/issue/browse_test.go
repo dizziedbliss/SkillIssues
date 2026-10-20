@@ -197,7 +197,7 @@ func TestBrowseIssuesCursorWalksCatalogOrder(t *testing.T) {
 
 	for _, rareBelow := range rareThresholds {
 		for _, limit := range []int{1, 4, 5, 23, 50} {
-			got := walkCatalog(t, svc, Filters{Language: lang, Limit: limit, RareLanguageBelow: rareBelow}, nil, nil)
+			got := walkCatalog(t, svc, Filters{Languages: []string{lang}, Limit: limit, RareLanguageBelow: rareBelow}, nil, nil)
 			if !slices.Equal(got, want) {
 				t.Errorf("rare below %d, limit %d: walked %v, want %v", rareBelow, limit, got, want)
 			}
@@ -220,7 +220,7 @@ func TestBrowseIssuesDifficultyFilter(t *testing.T) {
 				t.Fatalf("%s: seed has no such issues", difficulty)
 			}
 			got := walkCatalog(t, svc,
-				Filters{Language: lang, Difficulty: difficulty, Limit: 2, RareLanguageBelow: rareBelow}, nil, nil)
+				Filters{Languages: []string{lang}, Difficulties: []string{strings.ToUpper(difficulty)}, Limit: 2, RareLanguageBelow: rareBelow}, nil, nil)
 			if !slices.Equal(got, want) {
 				t.Errorf("rare below %d, %s: walked %v, want %v", rareBelow, difficulty, got, want)
 			}
@@ -264,7 +264,7 @@ func TestBrowseIssuesLanguageFilterIgnoresPreference(t *testing.T) {
 	want := catalogIDs(t, pool, lang, "")
 
 	for _, prefs := range [][]string{{lang}, {"some-other-language"}} {
-		got := walkCatalog(t, svc, Filters{Language: lang, Limit: 4, RareLanguageBelow: 1000}, prefs, nil)
+		got := walkCatalog(t, svc, Filters{Languages: []string{lang}, Limit: 4, RareLanguageBelow: 1000}, prefs, nil)
 		if !slices.Equal(got, want) {
 			t.Errorf("preferring %v: walked %v, want %v", prefs, got, want)
 		}
@@ -282,7 +282,7 @@ func TestSearchIssuesPageMatchesBrowseOrder(t *testing.T) {
 
 	var got []int
 	for page := 1; page <= 3; page++ {
-		issues, err := svc.SearchIssues(context.Background(), Filters{Language: lang, Limit: 4, Page: page}, nil, "")
+		issues, err := svc.SearchIssues(context.Background(), Filters{Languages: []string{lang}, Limit: 4, Page: page}, nil, "")
 		if err != nil {
 			t.Fatal(err)
 		}

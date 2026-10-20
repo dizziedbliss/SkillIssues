@@ -58,6 +58,11 @@ type Coordinator struct {
 	lastExcludedPrune    time.Time
 	lastArchiveSeed      time.Time
 	lastBodyPrune        time.Time
+
+	// catalogBusy is set while a catalog job (catalog.go) runs in the
+	// background: the facets count takes a minute and must not hold up the
+	// claim cycle, and must not overlap itself.
+	catalogBusy atomic.Bool
 	// lastCandidateIdle is when a candidate lookup last came back short of
 	// a full batch: the backlog is drained, and lookups wait for
 	// ingest.archive.poll_seconds instead of querying every cycle.
@@ -168,6 +173,7 @@ func (c *Coordinator) cycle() {
 	c.pruneClosedIssues(snap)
 	c.pruneExcludedIssues(snap)
 	c.pruneIssueBodies(snap)
+	c.runCatalogJobs(snap)
 	publishPoolStats(c.initialPool)
 	publishPoolStats(c.deepPool)
 	publishPoolStats(c.discoveryPool)
@@ -581,6 +587,58 @@ func (c *Coordinator) pruneIssueBodies(snap *settings.Snapshot) {
 	}
 	if n > 0 {
 		slog.Info("pruned the issue body cache", "deleted", n)
+	}
+}
+
+// runCatalogJobs starts whichever catalog job is due (catalog.go) in the
+// background, one at a time. Both only rewrite what the catalog shows; they
+// run whatever the disk guard says.
+func (c *Coordinator) runCatalogJobs(snap *settings.Snapshot) {
+	if c.catalogBusy.Load() {
+		return
+	}
+	jobs := []struct {
+		name  string
+		every time.Duration
+		run   func(context.Context) error
+	}{
+		{catalogShuffle, snap.Seconds(settings.IngestCatalogShuffleIntervalSeconds), func(ctx context.Context) error {
+			n, err := Reshuffle(ctx, c.pool)
+			if err == nil {
+				slog.Info("reshuffled the catalog feed", "repositories", n)
+			}
+			return err
+		}},
+		{catalogFacets, snap.Seconds(settings.IngestCatalogFacetsRefreshSeconds), func(ctx context.Context) error {
+			start := time.Now()
+			err := RefreshFacets(ctx, c.pool, snap.Int(settings.IngestCatalogFacetsMaxValues))
+			if err == nil {
+				slog.Info("refreshed the catalog filter values", "took", time.Since(start).Round(time.Second))
+			}
+			return err
+		}},
+	}
+	for _, job := range jobs {
+		due, err := CatalogJobDue(c.ctx, c.pool, job.name, job.every)
+		if err != nil {
+			metrics.IngestCycleErrors.WithLabelValues("catalog_" + job.name).Inc()
+			slog.Warn("failed to read a catalog job's schedule", "job", job.name, "error", err)
+			continue
+		}
+		if !due {
+			continue
+		}
+		c.catalogBusy.Store(true)
+		c.wg.Add(1)
+		go func() {
+			defer c.wg.Done()
+			defer c.catalogBusy.Store(false)
+			if err := job.run(c.ctx); err != nil && c.ctx.Err() == nil {
+				metrics.IngestCycleErrors.WithLabelValues("catalog_" + job.name).Inc()
+				slog.Warn("catalog job failed; it is retried next cycle", "job", job.name, "error", err)
+			}
+		}()
+		return
 	}
 }
 

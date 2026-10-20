@@ -40,12 +40,29 @@ works signed out, personalised when signed in; *none* = public; *admin* =
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | GET | `/issues` | optional | Browse or search (`?search=`, filters). Search is balanced across Repository (name contains the term), Title (full-text on title and labels), Language (exactly the term) and Author (login contains it); terms under 3 characters match Title and Language only |
+| GET | `/issues/facets` | none | The filter dropdowns' values, most common first: `{"labels", "topics", "tech", "languages": [{"value", "issues"}], "refreshed_at"}`. Refreshed daily by ingestd |
 | GET | `/issues/{id}` | none | One issue |
 | GET | `/issues/{id}/body` | optional | The body fallback, for a client GitHub refused for its own rate limit: `{"body"}` from the cache, or fetched by ingestd. `202 {"status": "queued", "reason": "budget" \| "no-credential" \| "disabled"}` when it cannot be fetched now; `429` past `api.bodies.fallback_misses_per_hour` misses (cache hits are free); `503` when the cap cannot be counted |
 | GET | `/recommendations` | session | Issues ranked for the user's profile (`difficulty`, `page`, `limit`) |
 | GET | `/preferences/options` | none | Selectable languages/interests for the profile form |
 
 `limit` and `page` are clamped, not refused: `/issues` to `api.issues.max_limit` / `api.issues.max_page`, `/recommendations` to `api.recommendations.max_limit` (`docs/settings.md`).
+
+**Filtering `/issues`.** Every list takes comma-separated values, any of which matches; filters
+combine with AND. More than `api.issues.filter_max_values` values in one list, or anything
+malformed, is a 400.
+
+| Parameter | Matches |
+|---|---|
+| `difficulty` | `BEGINNER`, `INTERMEDIATE`, `ADVANCED`, `UNCLASSIFIED` (any case) |
+| `language` | the repository's main language |
+| `tech` | any language GitHub reports in the repository |
+| `topics` | the repository's GitHub topics |
+| `labels` | the issue's labels, case-insensitively |
+| `comments_min`, `comments_max` | the comment count, inclusive; `comments_max=0` is "no comments yet" |
+| `sort` | browsing only. `shuffle` is each repository's best issue, repositories in a random order redrawn every `ingest.catalog.shuffle_interval_seconds`, the same for everyone in between. It's the default for cursor paging. `easiest` is difficulty then recently updated, the default for `?page`. `newest` is most recently opened. Shuffle and newest page only by cursor: `?page=2&sort=newest` is a 400. A search ignores it and orders by match category |
+
+Values for `labels`, `topics`, `tech` and `language` come from `GET /issues/facets`.
 
 **Paging `/issues`.** Two modes, chosen by whether `?cursor=` is present:
 
