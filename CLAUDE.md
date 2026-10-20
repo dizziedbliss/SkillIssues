@@ -438,7 +438,8 @@ remain in earlier git history, which is not rewritten.
 - `.github/workflows/deploy.yml` runs on push to `main`: `ci` → `build-push` (builds and pushes
   `ghcr.io/dizziedbliss/skillissues-{api,ingestd,flowd,migrate}` tagged `sha-<short>` and
   `latest`) → `deploy` (scp + ssh, runs `scripts/deploy-remote.sh` on the host) → `web` (Vercel). A deploy cannot
-  happen without CI passing. Rollback is `workflow_dispatch` with an older `sha-` tag — deploys
+  happen without CI passing, and runs queue (`concurrency: production-deploy`): two at once on the host
+  replace each other's containers. Rollback is `workflow_dispatch` with an older `sha-` tag — deploys
   always pin that, never `latest`. `build-push` attests provenance and cosign-signs each image by
   digest; `deploy-remote.sh` resolves the tag to a digest, runs `cosign verify` (signer: `deploy.yml`
   on `refs/heads/main`) and deploys that digest, so the host needs `cosign`. Actions are pinned to
