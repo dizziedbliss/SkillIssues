@@ -71,7 +71,7 @@ In the app, **Settings → Themes** has three tabs:
 
 A new theme, a customised built-in and a duplicate all start as a full copy: every token written out, so you change only the lines you want. Delete a line and it falls back to the base preset.
 
-**Appearance** in the profile menu lists your last few themes, to switch between in one click, and **See more themes** opens this page. With nothing chosen, the app uses Midnight. The theme button in the footer switches the theme in use between its light and dark halves.
+**Appearance** in the profile menu lists your last few themes, to switch between in one click, and **See more themes** opens this page. With nothing chosen, the app uses Midnight. The switch beside the theme in use, and the theme button in the footer, switch it between its light and dark halves.
 
 ### The editor
 
