@@ -4,9 +4,10 @@ import { StaticRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App";
 import { pages } from "./pages/content";
+import { docs } from "./pages/docs";
 
-/** Paths prerendered at build time: the landing page and every content page. */
-export const routes = ["/", ...pages.map((p) => p.path)];
+/** Paths prerendered at build time: the landing page, the legal pages and every docs page. */
+export const routes = ["/", ...pages.map((p) => p.path), ...docs.map((d) => d.path)];
 
 /** Renders one route to HTML. Live data is left to the browser: queries render their empty state. */
 export function render(url: string): { html: string; title: string } {
@@ -20,6 +21,6 @@ export function render(url: string): { html: string; title: string } {
       </QueryClientProvider>
     </StrictMode>,
   );
-  const page = pages.find((p) => p.path === url);
+  const page = pages.find((p) => p.path === url) ?? docs.find((d) => d.path === url);
   return { html, title: page ? `${page.title} · SkillIssues` : "" };
 }

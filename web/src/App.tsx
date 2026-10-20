@@ -4,6 +4,8 @@ import { Landing } from "./landing/Landing";
 import { ContentPage } from "./pages/ContentPage";
 import { NotFound } from "./pages/NotFound";
 import { pages } from "./pages/content";
+import { DocPage } from "./pages/DocPage";
+import { docs } from "./pages/docs";
 
 // The signed-in app is its own chunk: the landing page never loads it.
 const AppShell = lazy(() => import("./app/AppShell"));
@@ -34,6 +36,9 @@ export function App() {
       />
       {pages.map((p) => (
         <Route key={p.path} path={p.path} element={<ContentPage page={p} />} />
+      ))}
+      {docs.map((d) => (
+        <Route key={d.path} path={d.path} element={<DocPage doc={d} />} />
       ))}
       <Route
         path="/app/*"
