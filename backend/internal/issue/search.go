@@ -352,24 +352,3 @@ func (s *Service) UnsaveIssue(ctx context.Context, userID, issueID int) error {
 		userID, issueID,
 	)
 }
-
-// GetRecommendationCandidates fetches all open qualified issues for recommendation scoring.
-func (s *Service) GetRecommendationCandidates(ctx context.Context) ([]Issue, error) {
-	query := baseIssueSelect + `
-		WHERE i.state = 'OPEN'
-		ORDER BY i.difficulty_score, i.updated_at DESC
-	`
-	var candidates []Issue
-	err := s.db.QueryRows(ctx, query, nil, func(rows pgx.Rows) error {
-		it, err := scanIssue(rows)
-		if err != nil {
-			return err
-		}
-		candidates = append(candidates, it)
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("issue: get recommendation candidates: %w", err)
-	}
-	return candidates, nil
-}
