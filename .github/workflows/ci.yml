@@ -69,6 +69,7 @@ jobs:
             web:
               - *npm
               - web/**
+              - vercel.json
             desktop:
               - *npm
               - desktop/**
@@ -173,8 +174,8 @@ jobs:
       - name: Install
         # web, desktop and packages/* are one npm workspace (root
         # package.json) — a single install at the root resolves
-        # @skillissues/markdown, @skillissues/api-client and
-        # @skillissues/ui as real node_modules symlinks. Node 22's bundled
+        # @skillissues/client, @skillissues/theme and
+        # @skillissues/markdown as real node_modules symlinks. Node 22's bundled
         # npm (10.9.x) has a known bug where `npm ci` hard-fails on an
         # unrelated optionalDependency's platform mismatch instead of
         # skipping it, once enough workspace members (desktop's
@@ -222,6 +223,13 @@ jobs:
         run: |
           cd desktop
           npm run check
+      - name: Security rules
+        # security.ts holds the app's boundaries (window flags, API allowlist,
+        # link allowlist, workspace containment, how the push token reaches
+        # git); these tests pin them.
+        run: |
+          cd desktop
+          npm test
       - name: Build
         # electron-vite build is what actually catches a renderer import
         # breaking at the bundler level (e.g. a packages/* workspace
@@ -234,7 +242,6 @@ jobs:
     needs: changes
     if: >-
       needs.changes.outputs.backend == 'true' ||
-      needs.changes.outputs.web == 'true' ||
       needs.changes.outputs.compose == 'true'
     runs-on: ubuntu-24.04
     steps:
@@ -249,9 +256,9 @@ jobs:
         # so `config` can resolve the file; nothing here is a real credential.
         run: |
           docker compose -f compose.yaml config --quiet
-          POSTGRES_PASSWORD=ci DOMAIN=ci.example.com \
+          POSTGRES_PASSWORD=ci \
           FRONTEND_URL=https://ci.example.com \
-          GITHUB_REDIRECT_URI=https://ci.example.com/api/auth/github/callback \
+          GITHUB_REDIRECT_URI=https://api.ci.example.com/auth/github/callback API_DOMAIN=api.ci.example.com \
           GITHUB_WEBHOOK_SECRET=ci ADMIN_SYNC_TOKEN=ci \
           METRICS_DB_PASSWORD=ci API_DB_PASSWORD=ci INGEST_DB_PASSWORD=ci FLOW_DB_PASSWORD=ci \
           GRAFANA_ADMIN_PASSWORD=ci GRAFANA_SECRET_KEY=ci STREAM_DOMAIN=stream.ci.example.com \
@@ -260,11 +267,11 @@ jobs:
         # The image compose.prod.yaml runs, so a directive it does not know fails here.
         run: |
           image="$(grep -A1 '^  caddy:' compose.prod.yaml | sed -n 's/^ *image: //p')"
-          docker run --rm -e DOMAIN=ci.example.com -e STREAM_DOMAIN=stream.ci.example.com \
+          docker run --rm -e STREAM_DOMAIN=stream.ci.example.com -e API_DOMAIN=api.ci.example.com \
             -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" "$image" \
             caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
       - name: Set up Docker Buildx
-        if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.web == 'true'
+        if: needs.changes.outputs.backend == 'true'
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - name: Build api target
         if: needs.changes.outputs.backend == 'true'
@@ -302,14 +309,3 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Build web target
-        if: needs.changes.outputs.web == 'true'
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
-        with:
-          context: .
-          target: web
-          push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            VITE_API_URL=/api

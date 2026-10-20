@@ -1,32 +1,33 @@
 # SkillIssues Desktop
 
-Electron 44 app (electron-vite) with a React + TypeScript renderer built on the shared
-`@skillissues/ui` and `@skillissues/api-client` packages.
-
-It does what the web app does — browse, search, recommendations, saved issues, contributions —
-plus the local workspace flow: inspect an issue, press **Start challenge**, and it forks the
-repository with your own GitHub account, clones it into your workspace folder, points `origin`
-at your fork and `upstream` at the original, lets you create a branch and push it, and opens
-the folder in VS Code.
+Electron 44 app (electron-vite, TypeScript strict). Find an open-source issue, then fork, fix and
+open a pull request from one window:
+1. Sign in with GitHub.
+2. Pick an issue and press **Start work**. The app forks the repository to your account, clones your
+   fork into your workspace folder and switches to a branch for the issue.
+3. Open it in VS Code and make your change.
+4. Commit and push, then open the pull request.
 
 ## Run it
 
-Dependencies are installed once at the **repo root** (`web`, `desktop` and `packages/*` share
-one lockfile):
+Dependencies are installed once at the **repo root** (`web`, `desktop` and `packages/*` share one
+lockfile):
 
 ```bash
 npm ci                 # repo root
 cd desktop
-npm run dev            # hot reload; expects the API at http://localhost:8000
+npm run dev            # hot reload
 ```
 
-`npm run build && npm start` runs the built app without hot reload (`electron-vite preview`),
-which is closer to a packaged release.
+The app talks to `https://skillissues-api.dizziedbliss.lol`; set `SKILLISSUES_API_URL` to use another
+API (for example `http://localhost:8000` with the local stack). `npm run build && npm start` runs the
+built app without hot reload.
 
 ## Checks and release builds
 
 ```bash
-npm run check          # tsc over main, preload and renderer
+npm run check          # tsc over main, preload, shared and renderer
+npm test               # the security rules
 npm run build
 npm run dist:mac       # or dist:linux, dist:win, or dist for all three
 ```
@@ -35,14 +36,26 @@ Artifacts go to `desktop/dist/`. Signing and notarization come from the release 
 standard electron-builder variables; never commit certificates. `.github/workflows/release.yml`
 builds releases.
 
-## Security model
+## How it is put together
 
-- The renderer runs with `contextIsolation`, `sandbox` and no Node integration, behind a
-  Content Security Policy. It reaches the API only through a narrow preload bridge (`api:request`
-  and a fixed set of workspace actions) — backend secrets never enter it.
-- A single-instance lock; only allow-listed GitHub URLs open externally; the `skillissues://`
-  protocol is registered for deep links from the web app.
-- The workspace folder defaults to `~/Documents/SkillIssues` and can be changed in the app. Git
-  commands refuse to run outside it, run as bounded async child processes, and are logged to
-  `.skillissues/commands.log` inside each clone.
+- `src/shared/contract.ts` is the only interface between the page and the main process. The preload
+  exposes one `window.skillissues` method per channel, and nothing else.
+- `src/main/security.ts` holds the boundaries as pure functions, and `security.test.ts` pins them:
+  - the window's flags (`contextIsolation`, `sandbox`, no Node)
+  - the API calls the page may make
+  - the links that may open in the browser
+  - repository and branch names
+  - keeping workspaces inside the workspace folder
+  - how the push token reaches git
+- Sign-in is a GitHub device flow that asks for no permissions. Its token is posted once to the API,
+  which checks it and drops it; the app keeps only a SkillIssues session.
+- Pushing needs a second device flow, for `public_repo`. That token never leaves your computer and
+  must belong to the account you signed in with.
+- Tokens are kept in the OS keychain (`safeStorage`). On Linux without a keyring they are kept in
+  memory only, and you sign in again each launch; they are never written to disk in clear.
+- git runs as async child processes, with argument lists and no shell. The push token reaches git
+  through its environment, never the command line, and is removed from anything the app shows.
 - Cloned code is never executed.
+
+**One setting on GitHub:** desktop sign-in needs **Enable Device Flow** ticked on the Login OAuth
+app (GitHub → Settings → Developer settings → OAuth Apps → the Login app).

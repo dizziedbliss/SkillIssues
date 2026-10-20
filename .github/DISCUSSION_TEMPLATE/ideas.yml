@@ -1,0 +1,27 @@
+title: ""
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Half-formed ideas are welcome here. Once an idea is concrete and scoped, it can become a [feature request](https://github.com/dizziedbliss/SkillIssues/issues/new/choose). Please never paste tokens or secrets.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The situation or frustration behind the idea.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What's the idea?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do today instead? (optional)

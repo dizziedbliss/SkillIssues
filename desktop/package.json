@@ -1,7 +1,7 @@
 {
   "name": "skillissues-desktop",
   "version": "1.0.0",
-  "description": "SkillIssues desktop contribution workspace",
+  "description": "SkillIssues desktop: find an issue, then fork, fix and open a pull request",
   "author": "SkillIssues",
   "repository": {
     "type": "git",
@@ -17,7 +17,8 @@
     "dist": "npm run build && electron-builder --mac --linux --win",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:linux": "npm run build && electron-builder --linux",
-    "dist:win": "npm run build && electron-builder --win"
+    "dist:win": "npm run build && electron-builder --win",
+    "test": "node --test \"src/**/*.test.ts\""
   },
   "build": {
     "appId": "com.skillissues.desktop",
@@ -50,9 +51,10 @@
     }
   },
   "dependencies": {
-    "@skillissues/api-client": "1.0.0",
-    "@skillissues/markdown": "1.0.0",
-    "@skillissues/ui": "1.0.0",
+    "@fontsource/instrument-serif": "5.3.0",
+    "@fontsource/jetbrains-mono": "5.3.0",
+    "@skillissues/client": "2.0.0",
+    "@tanstack/react-query": "5.104.1",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

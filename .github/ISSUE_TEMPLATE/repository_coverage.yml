@@ -1,0 +1,57 @@
+name: "🔎 My repository isn't indexed, or is indexed wrongly"
+description: A repository is missing from the catalog, or shows the wrong stars, issues or state.
+title: "[Repository]: "
+labels: ["repository-coverage", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        There is nothing to sign up for. A public repository is listed once it passes the eligibility rules: at least the star floor (25 stars today), pushed to within the last two years, a main language, not a fork, not archived, and it has issues. The star floor is abuse control, not a judgement of quality. New repositories are found by a periodic sweep of GitHub's repository search and from GitHub's public event stream. The details are on the [For maintainers](https://skillissues.dizziedbliss.lol/maintainers) and [How it works](https://skillissues.dizziedbliss.lol/how-it-works) pages.
+
+        **Try the lookup on the [home page](https://skillissues.dizziedbliss.lol/) first.** It says whether a repository is indexed and, if it is stored but not crawled, why. Most missing repositories are explained there. If you are the maintainer and want a repository left out, use the "Exclude my repository" form instead.
+
+        Please never paste tokens or secrets. Security problems go to [private vulnerability reporting](https://github.com/dizziedbliss/SkillIssues/security/advisories/new), not issues.
+
+  - type: input
+    id: repository
+    attributes:
+      label: Repository
+      description: The full name, as owner/repo.
+      placeholder: "octocat/hello-world"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: problem
+    attributes:
+      label: What is wrong?
+      options:
+        - It isn't listed and I think it should be
+        - It is listed but its issues are missing or out of date
+        - It shows the wrong name, stars or other details (renamed, moved?)
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: lookup
+    attributes:
+      label: What did the lookup say?
+      description: Paste or describe the result of the home-page lookup (indexed or not, and the reason if it gave one). Use `GET /repositories/lookup?name=owner/repo` if you prefer the API.
+      placeholder: "Not indexed. Reason: below_star_floor"
+    validations:
+      required: true
+
+  - type: textarea
+    id: facts
+    attributes:
+      label: Why do you think it qualifies?
+      description: Current stars, date of the last push, main language, anything that has changed recently (renamed, un-archived, transferred).
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I looked the repository up on the home page before filing this.
+          required: true

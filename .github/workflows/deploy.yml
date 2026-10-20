@@ -15,6 +15,15 @@ on:
 permissions:
   contents: read
 
+# One release at a time. Three merges a minute apart once ran three deploys on
+# the host at once: each `compose up` replaced the others' containers, go-api
+# exited 0 mid-start, and two of the three failed. A run that arrives while one
+# is going waits; a newer arrival replaces a waiting one, since it holds every
+# change the waiting one would have shipped. A running deploy is never cancelled.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_OWNER: dizziedbliss
@@ -114,22 +123,6 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/skillissues-migrate:${{ steps.tag.outputs.sha_tag }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/skillissues-migrate:latest
 
-      - name: Build and push web
-        id: web
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
-        with:
-          context: .
-          target: web
-          platforms: linux/amd64
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            VITE_API_URL=/api
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/skillissues-web:${{ steps.tag.outputs.sha_tag }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/skillissues-web:latest
-
       # Provenance and a signature for each pushed image, by digest. Tags are
       # mutable; the host (deploy-remote.sh) refuses an image whose digest does
       # not carry a signature from this workflow on main.
@@ -164,13 +157,6 @@ jobs:
           subject-digest: ${{ steps.migrate.outputs.digest }}
           push-to-registry: true
 
-      - name: Attest provenance (web)
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/skillissues-web
-          subject-digest: ${{ steps.web.outputs.digest }}
-          push-to-registry: true
-
       - name: Sign images with cosign (keyless)
         env:
           PREFIX: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}
@@ -178,10 +164,9 @@ jobs:
           INGESTD_DIGEST: ${{ steps.ingestd.outputs.digest }}
           FLOWD_DIGEST: ${{ steps.flowd.outputs.digest }}
           MIGRATE_DIGEST: ${{ steps.migrate.outputs.digest }}
-          WEB_DIGEST: ${{ steps.web.outputs.digest }}
         run: |
           set -euo pipefail
-          for pair in "api:$API_DIGEST" "ingestd:$INGESTD_DIGEST" "flowd:$FLOWD_DIGEST" "migrate:$MIGRATE_DIGEST" "web:$WEB_DIGEST"; do
+          for pair in "api:$API_DIGEST" "ingestd:$INGESTD_DIGEST" "flowd:$FLOWD_DIGEST" "migrate:$MIGRATE_DIGEST"; do
             name="${pair%%:*}"
             digest="${pair#*:}"
             if ! printf '%s' "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
@@ -279,3 +264,46 @@ jobs:
           ssh -i ~/.ssh/deploy_key -p "$VPS_SSH_PORT" -o UserKnownHostsFile=~/.ssh/known_hosts \
             "$VPS_USER@$VPS_HOST" \
             "cd '$DEPLOY_PATH' && chmod +x deploy-remote.sh decrypt-env.sh backup-db.sh && ./deploy-remote.sh '$IMAGE_TAG'"
+
+  # The site, on Vercel. It ships after the API it calls has deployed, so a
+  # page never goes out ahead of an endpoint it needs, and it goes through the
+  # same CI gate (vercel.json turns off Vercel's own deploys from git). Skipped
+  # until the project is linked: repository variables VERCEL_ORG_ID and
+  # VERCEL_PROJECT_ID, secret VERCEL_TOKEN. Rollback is Vercel's "Instant
+  # Rollback" on an earlier deployment.
+  web:
+    needs: [ deploy ]
+    if: ${{ !github.event.inputs.image_tag && vars.VERCEL_PROJECT_ID != '' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      # Built into the bundle: the API's own host (Caddyfile, {$API_DOMAIN}).
+      VITE_API_URL: https://skillissues-api.dizziedbliss.lol
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22'
+      - name: Check the CSP allows the API
+        # The page's Content-Security-Policy (vercel.json) refuses every
+        # connection it does not list, so a bundle built for one API host
+        # under a policy naming another would load and then fetch nothing.
+        run: |
+          if ! grep -q "connect-src[^;]* $VITE_API_URL[ ;]" vercel.json; then
+            echo "vercel.json connect-src does not list $VITE_API_URL" >&2
+            exit 1
+          fi
+      - name: Build
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          npx --yes vercel@62.2.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
+          npx --yes vercel@62.2.0 build --prod --token="$VERCEL_TOKEN"
+      - name: Deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx --yes vercel@62.2.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN"

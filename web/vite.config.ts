@@ -21,5 +21,9 @@ export default defineConfig({
     // The prerender step (scripts/prerender.mjs) reads the manifest to
     // preload the fonts the first paint needs.
     manifest: true,
+    // Never inline a font as a data: URL: the CSP's font-src is 'self' only
+    // (vercel.json), so an inlined subset would be blocked and its glyphs
+    // fall back. Other small assets keep Vite's default.
+    assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
   },
 });

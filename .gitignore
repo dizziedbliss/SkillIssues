@@ -39,3 +39,6 @@ backend/api
 # Operator docs: local only, never pushed (see CLAUDE.md, "Local-only documents").
 /DEPLOYMENT.md
 /docs/runbook.md
+
+# Vercel CLI link and build output (vercel pull / vercel build)
+.vercel/

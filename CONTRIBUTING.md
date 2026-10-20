@@ -1,7 +1,7 @@
 # Contributing to SkillIssues
 
 Thanks for being here — typo fixes, bug reports, tests and features are all welcome, and nobody
-expects you to understand the whole codebase on day one. Ask questions in issues or on your PR.
+expects you to understand the whole codebase on day one. Ask questions in [Discussions](https://github.com/dizziedbliss/SkillIssues/discussions) or on your PR.
 
 This is production code: it runs against the real GitHub API and attributes real contributions
 to real accounts. The non-negotiable rules are in [CLAUDE.md](CLAUDE.md) (written for AI
@@ -107,11 +107,10 @@ cd desktop && npm run check && npm run build
   `BEGINNER`.
 
 **Web and desktop**
-- No `any`; declare types for API payloads (they belong in `packages/api-client`).
+- No `any`; declare types for API payloads (they belong in `packages/client`).
 - Render issue bodies only through `@skillissues/markdown` — they're attacker-controlled.
-- Shared UI goes in `packages/ui`; platform differences come in as props, not forked copies.
-- Desktop: keep `contextIsolation`, `sandbox` and the narrow preload bridge; run git
-  asynchronously so the UI never blocks.
+- Desktop: keep `contextIsolation`, `sandbox` and the typed bridge (`src/shared/contract.ts`); a new
+  boundary rule goes in `src/main/security.ts` with a test. Run git asynchronously so the UI never blocks.
 
 ## Security issues
 
