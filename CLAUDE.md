@@ -197,7 +197,9 @@ app still uses the last three until its own rebuild.
 - **`pages/`** — the written pages (`pages/content.ts`); every claim must describe what the code does.
   Pages marked `draft` say so on the page.
 - **`app/`** — the signed-in app. Until its designs arrive, a plain working catalog.
-- **`lab/`** — drafts for the owner to judge (`/lab/backdrop`); nothing there ships on `/`.
+- **`lab/`** — backdrop drafts for the owner to judge, with a switcher, behind `/` and `/lab/backdrop`
+  until one is picked. They load after hydration (`DeferredBackdrop` in `App.tsx`), so the
+  prerendered page and first paint never include them.
 - **Prerendered**: `npm run build` renders `/` and every content page to HTML
   (`scripts/prerender.mjs`, `src/entry-server.tsx`); the client hydrates a page only when its
   `data-route` matches. Vercel serves `shell.html` (no markup) for every other route.
