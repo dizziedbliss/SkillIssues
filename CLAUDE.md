@@ -631,7 +631,9 @@ Every key with its default and bounds: `docs/settings.md`.
   matches too many to count quickly are too many to sort. A difficulty filter is restated on
   `difficulty_score` (fixed per difficulty by `sync.ClassifyLabels`) so the order indexes can range
   over it, and functional-dependency statistics (`issues_difficulty_dep`, migration 00046) keep the
-  planner from multiplying the two conditions' selectivities. The shuffled feed walks repositories
+  planner from multiplying the two conditions' selectivities. Expression statistics on `catalog_lower_labels(labels)` and a larger sample for
+  `repositories.tech` (00048) keep it from guessing 0.5% for a label, which made it probe the labels index
+  once per repository of a tech (bug + Go: 7s, 41ms once estimated). The shuffled feed walks repositories
   without a rarity count (only a languages-only filter checks the cached counts), finds each one's
   labelled issues a batch of repositories at a time (`repository_id = ANY(batch)`: a common label's GIN
   posting list read once per batch, not once per repository), after
