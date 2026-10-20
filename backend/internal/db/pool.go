@@ -29,6 +29,8 @@ type Config struct {
 	MinConns        int32
 	MaxConnLifetime time.Duration
 	MaxConnIdleTime time.Duration
+	// WorkMemMB, when above 0, sets work_mem on every connection.
+	WorkMemMB int
 }
 
 // DefaultConfig returns sane production defaults for the connection pool.
@@ -54,6 +56,9 @@ func New(ctx context.Context, cfg Config) (*Pool, error) {
 	poolCfg.MinConns = cfg.MinConns
 	poolCfg.MaxConnLifetime = cfg.MaxConnLifetime
 	poolCfg.MaxConnIdleTime = cfg.MaxConnIdleTime
+	if cfg.WorkMemMB > 0 {
+		poolCfg.ConnConfig.RuntimeParams["work_mem"] = fmt.Sprintf("%dMB", cfg.WorkMemMB)
+	}
 
 	// Every statement is a hop in the live visualizer: verb and table only,
 	// never the SQL or its arguments. A no-op in a process that installs no

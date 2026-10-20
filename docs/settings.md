@@ -51,6 +51,8 @@ readable through the endpoint above and copied into backups.
 | `api.issues.filter_max_values` | 20 | 1–100 | Most values one `GET /issues` filter may name; more is a 400 |
 | `api.issues.query_timeout_ms` | 10000 | 100–25000 | Deadline for the queries behind one `GET /issues` or `GET /issues/{id}`; a query that misses it is cancelled and the caller gets 503. Keep it below the server's 30 s write timeout |
 | `api.issues.rare_language_threshold` | 20000 | 0–1000000 | Browsing a language (`?language=`, or a signed-in caller's preferred languages) with fewer open issues than this sorts that language's issues instead of walking the catalog index (0 = always walk) |
+| `api.issues.rare_probe_ms` | 500 | 0–10000 | Time limit on counting a filter combination to choose how to read it; slower = read in index order |
+| `api.issues.shuffle_walk_max_repos` | 3000 | 0–1000000 | Repositories one shuffled-feed page walks before reading the rest from the matching issues |
 | `api.issues.language_count_ttl_seconds` | 600 | 0–86400 | How long each language's counted open issues are reused for that decision (0 = count every request) |
 
 ## Ingestion

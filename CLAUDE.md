@@ -607,7 +607,12 @@ Every key with its default and bounds: `docs/settings.md`.
   filters. Labels match case-insensitively through `catalog_lower_labels()`, tech through the
   generated `repositories.tech`. A filtered page whose matches are rare (`issue.isRare`, under
   `api.issues.rare_language_threshold`) is read through the filters' own indexes and sorted,
-  rather than by walking an order index. The dropdown values are `catalog_facets`, recomputed by
+  rather than by walking an order index. That count is itself bounded (`api.issues.rare_probe_ms`):
+  matches too many to count quickly are too many to sort. A difficulty filter is restated on
+  `difficulty_score` (fixed per difficulty by `sync.ClassifyLabels`) so the order indexes can range
+  over it. The shuffled feed walks at most `api.issues.shuffle_walk_max_repos` repositories per page,
+  then reads the rest from the matches. go-api's connections run with `DB_WORK_MEM_MB` (32 in prod)
+  so label bitmaps stay exact: a lossy one re-checked ~550k rows and took 8s. The dropdown values are `catalog_facets`, recomputed by
   ingestd every `ingest.catalog.facets_refresh_seconds`; never count them per request.
 - **Live counts are kept, never counted per request**: `GET /stats` (open, closed since tracking
   began, arrived/closed today, indexed issues and repositories, signed-up developers, recent

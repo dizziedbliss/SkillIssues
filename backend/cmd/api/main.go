@@ -62,6 +62,7 @@ func main() {
 		// max_connections (60 in prod) with room for migrate and superuser.
 		dbCfg.MaxConns = 15
 	}
+	dbCfg.WorkMemMB = cfg.DBWorkMemMB
 	pool, err := db.New(ctx, dbCfg)
 	if err != nil {
 		slog.Error("database connection failed", "error", err)
