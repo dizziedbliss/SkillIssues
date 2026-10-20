@@ -149,9 +149,11 @@ var Schema = map[string]map[string]kind{
 		"schema": number(SchemaVersion, SchemaVersion),
 	},
 	"colors": colorKeys,
-	// The same keys for the dark half of a light/dark pair: Appearance's
-	// switch moves between [colors] and these.
-	"dark": colorKeys,
+	// A theme's light and dark halves: in light or dark mode (the app's
+	// light/dark button), the keys set in [light] or [dark] replace those
+	// in [colors].
+	"light": colorKeys,
+	"dark":  colorKeys,
 	"background": {
 		"image": image, "pattern": enum("none", "grid", "dots", "lines"), "pattern-color": color,
 		"pattern-size": length(4, 96),

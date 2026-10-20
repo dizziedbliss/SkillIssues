@@ -59,7 +59,7 @@ Set `base` in the `[meta]` table to start from one of these:
 | `tokyo-night` | Tokyo Night's blues. |
 | `rose-pine` | Rosé Pine's muted dark. |
 
-The palettes come from each project's published colours. The rounded ones also round corners and fade between pages.
+The palettes come from each project's published colours, and every built-in has a light and a dark half (see `[light]` and `[dark]` below). A few colours were darkened so text and buttons pass a 4.5:1 contrast check, such as Nord's frost blue in light mode. The rounded ones also round corners and fade between pages.
 
 ## Starting a theme in the app
 
@@ -71,11 +71,11 @@ In the app, **Settings → Themes** has three tabs:
 
 A new theme, a customised built-in and a duplicate all start as a full copy: every token written out, so you change only the lines you want. Delete a line and it falls back to the base preset.
 
-**Appearance** in the profile menu lists your last few themes, to switch between in one click, and **See more themes** opens this page. With nothing chosen, the app uses Midnight.
+**Appearance** in the profile menu lists your last few themes, to switch between in one click, and **See more themes** opens this page. With nothing chosen, the app uses Midnight. The theme button in the footer switches the theme in use between its light and dark halves.
 
 ### The editor
 
-The editor checks your theme as you type, by the same rules and in the same words as the server, with the line each problem is on. Beside it, a **preview** shows the app's own pieces (the nav, an issue card, buttons, a field, a notice, code) in your draft, without changing the theme the app is using. A theme with a `[dark]` half has a switch to preview that half. Under the preview, a token map says which token paints what.
+The editor checks your theme as you type, by the same rules and in the same words as the server, with the line each problem is on. Beside it, a **preview** shows the app's own pieces (the nav, an issue card, buttons, a field, a notice, code) in your draft, without changing the theme the app is using. Light and Dark choose which half the preview shows. Under the preview, a token map says which token paints what.
 
 ## Tables and keys
 
@@ -118,9 +118,11 @@ Every key here takes a colour.
 | `info` | Notices. Without it, the accent. |
 | `code-background` | Code in issue descriptions. Without it, `surface-raised`. |
 
-### `[dark]`
+### `[light]` and `[dark]`
 
-The same keys as `[colors]`, for a light and dark pair in one theme. When your device asks for dark (its `prefers-color-scheme`), the keys you set here replace those in `[colors]`; the rest stay. Leave the table out and the theme looks the same either way.
+The same keys as `[colors]`, for a theme's light and dark halves. The app has a light/dark mode, switched with the theme button in the footer and dark until you switch it. In light mode the keys in `[light]` replace those in `[colors]`, and in dark mode the keys in `[dark]` do; the rest stay. A theme with neither looks the same in both modes.
+
+Every built-in has both halves: the dark ones bring their projects' official light variants (Catppuccin Latte, Alucard for Dracula, Nord's Snow Storm, Gruvbox light, Tokyo Night Day, Rosé Pine Dawn) and the light ones their dark ones. Each half of a theme is applied on top of the same half of its base preset, so a dark theme's own colours always win in dark mode.
 
 The app also sets the CSS `color-scheme` of its root to `dark` or `light` from the background colour in use, so scrollbars and form controls match. Inside your stylesheet, `light-dark()` follows it.
 

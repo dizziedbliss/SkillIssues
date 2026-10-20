@@ -209,8 +209,10 @@ path reaching outside the importing project). Both apps are built on `client`; t
   header (`AppHeader.tsx`: Explore, and Profile's menu: Settings, Appearance, Language, Sign out —
   "Sign in" while signed out), the page for the route, and the shared footer. `theme.tsx` applies the
   chosen theme to that root only: a built-in by name or a stored theme, kept by the server signed in
-  (`GET/PUT /me/theme`) and by the browser signed out; nothing chosen is Midnight. A theme's `[dark]`
-  half shows when the device prefers dark. The browser keeps the last few choices: Appearance in the
+  (`GET/PUT /me/theme`) and by the browser signed out; nothing chosen is Midnight. Every theme has light and dark
+  halves (`[light]`/`[dark]`, folded per layer in `packages/theme/src/modes.ts`; every built-in has
+  both); the mode is the person's, kept by the browser, dark by default, and the footer's theme
+  button switches it. The browser keeps the last few choices: Appearance in the
   menu lists them to switch between (no switch), with "See more themes". `explore/` is the catalog as designed: its state
   lives in the address (`query.ts`: absent `difficulty` means the profile's level, empty means all),
   the filter panel takes `/issues/facets`, and the pager (`useCatalog.ts`) pages forward on cursors
@@ -253,8 +255,8 @@ path reaching outside the importing project). Both apps are built on `client`; t
 - **Light and dark; dark by default.** The landing, docs and written pages have a locked dark
   version (`tokens.module.css`, `html[data-mode="dark"]`, set in `index.html`; `public/mode.js` takes
   it off before the first paint when the browser chose light; `lib/siteMode.ts`), and the app starts
-  on Midnight; the footer's theme button switches the site outside the app, and goes back to the
-  previous theme inside it (`lib/themeToggle.ts`). User themes still never reach those pages.
+  on Midnight; the footer's theme button switches the site outside the app, and the theme's
+  light and dark halves inside it (`lib/themeToggle.ts`). User themes still never reach those pages.
 - **Prerendered**: `npm run build` renders `/`, the legal pages and every docs page to HTML
   (`scripts/prerender.mjs`, `src/entry-server.tsx`); the client hydrates a page only when its
   `data-route` matches. Vercel serves `shell.html` (no markup) for every other route.
@@ -755,7 +757,7 @@ Every key with its default and bounds: `docs/settings.md`.
   `users.active_preset`, migration 00051, or null). Built-ins (`Presets`, both sides) include
   well-known palettes. Problems carry their line (`line 7: …`, `stylesheet line 3: …`), word for word
   the same on both sides (`fixtures/problems`). Tokens added after the first release (`colors.link`,
-  `info`, `accent-hover`, `code-background`, `[dark]`, typography case and tracking,
+  `info`, `accent-hover`, `code-background`, `[light]`/`[dark]`, typography case and tracking,
   `sidebar-width`, `shadow.focus`, `motion.stagger`, background image placement) are optional and
   the app falls back without them; Default doesn't set them, so presets inherit nothing wrong.
   `@property` is allowed only for `--theme-*` names and is lifted out of `@scope` by `applyTheme`;

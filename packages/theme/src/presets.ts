@@ -67,6 +67,22 @@ duration = "380ms"
 easing = "ease-out"
 reduce = false
 transition = "wipe"
+
+# Midnight's colours, after dark.
+[dark]
+background = "#0a0a0c"
+surface = "#111114"
+surface-raised = "#18181c"
+text = "#f2f2f2"
+text-muted = "#9a9aa2"
+accent = "#ff3030"
+accent-text = "#000000"
+border = "#f2f2f2"
+focus = "#ff3030"
+success = "#5ac800"
+warning = "#f0a000"
+danger = "#ff3030"
+selection = "#ff303040"
 `,
   midnight: `
 [meta]
@@ -85,6 +101,22 @@ accent = "#ff3030"
 accent-text = "#000000"
 border = "#f2f2f2"
 selection = "#ff303040"
+
+# Default's paper and ink, by day.
+[light]
+background = "#ffffff"
+surface = "#ffffff"
+surface-raised = "#f6f6f6"
+text = "#000000"
+text-muted = "#6b6b6b"
+accent = "#ff0000"
+accent-text = "#000000"
+border = "#000000"
+focus = "#ff0000"
+success = "#5ac800"
+warning = "#f0a000"
+danger = "#ff0000"
+selection = "#ff000033"
 `,
   terminal: `
 [meta]
@@ -112,6 +144,22 @@ scale = 1.15
 pattern = "lines"
 pattern-color = "#7dff7a14"
 pattern-size = "4px"
+
+# Green on paper.
+[light]
+background = "#f3fbf2"
+surface = "#f3fbf2"
+surface-raised = "#e4f2e2"
+text = "#0b4f0b"
+text-muted = "#2d6b2b"
+accent = "#0b7a0b"
+accent-text = "#f3fbf2"
+border = "#2d6b2b"
+focus = "#000000"
+success = "#0b7a0b"
+warning = "#8a6d00"
+danger = "#b00020"
+selection = "#0b7a0b33"
 `,
   contrast: `
 [meta]
@@ -132,6 +180,22 @@ line-height = 1.6
 
 [border]
 width = "2px"
+
+# Black, white and yellow focus.
+[dark]
+background = "#000000"
+surface = "#000000"
+surface-raised = "#111111"
+text = "#ffffff"
+text-muted = "#ffffff"
+accent = "#ff4d4d"
+accent-text = "#000000"
+border = "#ffffff"
+focus = "#ffd400"
+success = "#3ddc84"
+warning = "#ffd400"
+danger = "#ff4d4d"
+selection = "#ff4d4d55"
 `,
   "catppuccin-mocha": `
 [meta]
@@ -162,6 +226,22 @@ large = "12px"
 
 [motion]
 transition = "fade"
+
+# Catppuccin Latte.
+[light]
+background = "#eff1f5"
+surface = "#e6e9ef"
+surface-raised = "#ccd0da"
+text = "#4c4f69"
+text-muted = "#5c5f77"
+accent = "#8839ef"
+accent-text = "#eff1f5"
+border = "#acb0be"
+focus = "#7287fd"
+success = "#40a02b"
+warning = "#df8e1d"
+danger = "#d20f39"
+selection = "#8839ef33"
 `,
   "catppuccin-latte": `
 [meta]
@@ -192,6 +272,22 @@ large = "12px"
 
 [motion]
 transition = "fade"
+
+# Catppuccin Mocha.
+[dark]
+background = "#1e1e2e"
+surface = "#181825"
+surface-raised = "#313244"
+text = "#cdd6f4"
+text-muted = "#a6adc8"
+accent = "#cba6f7"
+accent-text = "#1e1e2e"
+border = "#585b70"
+focus = "#b4befe"
+success = "#a6e3a1"
+warning = "#f9e2af"
+danger = "#f38ba8"
+selection = "#cba6f740"
 `,
   "dracula": `
 [meta]
@@ -222,6 +318,22 @@ large = "8px"
 
 [motion]
 transition = "fade"
+
+# Alucard, Dracula's light theme.
+[light]
+background = "#fffbeb"
+surface = "#fff6d6"
+surface-raised = "#efe9d0"
+text = "#1f1f1f"
+text-muted = "#635d97"
+accent = "#a3144d"
+accent-text = "#fffbeb"
+border = "#cfcfde"
+focus = "#644ac9"
+success = "#14710a"
+warning = "#846e15"
+danger = "#cb3a2a"
+selection = "#a3144d33"
 `,
   "nord": `
 [meta]
@@ -252,6 +364,22 @@ large = "8px"
 
 [motion]
 transition = "fade"
+
+# Nord's Snow Storm (the frost blue darkened so buttons read).
+[light]
+background = "#eceff4"
+surface = "#e5e9f0"
+surface-raised = "#d8dee9"
+text = "#2e3440"
+text-muted = "#4c566a"
+accent = "#4c6a92"
+accent-text = "#eceff4"
+border = "#9aa5b8"
+focus = "#81a1c1"
+success = "#5f7a46"
+warning = "#b06a3c"
+danger = "#bf616a"
+selection = "#5e81ac33"
 `,
   "gruvbox": `
 [meta]
@@ -274,6 +402,22 @@ success = "#b8bb26"
 warning = "#fabd2f"
 danger = "#fb4934"
 selection = "#fe801940"
+
+# Gruvbox light.
+[light]
+background = "#fbf1c7"
+surface = "#f9f5d7"
+surface-raised = "#ebdbb2"
+text = "#3c3836"
+text-muted = "#665c54"
+accent = "#af3a03"
+accent-text = "#fbf1c7"
+border = "#bdae93"
+focus = "#b57614"
+success = "#79740e"
+warning = "#b57614"
+danger = "#9d0006"
+selection = "#af3a0333"
 `,
   "solarized-light": `
 [meta]
@@ -301,6 +445,22 @@ selection = "#cb4b1633"
 small = "2px"
 medium = "3px"
 large = "4px"
+
+# Solarized Dark.
+[dark]
+background = "#002b36"
+surface = "#073642"
+surface-raised = "#0a4050"
+text = "#93a1a1"
+text-muted = "#839496"
+accent = "#cb4b16"
+accent-text = "#ffffff"
+border = "#586e75"
+focus = "#268bd2"
+success = "#859900"
+warning = "#b58900"
+danger = "#dc322f"
+selection = "#cb4b1640"
 `,
   "tokyo-night": `
 [meta]
@@ -331,6 +491,22 @@ large = "10px"
 
 [motion]
 transition = "fade"
+
+# Tokyo Night Day.
+[light]
+background = "#e1e2e7"
+surface = "#e9e9ed"
+surface-raised = "#d5d6db"
+text = "#2f52a8"
+text-muted = "#4a5a96"
+accent = "#7847bd"
+accent-text = "#ffffff"
+border = "#a8aecb"
+focus = "#2e7de9"
+success = "#587539"
+warning = "#8c6c3e"
+danger = "#f52a65"
+selection = "#7847bd33"
 `,
   "rose-pine": `
 [meta]
@@ -361,6 +537,22 @@ large = "12px"
 
 [motion]
 transition = "fade"
+
+# Rosé Pine Dawn.
+[light]
+background = "#faf4ed"
+surface = "#fffaf3"
+surface-raised = "#f2e9e1"
+text = "#575279"
+text-muted = "#625e7d"
+accent = "#286983"
+accent-text = "#faf4ed"
+border = "#dfdad9"
+focus = "#907aa9"
+success = "#56949f"
+warning = "#ea9d34"
+danger = "#b4637a"
+selection = "#28698333"
 `,
 } as const;
 

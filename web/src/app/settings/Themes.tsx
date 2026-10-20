@@ -142,7 +142,14 @@ function Yours() {
   const mine = useQuery({ queryKey: ["themes"], queryFn: ({ signal }) => api.themes({ signal }) });
   const remove = useMutation({
     mutationFn: (id: string) => api.deleteTheme(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["themes"] }),
+    onSuccess: (_res, id) => {
+      // Gone from the recents too; if it was in use, the server has gone back to the default.
+      appearance.forget(id);
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["themes"] }),
+        queryClient.invalidateQueries({ queryKey: ["theme", "active"] }),
+      ]);
+    },
   });
 
   function duplicate(th: Theme) {
