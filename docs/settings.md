@@ -37,6 +37,7 @@ readable through the endpoint above and copied into backups.
 | `api.cache.recommendations_ttl_seconds` | 300 | 0–3600 | Cache for per-user recommendations (0 = off) |
 | `api.cache.public_max_age_seconds` | 60 | 0–3600 | `Cache-Control` max-age on catalog and search responses to signed-out callers (0 = `no-cache`) |
 | `api.cache.public_stale_seconds` | 300 | 0–86400 | `stale-while-revalidate` on the same responses |
+| `api.stats.max_age_seconds` | 10 | 0–3600 | Public cache lifetime of `GET /stats` (the landing page polls it) |
 | `api.cache.redis_timeout_ms` | 250 | 10–5000 | Deadline for one Redis call, connecting included; a call that misses it fails open |
 | `api.cache.redis_retry_seconds` | 5 | 1–300 | After a failed Redis call, how long Redis is skipped before one call probes for recovery |
 | `api.http.max_body_bytes` | 1048576 | 1024–104857600 | Largest request body on any API route except the webhook; larger gets 413 |
@@ -92,6 +93,9 @@ readable through the endpoint above and copied into backups.
 | `ingest.catalog.shuffle_interval_seconds` | 86400 | 3600–2592000 | How often the shuffled feed's repository order is redrawn |
 | `ingest.catalog.facets_refresh_seconds` | 86400 | 3600–2592000 | How often the filter dropdowns' values and counts (`catalog_facets`) are recomputed |
 | `ingest.catalog.facets_max_values` | 300 | 10–5000 | Values kept per filter kind, most common first |
+| `ingest.stats.rollup_seconds` | 5 | 1–3600 | How often ingestd folds the issue-change deltas into the live counts |
+| `ingest.stats.recount_seconds` | 3600 | 60–86400 | How often the open-issue and repository totals are recounted exactly |
+| `ingest.stats.activity_rows` | 50 | 0–1000 | Recent crawl/archive commits `GET /stats` lists as activity |
 | `ingest.bodies.cache_max_mb` | 512 | 0–100000 | Size the issue body cache is trimmed back to, least recently read first; saved issues' bodies are always kept (0 = keep only those) |
 | `ingest.bodies.prune_interval_seconds` | 3600 | 60–86400 | How often the issue body cache is trimmed |
 | `ingest.archive.enabled` | false | — | Read GH Archive's hourly public event files and apply their issue events to stored repositories |

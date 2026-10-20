@@ -91,8 +91,11 @@ func (f *filterFixture) repo(t *testing.T, shuffleKey int, language string, lang
 	langs += "]"
 	var id int
 	if err := f.pool.QueryRow(context.Background(),
-		`INSERT INTO repositories (full_name, url, language, topics, languages, shuffle_key)
-		 VALUES ($1, 'u', $2, ARRAY[$3], $4::jsonb, $5) RETURNING id`,
+		// Metadata that passes eligibility: other packages' tests re-judge
+		// every repository concurrently (ingest.RecomputeEligibility), and a
+		// fixture they flip to ineligible drops out of the feed mid-test.
+		`INSERT INTO repositories (full_name, url, language, topics, languages, shuffle_key, stars, pushed_at)
+		 VALUES ($1, 'u', $2, ARRAY[$3], $4::jsonb, $5, 100000, now()) RETURNING id`,
 		[]any{fmt.Sprintf("%s/r%d", f.topic, len(f.repos)), language, f.topic, langs, shuffleKey},
 		func(row pgx.Row) error { return row.Scan(&id) }); err != nil {
 		t.Fatal(err)
