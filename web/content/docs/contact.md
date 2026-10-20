@@ -4,7 +4,7 @@ slug: /contact
 section: Support
 summary: The quickest way to reach us is on GitHub; here is which route fits which problem.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 SkillIssues is run by one maintainer and has no support email address. The quickest way to reach us is on GitHub.
@@ -15,9 +15,9 @@ SkillIssues is run by one maintainer and has no support email address. The quick
 |---|---|
 | Report something broken | [Report a bug](/docs/report-a-bug) |
 | Suggest an improvement | [Request a feature](/docs/request-a-feature) |
-| Ask a question or start a conversation | [Open an issue](https://github.com/dizziedbliss/SkillIssues/issues/new). See also [Discussions](/docs/discussions). |
+| Ask a question or start a conversation | [Ask in Discussions](https://github.com/dizziedbliss/SkillIssues/discussions/new?category=q-a). See also [Discussions](/docs/discussions). |
 | Get a repository listed, or removed | [Suggest a repository](/docs/suggest-a-repository) and [For maintainers](/maintainers) |
-| Ask us to delete your account or data | [Open an issue](https://github.com/dizziedbliss/SkillIssues/issues/new). Don't include private details. See [Privacy policy](/privacy). |
+| Delete your account or data | In the app, **Settings → Account → Delete account**. If you can't sign in, email privacy@dizziedbliss.lol, not a public issue. See [Privacy policy](/privacy). |
 | Report a security problem | Privately. See [Security](/security). |
 
 ## Before you write

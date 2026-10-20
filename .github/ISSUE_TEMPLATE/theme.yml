@@ -1,4 +1,4 @@
-name: "🎨 Theme bug or theme engine request"
+name: "Theme bug or theme engine request"
 description: A theme won't apply, a preset looks wrong, or the theme format can't express something you need.
 title: "[Theme]: "
 labels: ["themes", "triage"]
