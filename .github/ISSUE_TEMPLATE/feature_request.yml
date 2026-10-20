@@ -1,19 +1,23 @@
-name: ✨ Feature request
-description: Have an idea to make issue discovery or workspace setup even better?
+name: "✨ Feature request"
+description: Have a concrete idea to make finding or working on an issue better?
 title: "[Feature]: "
-labels: ["enhancement"]
+labels: ["enhancement", "triage"]
 body:
   - type: markdown
     attributes:
       value: |
         Got an idea that would make sorting the issue chaos smoother, faster, or more fun? Let us know!
 
+        Not sure it is fully formed yet? Float it in [Ideas](https://github.com/dizziedbliss/SkillIssues/discussions/categories/ideas) first, and open a request here once it is concrete.
+
+        Please never paste tokens or secrets. Security problems go to [private vulnerability reporting](https://github.com/dizziedbliss/SkillIssues/security/advisories/new), not issues.
+
   - type: textarea
     id: problem
     attributes:
       label: What problem does this solve?
       description: What is currently frustrating, awkward, or missing?
-      placeholder: "Right now when I try to find issues in X ecosystem, it's tricky because..."
+      placeholder: "When I look for issues in a language I'm learning, I can't tell which ones have an active discussion..."
     validations:
       required: true
 
@@ -22,7 +26,6 @@ body:
     attributes:
       label: Proposed solution
       description: How would you like this to work?
-      placeholder: "It would be awesome if we could filter by..."
     validations:
       required: true
 
@@ -30,8 +33,7 @@ body:
     id: alternatives
     attributes:
       label: Alternatives considered
-      description: Did you think of other ways to solve this or workarounds you're using today?
-      placeholder: "I considered doing Y, but Z seems cleaner because..."
+      description: Did you think of other ways to solve this, or workarounds you use today?
 
   - type: dropdown
     id: area
@@ -39,12 +41,12 @@ body:
       label: Area of the project
       description: Which component would this feature touch?
       options:
-        - Desktop App (Electron)
-        - Web Dashboard (React / Vite)
+        - Web app (catalog, search, filters)
+        - Themes
+        - Desktop app (Electron)
         - Backend API (Go)
-        - Search & Recommendation Engine
-        - Ingestion & Sync (ingestd)
-        - Gamification / Badges / XP
+        - Ingestion and sync (ingestd)
+        - Website pages
         - Other
     validations:
       required: true
@@ -54,4 +56,4 @@ body:
     attributes:
       label: Willing to help?
       options:
-        - label: I would be interested in opening a PR or helping implement this feature!
+        - label: I would be interested in opening a PR or helping implement this feature.

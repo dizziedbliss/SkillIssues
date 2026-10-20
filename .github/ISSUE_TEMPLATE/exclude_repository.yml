@@ -1,0 +1,47 @@
+name: "🚫 Exclude my repository"
+description: For maintainers who want a repository left out of the catalog.
+title: "[Exclude]: "
+labels: ["exclusion-request", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        SkillIssues lists public repositories that pass its eligibility rules. If you maintain a repository and would rather it were not listed, we will add it to the exclusion list. An excluded repository is not crawled, and its stored issues are removed (except any a user has saved).
+
+        Everything shown here is public GitHub data. We can only act on a request from someone who maintains the repository, and we may ask you to prove it (for example by commenting from an account with write access).
+
+        Please never paste tokens or secrets. Security problems go to [private vulnerability reporting](https://github.com/dizziedbliss/SkillIssues/security/advisories/new), not issues.
+
+  - type: input
+    id: repository
+    attributes:
+      label: Repository
+      description: The full name, as owner/repo. One repository per request.
+      placeholder: "octocat/hello-world"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: role
+    attributes:
+      label: Your role
+      options:
+        - Owner
+        - Maintainer with write access
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why should it be left out? (optional)
+      description: You don't have to give a reason, but it helps us fix anything that is our fault.
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      options:
+        - label: I am a maintainer of this repository, with the authority to ask for this.
+          required: true

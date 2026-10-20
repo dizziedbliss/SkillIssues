@@ -1,0 +1,78 @@
+name: "🖥️ Desktop app"
+description: A bug in the SkillIssues desktop app (Electron).
+title: "[Desktop]: "
+labels: ["desktop", "bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The desktop app is being rebuilt alongside the website, so some things may change or be missing. A report is still welcome, especially if it is about forking, cloning, pushing or sign-in.
+
+        **Never paste tokens, secrets or the contents of your credential files.** The app keeps your GitHub token on your computer, so logs you copy may contain more than you expect: read them before pasting. Security problems go to [private vulnerability reporting](https://github.com/dizziedbliss/SkillIssues/security/advisories/new), not issues.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the app
+        2. Pick an issue and press '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      placeholder: "Windows 11 23H2 / macOS 15 / Ubuntu 24.04"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: The release you installed, for example the tag on the GitHub releases page.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Check them for tokens before pasting.
+      render: shell
+
+  - type: checkboxes
+    id: safety-check
+    attributes:
+      label: Secret-safety checklist
+      options:
+        - label: I checked that what I pasted contains no tokens, secrets or private keys.
+          required: true

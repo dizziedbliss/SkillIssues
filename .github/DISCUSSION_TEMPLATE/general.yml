@@ -1,0 +1,14 @@
+title: ""
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Anything about SkillIssues or finding open-source issues to work on that doesn't fit the other categories. Please never paste tokens or secrets, and report security problems [privately](https://github.com/dizziedbliss/SkillIssues/security/advisories/new), not here.
+
+  - type: textarea
+    id: topic
+    attributes:
+      label: What's on your mind?
+    validations:
+      required: true
