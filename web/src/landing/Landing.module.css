@@ -13,7 +13,8 @@
   line-height: 0.98;
   letter-spacing: var(--h-track);
   max-width: var(--hw, none);
-  text-wrap: pretty;
+  /* Wrap greedily, as the design does: "pretty" moves words to avoid short last lines. */
+  text-wrap: wrap;
   font-kerning: normal;
 }
 
@@ -98,7 +99,7 @@
 
 /* Text in the right-hand half; its open left half holds the filler. */
 .right {
-  grid-template-columns: calc(var(--split) - var(--gutter)) 1fr;
+  grid-template-columns: var(--split) 1fr;
 }
 
 /* Text in the left-hand half; the filler sits right of it. */
@@ -143,8 +144,21 @@
   margin-inline: auto;
 }
 
+/* A heading the design runs on one line across both halves. */
 .wide {
   max-width: none;
+}
+
+@media (min-width: 1200px) {
+  .wide {
+    width: max-content;
+    max-width: calc(100vw - 2 * var(--gutter));
+  }
+
+  /* its filler starts under the heading's line */
+  .below {
+    margin-top: calc(var(--h-size) * 2.3);
+  }
 }
 
 /* ---- narrow screens: one column, text first ---- */

@@ -4,28 +4,27 @@ import s from "./Filler.module.css";
 
 /*
  * Next to "A good place to start": the path from an issue to a pull request,
- * drawn as a wiring diagram — labelled pills on hairlines, dot joints, the
- * work passing through your machine in the middle. The steps are a real
- * sequence, so they are numbered. A red marker runs the path once when it
- * scrolls into view.
+ * drawn as a wiring diagram, labelled pills on a hairline with dot joints and
+ * the middle steps inside your machine. The steps are a real sequence, so
+ * they are numbered. A red marker runs the line once when it scrolls into
+ * view; it passes behind the pills and the machine.
  */
 
-// One path through every step, in order, on a 560 x 250 board.
-const route = "M 24 64 H 150 C 190 64 196 125 236 125 H 324 C 364 125 370 186 410 186 H 536";
+// The board is 560 x 210. One hairline runs left to right through every step.
+const Y = 112;
+const route = `M 12 ${Y} H 548`;
+const font = { fontFamily: "JetBrains Mono, monospace", fontSize: 11 } as const;
 
-const pills = [
-  { n: 1, label: "find an issue", x: 92, y: 64 },
-  { n: 2, label: "fork + clone", x: 214, y: 125, w: 0 },
-  { n: 3, label: "fix it", x: 346, y: 125, w: 0 },
-  { n: 4, label: "open a pull request", x: 472, y: 186 },
-];
-
-const joints = [
-  [24, 64],
-  [150, 64],
-  [410, 186],
-  [536, 186],
-];
+function Pill({ n, label, x }: { n: number; label: string; x: number }) {
+  const w = label.length * 6.7 + 40;
+  return (
+    <g>
+      <rect x={x - w / 2} y={Y - 13} width={w} height="26" rx="13" fill="#fff" stroke="#000" strokeWidth="1" />
+      <text x={x - w / 2 + 14} y={Y + 4} {...font} fill="#ff0000">{n}</text>
+      <text x={x - w / 2 + 28} y={Y + 4} {...font}>{label}</text>
+    </g>
+  );
+}
 
 export function StepsDiagram() {
   const reduced = useReducedMotion();
@@ -50,7 +49,7 @@ export function StepsDiagram() {
 
   return (
     <figure>
-      <svg ref={ref} viewBox="0 0 560 250" role="img" aria-labelledby="steps-title" style={{ width: "100%", maxWidth: 560 }}>
+      <svg ref={ref} viewBox="0 0 560 210" role="img" aria-labelledby="steps-title" style={{ width: "100%", maxWidth: 560 }}>
         <title id="steps-title">
           Four steps: find an issue, fork and clone the project, fix it on your machine, open a pull request.
         </title>
@@ -60,46 +59,36 @@ export function StepsDiagram() {
             <path d="M 20 0 H 0 V 20" fill="none" stroke="#000" strokeOpacity="0.06" strokeWidth="1" />
           </pattern>
         </defs>
-        <rect x="0" y="0" width="560" height="250" fill="url(#steps-grid)" />
+        <rect x="0" y="0" width="560" height="210" fill="url(#steps-grid)" />
 
         <path id="steps-route" d={route} fill="none" stroke="#000" strokeWidth="1" />
-
-        {/* your machine: where steps 2 and 3 happen */}
-        <rect x="236" y="96" width="88" height="58" fill="#fff" stroke="#000" strokeWidth="1" />
-        <rect x="244" y="104" width="72" height="42" fill="none" stroke="#000" strokeOpacity="0.35" strokeWidth="1" />
-        <text x="280" y="129" textAnchor="middle" fontFamily="JetBrains Mono" fontSize="9">your machine</text>
-
-        {joints.map(([x, y]) => (
-          <circle key={`${x}-${y}`} cx={x} cy={y} r="3" fill="#000" />
+        {[12, 168, 392, 548].map((x) => (
+          <circle key={x} cx={x} cy={Y} r="3" fill="#000" />
         ))}
-
-        {pills
-          .filter((p) => p.w !== 0)
-          .map((p) => {
-            const w = p.label.length * 6.2 + 34;
-            return (
-              <g key={p.n}>
-                <rect x={p.x - w / 2} y={p.y - 10} width={w} height="20" rx="10" fill="#fff" stroke="#000" strokeWidth="1" />
-                <text x={p.x - w / 2 + 12} y={p.y + 3.5} fontFamily="JetBrains Mono" fontSize="9" fill="#ff0000">{p.n}</text>
-                <text x={p.x - w / 2 + 24} y={p.y + 3.5} fontFamily="JetBrains Mono" fontSize="9">{p.label}</text>
-              </g>
-            );
-          })}
-        {/* steps 2 and 3 are labelled above and below the machine */}
-        <text x="214" y="88" textAnchor="middle" fontFamily="JetBrains Mono" fontSize="9"><tspan fill="#ff0000">2</tspan> fork + clone</text>
-        <text x="346" y="172" textAnchor="middle" fontFamily="JetBrains Mono" fontSize="9"><tspan fill="#ff0000">3</tspan> fix it</text>
 
         {run ? (
           <rect width="8" height="8" x="-4" y="-4" fill="#ff0000">
-            <animateMotion dur="2.8s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.45 0 0.2 1">
+            <animateMotion dur="2.4s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.45 0 0.2 1">
               <mpath href="#steps-route" />
             </animateMotion>
           </rect>
         ) : (
           // Not yet seen, the marker waits at the start; with reduced motion
           // it sits where the path ends.
-          <rect width="8" height="8" x={reduced ? 532 : 20} y={reduced ? 182 : 60} fill="#ff0000" />
+          <rect width="8" height="8" x={reduced ? 544 : 8} y={Y - 4} fill="#ff0000" />
         )}
+
+        <Pill n={1} label="find an issue" x={88} />
+
+        {/* your machine: steps 2 and 3 happen here */}
+        <rect x="196" y={Y - 62} width="168" height="124" fill="#fff" stroke="#000" strokeWidth="1" />
+        <text x="206" y={Y - 46} {...font} fontSize={9} fill="#6b6b6b">your machine</text>
+        <line x1="196" y1={Y - 38} x2="364" y2={Y - 38} stroke="#000" strokeOpacity="0.25" />
+        <text x="214" y={Y - 14} {...font}><tspan fill="#ff0000">2</tspan><tspan dx="10">fork + clone</tspan></text>
+        <text x="214" y={Y + 26} {...font}><tspan fill="#ff0000">3</tspan><tspan dx="10">fix + test</tspan></text>
+
+        <Pill n={4} label="pull request" x={470} />
+
       </svg>
       <figcaption className={s.caption}>The docs walk each step, with the commands for it.</figcaption>
     </figure>

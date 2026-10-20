@@ -46,9 +46,35 @@
   }
 }
 
+/* Narrow: the two counts sit above a full-width bar. */
 @media (max-width: 700px) {
   .bar {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    font-size: 1rem;
+    grid-template-columns: 1fr 1fr;
+    row-gap: 0.5rem;
+    font-size: 1.05rem;
+  }
+
+  .closedCount {
+    grid-row: 1;
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .openCount {
+    grid-row: 1;
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .track {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+
+  .captions {
+    grid-row: 3;
+    grid-column: 1 / -1;
+    gap: 1rem;
+    margin-top: 0.25rem;
   }
 }
