@@ -217,6 +217,7 @@ func buildRouter(
 	mux.HandleFunc("GET /auth/session", h.getSession)
 	mux.HandleFunc("GET /auth/github", h.authGitHubBegin)
 	mux.HandleFunc("GET /auth/github/callback", h.authGitHubCallback)
+	mux.HandleFunc("GET /auth/github/device", h.getGitHubDeviceConfig)
 	mux.HandleFunc("POST /auth/github/device", h.authGitHubDevice)
 	mux.HandleFunc("POST /auth/logout", h.authLogout)
 	mux.HandleFunc("POST /auth/logout-all", h.authLogoutAll)

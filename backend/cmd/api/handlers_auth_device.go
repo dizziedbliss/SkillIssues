@@ -10,14 +10,25 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/middleware"
 )
 
+// getGitHubDeviceConfig handles GET /auth/github/device: what the desktop app
+// needs to start GitHub's device flow itself. A client id is public (it is in
+// every authorize URL); serving it keeps it in one place, this server's config,
+// rather than built into each desktop release.
+func (h *handlers) getGitHubDeviceConfig(w http.ResponseWriter, r *http.Request) {
+	middleware.RespondJSON(w, http.StatusOK, map[string]any{
+		"enabled":   h.cfg.GitHubLoginClientID != "",
+		"client_id": h.cfg.GitHubLoginClientID,
+	})
+}
+
 // authGitHubDevice handles POST /auth/github/device — desktop sign-in.
 //
-// The desktop app runs GitHub's device flow against the Login app (a no-scope
-// OAuth App) and posts the resulting token here once. The server checks with
+// The desktop app runs GitHub's device flow against the Login app, asking for
+// no scopes, and posts the resulting token here once. The server checks with
 // GitHub that the token was issued to the Login app, reads the identity it
 // belongs to, and drops it. The response is a bearer session; no GitHub token
-// is kept. A separate device flow on the write App yields a token that stays
-// on the user's machine.
+// is kept. Pushing needs a second device flow, for public_repo, whose token
+// stays on the user's machine and never comes here.
 // Body: {"access_token": "..."}
 func (h *handlers) authGitHubDevice(w http.ResponseWriter, r *http.Request) {
 	if h.cfg.GitHubLoginClientID == "" {
