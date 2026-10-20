@@ -1,0 +1,21 @@
+title: ""
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ask how something works, or how to do something. Check the [FAQ](https://skillissues.dizziedbliss.lol/faq) and [How it works](https://skillissues.dizziedbliss.lol/how-it-works) first.
+
+        This is not the place for bugs (use an [issue form](https://github.com/dizziedbliss/SkillIssues/issues/new/choose)) or vulnerabilities ([report them privately](https://github.com/dizziedbliss/SkillIssues/security/advisories/new)). Please never paste tokens or secrets.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried or read so far? (optional)

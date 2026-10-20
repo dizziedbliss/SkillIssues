@@ -1,8 +1,14 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
-  - name: 💬 Discussions & Questions
-    url: https://github.com/dizziedbliss/SkillIssues/discussions
-    about: Ask questions, chat with contributors, or debate architecture without pressure.
-  - name: 📖 Contributing Guide
-    url: https://github.com/dizziedbliss/SkillIssues/blob/refactor/CONTRIBUTING.md
-    about: Check out our local development setup and guidelines before diving in.
+  - name: Ask a question
+    url: https://github.com/dizziedbliss/SkillIssues/discussions/categories/q-a
+    about: How do I...? Why does...? Questions get answered best in Discussions, where the answer helps the next person too.
+  - name: Share an idea
+    url: https://github.com/dizziedbliss/SkillIssues/discussions/categories/ideas
+    about: Half-formed ideas are welcome in Discussions. A concrete, scoped proposal belongs in a feature request.
+  - name: Report a security vulnerability
+    url: https://github.com/dizziedbliss/SkillIssues/security/advisories/new
+    about: Please do not open a public issue for a vulnerability. Report it privately here.
+  - name: Contributing guide
+    url: https://github.com/dizziedbliss/SkillIssues/blob/main/CONTRIBUTING.md
+    about: Local setup and the project's conventions, before you dive in.

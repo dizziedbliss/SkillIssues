@@ -169,11 +169,14 @@ export const pages: Page[] = [
     body: [
       { list: [
         "Something broken? Report a bug.",
-        "An idea? Request a feature.",
-        "A security problem? Don’t post it publicly: see the security page for how to tell us privately.",
+        "An idea? Request a feature, or talk it over in Discussions.",
+        "A question? Ask it in Discussions.",
+        "A security problem? Don’t post it publicly: report it privately.",
       ] },
       { link: { label: "Report a bug", href: external.reportBug } },
       { link: { label: "Request a feature", href: external.requestFeature } },
+      { link: { label: "Ask a question in Discussions", href: external.askQuestion } },
+      { link: { label: "Report a vulnerability privately", href: external.reportVulnerability } },
       { link: { label: "Security", to: "/security" } },
     ],
   },
@@ -192,8 +195,8 @@ export const pages: Page[] = [
       { h: "Themes" },
       "The app can be restyled with themes, including ones other people share. A theme’s stylesheet is checked against a strict allowlist and can’t load anything from elsewhere, and the browser blocks it from trying.",
       { h: "Reporting a vulnerability" },
-      "Please don’t open a public issue. Contact the maintainer, @dizziedbliss, privately on GitHub with what’s affected, how to reproduce it, and whether you’ve seen it exploited.",
-      { link: { label: "Contact @dizziedbliss on GitHub", href: "https://github.com/dizziedbliss" } },
+      "Please don’t open a public issue. Use GitHub’s private vulnerability reporting, which only the maintainers can see, and tell us what’s affected, how to reproduce it, and whether you’ve seen it exploited.",
+      { link: { label: "Report a vulnerability privately", href: external.reportVulnerability } },
     ],
   },
   {
