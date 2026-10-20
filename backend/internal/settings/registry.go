@@ -80,6 +80,9 @@ const (
 	IssuesMaxLimit          Key = "api.issues.max_limit"
 	IssuesMaxPage           Key = "api.issues.max_page"
 	RecommendationsMaxLimit Key = "api.recommendations.max_limit"
+	// RecommendationsCandidatePool is how many open issues GET
+	// /recommendations reads off the shuffled feed before scoring them.
+	RecommendationsCandidatePool Key = "api.recommendations.candidate_pool"
 
 	// IssuesQueryTimeoutMs is the deadline on the queries behind one
 	// GET /issues or GET /issues/{id}. It sits below the server's write
@@ -347,6 +350,7 @@ var Registry = map[Key]Spec{
 	IssuesMaxLimit:                intSpec(100, 1, 500, "Largest ?limit honoured by GET /issues; a larger request is clamped."),
 	IssuesMaxPage:                 intSpec(200, 1, 10000, "Deepest ?page honoured by GET /issues; a deeper request is clamped. Deep offsets are expensive."),
 	RecommendationsMaxLimit:       intSpec(20, 1, 100, "Largest ?limit honoured by GET /recommendations; a larger request is clamped."),
+	RecommendationsCandidatePool:  intSpec(200, 10, 1000, "Open issues GET /recommendations reads off the shuffled feed, matching the caller's languages and level, before scoring them."),
 	IssuesLanguageCountTTLSeconds: intSpec(600, 0, 86400, "How long a language's counted open issues are reused when deciding how to browse it. 0 counts on every request."),
 	IssuesRareLanguageThreshold:   intSpec(20000, 0, 1000000, "A language with fewer open issues than this is read repository-first and sorted when browsing, instead of walking the catalog index. 0 always walks the index."),
 	IssuesQueryTimeoutMs:          intSpec(10000, 100, 25000, "Deadline for the queries behind one GET /issues or GET /issues/{id}. A query that misses it is cancelled and the caller gets 503."),
