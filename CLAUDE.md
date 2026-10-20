@@ -182,7 +182,7 @@ app still uses the last three until its own rebuild.
 - **`packages/theme`** — user themes on the client: the TOML schema and stylesheet allowlist
   mirroring `backend/internal/theme`, run on the same fixtures (`packages/theme/fixtures`, CI runs
   both sides), the presets, and `compileTheme`/`applyTheme`, which re-validates a theme and applies
-  it through constructed stylesheets scoped to the app's root. `node --test src/` runs the checks.
+  it through constructed stylesheets scoped to the app's root. `npm test` runs the checks.
 - **`packages/markdown`** — sanitised Markdown rendering (`markdown-it` + DOMPurify). Issue bodies
   are attacker-controlled; never hand-roll rendering in either client.
 - **`packages/api-client`**, **`packages/ui`** — the previous client and component kit, used only
