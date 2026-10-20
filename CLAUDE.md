@@ -192,15 +192,16 @@ path reaching outside the importing project). Both apps are built on `client`; t
   (`landing/tokens.module.css`, light and a dark version) and outside the theme system: no user theme reaches it. A zig-zag:
   each section in the left or right part of one container with equal margins, the other side left
   white (one column under 860px), over a faint glyph noise (`GlyphNoise.tsx`, canvas). Body text is
-  never under 16px. Motion shares one easing (`--ease`, `--fast`, `--slow`): buttons fill from the
-  left, links draw their underline, live counts glide between polls; all of it stops under reduced
+  never under 16px. Motion shares one easing (`--ease`, `--fast`, `--slow`): buttons fade to their
+  hover colour, links draw their underline, live counts glide between polls; all of it stops under reduced
   motion. Fonts are
   self-hosted through `@fontsource` (Instrument Serif headings and nav, JetBrains Mono everything
   else, Krona One for the wordmark at 9% tracking over its 24:8 JetBrains Mono line).
 - **`pages/`** — the written pages; every claim must describe what the code does. The docs are Markdown in
   `web/content/docs/` (frontmatter `slug`, `title`, `section`, `summary`), read and rendered at build
   time by `docs.ts` (markdown-it, raw HTML off: first-party text, so not through `packages/markdown`,
-  whose DOMPurify needs a DOM) and shown by `DocPage.tsx` with a sidebar by section. The four legal pages
+  whose DOMPurify needs a DOM) and shown by `DocPage.tsx` with a sidebar by section and a search
+  over every page (`DocSearch.tsx`, `/` or Ctrl/⌘K). The four legal pages
   (privacy, terms, security, licenses) stay in `content.ts` by the owner's choice. Pages marked
   `draft` say so on the page. The footer links only to these pages and `/app`.
 - **`app/`** — the signed-in app, being built from the owner's designs in stages (plan:
@@ -214,7 +215,12 @@ path reaching outside the importing project). Both apps are built on `client`; t
   and back over the pages seen, reading on through short pages. `IssuePage.tsx` (`/app/issues/:id`)
   reads the body from GitHub in the browser and asks `GET /issues/{id}/body` only when GitHub
   rate-limits it (`lib/issueBody.ts`), rendered through `packages/markdown`. Bookmarks
-  (`SaveButton.tsx`, `saved.ts`) save optimistically and say so when the API refuses.
+  (`SaveButton.tsx`, `saved.ts`) save optimistically and say so when the API refuses. A card opens its issue anywhere
+  you click it; its repository's name opens Explore narrowed to that repository (`?repo=`), and the
+  issue page also offers its owner (`?owner=`), both easiest first: the shuffled feed would show one
+  issue per repository. The issue page says at once when GitHub reports the issue closed, from the
+  same answer that brought its description. "Work on it in the desktop app" opens
+  `skillissues://issue/<id>` and, if the page keeps focus, offers the download or GitHub.
   Search (`search/SearchOverlay.tsx`: the nav, `/` or Ctrl/⌘K) is a modal over the blurred page with
   results as you type; its box shares a `view-transition-name` with Explore's, so "see all" glides
   into Explore. Page changes inside the app run the theme's `[motion] transition` through View
@@ -233,17 +239,19 @@ path reaching outside the importing project). Both apps are built on `client`; t
   in English. The docs and legal pages stay English. The first render is English (what is
   prerendered); a stored choice (`si.locale`) applies after hydration. The footer and Profile's menu
   hold the picker.
-- **Light and dark.** The landing, docs and written pages have a locked dark version
-  (`tokens.module.css`, `html[data-mode="dark"]`, `lib/siteMode.ts`, applied before the first paint
-  by `public/mode.js`); the footer's theme button switches it outside the app and switches the app's
+- **Light and dark; dark by default.** The landing, docs and written pages have a locked dark
+  version (`tokens.module.css`, `html[data-mode="dark"]`, set in `index.html`; `public/mode.js` takes
+  it off before the first paint when the browser chose light; `lib/siteMode.ts`), and the app starts
+  on Midnight until Appearance is switched; the footer's theme button switches it outside the app and switches the app's
   theme inside it (`lib/themeToggle.ts`). User themes still never reach those pages.
 - **Prerendered**: `npm run build` renders `/`, the legal pages and every docs page to HTML
   (`scripts/prerender.mjs`, `src/entry-server.tsx`); the client hydrates a page only when its
   `data-route` matches. Vercel serves `shell.html` (no markup) for every other route.
 - CSS Modules over custom properties; no Tailwind, no CSS-in-JS. Live counts poll `GET /stats`
   every 10s (React Query, paused in background tabs).
-- The CSP (`vercel.json`) allows fetching nothing from elsewhere but the API host, GitHub's API and
-  avatars (a theme stylesheet is someone else's code); widen it only deliberately.
+- The CSP (`vercel.json`) allows fetching nothing from elsewhere but the API host and GitHub's API,
+  and images only from GitHub (`github.com`, `*.githubusercontent.com`: avatars and the images in
+  issue descriptions). A theme stylesheet is someone else's code; widen it only deliberately.
 
 Runs **React 19**.
 

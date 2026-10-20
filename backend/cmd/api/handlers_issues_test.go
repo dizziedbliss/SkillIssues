@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -222,5 +223,23 @@ func TestIssueCacheKeyIsCanonical(t *testing.T) {
 	}
 	if issueCacheKey(a, true, "") == issueCacheKey(c, true, "") || issueCacheKey(a, true, "") == issueCacheKey(a, false, "") {
 		t.Error("different requests shared a key")
+	}
+}
+
+// Every list filter is part of the key: one left out would serve one
+// filter's cached page to another (as repo and owner nearly did).
+func TestIssueCacheKeyCoversEveryListFilter(t *testing.T) {
+	empty := issueCacheKey(issue.Filters{}, true, "")
+	typ := reflect.TypeOf(issue.Filters{})
+	for i := range typ.NumField() {
+		field := typ.Field(i)
+		if field.Type != reflect.TypeOf([]string(nil)) {
+			continue
+		}
+		var f issue.Filters
+		reflect.ValueOf(&f).Elem().Field(i).Set(reflect.ValueOf([]string{"x"}))
+		if issueCacheKey(f, true, "") == empty {
+			t.Errorf("Filters.%s is not part of the cache key", field.Name)
+		}
 	}
 }

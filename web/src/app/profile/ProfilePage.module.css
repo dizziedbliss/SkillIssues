@@ -41,29 +41,28 @@
   object-fit: cover;
 }
 
-.name {
-  font-family: var(--serif);
-  font-size: clamp(2rem, 1.6rem + 1.2vw, 2.5rem);
-  line-height: 1;
-  letter-spacing: -0.03em;
-}
-
+/* Everything about you in the body face; only headings take the serif. */
 .handle {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-  margin-top: 0.35rem;
-  font-family: var(--serif);
-  font-size: 0.95rem;
-  letter-spacing: -0.01em;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-family: var(--typography-mono-font);
+}
+
+.username {
+  font-size: 1.25rem;
+}
+
+.handle .muted {
+  font-size: var(--label-size);
 }
 
 .bio {
-  margin-top: 0.6rem;
+  margin-top: 0.75rem;
   color: var(--colors-text-muted);
-  font-family: var(--serif);
-  font-size: 1rem;
-  line-height: 1.35;
+  font-family: var(--typography-mono-font);
+  font-size: 0.9375rem;
+  line-height: 1.55;
 }
 
 .bio a,
@@ -113,13 +112,13 @@
 
 .box {
   min-height: 9.5rem;
-  padding: 0.6rem 0.75rem 0.9rem;
+  padding: 1rem 1.25rem 1.25rem;
   border: var(--border-width) solid var(--colors-accent);
   border-radius: var(--radius-large);
 }
 
 .boxTitle {
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.75rem;
   font-family: var(--typography-mono-font);
   font-size: 1.25rem;
   font-weight: 400;
@@ -131,8 +130,8 @@
 
 .savedList li {
   display: grid;
-  gap: 0.1rem;
-  padding: 0.5rem 0.4rem;
+  gap: 0.3rem;
+  padding: 0.85rem 0.6rem;
 }
 
 .savedList li + li {

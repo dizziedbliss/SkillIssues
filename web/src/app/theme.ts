@@ -22,14 +22,15 @@ interface Copy extends ThemeSource {
   name: string;
 }
 
+/** Whether the Appearance switch is on. Unchosen, it is: the app starts dark (Midnight). */
 function readAlt(): boolean {
   try {
     const v = localStorage.getItem(ALT_KEY);
     if (v !== null) return v === "1";
   } catch {
-    // Storage blocked: follow the system below.
+    // Storage blocked: the default below.
   }
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  return true;
 }
 
 function readCopy(): Copy | null {

@@ -22,8 +22,8 @@
 
 .fieldName {
   display: flex;
-  align-items: center;
-  gap: 0.35rem;
+  align-items: flex-end;
+  gap: 0.2rem;
   font-size: var(--label-size);
 }
 
@@ -32,15 +32,39 @@
   position: relative;
 }
 
+/* A small boxed "?", raised to sit above the name's line. */
 .helpButton {
-  width: 1.25rem;
-  height: 1.25rem;
+  display: grid;
+  place-items: center;
+  width: 0.95rem;
+  height: 0.95rem;
   padding: 0;
-  border: 0;
-  background: none;
-  color: var(--colors-text);
+  translate: 0 -0.45rem;
+  border: 1px solid var(--colors-accent);
+  border-radius: var(--radius-small);
+  background: var(--colors-surface);
+  color: var(--colors-accent);
   font: inherit;
+  font-size: 0.625rem;
+  line-height: 1;
   cursor: help;
+  transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+.helpButton:hover,
+.helpButton:focus-visible {
+  background: var(--colors-accent);
+  color: var(--colors-accent-text);
+}
+
+/* The dropdown's ">" turns down while it is open. */
+.chevron {
+  flex: none;
+  transition: rotate var(--fast) var(--ease);
+}
+
+[aria-expanded="true"] > .chevron {
+  rotate: 90deg;
 }
 
 .tip {
@@ -86,18 +110,18 @@
   padding: 0.45rem 0.6rem;
   border: var(--border-width) solid var(--colors-border);
   border-radius: var(--radius-medium);
-  background: linear-gradient(var(--chip), var(--chip)) no-repeat 0 0 / 0% 100%, var(--colors-surface);
+  background: var(--colors-surface);
   color: var(--colors-text);
   font: inherit;
   font-size: 0.9375rem;
   text-align: left;
   cursor: pointer;
-  transition: background-size var(--slow) var(--ease), border-color var(--fast) var(--ease);
+  transition: background-color var(--slow) var(--ease), border-color var(--fast) var(--ease);
 }
 
 .select:hover,
 .select[aria-expanded="true"] {
-  background-size: 100% 100%, auto;
+  background-color: var(--chip);
 }
 
 .selectChosen {
@@ -225,14 +249,14 @@
 }
 
 .apply {
-  background: linear-gradient(var(--colors-text), var(--colors-text)) no-repeat 0 0 / 0% 100%, var(--colors-accent);
+  background: var(--colors-accent);
   color: var(--colors-accent-text);
-  transition: background-size var(--slow) var(--ease), color var(--slow) var(--ease);
+  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
 }
 
 .apply:hover,
 .apply:focus-visible {
-  background-size: 100% 100%, auto;
+  background-color: var(--colors-text);
   color: var(--colors-accent);
 }
 

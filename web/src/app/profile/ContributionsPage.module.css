@@ -29,13 +29,13 @@
 }
 
 .box {
-  padding: 0.6rem 0.75rem 0.9rem;
+  padding: 1rem 1.25rem 1.25rem;
   border: var(--border-width) solid var(--colors-accent);
   border-radius: var(--radius-large);
 }
 
 .boxTitle {
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.75rem;
   font-family: var(--typography-mono-font);
   font-size: 1.25rem;
   font-weight: 400;

@@ -9,6 +9,12 @@
  * A message that takes values is a function of them, so a translation can
  * reorder the words around them.
  */
+/** The same choice all day, a different one tomorrow. */
+function dayPick(n: number): number {
+  const d = new Date();
+  return (d.getFullYear() * 372 + d.getMonth() * 31 + d.getDate()) % n;
+}
+
 export const en = {
   // ---- the site's header and footer ----
   "site.home": "SkillIssues home",
@@ -130,6 +136,8 @@ export const en = {
   "page.notFound.cta": "Explore open issues",
   "docs.nav": "Documentation",
   "docs.legal": "Legal & Trust",
+  "docs.search": "Search the docs",
+  "docs.searchNone": "No page mentions that.",
   "docs.updated": (p: { date: string }) => `Last updated ${p.date}.`,
 
   // ---- the app: header and menu ----
@@ -168,6 +176,10 @@ export const en = {
   "explore.filter": "filter",
   "explore.search": "Search",
   "explore.next": "Find your next issue",
+  "explore.searchHint": "This search mixes every kind of match (repositories, titles and labels, languages, authors) in one list.",
+  "explore.searchHintLink": "Search with / to see them by kind.",
+  "explore.scope": "Showing issues from",
+  "explore.scopeClear": "Show all repositories",
   "explore.difficulties": "Difficulty",
   "explore.results": (p: { term: string }) => `Results for “${p.term}”`,
   "explore.loading": "Loading issues…",
@@ -216,6 +228,8 @@ export const en = {
   // ---- the app: the search overlay ----
   "search.title": "Search",
   "search.close": "Close",
+  "search.sub":
+    "Looks for your words in four places at once: repository names, issue titles and labels, languages, and the people who opened issues. Results come as you type, each kind on its own. Open with / or Ctrl+K from anywhere.",
   "search.short": "Type at least two characters.",
   "search.searching": "Searching…",
   "search.all": (p: { term: string }) => `See all results for “${p.term}”`,
@@ -224,7 +238,7 @@ export const en = {
   "search.cat.Language": "Languages",
   "search.cat.Author": "Authors",
   "app.nav.search": "Search",
-  "app.nav.contribute": "Contribute",
+  "app.nav.contribute": "Contributions",
   "app.nav.unread": (p: { count: number }) => (p.count === 1 ? "1 unread notification" : `${p.count} unread notifications`),
   "app.menu.profile": "Profile",
   "app.menu.saved": "Saved issues",
@@ -235,6 +249,9 @@ export const en = {
   "issue.comments": (p: { count: number }) => (p.count === 1 ? "1 comment" : `${p.count} comments`),
   "issue.moreLabels": (p: { count: number }) => `+${p.count}`,
   "issue.view": "View Issue",
+  "issue.moreRepo": (p: { repo: string }) => `More issues from ${p.repo}`,
+  "issue.moreOwner": (p: { owner: string }) => `More issues from ${p.owner}`,
+  "issue.onGitHub": "On GitHub",
   "issue.save": "Save issue",
   "issue.unsave": "Remove from saved",
   "issue.saveSignIn": "Sign in to save issues",
@@ -242,9 +259,14 @@ export const en = {
   "issue.back": "Back to Explore",
   "issue.openGitHub": "Open on GitHub",
   "issue.desktop": "Work on it in the desktop app",
+  "desktop.notOpened": "The desktop app didn’t open. Don’t have it yet?",
+  "desktop.download": "Download the desktop app",
+  "desktop.github": "Or carry on, on GitHub",
   "issue.saved": "Saved",
   "issue.saveLong": "Save",
-  "issue.closed": "Closed on GitHub",
+  "issue.closed": "This issue is closed on GitHub.",
+  "issue.closedNow": (p: { ago: string }) =>
+    `This issue was closed on GitHub ${p.ago}. It leaves SkillIssues at the next check, so pick another to work on.`,
   "issue.loading": "Loading the issue…",
   "issue.notFound": "This issue isn’t in the catalog. It may have been closed for a while and removed.",
   "issue.body": "Description",
@@ -264,7 +286,15 @@ export const en = {
   "signin.body": "Your profile, contributions and saved issues need a GitHub sign-in. SkillIssues reads only your public profile.",
 
   // ---- the app: profile ----
-  "profile.hello": (p: { name: string }) => `Hello, ${p.name}`,
+  // Greetings by the reader's own clock; one is picked per day.
+  "profile.greet.morning": (p: { name: string }) =>
+    [`Good morning, ${p.name}`, `Morning, ${p.name}. Coffee first?`, `Rise and ship, ${p.name}`][dayPick(3)]!,
+  "profile.greet.afternoon": (p: { name: string }) =>
+    [`Good afternoon, ${p.name}`, `Afternoon, ${p.name}. Got an issue in you?`, `Hey ${p.name}, back at it`][dayPick(3)]!,
+  "profile.greet.evening": (p: { name: string }) =>
+    [`Good evening, ${p.name}`, `Evening, ${p.name}. One more fix?`, `Winding down, ${p.name}?`][dayPick(3)]!,
+  "profile.greet.night": (p: { name: string }) =>
+    [`Burning the midnight oil, ${p.name}?`, `Up late, ${p.name}?`, `Hello, night owl`][dayPick(3)]!,
   "profile.joined": (p: { date: string }) => `joined on ${p.date}`,
   "profile.noBio": "No bio yet.",
   "profile.editBio": "Add one in Settings",

@@ -6,6 +6,15 @@ import { Achievements, ContribStatus, Graph, PRList, SignInPrompt, StatBoxes } f
 import { useContributions, useProfile } from "./data";
 import s from "./ProfilePage.module.css";
 
+/** The greeting for the reader's time of day. */
+function greeting() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return "profile.greet.morning" as const;
+  if (h >= 12 && h < 17) return "profile.greet.afternoon" as const;
+  if (h >= 17 && h < 22) return "profile.greet.evening" as const;
+  return "profile.greet.night" as const;
+}
+
 /** Saved issues listed on the profile before "All saved issues". */
 const SAVED_SHOWN = 5;
 
@@ -32,7 +41,7 @@ export function ProfilePage() {
 
   return (
     <div className={s.page}>
-      <h1 className={s.hello}>{t("profile.hello", { name })}</h1>
+      <h1 className={s.hello}>{t(greeting(), { name })}</h1>
       {profile.error && <p className={s.error} role="alert">{profile.error.message}</p>}
 
       <div className={s.columns}>
@@ -44,9 +53,8 @@ export function ProfilePage() {
               <span className={s.avatar} aria-hidden="true" />
             )}
             <div>
-              <p className={s.name}>{name}</p>
               <p className={s.handle}>
-                <span>{user.username}</span>
+                <span className={s.username}>{user.username}</span>
                 {joined && <span className={s.muted}>{t("profile.joined", { date: joined })}</span>}
               </p>
               <p className={s.bio}>

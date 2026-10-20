@@ -176,7 +176,7 @@ function Choices({
         onClick={() => setOpen((o) => !o)}
       >
         <span className={s.selectValue}>{summary}</span>
-        <span aria-hidden="true">&gt;</span>
+        <span className={s.chevron} aria-hidden="true">&gt;</span>
       </button>
       {open && (
         <fieldset id={id} className={s.menu}>
@@ -240,7 +240,7 @@ function Comments({ min, max, onChange }: { min?: number; max?: number; onChange
         onClick={() => setOpen((o) => !o)}
       >
         <span className={s.selectValue}>{summary}</span>
-        <span aria-hidden="true">&gt;</span>
+        <span className={s.chevron} aria-hidden="true">&gt;</span>
       </button>
       {open && (
         <fieldset id={id} className={`${s.menu} ${s.range}`}>

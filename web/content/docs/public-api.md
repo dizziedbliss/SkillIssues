@@ -65,6 +65,8 @@ curl "$API/issues?cursor=&difficulty=beginner&language=Go&limit=10"
 | `tech` | Any language GitHub reports for the repository. |
 | `topics` | The repository's GitHub topics. |
 | `labels` | The issue's labels, not case sensitive. |
+| `repo` | A repository as `owner/name`, not case sensitive. |
+| `owner` | Everything from one user or organisation (the part of `owner/name` before the slash), not case sensitive. The shuffled feed still shows one issue per repository; sort by `easiest` or `newest` to see them all. |
 | `comments_min` | The fewest comments, inclusive. A whole number, 0 or more. |
 | `comments_max` | The most comments, inclusive. `0` means no comments yet. |
 | `limit` | Issues per page. The default is 20 for browsing and 50 for a search. Anything over 100 is lowered to 100. |

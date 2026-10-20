@@ -1,0 +1,54 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* What to do when the app didn't open: under the button, in the app's frame. */
+.fallback {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 20;
+  display: grid;
+  gap: 0.45rem;
+  width: max-content;
+  max-width: min(22rem, 90vw);
+  padding: 0.75rem 2.25rem 0.85rem 0.9rem;
+  border: var(--border-width) solid var(--colors-accent);
+  border-radius: var(--radius-large);
+  background: var(--colors-surface);
+  box-shadow: var(--shadow-medium);
+  font-size: 0.9375rem;
+  animation: show var(--fast) var(--ease);
+}
+
+.fallback a {
+  color: var(--colors-text);
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+}
+
+.dismiss {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.5rem;
+  border: 0;
+  padding: 0.2rem 0.4rem;
+  background: none;
+  color: var(--colors-text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+@keyframes show {
+  from {
+    opacity: 0;
+    translate: 0 -0.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fallback {
+    animation: none;
+  }
+}
