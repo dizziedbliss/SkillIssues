@@ -45,14 +45,16 @@ test("a theme compiles over its base preset", () => {
   assert.match(r.value.declarations, /--typography-heading-font: "Instrument Serif"/); // from default
 });
 
-test("a preset written out in full compiles to exactly that preset", () => {
+test("a preset written out in full compiles to exactly that preset, in either mode", () => {
   for (const name of PRESETS) {
     const full = expandPreset(name, "Copy");
-    const a = compileTheme({ toml: full, css: "" });
-    const b = compileTheme({ toml: `[meta]\nbase = "${name}"\n`, css: "" });
-    assert.ok(a.ok && b.ok, `${name}: ${a.ok ? "" : a.problems.join("; ")}`);
-    assert.equal(a.value.declarations, b.value.declarations, name);
-    assert.equal(a.value.name, "Copy");
+    for (const mode of [undefined, "light", "dark"] as const) {
+      const a = compileTheme({ toml: full, css: "" }, { mode });
+      const b = compileTheme({ toml: `[meta]\nbase = "${name}"\n`, css: "" }, { mode });
+      assert.ok(a.ok && b.ok, `${name}: ${a.ok ? "" : a.problems.join("; ")}`);
+      assert.equal(a.value.declarations, b.value.declarations, `${name} ${mode ?? "plain"}`);
+      assert.equal(a.value.name, "Copy");
+    }
   }
 });
 
@@ -80,10 +82,20 @@ for (const file of readdirSync(join(fixtures, "problems")).filter((f) => !f.ends
 
 test("a light/dark pair compiles to either half", () => {
   const toml = '[colors]\nbackground = "#fafafa"\n[dark]\nbackground = "#101014"\n';
-  const light = compileTheme({ toml, css: "" });
-  const dark = compileTheme({ toml, css: "" }, { dark: true });
-  assert.ok(light.ok && dark.ok && light.value.hasDark);
+  const light = compileTheme({ toml, css: "" }, { mode: "light" });
+  const dark = compileTheme({ toml, css: "" }, { mode: "dark" });
+  assert.ok(light.ok && dark.ok && light.value.hasModes);
   assert.match(light.value.declarations, /--colors-background: #fafafa;/);
   assert.match(dark.value.declarations, /--colors-background: #101014;/);
-  assert.doesNotMatch(dark.value.declarations, /--dark-/);
+  assert.doesNotMatch(dark.value.declarations, /--dark-|--light-/);
+});
+
+test("every built-in has a light and a dark half, and a dark one keeps its own colours in dark mode", () => {
+  for (const name of PRESETS) {
+    const r = compileTheme({ toml: `[meta]\nbase = "${name}"\n`, css: "" });
+    assert.ok(r.ok && r.value.hasModes, `${name} has no second half`);
+  }
+  const dracula = compileTheme({ toml: '[meta]\nbase = "dracula"\n', css: "" }, { mode: "dark" });
+  assert.ok(dracula.ok);
+  assert.match(dracula.value.declarations, /--colors-background: #282a36;/);
 });

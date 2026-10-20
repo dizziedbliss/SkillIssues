@@ -49,7 +49,7 @@ From GitHub's public search, read by your browser: every public pull request you
 
 ## Is there a light mode?
 
-Yes. The site starts dark. On the landing page and the docs, the theme button in the footer switches to light. In the app, choose a light theme such as Default or Catppuccin Latte in **Settings → Themes**, or from **Appearance** in the profile menu once you've used it.
+Yes. The site starts dark. On the landing page and the docs, the theme button in the footer switches to light. In the app, the same button switches the theme you're using between its light and dark halves. Every built-in theme has both.
 
 ## Can I use SkillIssues without the desktop app?
 
