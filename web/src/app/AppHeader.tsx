@@ -149,16 +149,37 @@ function ProfileMenu() {
                   const inUse = choiceName(appearance.current) === name;
                   return (
                     <li key={name}>
-                      <button
-                        type="button"
-                        className={`${s.item} ${s.subItem}`}
-                        aria-current={inUse ? "true" : undefined}
-                        disabled={inUse || appearance.choosing}
-                        onClick={() => appearance.choose(c)}
-                      >
-                        <span>{name}</span>
-                        {inUse && <span className={s.value}>{t("app.menu.inUse")}</span>}
-                      </button>
+                      {inUse ? (
+                        // The theme in use: its name, and a switch between its light and dark halves.
+                        <span className={`${s.item} ${s.subItem}`} aria-current="true">
+                          <span>{name}</span>
+                          {appearance.hasModes && (
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={appearance.mode === "dark"}
+                              aria-label={t("app.menu.dark")}
+                              title={t(appearance.mode === "dark" ? "mode.toLight" : "mode.toDark")}
+                              className={s.modeSwitch}
+                              onClick={appearance.toggleMode}
+                            >
+                              <span aria-hidden="true">
+                                {appearance.mode === "dark" ? t("app.menu.dark") : t("app.menu.light")}
+                              </span>
+                              <span className={s.switch} aria-hidden="true" />
+                            </button>
+                          )}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className={`${s.item} ${s.subItem}`}
+                          disabled={appearance.choosing}
+                          onClick={() => appearance.choose(c)}
+                        >
+                          <span>{name}</span>
+                        </button>
+                      )}
                     </li>
                   );
                 })}

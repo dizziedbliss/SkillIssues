@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState, type RefObject } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type RefObject } from "react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, type ActiveTheme } from "@skillissues/client";
 import { applyTheme, clearTheme, compileTheme, parseTheme, presets, PRESETS, type Mode, type PresetName, type ThemeSource } from "@skillissues/theme";
 import { api } from "../lib/api";
@@ -90,6 +90,11 @@ interface Appearance {
   choosing: boolean;
   /** Drops a stored theme from the recents: deleted, or no longer shared. */
   forget: (id: string) => void;
+  /** Light or dark: which half of the theme shows. */
+  mode: Mode;
+  toggleMode: () => void;
+  /** Whether the theme in use looks different in the other mode. */
+  hasModes: boolean;
   /** Why the last choice, or the theme itself, could not be applied. */
   problem: string | null;
 }
@@ -159,6 +164,39 @@ export function useAppTheme(root: RefObject<HTMLElement | null>): { appearance: 
     });
   }, []);
 
+  // The recents are checked against what exists, so a theme deleted or made
+  // private (here or on another device) doesn't linger: your own themes keep
+  // their entries fresh (a rename shows), and any other stored theme is
+  // looked up; one the server no longer has is dropped.
+  const mine = useQuery({ queryKey: ["themes"], queryFn: ({ signal }) => api.themes({ signal }), enabled: !!user });
+  useEffect(() => {
+    if (!mine.data) return;
+    const byId = new Map(mine.data.map((t) => [t.id, t]));
+    setRecent((r) => {
+      const next = r.map((c) => {
+        const t = "id" in c ? byId.get(c.id) : undefined;
+        return t ? { id: t.id, name: t.name, toml: t.toml, css: t.css } : c;
+      });
+      if (JSON.stringify(next) === JSON.stringify(r)) return r;
+      write(RECENT_KEY, next);
+      return next;
+    });
+  }, [mine.data]);
+  const others = user && mine.data ? recent.flatMap((c) => ("id" in c && !mine.data.some((t) => t.id === c.id) ? [c.id] : [])) : [];
+  const lookups = useQueries({
+    queries: others.map((id) => ({
+      queryKey: ["theme", id],
+      queryFn: ({ signal }: { signal: AbortSignal }) => api.theme(id, { signal }),
+      retry: false,
+      staleTime: 10 * 60_000,
+    })),
+  });
+  const gone = lookups.flatMap((q, i) => (q.error instanceof ApiError && q.error.status === 404 ? [others[i]!] : []));
+  useEffect(() => {
+    for (const id of gone) forget(id);
+    // gone is rebuilt each render; its contents are what matter.
+  }, [gone.join(","), forget]);
+
   const save = useMutation({
     mutationFn: async (c: Choice): Promise<ActiveTheme | Choice> => {
       if (!user) return c;
@@ -216,17 +254,31 @@ export function useAppTheme(root: RefObject<HTMLElement | null>): { appearance: 
   );
 
   const problem = save.error?.message ?? active.error?.message ?? (compiled.ok ? null : compiled.problems.join("; "));
+  const toggleMode = () => {
+    const next: Mode = mode === "dark" ? "light" : "dark";
+    setMode(next);
+    write(MODE_KEY, next);
+  };
+  // Signed out, only built-ins can be applied, so only they are listed.
+  const listed = (user ? recent : recent.filter((c) => "preset" in c));
+
   return {
-    appearance: { current, recent: recent.length ? recent : [current], choose: (c) => save.mutate(c), choosing: save.isPending, forget, problem },
+    appearance: {
+      current,
+      recent: listed.length ? listed : [current],
+      choose: (c) => save.mutate(c),
+      choosing: save.isPending,
+      forget,
+      mode,
+      toggleMode,
+      hasModes: compiled.ok && compiled.value.hasModes,
+      problem,
+    },
     // The footer's button: this theme's other half.
     toggle: {
       on: mode === "dark",
       label: (t) => t(mode === "dark" ? "mode.toLight" : "mode.toDark"),
-      toggle: () => {
-        const next: Mode = mode === "dark" ? "light" : "dark";
-        setMode(next);
-        write(MODE_KEY, next);
-      },
+      toggle: toggleMode,
     },
   };
 }
