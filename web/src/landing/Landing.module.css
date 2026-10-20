@@ -1,7 +1,13 @@
 /* Layout of the landing page. Values are the design's at 1461px (tokens.module.css). */
 
 .page main {
+  position: relative;
   padding: 0 var(--gutter);
+}
+
+.page header,
+.page footer {
+  position: relative;
 }
 
 /* ---- type ---- */
