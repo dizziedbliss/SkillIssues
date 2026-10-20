@@ -16,6 +16,10 @@ import (
 // string) or run anything (expression(), behavior, -moz-binding). Escapes
 // are refused outright, since u\72l( spells url( to the browser and not to a
 // filter. The web app's CSP blocks the same fetches a second time.
+//
+// @property may register only --theme-* properties: a theme can animate its
+// own custom properties, never change how the app's tokens (--colors-…)
+// inherit. packages/theme lifts these rules out of the app's @scope.
 
 var allowedAtRules = map[string]bool{
 	"@media": true, "@supports": true, "@keyframes": true, "@container": true, "@layer": true,
@@ -30,7 +34,7 @@ var allowedFunctions = func() map[string]bool {
 		repeating-linear-gradient repeating-radial-gradient repeating-conic-gradient
 		translate translatex translatey translatez translate3d rotate rotatex rotatey rotatez rotate3d
 		scale scalex scaley scalez scale3d skew skewx skewy matrix matrix3d perspective
-		cubic-bezier steps linear
+		cubic-bezier steps linear scroll view
 		blur brightness contrast drop-shadow grayscale hue-rotate invert opacity saturate sepia
 		repeat minmax fit-content counter counters
 		inset circle ellipse polygon
@@ -46,22 +50,30 @@ var deniedIdents = map[string]bool{"behavior": true, "-ms-behavior": true, "-moz
 // is acceptable.
 func CheckCSS(src string) error {
 	var problems Problems
+	line := 1 // of the token being read
 	add := func(format string, args ...any) {
 		if len(problems) < 20 {
-			problems = append(problems, fmt.Sprintf(format, args...))
+			problems = append(problems, fmt.Sprintf("stylesheet line %d: ", line)+fmt.Sprintf(format, args...))
 		}
 	}
-	if strings.ContainsRune(src, '\\') {
+	if i := strings.IndexRune(src, '\\'); i >= 0 {
+		line = 1 + strings.Count(src[:i], "\n")
 		add("escapes (\\) are not allowed")
 	}
-	if strings.ContainsRune(src, 0) {
+	if i := strings.IndexRune(src, 0); i >= 0 {
+		line = 1 + strings.Count(src[:i], "\n")
 		add("NUL bytes are not allowed")
 	}
+	line = 1
 
 	l := css.NewLexer(parse.NewInputString(src))
 	afterURLFunction := false
+	afterProperty := false
+	next := 1 // the line the next token starts on
 	for {
 		tt, data := l.Next()
+		line = next
+		next += strings.Count(string(data), "\n")
 		if tt == css.ErrorToken {
 			if l.Err() != io.EOF {
 				add("unreadable CSS: %v", l.Err())
@@ -69,6 +81,13 @@ func CheckCSS(src string) error {
 			break
 		}
 		text := strings.ToLower(string(data))
+		if afterProperty && tt != css.WhitespaceToken {
+			afterProperty = false
+			if !strings.HasPrefix(text, "--theme-") {
+				add("@property may only register a --theme-* property")
+			}
+			continue
+		}
 		if afterURLFunction && tt != css.WhitespaceToken {
 			afterURLFunction = false
 			if tt != css.StringToken || !dataImage.MatchString(strings.Trim(string(data), `"'`)) {
@@ -78,7 +97,9 @@ func CheckCSS(src string) error {
 		}
 		switch tt {
 		case css.AtKeywordToken:
-			if !allowedAtRules[text] {
+			if text == "@property" {
+				afterProperty = true
+			} else if !allowedAtRules[text] {
 				add("%s is not allowed", text)
 			}
 		case css.URLToken:

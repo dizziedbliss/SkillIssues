@@ -29,7 +29,7 @@
   gap: clamp(1.5rem, 3.5vw, 3rem);
   font-family: var(--serif);
   font-size: clamp(1.25rem, 1.05rem + 0.45vw, 1.5rem);
-  letter-spacing: -0.03em;
+  letter-spacing: var(--heading-tracking);
   line-height: 1;
 }
 
@@ -136,12 +136,9 @@
   background: var(--chip);
 }
 
-/* Under Appearance: more themes, in Settings. */
+/* Under Appearance: one theme each. */
 .subItem {
-  padding-top: 0;
   padding-left: 1.6rem;
-  color: var(--colors-accent);
-  font-size: var(--label-size);
 }
 
 .signOut {
@@ -153,37 +150,24 @@
   font-size: var(--label-size);
 }
 
-/* The Appearance switch: a pill that slides on. */
-.switch {
-  position: relative;
-  flex: none;
-  width: 2.1rem;
-  height: 1.15rem;
-  border: 1px solid var(--colors-text);
-  border-radius: var(--radius-pill);
-  transition: background-color var(--fast) var(--ease);
+/* Appearance: a heading over the recent themes. */
+.heading {
+  cursor: default;
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
 }
 
-.switch::after {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: calc(1.15rem - 6px);
-  height: calc(1.15rem - 6px);
-  border-radius: var(--radius-pill);
-  background: var(--colors-text);
-  transition: translate var(--fast) var(--ease), background-color var(--fast) var(--ease);
+.heading:hover {
+  background: none;
 }
 
-[aria-checked="true"] > .switch {
-  border-color: var(--colors-accent);
-  background: var(--colors-accent);
+.recent [aria-current="true"] {
+  color: var(--colors-accent);
+  cursor: default;
 }
 
-[aria-checked="true"] > .switch::after {
-  translate: 0.92rem 0;
-  background: var(--colors-accent-text);
+.more {
+  color: var(--colors-accent);
 }
 
 .languages {
@@ -230,9 +214,7 @@
 @media (prefers-reduced-motion: reduce) {
   .nav > a,
   .navButton,
-  .item,
-  .switch,
-  .switch::after {
+  .item {
     transition: none;
   }
 

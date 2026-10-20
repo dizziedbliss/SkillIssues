@@ -22,7 +22,10 @@ export const dataImage = /^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/
 const isColor = (s: string) => hexColor.test(s) || funcColor.test(s) || namedColors.has(s.toLowerCase());
 
 /** Fonts a theme may name: self-hosted, so a theme never fetches a font. */
-export const FONTS = ["Instrument Serif", "JetBrains Mono", "Krona One", "system-ui", "serif", "sans-serif", "monospace"] as const;
+export const FONTS = [
+  "Instrument Serif", "JetBrains Mono", "Krona One", "Inter", "Barlow Condensed", "Silkscreen",
+  "system-ui", "serif", "sans-serif", "monospace",
+] as const;
 /** Presets a theme may start from (meta.base). */
 export const PRESETS = [
   "default", "midnight", "terminal", "contrast",
@@ -60,35 +63,56 @@ const number = (lo: number, hi: number): Kind => ({
 const oneOf = (...vals: string[]): Kind => ({ name: "enum", check: str((s) => vals.includes(s)) });
 const text = (n: number): Kind => ({ name: "text", check: str((s) => s.length <= n && !/[<>\0]/.test(s)) });
 
+/** The colour tokens, in [colors] and again in [dark]. */
+const colorKeys: Record<string, Kind> = {
+  background: color, surface: color, "surface-raised": color, text: color, "text-muted": color,
+  accent: color, "accent-text": color, "accent-hover": color, border: color, focus: color,
+  success: color, warning: color, danger: color, info: color, selection: color,
+  link: color, "code-background": color,
+};
+
+/** A duration of at most 200ms. */
+const staggerDelay: Kind = {
+  name: "duration",
+  check: str((s) => {
+    const m = durationRe.exec(s);
+    return m !== null && Number(m[1]) <= 200;
+  }),
+};
+
 export const SCHEMA: Record<string, Record<string, Kind>> = {
   meta: {
     name: text(60), author: text(60), version: text(20), description: text(280),
     base: oneOf(...PRESETS),
     schema: number(SCHEMA_VERSION, SCHEMA_VERSION),
   },
-  colors: {
-    background: color, surface: color, "surface-raised": color, text: color, "text-muted": color,
-    accent: color, "accent-text": color, border: color, focus: color,
-    success: color, warning: color, danger: color, selection: color,
-  },
+  colors: colorKeys,
+  // The dark half of a light/dark pair: Appearance's switch moves between [colors] and these.
+  dark: colorKeys,
   background: {
     image, pattern: oneOf("none", "grid", "dots", "lines"), "pattern-color": color, "pattern-size": length(4, 96),
+    "image-size": oneOf("cover", "contain", "auto"), "image-position": oneOf("center", "top", "bottom", "left", "right"),
+    "image-repeat": oneOf("no-repeat", "repeat", "repeat-x", "repeat-y"), "image-attachment": oneOf("fixed", "scroll"),
   },
   typography: {
     "heading-font": font, "body-font": font, "mono-font": font,
     "base-size": length(12, 22), scale: number(1, 1.6), "line-height": number(1, 2),
     "heading-weight": number(100, 900), "body-weight": number(100, 900),
+    "heading-transform": oneOf("none", "uppercase", "lowercase", "capitalize"),
+    "heading-tracking": length(-4, 8), "body-tracking": length(-2, 6),
   },
   spacing: {
     unit: length(2, 8), density: oneOf("compact", "comfortable", "spacious"),
-    "page-gutter": length(8, 96), "max-width": length(640, 2400),
+    "page-gutter": length(8, 96), "max-width": length(640, 2400), "sidebar-width": length(160, 480),
   },
   radius: { small: length(0, 48), medium: length(0, 48), large: length(0, 48), pill: length(0, 999) },
   border: { width: length(0, 4), style: oneOf("solid", "dashed", "dotted", "none") },
-  shadow: { small: shadow, medium: shadow, large: shadow },
+  shadow: { small: shadow, medium: shadow, large: shadow, focus: shadow },
   motion: {
     duration, easing: oneOf("linear", "ease", "ease-in", "ease-out", "ease-in-out"), reduce: boolean,
     // How the app moves between pages.
-    transition: oneOf("wipe", "fade", "slide", "none"),
+    transition: oneOf("wipe", "fade", "slide", "slide-up", "iris", "glitch", "none"),
+    // The delay between one list item and the next as a list appears.
+    stagger: staggerDelay,
   },
 };

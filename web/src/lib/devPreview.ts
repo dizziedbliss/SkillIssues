@@ -48,6 +48,7 @@ const stored = (() => {
       profile?: Profile;
       themes?: Theme[];
       active?: string | null;
+      activePreset?: string | null;
     } | null;
   } catch {
     return null;
@@ -58,10 +59,11 @@ const saved = new Map<number, Issue>((stored?.saved ?? []).map((i) => [i.id, i])
 let notifications: Notification[] = stored?.notifications ?? [];
 let themes: Theme[] = stored?.themes ?? [];
 let active: string | null = stored?.active ?? null;
+let activePreset: string | null = stored?.activePreset ?? null;
 
 function persist() {
   try {
-    localStorage.setItem(STATE, JSON.stringify({ saved: [...saved.values()], notifications, profile, themes, active }));
+    localStorage.setItem(STATE, JSON.stringify({ saved: [...saved.values()], notifications, profile, themes, active, activePreset }));
   } catch {
     // Storage blocked: the preview forgets on reload.
   }
@@ -75,9 +77,10 @@ export function previewTransport(real: Transport): Transport {
       return { authenticated: true, user: { id: 1, username: PREVIEW_LOGIN, avatar_url: profile.avatar_url } };
     }
     if (path === "/me" && method === "GET") return profile;
-    if (path === "/me/theme" && method === "GET") return themes.find((t) => t.id === active) ?? null;
-    if (path === "/me/theme" && method === "PUT") {
+    if (path === "/me/theme" && method === "GET") return themes.find((t) => t.id === active) ?? (activePreset ? { preset: activePreset } : null);
+    if (path === "/me/theme" && method === "PUT" && !(req.body as { preset?: string }).preset) {
       active = (req.body as { id: string | null }).id;
+      activePreset = null;
       persist();
       return themes.find((t) => t.id === active) ?? null;
     }
@@ -96,6 +99,17 @@ export function previewTransport(real: Transport): Transport {
       themes = [th, ...themes];
       persist();
       return th;
+    }
+    if (path.startsWith("/themes/") && method === "GET") {
+      const found = themes.find((t) => t.id === decodeURIComponent(path.slice("/themes/".length)));
+      if (found) return found;
+      return real(req);
+    }
+    if (path === "/me/theme" && method === "PUT" && (req.body as { preset?: string }).preset) {
+      activePreset = (req.body as { preset: string }).preset;
+      active = null;
+      persist();
+      return { preset: activePreset };
     }
     if (path.startsWith("/themes/") && (method === "PUT" || method === "DELETE")) {
       const id = decodeURIComponent(path.slice("/themes/".length));

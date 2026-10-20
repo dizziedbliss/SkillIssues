@@ -63,3 +63,27 @@ test("a person's theme written out keeps their overrides over its base", () => {
   assert.match(r.value, /background = "#2e3440"/); // from nord
   assert.match(r.value, /heading-font = "Instrument Serif"/); // from default
 });
+
+// The same problems, word for word and line for line, as the server
+// (backend/internal/theme runs these files too).
+for (const file of readdirSync(join(fixtures, "problems")).filter((f) => !f.endsWith(".txt"))) {
+  test(`problems in ${file} read as the server's`, () => {
+    const src = readFileSync(join(fixtures, "problems", file), "utf8");
+    const want = readFileSync(join(fixtures, "problems", file.replace(/\.\w+$/, ".txt")), "utf8").trim().split("\n");
+    const got = file.endsWith(".css") ? checkCSS(src) : (() => {
+      const r = parseTheme(src);
+      return r.ok ? [] : r.problems;
+    })();
+    assert.deepEqual(got, want);
+  });
+}
+
+test("a light/dark pair compiles to either half", () => {
+  const toml = '[colors]\nbackground = "#fafafa"\n[dark]\nbackground = "#101014"\n';
+  const light = compileTheme({ toml, css: "" });
+  const dark = compileTheme({ toml, css: "" }, { dark: true });
+  assert.ok(light.ok && dark.ok && light.value.hasDark);
+  assert.match(light.value.declarations, /--colors-background: #fafafa;/);
+  assert.match(dark.value.declarations, /--colors-background: #101014;/);
+  assert.doesNotMatch(dark.value.declarations, /--dark-/);
+});

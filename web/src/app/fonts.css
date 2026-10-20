@@ -1,0 +1,6 @@
+/* The theme fonts beyond the site's three, for the app only (the landing page never loads them). A browser fetches a face only when a theme uses it. */
+@import "@fontsource/inter/latin-400.css";
+@import "@fontsource/inter/latin-600.css";
+@import "@fontsource/barlow-condensed/latin-400.css";
+@import "@fontsource/barlow-condensed/latin-600.css";
+@import "@fontsource/silkscreen/latin-400.css";

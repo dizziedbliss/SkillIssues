@@ -1,0 +1,10 @@
+[meta]
+schema = 1
+
+[colors]
+accent = "#ff0000"
+acent = "#00ff00"
+text = "not a colour"
+
+[sparkles]
+on = true

@@ -3,18 +3,16 @@ import type { Translate } from "../i18n";
 import { setSiteMode, useSiteMode } from "./siteMode";
 
 /**
- * The footer's theme button. Inside the app it switches the app's theme
- * (app/theme.ts provides it); everywhere else it switches the site between
- * its locked light and dark.
+ * The footer's theme button. Inside the app it goes back to the theme used
+ * before this one (app/theme.tsx provides it); everywhere else it switches
+ * the site between its locked light and dark.
  */
 export interface ThemeToggle {
-  /** Whether the alternative (dark, or the default theme over your own) is on. */
+  /** Whether the button's state is "on" (the site's dark); inside the app, never. */
   on: boolean;
   /** What pressing it does, for its label. */
   label: (t: Translate) => string;
   toggle: () => void;
-  /** Inside the app: switch Appearance back so the chosen theme shows. */
-  showChosen?: () => void;
 }
 
 export const ThemeToggleContext = createContext<ThemeToggle | null>(null);

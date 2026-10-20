@@ -5,6 +5,8 @@ import { dataImage } from "./schema.ts";
  * stylesheet may fetch nothing (no url() but base64 raster data images, no
  * @import or @font-face, no function off the list) and run nothing. Escapes
  * are refused outright, so the tokenizer below never has to decode one.
+ * @property may register only --theme-* properties; applyTheme lifts those
+ * rules out of the app's @scope.
  */
 
 const ALLOWED_AT_RULES = new Set(["@media", "@supports", "@keyframes", "@container", "@layer"]);
@@ -16,7 +18,7 @@ const ALLOWED_FUNCTIONS = new Set(
    repeating-linear-gradient repeating-radial-gradient repeating-conic-gradient
    translate translatex translatey translatez translate3d rotate rotatex rotatey rotatez rotate3d
    scale scalex scaley scalez scale3d skew skewx skewy matrix matrix3d perspective
-   cubic-bezier steps linear
+   cubic-bezier steps linear scroll view
    blur brightness contrast drop-shadow grayscale hue-rotate invert opacity saturate sepia
    repeat minmax fit-content counter counters
    inset circle ellipse polygon
@@ -25,7 +27,7 @@ const ALLOWED_FUNCTIONS = new Set(
 
 const DENIED_IDENTS = new Set(["behavior", "-ms-behavior", "-moz-binding"]);
 
-type Token =
+type Token = { p: number } & (
   | { t: "at"; v: string }
   | { t: "function"; v: string }
   | { t: "url"; v: string }
@@ -33,7 +35,7 @@ type Token =
   | { t: "string"; v: string }
   | { t: "delim"; v: string }
   | { t: "cdo" | "cdc" | "ws" | "other" }
-  | { t: "bad"; v: string };
+  | { t: "bad"; v: string });
 
 const nameChar = /[A-Za-z0-9_\-\u0080-￿]/;
 const nameStart = /[A-Za-z_\-\u0080-￿]/;
@@ -47,6 +49,7 @@ function* tokens(src: string): Generator<Token> {
     return src.slice(start, i);
   };
   while (i < n) {
+    const p = i; // where this token starts, for its line
     const c = src[i]!;
     if (src.startsWith("/*", i)) {
       const end = src.indexOf("*/", i + 2);
@@ -55,32 +58,32 @@ function* tokens(src: string): Generator<Token> {
     }
     if (/\s/.test(c)) {
       while (i < n && /\s/.test(src[i]!)) i++;
-      yield { t: "ws" };
+      yield { p, t: "ws" };
       continue;
     }
     if (c === '"' || c === "'") {
       const start = ++i;
       while (i < n && src[i] !== c && src[i] !== "\n") i++;
       if (src[i] !== c) {
-        yield { t: "bad", v: "string" };
+        yield { p, t: "bad", v: "string" };
         return;
       }
-      yield { t: "string", v: src.slice(start, i++) };
+      yield { p, t: "string", v: src.slice(start, i++) };
       continue;
     }
     if (src.startsWith("<!--", i)) {
       i += 4;
-      yield { t: "cdo" };
+      yield { p, t: "cdo" };
       continue;
     }
     if (src.startsWith("-->", i)) {
       i += 3;
-      yield { t: "cdc" };
+      yield { p, t: "cdc" };
       continue;
     }
     if (c === "@" && i + 1 < n && nameStart.test(src[i + 1]!)) {
       i++;
-      yield { t: "at", v: "@" + name().toLowerCase() };
+      yield { p, t: "at", v: "@" + name().toLowerCase() };
       continue;
     }
     if (nameStart.test(c) && !(c === "-" && i + 1 < n && /[0-9.]/.test(src[i + 1]!))) {
@@ -96,36 +99,53 @@ function* tokens(src: string): Generator<Token> {
           if (src[j] !== '"' && src[j] !== "'") {
             const end = src.indexOf(")", j);
             if (end < 0) {
-              yield { t: "bad", v: "url" };
+              yield { p, t: "bad", v: "url" };
               return;
             }
-            yield { t: "url", v: src.slice(j, end).trim() };
+            yield { p, t: "url", v: src.slice(j, end).trim() };
             i = end + 1;
             continue;
           }
         }
-        yield { t: "function", v: lower };
+        yield { p, t: "function", v: lower };
         continue;
       }
-      yield { t: "ident", v: word.toLowerCase() };
+      yield { p, t: "ident", v: word.toLowerCase() };
       continue;
     }
     i++;
-    yield { t: "delim", v: c };
+    yield { p, t: "delim", v: c };
   }
 }
 
-/** Every reason a theme stylesheet is refused; empty when it is acceptable. */
+/** The line (from 1) of a position in the source. */
+const lineAt = (src: string, pos: number) => 1 + (src.slice(0, pos).match(/\n/g)?.length ?? 0);
+
+/** Every reason a theme stylesheet is refused, each with its line; empty when it is acceptable. */
 export function checkCSS(src: string): string[] {
   const problems: string[] = [];
+  let line = 1;
   const add = (p: string) => {
-    if (problems.length < 20) problems.push(p);
+    if (problems.length < 20) problems.push(`stylesheet line ${line}: ${p}`);
   };
-  if (src.includes("\\")) add("escapes (\\) are not allowed");
-  if (src.includes("\0")) add("NUL bytes are not allowed");
+  if (src.includes("\\")) {
+    line = lineAt(src, src.indexOf("\\"));
+    add("escapes (\\) are not allowed");
+  }
+  if (src.includes("\0")) {
+    line = lineAt(src, src.indexOf("\0"));
+    add("NUL bytes are not allowed");
+  }
 
   let afterUrl = false;
+  let afterProperty = false;
   for (const tok of tokens(src)) {
+    line = lineAt(src, tok.p);
+    if (afterProperty && tok.t !== "ws") {
+      afterProperty = false;
+      if (tok.t !== "ident" || !tok.v.startsWith("--theme-")) add("@property may only register a --theme-* property");
+      continue;
+    }
     if (afterUrl && tok.t !== "ws") {
       afterUrl = false;
       if (tok.t !== "string" || !dataImage.test(tok.v)) add("url() may only hold a data:image (png, jpeg, gif or webp) in base64");
@@ -133,7 +153,8 @@ export function checkCSS(src: string): string[] {
     }
     switch (tok.t) {
       case "at":
-        if (!ALLOWED_AT_RULES.has(tok.v)) add(`${tok.v} is not allowed`);
+        if (tok.v === "@property") afterProperty = true;
+        else if (!ALLOWED_AT_RULES.has(tok.v)) add(`${tok.v} is not allowed`);
         break;
       case "url":
         if (!dataImage.test(tok.v.replace(/^["']|["']$/g, ""))) add("url() may only hold a data:image (png, jpeg, gif or webp) in base64");

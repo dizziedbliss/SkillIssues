@@ -129,3 +129,55 @@ func TestThemeStore(t *testing.T) {
 		t.Errorf("list after delete: %d themes, %v", len(list), err)
 	}
 }
+
+// A built-in applies as it is, and an account has one of a built-in or a
+// stored theme at a time: choosing either clears the other.
+func TestActivePreset(t *testing.T) {
+	pool := storePool(t)
+	ctx := context.Background()
+	svc := NewService(pool)
+	user := testUser(t, pool)
+	lim := Limits{MaxPerUser: 5, MaxBytes: 4096}
+
+	if err := svc.SetActivePreset(ctx, user, "not-a-preset"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("unknown preset: err = %v, want ErrNotFound", err)
+	}
+	if err := svc.SetActivePreset(ctx, user, "nord"); err != nil {
+		t.Fatal(err)
+	}
+	if p, err := svc.ActivePreset(ctx, user); err != nil || p != "nord" {
+		t.Errorf("ActivePreset = %q, %v; want nord", p, err)
+	}
+
+	mine, err := svc.Create(ctx, user, Input{TOML: "[colors]\naccent = \"#123456\"\n"}, lim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.SetActive(ctx, user, mine.ID); err != nil {
+		t.Fatal(err)
+	}
+	if p, err := svc.ActivePreset(ctx, user); err != nil || p != "" {
+		t.Errorf("after a stored theme, ActivePreset = %q, %v; want none", p, err)
+	}
+	if err := svc.SetActivePreset(ctx, user, "dracula"); err != nil {
+		t.Fatal(err)
+	}
+	if a, err := svc.Active(ctx, user); err != nil || a != nil {
+		t.Errorf("after a built-in, Active = %+v, %v; want none", a, err)
+	}
+	if err := svc.SetActive(ctx, user, ""); err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := svc.ActivePreset(ctx, user); p != "" {
+		t.Errorf("the default left the built-in %q applied", p)
+	}
+}
+
+// Check reports the file's and the stylesheet's problems together.
+func TestCheckReportsEverything(t *testing.T) {
+	_, err := Check(Input{TOML: "[colors]\nacent = \"#000\"\n", CSS: "@import \"x\";"}, Limits{MaxBytes: 4096})
+	var p Problems
+	if !errors.As(err, &p) || len(p) != 2 {
+		t.Errorf("Check = %v, want a TOML and a CSS problem", err)
+	}
+}

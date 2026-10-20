@@ -118,6 +118,15 @@ export interface Theme {
   updated_at: string;
 }
 
+/** GET /me/theme: a stored theme, a built-in applied as it is, or null (the default). */
+export type ActiveTheme = Theme | { preset: string } | null;
+
+/** POST /themes/validate when the theme is valid. */
+export interface ThemeCheck {
+  valid: true;
+  name: string;
+}
+
 export interface ThemeInput {
   toml: string;
   css: string;

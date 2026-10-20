@@ -5,7 +5,7 @@
   font-weight: var(--typography-heading-weight);
   font-size: clamp(2.25rem, 1.5rem + 2.4vw, 3.25rem);
   line-height: 1.05;
-  letter-spacing: -0.035em;
+  letter-spacing: var(--heading-tracking);
 }
 
 .note {
@@ -50,7 +50,7 @@
 
 .button:hover,
 .button:focus-visible {
-  background-color: var(--colors-text);
+  background-color: var(--accent-hover);
   color: var(--colors-accent);
 }
 

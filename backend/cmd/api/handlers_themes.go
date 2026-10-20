@@ -72,6 +72,22 @@ func (h *handlers) getTheme(w http.ResponseWriter, r *http.Request) {
 	respondTheme(w, http.StatusOK, t)
 }
 
+// validateTheme checks {"toml", "css"} as a save would, storing nothing:
+// 200 {"valid": true, "name"}, or 422 with every problem and its line.
+// Open to anyone, so a theme can be written and checked before signing in.
+func (h *handlers) validateTheme(w http.ResponseWriter, r *http.Request) {
+	in, ok := decodeThemeInput(w, r)
+	if !ok {
+		return
+	}
+	name, err := theme.Check(in, h.themeLimits())
+	if err != nil {
+		respondThemeError(w, r, err)
+		return
+	}
+	respondTheme(w, http.StatusOK, map[string]any{"valid": true, "name": name})
+}
+
 func (h *handlers) createTheme(w http.ResponseWriter, r *http.Request) {
 	in, ok := decodeThemeInput(w, r)
 	if !ok {
@@ -108,30 +124,52 @@ func (h *handlers) deleteTheme(w http.ResponseWriter, r *http.Request) {
 
 // getActiveTheme returns the theme applied to the caller's account, or null.
 func (h *handlers) getActiveTheme(w http.ResponseWriter, r *http.Request) {
-	t, err := h.themeSvc.Active(r.Context(), middleware.GetUserID(r.Context()))
+	userID := middleware.GetUserID(r.Context())
+	t, err := h.themeSvc.Active(r.Context(), userID)
 	if err != nil {
 		respondThemeError(w, r, err)
 		return
 	}
-	respondTheme(w, http.StatusOK, t)
-}
-
-// setActiveTheme applies {"id": "..."} (own or public), or {"id": null} for
-// the default.
-func (h *handlers) setActiveTheme(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		ID *string `json:"id"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "body must be {\"id\": \"…\"} or {\"id\": null}")
+	if t != nil {
+		respondTheme(w, http.StatusOK, t)
 		return
 	}
-	id := ""
-	if body.ID != nil {
-		id = *body.ID
+	// No stored theme: a built-in applied as it is, or the default (null).
+	preset, err := h.themeSvc.ActivePreset(r.Context(), userID)
+	if err != nil {
+		respondThemeError(w, r, err)
+		return
+	}
+	if preset != "" {
+		respondTheme(w, http.StatusOK, map[string]string{"preset": preset})
+		return
+	}
+	respondTheme(w, http.StatusOK, nil)
+}
+
+// setActiveTheme applies {"id": "..."} (own or public), {"preset": "nord"}
+// (a built-in as it is), or {"id": null} for the default.
+func (h *handlers) setActiveTheme(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ID     *string `json:"id"`
+		Preset *string `json:"preset"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || (body.ID != nil && body.Preset != nil) {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "body must be {\"id\": \"…\"}, {\"preset\": \"…\"} or {\"id\": null}")
+		return
 	}
 	userID := middleware.GetUserID(r.Context())
-	if err := h.themeSvc.SetActive(r.Context(), userID, id); err != nil {
+	var err error
+	if body.Preset != nil {
+		err = h.themeSvc.SetActivePreset(r.Context(), userID, *body.Preset)
+	} else {
+		id := ""
+		if body.ID != nil {
+			id = *body.ID
+		}
+		err = h.themeSvc.SetActive(r.Context(), userID, id)
+	}
+	if err != nil {
 		respondThemeError(w, r, err)
 		return
 	}

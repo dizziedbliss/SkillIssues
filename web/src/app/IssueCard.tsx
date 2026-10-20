@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { Link } from "react-router";
 import type { Issue } from "@skillissues/client";
 import { useI18n } from "../i18n";
@@ -16,25 +17,31 @@ const LABELS = 4;
  * View Issue and the bookmark on the right. The whole card opens the issue
  * (the title's link covers it); the repository's name opens its issues.
  */
-export function IssueCard({ issue }: { issue: Issue }) {
+export function IssueCard({ issue, index }: { issue: Issue; index?: number }) {
   const { t, locale } = useI18n();
   const extra = issue.labels.length - LABELS;
   const updated = ago(issue.updated_at, locale);
 
   return (
-    <article className={s.card} aria-labelledby={`issue-${issue.id}`}>
-      <h2 id={`issue-${issue.id}`} className={s.title}>
+    <article
+      className={s.card}
+      aria-labelledby={`issue-${issue.id}`}
+      data-ui="card"
+      data-ui-index={index}
+      style={index === undefined ? undefined : ({ "--ui-index": index } as CSSProperties)}
+    >
+      <h2 id={`issue-${issue.id}`} className={s.title} data-ui="card-title">
         <Link to={`/app/issues/${issue.id}`}>
           {issue.title} <span className={s.number}>#{issue.number}</span>
         </Link>
       </h2>
-      <p className={s.repo}>
+      <p className={s.repo} data-ui="card-repo">
         <Link to={scopeURL({ repo: issue.repository })} className={s.repoLink} title={t("issue.moreRepo", { repo: issue.repository })}>
           {issue.repository}
         </Link>
       </p>
       <div className={s.row}>
-        <ul className={s.chips}>
+        <ul className={s.chips} data-ui="chips">
           {issue.state === "CLOSED" && <li className={s.closed}>{t("issue.closedChip")}</li>}
           {updated && (
             <li className={s.chip} title={t("issue.updated", { ago: updated })}>
@@ -56,13 +63,13 @@ export function IssueCard({ issue }: { issue: Issue }) {
         </ul>
         <div className={s.end}>
           {issue.tech.length > 0 && (
-            <ul className={s.tech}>
+            <ul className={s.tech} data-ui="tech">
               {issue.tech.map((x) => (
                 <li key={x} className={s.techChip}>{x}</li>
               ))}
             </ul>
           )}
-          <Link to={`/app/issues/${issue.id}`} className={s.view} tabIndex={-1}>
+          <Link to={`/app/issues/${issue.id}`} className={s.view} tabIndex={-1} data-ui="button">
             {t("issue.view")}
           </Link>
           <SaveButton issue={issue} />

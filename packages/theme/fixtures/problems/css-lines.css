@@ -1,0 +1,5 @@
+.a { color: red; }
+
+.b { background: url(https://example.com/x.png); }
+@import "x.css";
+.c { width: expression(1); }

@@ -53,6 +53,82 @@ html[data-transition="slide"]::view-transition-new(root) {
   }
 }
 
+/* slide-up: the new page rises into place as the old one lifts away. */
+html[data-transition="slide-up"]::view-transition-old(root) {
+  animation: si-rise-out var(--vt-duration, 380ms) var(--vt-easing, ease-out) both;
+}
+
+html[data-transition="slide-up"]::view-transition-new(root) {
+  animation: si-rise-in var(--vt-duration, 380ms) var(--vt-easing, ease-out) both;
+}
+
+@keyframes si-rise-out {
+  to {
+    opacity: 0;
+    translate: 0 -4%;
+  }
+}
+
+@keyframes si-rise-in {
+  from {
+    opacity: 0;
+    translate: 0 6%;
+  }
+}
+
+/* iris: the new page opens from the centre in a widening circle. */
+html[data-transition="iris"]::view-transition-old(root) {
+  animation: none;
+}
+
+html[data-transition="iris"]::view-transition-new(root) {
+  animation: si-iris var(--vt-duration, 380ms) var(--vt-easing, ease-out) both;
+}
+
+@keyframes si-iris {
+  from {
+    clip-path: circle(0% at 50% 50%);
+  }
+  to {
+    clip-path: circle(75% at 50% 50%);
+  }
+}
+
+/* glitch: a few hard steps of offset slices, then the page. */
+html[data-transition="glitch"]::view-transition-old(root) {
+  animation: none;
+}
+
+html[data-transition="glitch"]::view-transition-new(root) {
+  animation: si-glitch var(--vt-duration, 380ms) steps(1, end) both;
+}
+
+@keyframes si-glitch {
+  0% {
+    clip-path: inset(0 0 100% 0);
+  }
+  20% {
+    clip-path: inset(10% 0 60% 0);
+    translate: -2% 0;
+  }
+  40% {
+    clip-path: inset(50% 0 20% 0);
+    translate: 2% 0;
+  }
+  60% {
+    clip-path: inset(0 0 45% 0);
+    translate: -1% 0;
+  }
+  80% {
+    clip-path: inset(30% 0 0 0);
+    translate: 1% 0;
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+    translate: 0 0;
+  }
+}
+
 /* Parts that keep their name across pages (the search box) glide between places at the theme's pace. */
 ::view-transition-group(*) {
   animation-duration: var(--vt-duration, 380ms);
