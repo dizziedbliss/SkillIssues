@@ -19,6 +19,10 @@ export interface Issue {
   required_skills: string[];
   technologies: string[];
   learning_tags: string[];
+  /** The issue's labels as GitHub has them. */
+  labels: string[];
+  /** The repository's three largest languages by GitHub's names, largest first. */
+  tech: string[];
   comments: number;
   author: string;
   repository: string;
@@ -133,4 +137,29 @@ export interface AccountDeleted {
   purged: boolean;
   /** GitHub's authorised-apps page, where the sign-in app can be removed too. */
   authorized_apps_url: string;
+}
+
+/** GET /issues/{id}/body: the body, or why it can't be had right now. */
+export type IssueBody = { body: string } | { status: "queued"; reason: string };
+
+/** POST /saved, DELETE /saved/{id}. */
+export interface SavedChange {
+  saved: boolean;
+  issue_id: number;
+}
+
+export type Level = "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+
+/** GET /me. */
+export interface Profile {
+  id: number;
+  username: string;
+  name: string;
+  avatar_url: string;
+  experience_level: Level;
+  target_level: Level;
+  bio: string;
+  demonstrated_skills: string[];
+  interests: string[];
+  preferred_languages: string[];
 }

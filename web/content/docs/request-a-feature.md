@@ -29,7 +29,7 @@ Describe the problem before the solution.
 Some choices are made on purpose:
 
 - **Ranking by popularity.** The default feed deliberately gives every repository one slot. Anyone who wants an order picks easiest or newest.
-- **Guessing difficulty.** An issue with no difficulty label stays unrated.
+- **Guessing difficulty.** An issue with no difficulty label stays unranked.
 - **Anything that needs your GitHub token on our servers.** The server holds none.
 
 If your idea runs into one of these, say why you think it should change. A well-argued case can be heard.

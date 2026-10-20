@@ -27,7 +27,7 @@ Remove anything private, such as tokens, cookies and personal details, from logs
 ## Before you report
 
 - **Data looks out of date.** Changes on GitHub usually take up to about two hours to show. Wait before reporting. See [How it works](/how-it-works).
-- **An issue says "unrated".** That isn't a bug. It means the maintainers haven't labelled its difficulty. See [Difficulty ratings](/docs/difficulty-ratings).
+- **An issue says "unranked".** That isn't a bug. It means the maintainers haven't labelled its difficulty. See [Difficulty ratings](/docs/difficulty-ratings).
 - **A repository is missing.** Check it with the lookup first. See [Suggest a repository](/docs/suggest-a-repository).
 - **You got "too many requests".** The API limits how often one caller can ask. Wait for the time in the `Retry-After` header. See [Public API](/docs/public-api).
 - **The catalog was busy.** A request that takes too long is cancelled with a message to try again shortly. Retrying usually works.

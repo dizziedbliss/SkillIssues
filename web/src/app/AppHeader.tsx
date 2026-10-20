@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Link, NavLink, useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
 import { Logo } from "../landing/Logo";
 import { LOCALES, useI18n } from "../i18n";
 import { useThemeToggle } from "../lib/themeToggle";
@@ -14,6 +14,9 @@ export function AppHeader() {
   const { t } = useI18n();
   const { user, isPending } = useSession();
   const signIn = useSignIn();
+  const { pathname } = useLocation();
+  // Explore covers the catalog and the issues opened from it.
+  const exploring = pathname === "/app" || pathname === "/app/" || pathname.startsWith("/app/issues/");
 
   return (
     <header className={s.header}>
@@ -22,9 +25,9 @@ export function AppHeader() {
           <Logo size="header" />
         </Link>
         <nav className={s.nav} aria-label={t("app.nav")}>
-          <NavLink to="/app" end className={({ isActive }) => (isActive ? s.active : undefined)}>
+          <Link to="/app" className={exploring ? s.active : undefined} aria-current={exploring ? "page" : undefined}>
             {t("app.nav.explore")}
-          </NavLink>
+          </Link>
           {user ? (
             <ProfileMenu />
           ) : (
