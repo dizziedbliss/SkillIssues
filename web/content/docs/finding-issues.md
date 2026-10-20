@@ -50,26 +50,29 @@ The values in each filter's list come from the catalog itself, most common first
 
 ## Search
 
-Type a term and press Search. Nothing is searched while you type, and the catalog doesn't change until you press Search. **x clear** empties the search.
+There are two ways to search.
 
-Search looks in four places at once and shows a mix of all of them:
+**Search** in the menu (or `/`, or Ctrl+K, from anywhere in the app) opens a search over the page. Results come as you type, sorted into three kinds, and each kind has **View more**, which opens that kind on its own on the search page, with pages of its own. **See all results** opens every kind at once on the search page. Search never takes you back to Explore.
 
-| Category | Matches |
+The search box on Explore searches the catalog you're browsing and shows every kind of match mixed together in one list. **x clear** empties it.
+
+Search looks in three places:
+
+| Kind | Matches |
 |---|---|
-| Repository | The repository's name contains your term. |
-| Title | The issue's title or labels match your term, as words. |
-| Language | The repository's language is exactly your term. |
-| Author | The login of the person who opened the issue contains your term. |
+| Repositories | The repository's name contains your term. |
+| Titles and labels | The issue's title or labels match your term, as words. |
+| Languages and tech | The repository's main language is your term, or it uses that language at all. Main language first. |
 
 A few details:
 
-- An issue appears once, in the first category it matches.
-- Each category is limited in size, and the categories are interleaved, so a common word can't fill the page with one kind of result.
-- For the Repository and Language categories, a single repository contributes only a few issues, so a large project can't fill the category.
+- In a mixed list, an issue appears once, in the first kind it matches. On its own, a kind lists every issue it matches.
+- Each kind is limited in size, and mixed lists interleave them, so a common word can't fill the page with one kind of result.
+- For repositories and languages, a single repository contributes only a few issues, so a large project can't fill the list.
 - Terms under three characters only match titles and languages.
 - Characters like `%` and `_` are searched literally.
 - Your filters still apply to a search.
-- Search ignores the sort. Results are ordered by how they matched, with the categories mixed together.
+- Search ignores the sort. Results are ordered by how they matched.
 
 ## When a page looks short or empty
 

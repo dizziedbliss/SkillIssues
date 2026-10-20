@@ -222,8 +222,11 @@ path reaching outside the importing project). Both apps are built on `client`; t
   same answer that brought its description. "Work on it in the desktop app" opens
   `skillissues://issue/<id>` and, if the page keeps focus, offers the download or GitHub.
   Search (`search/SearchOverlay.tsx`: the nav, `/` or Ctrl/⌘K) is a modal over the blurred page with
-  results as you type; its box shares a `view-transition-name` with Explore's, so "see all" glides
-  into Explore. Page changes inside the app run the theme's `[motion] transition` through View
+  results as you type, grouped by kind, each with View more; a click outside closes it. It leads to
+  the search page (`search/SearchPage.tsx`, `/app/search?search=…&in=repository|title|language`),
+  never to Explore: every kind, or one kind paged on its own, with the same filters. Its box shares
+  a `view-transition-name` with the search page's (and Explore's), so one glides into the other.
+  The wordmark inside the app goes to Explore. Page changes inside the app run the theme's `[motion] transition` through View
   Transitions (`transition.ts`, `transition.css`; never under reduced motion). The profile
   (`profile/`: `/app/profile`, and `/app/contributions` for Contribute) counts the person's public
   pull requests from GitHub's search **in the browser**, with no token (`lib/github.ts`, cached per
@@ -653,20 +656,21 @@ Every key with its default and bounds: `docs/settings.md`.
 
 ## Key design decisions
 
-- **Balanced search**: `GET /issues?search=` matches four categories in precedence order:
+- **Balanced search**: `GET /issues?search=` matches three categories in precedence order:
   - **Repository:** the name contains the term.
   - **Title:** full-text match on the title and labels.
-  - **Language:** the repository's language is the term.
-  - **Author:** the author's login contains the term.
+  - **Language:** the repository's main language is the term, or one of its tech is (main
+    language first).
 
-  Each category is its own indexed query, run concurrently (`issue/search_categories.go`). An
-  issue appears once, in its first category. Each category is capped at
-  `api.search.per_category_cap`, and the categories are interleaved rank by rank. Never fold
-  them back into one query that ORs the matches across the join: no index serves it, and on the
-  full catalog it ran past the query timeout.
-  - Title and Author order a bounded sample (`api.search.sample_size`) by stars.
+  Authors are not searched. Each category is its own indexed query, run concurrently
+  (`issue/search_categories.go`). An issue appears once, in its first category. Each category is
+  capped at `api.search.per_category_cap`, and the categories are interleaved rank by rank. Never
+  fold them back into one query that ORs the matches across the join: no index serves it, and on
+  the full catalog it ran past the query timeout. `?category=repository|title|language` returns
+  one category alone, paged on its own up to `api.search.sample_size` (the web app's "view more").
+  - Title orders a bounded sample (`api.search.sample_size`) by stars.
   - Repository and Language take at most `api.search.per_repo_cap` issues per repository.
-  - Terms under 3 characters skip the substring categories, since trigram indexes can't serve
+  - Terms under 3 characters skip the Repository category, since its trigram index can't serve
     them.
 - **Catalog browsing reads in index order**: the catalog order (`difficulty_score`, `updated_at
   DESC`, `id DESC`) is exactly `issues_open_browse_idx` / `issues_open_difficulty_browse_idx`

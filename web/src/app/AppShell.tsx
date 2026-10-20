@@ -14,6 +14,7 @@ import { useAppTheme } from "./theme";
 import { useRouteSettled, useTransitionNavigate } from "./transition";
 import { SearchContext } from "./search/context";
 import { SearchOverlay } from "./search/SearchOverlay";
+import { SearchPage } from "./search/SearchPage";
 import "./transition.css";
 import s from "./App.module.css";
 
@@ -98,6 +99,7 @@ export default function AppShell() {
             <Routes>
               <Route index element={<Explore />} />
               <Route path="issues/:id" element={<IssuePage />} />
+              <Route path="search" element={<SearchPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="contributions" element={<ContributionsPage />} />
               <Route path="saved" element={<SavedPage />} />

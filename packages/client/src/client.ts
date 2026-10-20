@@ -1,7 +1,7 @@
 import type { Transport } from "./transport";
 import type {
   AccountDeleted, Facets, Issue, IssueBody, IssueFilters, IssuePage, Notifications, Profile, RepositoryLookup,
-  SavedChange, Session, SignInStart, Stats, Theme, ThemeInput,
+  SavedChange, SearchCategory, Session, SignInStart, Stats, Theme, ThemeInput,
 } from "./types";
 
 function query(params: Record<string, string | number | undefined>): string {
@@ -63,8 +63,11 @@ export class Client {
   }
 
   /** Issues matching a search term, best category first. */
-  async search(term: string, filters: IssueFilters & { page?: number } = {}, o?: Opts): Promise<Issue[]> {
-    const issues = await this.get<Issue[]>(`/issues${query({ ...filterParams(filters), search: term, page: filters.page })}`, o);
+  async search(term: string, filters: IssueFilters & { page?: number; category?: SearchCategory } = {}, o?: Opts): Promise<Issue[]> {
+    const issues = await this.get<Issue[]>(
+      `/issues${query({ ...filterParams(filters), search: term, page: filters.page, category: filters.category })}`,
+      o,
+    );
     return issues.map(withLists);
   }
 

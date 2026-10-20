@@ -107,6 +107,10 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.Search = q.Get("search")
+	if f.Category, err = issue.ParseCategory(q.Get("category")); err != nil {
+		middleware.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	f.Limit = limit
 	f.Page = page
 	f.RareLanguageBelow = cfg.Int(settings.IssuesRareLanguageThreshold)
@@ -548,7 +552,7 @@ func issueCacheKey(f issue.Filters, cursorMode bool, cursor string) string {
 		return strconv.Itoa(*p)
 	}
 	return strings.Join([]string{
-		"sort=" + string(f.Sort), "q=" + f.Search,
+		"sort=" + string(f.Sort), "q=" + f.Search, "cat=" + f.Category,
 		"d=" + list(f.Difficulties), "lang=" + list(f.Languages), "labels=" + list(f.Labels),
 		"topics=" + list(f.Topics), "tech=" + list(f.Tech),
 		"repo=" + list(f.Repos), "owner=" + list(f.Owners),

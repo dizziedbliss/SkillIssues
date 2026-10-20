@@ -43,7 +43,7 @@ export function withTransition(change: () => void | Promise<void>) {
     void change();
     return;
   }
-  document.startViewTransition(
+  const vt = document.startViewTransition(
     () =>
       new Promise<void>((resolve) => {
         settle = resolve;
@@ -51,6 +51,10 @@ export function withTransition(change: () => void | Promise<void>) {
         void change();
       }),
   );
+  // A newer transition skips this one's animation; the page change itself
+  // still happens (updateCallbackDone), so a skip is not a failure.
+  vt.ready.catch(() => undefined);
+  vt.finished.catch(() => undefined);
 }
 
 /** navigate(), with the theme's page transition. */

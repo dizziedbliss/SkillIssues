@@ -91,6 +91,9 @@ export function ProfilePage() {
           <div className={s.box}>
             <h3 className={s.boxTitle}>{t("profile.prs")}</h3>
             <PRList items={contributions.data?.recent} empty={t("profile.noPRs")} limit={5} />
+            {contributions.data && contributions.data.total > 5 && (
+              <Link to="/app/contributions" className={s.more}>{t("search.viewMore")}</Link>
+            )}
           </div>
           <div className={s.box}>
             <h3 className={s.boxTitle}>{t("profile.resolved")}</h3>
