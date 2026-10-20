@@ -54,4 +54,4 @@ If it has been a while, or the lookup says it is listed but you don't see its is
 
 ## If you want a repository removed
 
-Maintainers can ask for their repository to be excluded. See [For maintainers](/docs/for-maintainers).
+Maintainers can ask for their repository to be excluded. See [For maintainers](/maintainers).

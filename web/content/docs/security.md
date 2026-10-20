@@ -1,6 +1,6 @@
 ---
 title: Security
-slug: /docs/security
+slug: /security
 section: Legal & Trust
 summary: How SkillIssues protects your account, your code and its own servers, and how to report a vulnerability.
 draft: false
@@ -19,7 +19,7 @@ Because there is no token to revoke, removing the app from your GitHub settings 
 
 ## Your code
 
-Anything that writes to GitHub (forking, pushing, opening pull requests) happens in the [desktop app](/docs/desktop-app), with a token that stays on your computer. It never reaches our servers. SkillIssues servers can't act on your GitHub account.
+Anything that writes to GitHub (forking, pushing, opening pull requests) happens in the [desktop app](/download), with a token that stays on your computer. It never reaches our servers. SkillIssues servers can't act on your GitHub account.
 
 Cloned code is never run by the desktop app.
 

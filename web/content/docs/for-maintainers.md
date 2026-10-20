@@ -1,6 +1,6 @@
 ---
 title: For maintainers
-slug: /docs/for-maintainers
+slug: /maintainers
 section: Guides
 summary: How your repository gets listed, how to help contributors find the right issues, and how to ask to be excluded.
 draft: false
@@ -64,7 +64,7 @@ The full list is in [Difficulty ratings](/docs/difficulty-ratings). Three things
 
 ### Keep a CONTRIBUTING file
 
-Explain how to run the project and its tests, how you like changes made, and how long reviews usually take. Contributors from SkillIssues are told to read this file before they start. See the [contribution guide](/docs/contribution-guide).
+Explain how to run the project and its tests, how you like changes made, and how long reviews usually take. Contributors from SkillIssues are told to read this file before they start. See the [contribution guide](/docs/contributing).
 
 ## Not listed, or want out?
 
@@ -74,6 +74,6 @@ Explain how to run the project and its tests, how you like changes made, and how
 
 ## Related
 
-- [How it works](/docs/how-it-works)
+- [How it works](/how-it-works)
 - [Difficulty ratings](/docs/difficulty-ratings)
-- [Contact](/docs/contact)
+- [Contact](/contact)

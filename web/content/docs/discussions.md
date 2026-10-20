@@ -11,11 +11,11 @@ GitHub Discussions is not enabled for the SkillIssues repository yet. Until it i
 
 ## Where to go
 
-- **A question about how something works.** Check the [FAQ](/docs/faq) and [How it works](/docs/how-it-works) first. If they don't answer it, [open an issue](https://github.com/dizziedbliss/SkillIssues/issues/new).
+- **A question about how something works.** Check the [FAQ](/faq) and [How it works](/how-it-works) first. If they don't answer it, [open an issue](https://github.com/dizziedbliss/SkillIssues/issues/new).
 - **Something is broken.** See [Report a bug](/docs/report-a-bug).
 - **An idea.** See [Request a feature](/docs/request-a-feature).
 - **A repository is missing.** See [Suggest a repository](/docs/suggest-a-repository).
-- **A security problem.** Don't post it publicly. See [Security](/docs/security).
+- **A security problem.** Don't post it publicly. See [Security](/security).
 
 ## Ground rules
 

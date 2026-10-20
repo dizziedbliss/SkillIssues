@@ -39,7 +39,7 @@ The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/
 
 ### Accounts and security
 
-- **No user tokens on the server.** Signing in uses a GitHub app that asks for no permissions. We read your numeric id, username and avatar, then discard the token. Anything that writes to GitHub moved into the desktop app. See [Security](/docs/security).
+- **No user tokens on the server.** Signing in uses a GitHub app that asks for no permissions. We read your numeric id, username and avatar, then discard the token. Anything that writes to GitHub moved into the desktop app. See [Security](/security).
 - **Verified releases.** Every image is built by public CI, signed, and verified on the server before it runs.
 - **Encrypted secrets and backups.** Production secrets are stored encrypted, and database backups are encrypted with a key that is not on the server.
 - **Cloudflare in front.** The site is set up to sit behind Cloudflare without changing how visitors are counted or limited.
@@ -50,7 +50,7 @@ The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/
 
 ### Removed
 
-- **XP, levels and badges.** The first version awarded these from pull requests verified with a stored user token. They were removed with the no-stored-tokens redesign. The plan for a replacement is on the [Leaderboard](/docs/leaderboard) page.
+- **XP, levels and badges.** The first version awarded these from pull requests verified with a stored user token. They were removed with the no-stored-tokens redesign. The plan for a replacement is on the [Leaderboard](/leaderboard) page.
 
 ## Version 1.0.0, 13 October 2026
 

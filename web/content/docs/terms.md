@@ -1,6 +1,6 @@
 ---
 title: Terms of service
-slug: /docs/terms
+slug: /terms
 section: Legal & Trust
 summary: The short version: use SkillIssues to find and solve open-source issues, and be decent.
 draft: true
@@ -23,7 +23,7 @@ The issue and repository data comes from GitHub and can be out of date, wrong or
 
 - You sign in with your GitHub account. Keep it secure.
 - You are responsible for what is done through your account.
-- You can delete your account at any time. See [Privacy policy](/docs/privacy).
+- You can delete your account at any time. See [Privacy policy](/privacy).
 
 ## Other people's work
 
@@ -47,7 +47,7 @@ A theme you create belongs to you. If you make a theme public, you let anyone wh
 
 ## Open source
 
-The SkillIssues source code is released under the [MIT license](https://github.com/dizziedbliss/SkillIssues/blob/main/LICENSE). These terms are about using the running service. They don't change the license of the code. See [Licenses and attributions](/docs/licenses-and-attributions).
+The SkillIssues source code is released under the [MIT license](https://github.com/dizziedbliss/SkillIssues/blob/main/LICENSE). These terms are about using the running service. They don't change the license of the code. See [Licenses and attributions](/licenses).
 
 ## No warranty, and limits on liability
 

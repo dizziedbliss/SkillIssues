@@ -1,6 +1,6 @@
 ---
 title: Frequently asked questions
-slug: /docs/faq
+slug: /faq
 section: Resources
 summary: Short answers to what people ask most.
 draft: false
@@ -29,7 +29,7 @@ Its maintainers haven't labelled its difficulty. We don't guess. See [Difficulty
 
 ## How fresh is the data?
 
-Changes on GitHub usually show here within two hours. See [How it works](/docs/how-it-works).
+Changes on GitHub usually show here within two hours. See [How it works](/how-it-works).
 
 ## Why do I see the same few repositories?
 
@@ -45,11 +45,11 @@ Give it a couple of hours. If it's still wrong after that, [report a bug](/docs/
 
 ## Can I use SkillIssues without the desktop app?
 
-Yes. The desktop app only handles Git for you. See [The desktop app](/docs/desktop-app).
+Yes. The desktop app only handles Git for you. See [The desktop app](/download).
 
 ## Is there a leaderboard, or XP?
 
-Not yet. See [Leaderboard](/docs/leaderboard).
+Not yet. See [Leaderboard](/leaderboard).
 
 ## Can I change how the app looks?
 
@@ -57,8 +57,8 @@ Yes, with themes. See [Themes](/docs/themes).
 
 ## Can I delete my account?
 
-Yes. Deleting an account removes your profile, preferences, saved issues and themes. See [Privacy policy](/docs/privacy) for how to ask.
+Yes. Deleting an account removes your profile, preferences, saved issues and themes. See [Privacy policy](/privacy) for how to ask.
 
 ## How do I report a security problem?
 
-Privately. Don't open a public issue. See [Security](/docs/security).
+Privately. Don't open a public issue. See [Security](/security).

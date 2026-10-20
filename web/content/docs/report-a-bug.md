@@ -9,7 +9,7 @@ updated: 2026-10-20
 
 Bugs are reported as GitHub issues. [Open a bug report](https://github.com/dizziedbliss/SkillIssues/issues/new?labels=bug).
 
-If the problem is a security vulnerability, don't use a public issue. See [Security](/docs/security).
+If the problem is a security vulnerability, don't use a public issue. See [Security](/security).
 
 ## What to include
 
@@ -26,7 +26,7 @@ Remove anything private, such as tokens, cookies and personal details, from logs
 
 ## Before you report
 
-- **Data looks out of date.** Changes on GitHub usually take up to about two hours to show. Wait before reporting. See [How it works](/docs/how-it-works).
+- **Data looks out of date.** Changes on GitHub usually take up to about two hours to show. Wait before reporting. See [How it works](/how-it-works).
 - **An issue says "unrated".** That isn't a bug. It means the maintainers haven't labelled its difficulty. See [Difficulty ratings](/docs/difficulty-ratings).
 - **A repository is missing.** Check it with the lookup first. See [Suggest a repository](/docs/suggest-a-repository).
 - **You got "too many requests".** The API limits how often one caller can ask. Wait for the time in the `Retry-After` header. See [Public API](/docs/public-api).

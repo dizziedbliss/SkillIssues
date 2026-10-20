@@ -1,6 +1,6 @@
 ---
 title: Sponsor SkillIssues
-slug: /docs/sponsor
+slug: /sponsor
 section: Community
 summary: SkillIssues is free and runs on one small server; sponsorship is not set up yet.
 draft: false
@@ -17,7 +17,7 @@ The best support right now costs nothing:
 
 - Solve an issue. Start with [Getting started](/docs/getting-started).
 - Tell a friend who is looking for a first issue.
-- Report a bug or suggest an improvement. See [Contribute](/docs/contribute).
+- Report a bug or suggest an improvement. See [Contribute](/contribute).
 - Give the [repository](https://github.com/dizziedbliss/SkillIssues) a star, which helps other people find it.
 
 If sponsorship is set up later, this page will say how.

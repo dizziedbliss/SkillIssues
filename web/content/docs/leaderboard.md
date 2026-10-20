@@ -1,6 +1,6 @@
 ---
 title: Leaderboard
-slug: /docs/leaderboard
+slug: /leaderboard
 section: Community
 summary: Levels and a community leaderboard are coming soon, built from public GitHub data without storing your token.
 draft: false
@@ -11,7 +11,7 @@ The leaderboard doesn't exist yet. This page explains what is planned and why it
 
 ## What happened to XP and levels
 
-The first version of SkillIssues awarded XP, levels and badges for merged pull requests. To check that a pull request was really yours, it stored your GitHub token on the server. We removed that: the server now holds no user GitHub tokens at all, and the XP system went with it. See [Security](/docs/security).
+The first version of SkillIssues awarded XP, levels and badges for merged pull requests. To check that a pull request was really yours, it stored your GitHub token on the server. We removed that: the server now holds no user GitHub tokens at all, and the XP system went with it. See [Security](/security).
 
 ## The plan
 
@@ -19,7 +19,7 @@ Levels and a community leaderboard for the people closing issues across open sou
 
 - A merged pull request counts the moment GitHub shows it, checked against public GitHub data.
 - The check happens on the server using public information, with no token from you.
-- The work that needs your own GitHub credentials stays in the [desktop app](/docs/desktop-app), on your machine.
+- The work that needs your own GitHub credentials stays in the [desktop app](/download), on your machine.
 
 We haven't set a date, and the details of levels and badges aren't decided. Nothing on this page is a promise about how points will be counted.
 
