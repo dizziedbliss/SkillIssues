@@ -2,9 +2,12 @@
 #
 # Caddy is the only service publishing ports (80/443) and the only thing
 # that terminates TLS — automatic Let's Encrypt via the ACME HTTP-01
-# challenge on port 80, no separate certbot step. Frontend and API are
-# served same-origin, so the browser sends the session cookie without any
-# cross-origin cookie handling.
+# challenge on port 80, no separate certbot step. The frontend is moving to
+# Vercel: the API has its own host, {$API_DOMAIN}, which the site calls
+# cross-origin. That host and the frontend's are one site (same registrable
+# domain), so the SameSite=Lax session cookie still travels, and go-api's CORS
+# and CSRF trust FRONTEND_URL. {$DOMAIN} keeps serving the nginx frontend and
+# /api/* until its DNS points at Vercel.
 {
 	# Per-host request/latency/status metrics, served by the :9180 block below.
 	metrics
@@ -18,6 +21,29 @@
 	servers {
 		trusted_proxies static 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
 		client_ip_headers CF-Connecting-IP
+	}
+}
+
+# go-api's public routes. Operational and admin endpoints are internal only:
+# /metrics and /health/detail are scraped on the Docker network, /admin is
+# reached over ssh (see DEPLOYMENT.md). Admin has its own bearer token, but a
+# token is not a reason to put the endpoint on the internet.
+(api) {
+	@internal path /metrics /metrics/* /health/detail /admin /admin/*
+	handle @internal {
+		respond 404
+	}
+	handle {
+		# The API returns JSON only: nothing it serves may load or run anything.
+		header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+		# go-api rate-limits by the rightmost X-Forwarded-For entry it does
+		# not trust (TRUSTED_PROXIES is the Docker subnet, i.e. Caddy). Left
+		# to itself Caddy would append the Cloudflare edge's address, and
+		# every visitor would share that edge's bucket; hand go-api exactly
+		# the resolved visitor instead.
+		reverse_proxy go-api:8000 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 }
 
@@ -35,30 +61,10 @@
 		-Server
 	}
 
-	# /api/* -> go-api, with the /api prefix stripped: the browser calls
-	# https://{$DOMAIN}/api/auth/github/callback, go-api only ever sees
-	# /auth/github/callback (its routes have no /api prefix of their own).
+	# /api/* -> go-api, with the /api prefix stripped: go-api's routes have
+	# no /api prefix of their own.
 	handle_path /api/* {
-		# Operational and admin endpoints are internal only: /metrics and
-		# /health/detail are scraped on the Docker network, /admin is reached
-		# over ssh (see DEPLOYMENT.md). Admin has its own bearer token, but a
-		# token is not a reason to put the endpoint on the internet.
-		@internal path /metrics /metrics/* /health/detail /admin /admin/*
-		handle @internal {
-			respond 404
-		}
-		handle {
-			# The API returns JSON only: nothing it serves may load or run anything.
-			header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
-			# go-api rate-limits by the rightmost X-Forwarded-For entry it does
-			# not trust (TRUSTED_PROXIES is the Docker subnet, i.e. Caddy). Left
-			# to itself Caddy would append the Cloudflare edge's address, and
-			# every visitor would share that edge's bucket; hand go-api exactly
-			# the resolved visitor instead.
-			reverse_proxy go-api:8000 {
-				header_up X-Forwarded-For {client_ip}
-			}
-		}
+		import api
 	}
 
 	# Everything else is the SPA, served by the nginx `web` image.
@@ -68,6 +74,31 @@
 
 	# zstd first for clients that accept it (smaller and cheaper to compress),
 	# gzip for the rest.
+	encode zstd gzip
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# The API's own host. The site on Vercel calls it at the root: the GitHub
+# callback is https://{$API_DOMAIN}/auth/github/callback and the webhook
+# https://{$API_DOMAIN}/webhooks/github.
+{$API_DOMAIN} {
+	request_body {
+		max_size 26MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	import api
+
 	encode zstd gzip
 
 	log {
