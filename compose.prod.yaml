@@ -157,7 +157,7 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_LOGIN_CLIENT_ID: ${GITHUB_LOGIN_CLIENT_ID:-}
       GITHUB_LOGIN_CLIENT_SECRET: ${GITHUB_LOGIN_CLIENT_SECRET:-}
-      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:?GITHUB_REDIRECT_URI must be https://<domain>/api/auth/github/callback}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:?GITHUB_REDIRECT_URI must be https://<API_DOMAIN>/auth/github/callback}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:?GITHUB_WEBHOOK_SECRET must be set in production}
       ADMIN_SYNC_TOKEN: ${ADMIN_SYNC_TOKEN:?ADMIN_SYNC_TOKEN must be set in production}
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}
@@ -272,6 +272,7 @@ services:
     environment:
       DOMAIN: ${DOMAIN:?DOMAIN must be set, e.g. skillissues.dizziedbliss.lol}
       STREAM_DOMAIN: ${STREAM_DOMAIN:?STREAM_DOMAIN must be set, e.g. stream.dizziedbliss.lol}
+      API_DOMAIN: ${API_DOMAIN:?API_DOMAIN must be set, e.g. skillissues-api.dizziedbliss.lol}
     ports:
       - "80:80"
       - "443:443"
