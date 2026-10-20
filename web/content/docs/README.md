@@ -1,7 +1,10 @@
 # Documentation content
 
-These Markdown files are the text of the public documentation pages. They hold content only.
-The docs UI that renders them is built separately, from the owner's design.
+These Markdown files are the public documentation pages. `web/src/pages/docs.ts` reads them at
+build time, renders them with markdown-it (raw HTML off) and prerenders each at its `slug`;
+`DocPage.tsx` shows them with a sidebar by `section`. The legal pages (`privacy`, `terms`,
+`security`, `licenses`) are kept here for reference but the site serves `web/src/pages/content.ts`'s
+versions of those. Adding a file here adds a page; no code changes are needed.
 
 Every claim in these pages describes the code as it is now. When behaviour changes, change the
 page in the same pull request.
