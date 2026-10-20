@@ -1,7 +1,7 @@
 # Contributing to SkillIssues
 
 Thanks for being here — typo fixes, bug reports, tests and features are all welcome, and nobody
-expects you to understand the whole codebase on day one. Ask questions in issues or on your PR.
+expects you to understand the whole codebase on day one. Ask questions in [Discussions](https://github.com/dizziedbliss/SkillIssues/discussions) or on your PR.
 
 This is production code: it runs against the real GitHub API and attributes real contributions
 to real accounts. The non-negotiable rules are in [CLAUDE.md](CLAUDE.md) (written for AI
