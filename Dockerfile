@@ -1,16 +1,12 @@
 # Root multi-target Dockerfile — build context is the repo root.
 #
-# The web target needs to see packages/markdown (shared with the desktop
-# client), which the old ./web-scoped build context could never reach. That
-# is the only reason this file exists at the root instead of staying split
-# across backend/cmd/*/Dockerfile and web/Dockerfile.prod.
+# The site is not built here: it is deployed to Vercel (vercel.json).
 #
 # Build one target at a time:
 #   docker build --target api        -t skillissues-api        .
 #   docker build --target ingestd    -t skillissues-ingestd    .
 #   docker build --target flowd      -t skillissues-flowd      .
 #   docker build --target migrate    -t skillissues-migrate    .
-#   docker build --target web        -t skillissues-web        .
 #   docker build --target repoimport -t skillissues-repoimport .
 
 # ---------------------------------------------------------------------------
@@ -95,54 +91,3 @@ USER nonroot:nonroot
 # which is where the dataset should be mounted.
 WORKDIR /
 ENTRYPOINT ["/repoimport"]
-
-# ---------------------------------------------------------------------------
-# web — built from the repo root, which is also the npm workspace root
-# (web, desktop, packages/*), so @skillissues/markdown and friends resolve
-# as real workspace symlinks under node_modules instead of a relative
-# import reaching outside web/; served by nginx.
-# ---------------------------------------------------------------------------
-FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS web-builder
-# Alpine's bundled npm 10.9.9 has a known bug (npm/cli#7708-class) where
-# `npm ci` hard-fails on an unrelated optionalDependency's platform
-# mismatch (e.g. @esbuild/aix-ppc64 on linux/amd64) instead of skipping it,
-# once a lockfile has enough workspace members pulling in enough
-# platform-specific optional deps (electron-builder's, here). Newer npm
-# doesn't have the bug.
-RUN npm install -g npm@11
-WORKDIR /app
-
-# Manifests only, so `npm ci` gets its own cache layer independent of
-# source changes. `npm ci` installs every workspace's dependencies from the
-# one root lockfile — there is no partial per-workspace install with `ci` —
-# so desktop's devDependencies (Electron) are pulled down here too even
-# though this image only builds web. That cost is this intermediate
-# stage's build time/bandwidth, never the final nginx image, which only
-# ever copies web/dist.
-COPY package.json package-lock.json ./
-COPY web/package.json web/
-COPY desktop/package.json desktop/
-COPY packages/markdown/package.json packages/markdown/
-COPY packages/api-client/package.json packages/api-client/
-COPY packages/ui/package.json packages/ui/
-COPY packages/client/package.json packages/client/
-COPY packages/theme/package.json packages/theme/
-RUN npm ci
-
-COPY packages/ packages/
-COPY web/ web/
-WORKDIR /app/web
-
-# Same-origin deployment: Caddy proxies /api/* to go-api, so the SPA never
-# needs an absolute API origin baked in at build time.
-ARG VITE_API_URL=/api
-ENV VITE_API_URL=${VITE_API_URL}
-RUN npm run build
-
-FROM nginx:alpine@sha256:892bb2152464f0c5d8972593a5f5afaf8054552580b699d95f8ff4af08c2d33d AS web
-COPY --from=web-builder /app/web/dist /usr/share/nginx/html
-COPY web/nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
-HEALTHCHECK --interval=5s --timeout=3s --retries=10 --start-period=3s \
-    CMD wget -q -O- http://127.0.0.1:80/ >/dev/null 2>&1 || exit 1
-CMD ["nginx", "-g", "daemon off;"]

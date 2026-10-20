@@ -200,12 +200,11 @@ app still uses the last three until its own rebuild.
 - **`lab/`** — drafts for the owner to judge (`/lab/backdrop`); nothing there ships on `/`.
 - **Prerendered**: `npm run build` renders `/` and every content page to HTML
   (`scripts/prerender.mjs`, `src/entry-server.tsx`); the client hydrates a page only when its
-  `data-route` matches. Vercel (and nginx) serve `shell.html` (no markup) for every other route.
+  `data-route` matches. Vercel serves `shell.html` (no markup) for every other route.
 - CSS Modules over custom properties; no Tailwind, no CSS-in-JS. Live counts poll `GET /stats`
   every 10s (React Query, paused in background tabs).
-- The CSP (`vercel.json`, and `web/nginx.conf` for the image) allows fetching nothing from
-  elsewhere but the API host, GitHub's API and avatars (a theme stylesheet is someone else's code);
-  widen it only deliberately, in both files.
+- The CSP (`vercel.json`) allows fetching nothing from elsewhere but the API host, GitHub's API and
+  avatars (a theme stylesheet is someone else's code); widen it only deliberately.
 
 Runs **React 19**.
 
@@ -224,15 +223,14 @@ Goose migrations, embedded into the binaries with `go:embed`. **This directory i
 source of truth for the schema** — there is no separate `schema.sql`.
 
 ### Docker images
-One root **`Dockerfile`** with named targets (`api`, `ingestd`, `migrate`, `web`, `repoimport`),
-built from the **repo root** — not `backend/` or `web/` — because the `web` target needs to
-see the npm workspace (`packages/*`), which a narrower context can't reach. Root
-**`.dockerignore`** keeps the build context small despite that (excludes `data/`, `.git`,
+One root **`Dockerfile`** with named targets (`api`, `ingestd`, `flowd`, `migrate`, `repoimport`),
+built from the **repo root**. The site has no image: it deploys to Vercel. Root
+**`.dockerignore`** keeps the build context small (excludes `data/`, `.git`,
 `node_modules`, secrets). `compose.prod.yaml` (prod) only ever pulls pre-built images from
 GHCR and never builds anything on the host; the deploy pipeline builds against these targets.
 **`web/Dockerfile`** is the one exception — a dev-only Vite HMR image used by `compose.yaml`'s
-`frontend` service, also built from the repo root for the same workspace reason. Don't add a
-third one back.
+`frontend` service, built from the repo root because it needs the npm workspace (`packages/*`).
+Don't add a third one back.
 
 ---
 
@@ -404,7 +402,7 @@ took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
 
 ## Deployment
 
-Single VPS, `compose.prod.yaml`, Caddy, for everything but the site, which is moving to Vercel.
+Single VPS, `compose.prod.yaml`, Caddy, for everything but the site, which is on Vercel.
 Full runbook: `DEPLOYMENT.md` (local only).
 
 - **The site is on Vercel; the API has its own host.** `vercel.json` (repo root) builds the npm
@@ -414,9 +412,9 @@ Full runbook: `DEPLOYMENT.md` (local only).
   git are off, so nothing ships without CI. The bundle calls `VITE_API_URL`
   (`https://skillissues-api.dizziedbliss.lol`, Caddy's `{$API_DOMAIN}`, routes at the root) cross-origin:
   the two hosts are one site, so the Lax session cookie travels, and go-api's CORS and CSRF trust
-  `FRONTEND_URL`. The job fails if `vercel.json`'s `connect-src` does not list that host. Until the
-  frontend's DNS points at Vercel, `{$DOMAIN}` still serves the nginx `web` image with the API under
-  `/api/*`.
+  `FRONTEND_URL`. The job fails if `vercel.json`'s `connect-src` does not list that host. The
+  Vercel project is linked by id only: its git integration is disconnected, and must stay so.
+  Rollback for the site is Vercel's Instant Rollback.
 
 **Local-only documents.** `DEPLOYMENT.md` and `docs/runbook.md` (the operator runbook) describe
 how production is run, so they live only on the owner's machine: they are in `.gitignore`, were
@@ -427,15 +425,15 @@ link to them from tracked docs (`README.md`, `ARCHITECTURE.md`); code comments m
 remain in earlier git history, which is not rewritten.
 
 - `.github/workflows/ci.yml` gates everything: backend (vet/gofmt/build/test), web/desktop
-  (typecheck then a real build, not just a type check), and a buildx build of the five
-  deployed Dockerfile targets (`api`, `ingestd`, `flowd`, `migrate`, `web` — not `repoimport`) plus
+  (typecheck then a real build, not just a type check), and a buildx build of the four
+  deployed Dockerfile targets (`api`, `ingestd`, `flowd`, `migrate` — not `repoimport`) plus
   `docker compose config` on both compose files and `caddy validate` on the Caddyfile. It runs on pull requests and as the deploy
   gate, not on plain pushes, and a `changes` job (`dorny/paths-filter`) skips any job whose
   paths did not change. A skipped job counts as passing, so when adding a job, add its paths
   to the filter. `workflow_dispatch` runs everything.
 - `.github/workflows/deploy.yml` runs on push to `main`: `ci` → `build-push` (builds and pushes
-  `ghcr.io/dizziedbliss/skillissues-{api,ingestd,flowd,migrate,web}` tagged `sha-<short>` and
-  `latest`) → `deploy` (scp + ssh, runs `scripts/deploy-remote.sh` on the host). A deploy cannot
+  `ghcr.io/dizziedbliss/skillissues-{api,ingestd,flowd,migrate}` tagged `sha-<short>` and
+  `latest`) → `deploy` (scp + ssh, runs `scripts/deploy-remote.sh` on the host) → `web` (Vercel). A deploy cannot
   happen without CI passing. Rollback is `workflow_dispatch` with an older `sha-` tag — deploys
   always pin that, never `latest`. `build-push` attests provenance and cosign-signs each image by
   digest; `deploy-remote.sh` resolves the tag to a digest, runs `cosign verify` (signer: `deploy.yml`
@@ -447,11 +445,11 @@ remain in earlier git history, which is not rewritten.
   in `X-Forwarded-For` (`header_up X-Forwarded-For {client_ip}`). That works with or without
   Cloudflare proxying: without it the header is ignored and the peer is the client. Keep the
   ranges current with https://www.cloudflare.com/ips/.
-- Caddy is the only service publishing a public port. The `(api)` snippet proxies to `go-api` and
-  returns **404 for `/metrics`, `/health/detail` and `/admin/*`** — those are internal only (admin is
-  reached over ssh, see `DEPLOYMENT.md`). `{$API_DOMAIN}` serves it at the root; on `{$DOMAIN}`,
-  `handle_path /api/*` strips the prefix first (go-api's routes have none) and everything else goes
-  to the `frontend` (nginx) image. A second site, `{$STREAM_DOMAIN}`, proxies only `GET /stream`
+- Caddy is the only service publishing a public port. `{$API_DOMAIN}` proxies to `go-api` at the
+  root and returns **404 for `/metrics`, `/health/detail` and `/admin/*`** — those are internal only
+  (admin is reached over ssh, see `DEPLOYMENT.md`). Cloudflare's "Always Use HTTPS" must stay off:
+  it redirects the ACME HTTP-01 challenge before it reaches Caddy, which redirects plain HTTP
+  itself. A second site, `{$STREAM_DOMAIN}`, proxies only `GET /stream`
   to `flowd` (`flush_interval -1`) and returns 404 for everything else. `go-api`, `ingestd` and
   `flowd` have no published ports in prod.
 - **Secrets are in git, encrypted.** `secrets/prod.env.sops` (SOPS + age, to the owner's key and
