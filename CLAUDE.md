@@ -613,8 +613,11 @@ Every key with its default and bounds: `docs/settings.md`.
   over it, and functional-dependency statistics (`issues_difficulty_dep`, migration 00046) keep the
   planner from multiplying the two conditions' selectivities. The shuffled feed walks repositories
   without a rarity count (only a languages-only filter checks the cached counts), finds each one's
-  labelled issues through `issues_open_repo_labels_idx` (GIN over repository and labels), and after
-  `api.issues.shuffle_walk_max_repos` repositories reads the rest of the page from the matches. go-api's connections run with `DB_WORK_MEM_MB` (32 in prod)
+  labelled issues a batch of repositories at a time (`repository_id = ANY(batch)`: a common label's GIN
+  posting list read once per batch, not once per repository), after
+  `api.issues.shuffle_walk_max_repos` repositories reads the rest of the page from the matches, and
+  after `api.issues.shuffle_walk_budget_ms` returns the page short with a cursor. **A short page with
+  a non-null `next_cursor` is not the end**; only a null cursor is. go-api's connections run with `DB_WORK_MEM_MB` (32 in prod)
   so label bitmaps stay exact: a lossy one re-checked ~550k rows and took 8s. The dropdown values are `catalog_facets`, recomputed by
   ingestd every `ingest.catalog.facets_refresh_seconds`; never count them per request.
 - **Live counts are kept, never counted per request**: `GET /stats` (open, closed since tracking

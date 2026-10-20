@@ -84,6 +84,10 @@ type Filters struct {
 	// repositories the shuffled feed walks for one page before reading the
 	// rest of it from the matching issues instead (shuffle.go).
 	ShuffleWalkMaxRepos int
+	// ShuffleWalkBudget is api.issues.shuffle_walk_budget_ms: how long one
+	// page of the shuffled feed may look before it is returned short, with
+	// a cursor to carry on from.
+	ShuffleWalkBudget time.Duration
 	// SearchSample is api.search.sample_size: how many title or author
 	// matches a search reads before ordering them by stars
 	// (search_categories.go).
