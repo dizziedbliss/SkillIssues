@@ -1,0 +1,65 @@
+# A complete theme: every table, typical values.
+[meta]
+schema = 1
+name = "Midnight"
+author = "skillissues"
+version = "1.0.0"
+description = "Dark paper, red ink."
+base = "midnight"
+
+[colors]
+background = "#0b0b0d"
+surface = "#141417"
+surface-raised = "#1c1c21"
+text = "#f2f2f2"
+text-muted = "rgb(170 170 178)"
+accent = "#ff2b2b"
+accent-text = "#000000"
+border = "hsl(240 6% 22%)"
+focus = "oklch(0.7 0.2 25)"
+success = "#5ac800"
+warning = "#ffb020"
+danger = "#ff2b2b"
+selection = "rgba(255, 43, 43, 0.3)"
+
+[background]
+image = "none"
+pattern = "grid"
+pattern-color = "#ffffff10"
+pattern-size = "24px"
+
+[typography]
+heading-font = "Instrument Serif"
+body-font = "JetBrains Mono"
+mono-font = "JetBrains Mono"
+base-size = "15px"
+scale = 1.25
+line-height = 1.5
+heading-weight = 400
+body-weight = 400
+
+[spacing]
+unit = "4px"
+density = "comfortable"
+page-gutter = "1.5rem"
+max-width = "1440px"
+
+[radius]
+small = "0px"
+medium = "2px"
+large = "4px"
+pill = "999px"
+
+[border]
+width = "1px"
+style = "solid"
+
+[shadow]
+small = "none"
+medium = "0px 2px 8px rgba(0, 0, 0, 0.4)"
+large = "inset 0px 8px 24px 2px #00000080"
+
+[motion]
+duration = "160ms"
+easing = "ease-out"
+reduce = false
