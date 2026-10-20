@@ -24,14 +24,16 @@ updated: 2026-10-20
 | Key | Type | Meaning |
 |---|---|---|
 | `title` | string | The page title, in sentence case. Render it as the page heading. The body does not repeat it as an `h1`. |
-| `slug` | string | The URL path of the page, with a leading slash. Unique across all pages. |
+| `slug` | string | The URL path of the page, with a leading slash. Unique across all pages. It is the address the site already serves the page at, or `/docs/<name>` for a page that is new. |
 | `section` | string | Where the page belongs in navigation. One of `SkillIssues`, `Community`, `Resources`, `Support`, `Legal & Trust`, `Guides`. |
 | `summary` | string | One sentence describing the page. Use it for the page's meta description and for link cards on the index. |
 | `draft` | boolean | `true` when the page is waiting for the owner's review. Show a visible draft notice. Only `privacy` and `terms` are drafts today. Those two also carry a note at the top of the body. |
 | `updated` | date | `YYYY-MM-DD`, the day the page last changed. |
 
-The filename is the last part of the slug, so `getting-started.md` has the slug
-`/docs/getting-started`. The one exception is `documentation.md`, whose slug is `/docs`.
+A page keeps the address the site already uses for it (`about.md` is `/about`, `faq.md` is
+`/faq`, `contribution-guide.md` is `/docs/contributing`). A page that has no existing address,
+such as `themes.md`, lives under `/docs/<filename>`. The `slug` in the frontmatter is the
+address; the filename is not, so read it from there. The full list is in *Sections and pages*.
 
 ## Body conventions
 
@@ -44,37 +46,20 @@ The filename is the last part of the slug, so `getting-started.md` has the slug
 
 ## Sections and pages
 
-| Section | Pages |
+| Section | Pages (file: address) |
 |---|---|
-| SkillIssues | about, desktop-app, documentation, skillissues-live, changelog |
-| Community | contribute, discussions, suggest-a-repository, leaderboard, sponsor |
-| Resources | getting-started, how-it-works, faq, contribution-guide |
-| Support | contact, report-a-bug, request-a-feature |
-| Legal & Trust | privacy, terms, security, licenses-and-attributions |
-| Guides | finding-issues, difficulty-ratings, themes, for-maintainers, public-api |
+| SkillIssues | about: `/about`, desktop-app: `/download`, documentation: `/docs`, skillissues-live: `/docs/skillissues-live`, changelog: `/docs/changelog` |
+| Community | contribute: `/contribute`, discussions: `/docs/discussions`, suggest-a-repository: `/docs/suggest-a-repository`, leaderboard: `/leaderboard`, sponsor: `/sponsor` |
+| Resources | getting-started: `/docs/getting-started`, how-it-works: `/how-it-works`, faq: `/faq`, contribution-guide: `/docs/contributing` |
+| Support | contact: `/contact`, report-a-bug: `/docs/report-a-bug`, request-a-feature: `/docs/request-a-feature` |
+| Legal & Trust | privacy: `/privacy`, terms: `/terms`, security: `/security`, licenses-and-attributions: `/licenses` |
+| Guides | finding-issues: `/docs/finding-issues`, difficulty-ratings: `/docs/difficulty-ratings`, themes: `/docs/themes`, for-maintainers: `/maintainers`, public-api: `/docs/public-api` |
 
 ## Relationship to `web/src/pages/content.ts`
 
 The web app currently has short versions of several of these pages in
-`web/src/pages/content.ts`, at paths such as `/about`, `/faq` and `/security`. The pages here
-expand on them and say the same things. When the docs UI ships, those short pages can be
-replaced by these, or the old paths can redirect to the matching `/docs/...` slug:
-
-| Old path | New slug |
-|---|---|
-| `/about` | `/docs/about` |
-| `/download` | `/docs/desktop-app` |
-| `/docs` | `/docs` |
-| `/docs/getting-started` | `/docs/getting-started` |
-| `/docs/contributing` | `/docs/contribution-guide` |
-| `/how-it-works` | `/docs/how-it-works` |
-| `/contribute` | `/docs/contribute` |
-| `/maintainers` | `/docs/for-maintainers` |
-| `/faq` | `/docs/faq` |
-| `/contact` | `/docs/contact` |
-| `/security` | `/docs/security` |
-| `/privacy` | `/docs/privacy` |
-| `/terms` | `/docs/terms` |
-| `/licenses` | `/docs/licenses-and-attributions` |
-| `/leaderboard` | `/docs/leaderboard` |
-| `/sponsor` | `/docs/sponsor` |
+`web/src/pages/content.ts`. These pages use the same addresses (`/about`, `/faq`, `/security`
+and so on), so when the docs UI ships they replace those short pages in place and no redirects
+are needed. The pages with no short version (the guides, `report-a-bug`, `request-a-feature`,
+`discussions`, `suggest-a-repository`, `changelog` and `skillissues-live`) are new addresses
+under `/docs/`.

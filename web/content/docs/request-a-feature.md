@@ -22,7 +22,7 @@ Describe the problem before the solution.
 
 - Search the [existing issues](https://github.com/dizziedbliss/SkillIssues/issues). If someone already asked, add your use case to that thread instead.
 - Look at [Finding issues](/docs/finding-issues). The filter or sort you want may already exist.
-- Some things are known gaps, not oversights. Notifications are recorded but no client shows them yet, there is no leaderboard yet (see [Leaderboard](/docs/leaderboard)), and there is no sponsorship yet (see [Sponsor](/docs/sponsor)).
+- Some things are known gaps, not oversights. Notifications are recorded but no client shows them yet, there is no leaderboard yet (see [Leaderboard](/leaderboard)), and there is no sponsorship yet (see [Sponsor](/sponsor)).
 
 ## Things that are unlikely to be accepted
 
@@ -36,4 +36,4 @@ If your idea runs into one of these, say why you think it should change. A well-
 
 ## Want to build it?
 
-Say so on the issue. See [Contribute](/docs/contribute) for how to get set up.
+Say so on the issue. See [Contribute](/contribute) for how to get set up.

@@ -17,7 +17,7 @@ Read the issue and its comments on GitHub before you begin. Someone may already 
 
 See [Finding issues](/docs/finding-issues) for sorts, filters and search, and [Difficulty ratings](/docs/difficulty-ratings) for what the ratings mean.
 
-If you sign in with GitHub, you can save issues and set the languages and level you want. Signing in only tells us who you are. It gives us no access to your repositories. See [Security](/docs/security).
+If you sign in with GitHub, you can save issues and set the languages and level you want. Signing in only tells us who you are. It gives us no access to your repositories. See [Security](/security).
 
 ## 2. Say you're taking it
 
@@ -27,7 +27,7 @@ Leave a short comment on the issue saying you'd like to work on it. Maintainers 
 
 Fork the repository on GitHub, clone your fork, and create a branch for your change. Read the project's CONTRIBUTING file first. It says how to run the tests and how the maintainers like changes made.
 
-The [desktop app](/docs/desktop-app) does the fork, clone and branch for you. You can also do it yourself:
+The [desktop app](/download) does the fork, clone and branch for you. You can also do it yourself:
 
 ```bash
 git clone https://github.com/<you>/<repository>.git
@@ -45,6 +45,6 @@ Answer review comments. Needing a few rounds is normal and doesn't mean you did 
 
 ## What next
 
-- [Contribution guide](/docs/contribution-guide): habits that make reviews quicker.
-- [FAQ](/docs/faq)
-- If you get stuck on SkillIssues itself, see [Contact](/docs/contact).
+- [Contribution guide](/docs/contributing): habits that make reviews quicker.
+- [FAQ](/faq)
+- If you get stuck on SkillIssues itself, see [Contact](/contact).

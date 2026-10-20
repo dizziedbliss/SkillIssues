@@ -1,6 +1,6 @@
 ---
 title: Contribution guide
-slug: /docs/contribution-guide
+slug: /docs/contributing
 section: Resources
 summary: How to be the contributor maintainers are glad to see.
 draft: false
@@ -45,7 +45,7 @@ Most open-source maintainers are volunteers with limited time. These habits make
 
 ## Contributing to SkillIssues itself
 
-SkillIssues follows the same habits and has a few of its own. See [Contribute](/docs/contribute) and [CONTRIBUTING.md](https://github.com/dizziedbliss/SkillIssues/blob/main/CONTRIBUTING.md).
+SkillIssues follows the same habits and has a few of its own. See [Contribute](/contribute) and [CONTRIBUTING.md](https://github.com/dizziedbliss/SkillIssues/blob/main/CONTRIBUTING.md).
 
 ## Related
 

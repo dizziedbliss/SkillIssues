@@ -1,6 +1,6 @@
 ---
 title: Contribute
-slug: /docs/contribute
+slug: /contribute
 section: Community
 summary: Two ways to help: solve issues across open source, or help build SkillIssues.
 draft: false
@@ -12,7 +12,7 @@ updated: 2026-10-20
 The simplest way to help is the point of the site: find an issue in a language you know and send a fix. Every closed issue makes the pile smaller, and a good first pull request is worth more to a maintainer than most people expect.
 
 - [Getting started](/docs/getting-started) walks through the four steps.
-- [The contribution guide](/docs/contribution-guide) covers how to be the contributor maintainers are glad to see.
+- [The contribution guide](/docs/contributing) covers how to be the contributor maintainers are glad to see.
 - [Finding issues](/docs/finding-issues) shows how to narrow the catalog to what suits you.
 
 ## Build SkillIssues
@@ -27,7 +27,7 @@ Before you open a pull request:
 
 Changes are made through reviewed pull requests, and every merge to the main branch is deployed to production. That is why the project is strict about checks and about not swallowing errors.
 
-Report a vulnerability privately, never in a public issue or pull request. See [Security](/docs/security).
+Report a vulnerability privately, never in a public issue or pull request. See [Security](/security).
 
 ## Other ways to help
 

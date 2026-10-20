@@ -1,6 +1,6 @@
 ---
 title: Privacy policy
-slug: /docs/privacy
+slug: /privacy
 section: Legal & Trust
 summary: What SkillIssues collects, why, and what it doesn't collect.
 draft: true
@@ -66,7 +66,7 @@ The public live visualizer shows system activity. Anything tied to a signed-in p
 
 ## Where data is kept
 
-Data is stored in a database on our server. Production secrets and backups are encrypted, and backups are encrypted with a key that isn't kept on the server. See [Security](/docs/security).
+Data is stored in a database on our server. Production secrets and backups are encrypted, and backups are encrypted with a key that isn't kept on the server. See [Security](/security).
 
 ## Deleting your data
 
@@ -84,4 +84,4 @@ We may update this policy. The date at the top of the page shows when it last ch
 
 ## Contact
 
-Questions about privacy: [open an issue](https://github.com/dizziedbliss/SkillIssues/issues/new). For a security problem, see [Security](/docs/security).
+Questions about privacy: [open an issue](https://github.com/dizziedbliss/SkillIssues/issues/new). For a security problem, see [Security](/security).

@@ -1,6 +1,6 @@
 ---
 title: The desktop app
-slug: /docs/desktop-app
+slug: /download
 section: SkillIssues
 summary: What the desktop app is for, where to get it, and why your GitHub token stays on your computer.
 draft: false
@@ -24,7 +24,7 @@ The website can't do any of this, on purpose. See the next section.
 
 Forking, pushing and opening pull requests need a GitHub token that can write to your account. SkillIssues servers never hold one. The desktop app signs in to GitHub with a token that stays on your computer and talks to GitHub directly from there.
 
-For the website, sign-in only reads who you are (your GitHub id, username and avatar), and the token is discarded straight away. See [Security](/docs/security).
+For the website, sign-in only reads who you are (your GitHub id, username and avatar), and the token is discarded straight away. See [Security](/security).
 
 ## Where to get it
 

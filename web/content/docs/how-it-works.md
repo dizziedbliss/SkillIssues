@@ -1,6 +1,6 @@
 ---
 title: How SkillIssues works
-slug: /docs/how-it-works
+slug: /how-it-works
 section: Resources
 summary: Where the issues come from, how they stay current, and how they are ordered and rated.
 draft: false
@@ -11,9 +11,9 @@ SkillIssues gathers open issues from active GitHub projects in one place and kee
 
 ## Where the issues come from
 
-We list repositories that are public, active and have a minimum number of stars (25 today). The star floor isn't a measure of quality. It keeps anyone from flooding the catalog with throwaway projects that would use up the crawler's limited GitHub quota. The full rules are in [For maintainers](/docs/for-maintainers).
+We list repositories that are public, active and have a minimum number of stars (25 today). The star floor isn't a measure of quality. It keeps anyone from flooding the catalog with throwaway projects that would use up the crawler's limited GitHub quota. The full rules are in [For maintainers](/maintainers).
 
-The catalog started from a public dataset of repository metadata (see [Licenses and attributions](/docs/licenses-and-attributions)). Every listed repository is then read directly from GitHub's API, starting with its most recently updated open issues.
+The catalog started from a public dataset of repository metadata (see [Licenses and attributions](/licenses)). Every listed repository is then read directly from GitHub's API, starting with its most recently updated open issues.
 
 New repositories are found in two ways:
 
@@ -45,5 +45,5 @@ Difficulty comes from the labels maintainers put on issues, like "good first iss
 ## What we don't do
 
 - We don't rank repositories by popularity or "quality". There is no priority queue for big projects.
-- We don't hold your GitHub token. See [Security](/docs/security).
+- We don't hold your GitHub token. See [Security](/security).
 - We don't read issue descriptions on the server for display. Your browser or the desktop app reads them from GitHub. If GitHub refuses because of your own rate limit, the server serves a cached copy as a fallback.

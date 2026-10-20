@@ -71,4 +71,4 @@ The easiest match wins. The labels are checked for Beginner first, then Intermed
 
 ## For maintainers
 
-If you want your newcomers to find the right issues, label them. See [For maintainers](/docs/for-maintainers).
+If you want your newcomers to find the right issues, label them. See [For maintainers](/maintainers).

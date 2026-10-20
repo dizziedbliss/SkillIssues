@@ -1,6 +1,6 @@
 ---
 title: Licenses and attributions
-slug: /docs/licenses-and-attributions
+slug: /licenses
 section: Legal & Trust
 summary: The license SkillIssues is released under, and the data and typefaces it is built from.
 draft: false
