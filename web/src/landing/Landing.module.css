@@ -1,4 +1,4 @@
-/* Layout of the landing page: one centred column, white space left white. */
+/* Layout of the landing page: a zig-zag inside one container with equal margins. */
 
 .page header,
 .page main,
@@ -7,9 +7,9 @@
   z-index: 1;
 }
 
-/* Equal margins on both sides; the column never runs wider than reads well. */
-.column {
-  width: min(var(--column), 100% - 2 * var(--gutter));
+/* Equal margins on both sides at every width. */
+.container {
+  width: min(var(--container), 100% - 2 * var(--gutter));
   margin-inline: auto;
 }
 
@@ -50,18 +50,26 @@
   display: inline-block;
   margin-top: 1.5rem;
   padding: 0.7em 1.1em 0.65em;
-  background: var(--signal);
+  /* Black slides in from the left on hover, over the red. */
+  background: linear-gradient(var(--ink), var(--ink)) no-repeat 0 0 / 0% 100%, var(--signal);
   color: var(--ink);
   font-family: var(--mono);
   font-size: var(--button-size);
   line-height: 1.2;
   text-decoration: none;
-  transition: background-color 120ms linear, color 120ms linear;
+  transition:
+    background-size var(--slow) var(--ease),
+    color var(--slow) var(--ease),
+    transform var(--fast) var(--ease);
 }
 
 .button:hover {
-  background: var(--ink);
+  background-size: 100% 100%, auto;
   color: var(--signal);
+}
+
+.button:active {
+  transform: translateY(1px) scale(0.985);
 }
 
 .button:focus-visible {
@@ -99,10 +107,22 @@
 
 .hero {
   padding-top: clamp(3.5rem, 7vw, 6rem);
+  max-width: var(--hero-width);
 }
 
 .section {
   margin-top: var(--section-gap);
+}
+
+/* One half of the zig-zag: text on the left, the right left white … */
+.left {
+  max-width: var(--half);
+}
+
+/* … or text on the right, the left left white. */
+.right {
+  max-width: var(--half);
+  margin-left: auto;
 }
 
 .centred {
@@ -110,6 +130,8 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
+  max-width: 46rem;
+  margin-inline: auto;
 }
 
 .centred .body {
@@ -118,4 +140,19 @@
 
 .closing {
   padding: var(--section-gap) 0 clamp(4rem, 8vw, 7rem);
+}
+
+/* Narrow screens: one column, every section full width. */
+@media (max-width: 860px) {
+  .left,
+  .right {
+    max-width: none;
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
 }
