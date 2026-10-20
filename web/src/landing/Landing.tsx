@@ -14,7 +14,7 @@ import { TrustFacts } from "./fillers/TrustFacts";
 import { ActivityTicker } from "./fillers/ActivityTicker";
 import { Logo } from "./Logo";
 import { external } from "../lib/links";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 /**
  * Line lengths from the design: where each heading wraps (in em, so the wrap
@@ -29,9 +29,11 @@ function measure(heading: string | undefined, body: string): CSSProperties {
  * sections, each with a live or explanatory piece in the half the design
  * leaves open. Its look is locked (tokens.module.css); themes never reach it.
  */
-export function Landing() {
+export function Landing({ backdrop }: { backdrop?: ReactNode } = {}) {
   return (
     <div className={`${tokens.page} ${s.page}`}>
+      {/* An experimental layer behind the page (/lab/backdrop); none in production. */}
+      {backdrop}
       <Header />
       <main>
         <section className={s.hero} aria-labelledby="hero-title" style={measure("10.3em", "62ch")}>
