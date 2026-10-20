@@ -200,11 +200,12 @@ app still uses the last three until its own rebuild.
 - **`lab/`** — drafts for the owner to judge (`/lab/backdrop`); nothing there ships on `/`.
 - **Prerendered**: `npm run build` renders `/` and every content page to HTML
   (`scripts/prerender.mjs`, `src/entry-server.tsx`); the client hydrates a page only when its
-  `data-route` matches. nginx serves `shell.html` (no markup) for every other route.
+  `data-route` matches. Vercel (and nginx) serve `shell.html` (no markup) for every other route.
 - CSS Modules over custom properties; no Tailwind, no CSS-in-JS. Live counts poll `GET /stats`
   every 10s (React Query, paused in background tabs).
-- nginx sends a CSP that allows fetching nothing from elsewhere (a theme stylesheet is someone
-  else's code); widen it only deliberately.
+- The CSP (`vercel.json`, and `web/nginx.conf` for the image) allows fetching nothing from
+  elsewhere but the API host, GitHub's API and avatars (a theme stylesheet is someone else's code);
+  widen it only deliberately, in both files.
 
 Runs **React 19**.
 
@@ -403,7 +404,19 @@ took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
 
 ## Deployment
 
-Single VPS, `compose.prod.yaml`, Caddy same-origin. Full runbook: `DEPLOYMENT.md` (local only).
+Single VPS, `compose.prod.yaml`, Caddy, for everything but the site, which is moving to Vercel.
+Full runbook: `DEPLOYMENT.md` (local only).
+
+- **The site is on Vercel; the API has its own host.** `vercel.json` (repo root) builds the npm
+  workspace, serves `web/dist` with the CSP and security headers, and falls back to `shell.html`.
+  deploy.yml's `web` job builds and deploys it with the Vercel CLI after the API deploy succeeds,
+  skipped until the `VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` variables exist; Vercel's own deploys from
+  git are off, so nothing ships without CI. The bundle calls `VITE_API_URL`
+  (`https://skillissues-api.dizziedbliss.lol`, Caddy's `{$API_DOMAIN}`, routes at the root) cross-origin:
+  the two hosts are one site, so the Lax session cookie travels, and go-api's CORS and CSRF trust
+  `FRONTEND_URL`. The job fails if `vercel.json`'s `connect-src` does not list that host. Until the
+  frontend's DNS points at Vercel, `{$DOMAIN}` still serves the nginx `web` image with the API under
+  `/api/*`.
 
 **Local-only documents.** `DEPLOYMENT.md` and `docs/runbook.md` (the operator runbook) describe
 how production is run, so they live only on the owner's machine: they are in `.gitignore`, were
@@ -434,9 +447,10 @@ remain in earlier git history, which is not rewritten.
   in `X-Forwarded-For` (`header_up X-Forwarded-For {client_ip}`). That works with or without
   Cloudflare proxying: without it the header is ignored and the peer is the client. Keep the
   ranges current with https://www.cloudflare.com/ips/.
-- Caddy is the only service publishing a public port. `handle_path /api/*` strips the prefix
-  before proxying to `go-api` (whose routes have no `/api` prefix of their own) and returns
-  **404 for `/metrics`, `/health/detail` and `/admin/*`** — those are internal only (admin is reached over ssh, see `DEPLOYMENT.md`); everything else goes
+- Caddy is the only service publishing a public port. The `(api)` snippet proxies to `go-api` and
+  returns **404 for `/metrics`, `/health/detail` and `/admin/*`** — those are internal only (admin is
+  reached over ssh, see `DEPLOYMENT.md`). `{$API_DOMAIN}` serves it at the root; on `{$DOMAIN}`,
+  `handle_path /api/*` strips the prefix first (go-api's routes have none) and everything else goes
   to the `frontend` (nginx) image. A second site, `{$STREAM_DOMAIN}`, proxies only `GET /stream`
   to `flowd` (`flush_interval -1`) and returns 404 for everything else. `go-api`, `ingestd` and
   `flowd` have no published ports in prod.
