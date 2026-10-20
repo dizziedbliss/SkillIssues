@@ -1,0 +1,78 @@
+/* Uses the page's names (--ink, --paper, --signal): the site's locked ones, or the app's theme mapped onto them. */
+
+.root {
+  position: relative;
+  display: inline-block;
+}
+
+.panel {
+  position: absolute;
+  z-index: 20;
+  min-width: 14rem;
+  margin: 0;
+  padding: 0.75rem 1rem 0.85rem;
+  border: 1px solid var(--signal);
+  background: var(--paper);
+  color: var(--ink);
+  text-align: left;
+  font-size: 0.9375rem;
+  box-shadow: var(--menu-shadow, none);
+  animation: open var(--fast) var(--ease);
+}
+
+.up {
+  bottom: calc(100% + 0.5rem);
+  left: 50%;
+  translate: -50% 0;
+}
+
+.down {
+  top: calc(100% + 0.25rem);
+  right: 0;
+}
+
+.legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin-bottom: 0.5rem;
+  font-size: var(--label-size);
+  color: var(--quiet);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  clear: both;
+  padding: 0.3rem 0;
+  cursor: pointer;
+}
+
+.option input {
+  accent-color: var(--signal);
+  margin: 0;
+}
+
+.note {
+  margin-top: 0.5rem;
+  font-size: var(--label-size);
+  color: var(--quiet);
+}
+
+@keyframes open {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation: none;
+  }
+}

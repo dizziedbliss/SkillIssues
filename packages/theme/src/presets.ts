@@ -35,7 +35,7 @@ pattern-size = "24px"
 heading-font = "Instrument Serif"
 body-font = "JetBrains Mono"
 mono-font = "JetBrains Mono"
-base-size = "15px"
+base-size = "16px"
 scale = 1.25
 line-height = 1.45
 heading-weight = 400
@@ -48,7 +48,7 @@ page-gutter = "45px"
 max-width = "1460px"
 
 [radius]
-small = "0px"
+small = "3px"
 medium = "0px"
 large = "0px"
 pill = "999px"
@@ -58,14 +58,15 @@ width = "1px"
 style = "solid"
 
 [shadow]
-small = "none"
-medium = "none"
-large = "none"
+small = "1px 1px 2px #00000040"
+medium = "0px 6px 20px #00000024"
+large = "0px 24px 64px #00000030"
 
 [motion]
-duration = "140ms"
+duration = "380ms"
 easing = "ease-out"
 reduce = false
+transition = "wipe"
 `,
   midnight: `
 [meta]

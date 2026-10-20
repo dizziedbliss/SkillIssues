@@ -60,6 +60,41 @@
   text-align: center;
 }
 
+.tools {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* A 44px target around a 22px icon, in the page's red. */
+.tool {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--signal);
+  cursor: pointer;
+  transition: border-color var(--fast) var(--ease), background-color var(--fast) var(--ease);
+}
+
+.tool:hover {
+  border-color: var(--signal);
+}
+
+.tool[aria-pressed="true"],
+.tool[aria-expanded="true"] {
+  border-color: var(--signal);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool {
+    transition: none;
+  }
+}
+
 .base {
   display: flex;
   justify-content: space-between;

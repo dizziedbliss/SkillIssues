@@ -19,6 +19,7 @@ ul, ol { padding: 0; list-style: none; }
 img, svg, canvas { display: block; max-width: 100%; }
 button, input { font: inherit; color: inherit; }
 a { color: inherit; }
+html[data-mode="dark"] body { background: #000000; color: #ffffff; }
 :focus-visible { outline: 2px solid #ff0000; outline-offset: 3px; }
 .visually-hidden {
   position: absolute; width: 1px; height: 1px; overflow: hidden;

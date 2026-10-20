@@ -1,152 +1,81 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import type { Difficulty, Issue, Sort } from "@skillissues/client";
-import tokens from "../landing/tokens.module.css";
-import { Header } from "../landing/Header";
-import { api } from "../lib/api";
-import { Account } from "./Account";
-import s from "./AppShell.module.css";
+import { useRef } from "react";
+import { Link, Route, Routes, useSearchParams } from "react-router";
+import { Footer } from "../landing/Footer";
+import { useT, type MessageKey } from "../i18n";
+import { ThemeToggleContext } from "../lib/themeToggle";
+import { AppHeader } from "./AppHeader";
+import { Explore } from "./Explore";
+import { Settings } from "./Settings";
+import { useAppTheme } from "./theme";
+import s from "./App.module.css";
 
-/** Empty pages to read on its own before saying nothing matches. */
-const AUTO_PAGES = 5;
+/** The fixed codes the API's sign-in callback can return (?error=). */
+const signInErrors: Record<string, MessageKey> = {
+  access_denied: "auth.error.access_denied",
+  invalid_callback: "auth.error.invalid_callback",
+  oauth_failed: "auth.error.oauth_failed",
+  sign_in_failed: "auth.error.sign_in_failed",
+};
 
-/*
- * A plain, working catalog for /app while the signed-in app's designs are on
- * their way: browse the shuffled feed, sort, filter by difficulty and
- * language, search when you press Search. It is deliberately simple and
- * will be replaced by the designed app.
+/**
+ * The signed-in app: its themed root, header and footer around the page for
+ * the route. The theme reaches only this root (theme.ts, APP_SCOPE); the landing page
+ * and the docs never see it.
  */
-
-const sorts: { value: Sort; label: string }[] = [
-  { value: "shuffle", label: "Shuffled" },
-  { value: "easiest", label: "Easiest first" },
-  { value: "newest", label: "Newest" },
-];
-
-const difficulties: { value: Difficulty | ""; label: string }[] = [
-  { value: "", label: "Any difficulty" },
-  { value: "BEGINNER", label: "Beginner" },
-  { value: "INTERMEDIATE", label: "Intermediate" },
-  { value: "ADVANCED", label: "Advanced" },
-  { value: "UNCLASSIFIED", label: "Unrated" },
-];
-
 export default function AppShell() {
-  const [sort, setSort] = useState<Sort>("shuffle");
-  const [difficulty, setDifficulty] = useState<Difficulty | "">("");
-  const [language, setLanguage] = useState("");
-  const [draft, setDraft] = useState("");
-  const [term, setTerm] = useState("");
+  const t = useT();
+  const root = useRef<HTMLDivElement>(null);
+  const { toggle, problem } = useAppTheme(root);
+  const [params, setParams] = useSearchParams();
 
-  const facets = useQuery({ queryKey: ["facets"], queryFn: ({ signal }) => api.facets({ signal }), staleTime: 30 * 60_000 });
-  const filters = {
-    sort,
-    difficulty: difficulty ? [difficulty] : undefined,
-    language: language ? [language] : undefined,
-    limit: 30,
-  };
-
-  const browse = useInfiniteQuery({
-    queryKey: ["browse", filters],
-    queryFn: ({ pageParam, signal }) => api.browse(filters, pageParam, { signal }),
-    initialPageParam: "",
-    getNextPageParam: (last) => last.next_cursor ?? undefined,
-    enabled: term === "",
-  });
-  const search = useQuery({
-    queryKey: ["search", term, filters],
-    queryFn: ({ signal }) => api.search(term, { ...filters, sort: undefined }, { signal }),
-    enabled: term !== "",
-  });
-
-  const issues: Issue[] = term ? search.data ?? [] : browse.data?.pages.flatMap((p) => p.issues) ?? [];
-  const error = term ? search.error : browse.error;
-
-  // A page can come back short, even empty, with a cursor: the server
-  // stopped looking to answer quickly, not because it ran out. Keep looking
-  // a few pages before saying nothing matches.
-  const pagesFetched = browse.data?.pages.length ?? 0;
-  const stillLooking = !term && !browse.error && issues.length === 0 && browse.hasNextPage && pagesFetched < AUTO_PAGES;
-  useEffect(() => {
-    if (stillLooking && !browse.isFetchingNextPage) void browse.fetchNextPage();
-  }, [stillLooking, browse]);
-  const loading = term ? search.isPending : browse.isPending || stillLooking;
-
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    setTerm(draft.trim());
-  }
+  // Back from GitHub: ?auth=ok is done with; ?error= is shown until dismissed.
+  const callbackError = params.get("error");
+  const dismiss = () =>
+    setParams(
+      (p) => {
+        p.delete("error");
+        p.delete("auth");
+        return p;
+      },
+      { replace: true },
+    );
 
   return (
-    <div className={tokens.page}>
-      <Header />
-      <main className={s.main}>
-        <Account />
-        <p className={s.notice} role="note">
-          You’re seeing a simple version of the catalog while the full app is being designed.
-        </p>
-        <form className={s.controls} onSubmit={submit} role="search">
-          <label className={s.searchField}>
-            <span className="visually-hidden">Search issues</span>
-            <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Search by repository, title, language or author" />
-          </label>
-          <button type="submit" className={s.button}>Search</button>
-          {term && (
-            <button type="button" className={s.textButton} onClick={() => { setDraft(""); setTerm(""); }}>
-              Clear search
-            </button>
-          )}
-        </form>
-        <div className={s.filters}>
-          <label>
-            <span>Sort</span>
-            <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} disabled={term !== ""}>
-              {sorts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>Difficulty</span>
-            <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as Difficulty | "")}>
-              {difficulties.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>Language</span>
-            <select value={language} onChange={(e) => setLanguage(e.target.value)}>
-              <option value="">Any language</option>
-              {(facets.data?.languages ?? []).map((f) => <option key={f.value} value={f.value}>{f.value}</option>)}
-            </select>
-          </label>
-        </div>
-
-        {error && <p className={s.error} role="alert">{error.message}</p>}
-        {loading && <p className={s.quiet}>Loading issues…</p>}
-        {!loading && !error && issues.length === 0 && (
-          <p className={s.quiet}>No open issues match. Try another language or difficulty.</p>
+    <ThemeToggleContext.Provider value={toggle}>
+      {/* data-app is APP_SCOPE: the theme applies here and nowhere else. */}
+      <div ref={root} className={s.app} data-app="">
+        <AppHeader />
+        {callbackError && (
+          <p className={s.notice} role="alert">
+            {t(signInErrors[callbackError] ?? "auth.error.other")}
+            <button type="button" onClick={dismiss}>{t("auth.dismiss")}</button>
+          </p>
         )}
-
-        <ol className={s.list}>
-          {issues.map((it) => (
-            <li key={it.id} className={s.item}>
-              <a href={it.url} target="_blank" rel="noreferrer" className={s.itemLink}>
-                <span className={s.repo}>{it.repository} #{it.number}</span>
-                <span className={s.title}>{it.title}</span>
-                <span className={s.meta}>
-                  {[it.language, it.difficulty === "UNCLASSIFIED" ? "unrated" : it.difficulty.toLowerCase(), `${it.comments} comments`]
-                    .filter(Boolean)
-                    .join(", ")}
-                </span>
-              </a>
-            </li>
-          ))}
-        </ol>
-
-        {!term && browse.hasNextPage && (
-          <button type="button" className={s.button} onClick={() => browse.fetchNextPage()} disabled={browse.isFetchingNextPage}>
-            {browse.isFetchingNextPage ? "Loading" : "Show more issues"}
-          </button>
+        {problem && (
+          <p className={s.problem} role="alert">
+            {t("theme.failed", { reason: problem })}
+          </p>
         )}
-      </main>
-    </div>
+        <main className={s.main}>
+          <Routes>
+            <Route index element={<Explore />} />
+            <Route path="settings" element={<Settings />} />
+            <Route path="*" element={<AppNotFound />} />
+          </Routes>
+        </main>
+        <Footer />
+      </div>
+    </ThemeToggleContext.Provider>
+  );
+}
+
+function AppNotFound() {
+  const t = useT();
+  return (
+    <section>
+      <h1 className={s.title}>{t("app.notFound.title")}</h1>
+      <p className={s.lede}>{t("app.notFound.body")}</p>
+      <Link to="/app" className={s.link}>{t("app.notFound.cta")}</Link>
+    </section>
   );
 }
