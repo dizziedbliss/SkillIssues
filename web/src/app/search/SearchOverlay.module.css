@@ -53,6 +53,13 @@
   cursor: pointer;
 }
 
+.sub {
+  max-width: 46rem;
+  margin-top: 0.75rem;
+  color: var(--colors-text-muted);
+  font-size: 0.9375rem;
+}
+
 .form {
   display: flex;
   align-items: center;
@@ -122,17 +129,17 @@
   padding: 0.55rem 0.9rem;
   border: 0;
   border-radius: var(--radius-medium);
-  background: linear-gradient(var(--colors-text), var(--colors-text)) no-repeat 0 0 / 0% 100%, var(--colors-accent);
+  background: var(--colors-accent);
   color: var(--colors-accent-text);
   font: inherit;
   font-size: var(--label-size);
   cursor: pointer;
-  transition: background-size var(--slow) var(--ease), color var(--slow) var(--ease);
+  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
 }
 
 .submit:hover,
 .submit:focus-visible {
-  background-size: 100% 100%, auto;
+  background-color: var(--colors-text);
   color: var(--colors-accent);
 }
 
@@ -178,13 +185,13 @@
   padding: 0.6rem 0.5rem;
   color: inherit;
   text-decoration: none;
-  background: linear-gradient(var(--chip), var(--chip)) no-repeat 0 0 / 0% 100%;
-  transition: background-size var(--slow) var(--ease);
+  background: transparent;
+  transition: background-color var(--slow) var(--ease);
 }
 
 .result:hover,
 .result:focus-visible {
-  background-size: 100% 100%;
+  background-color: var(--chip);
 }
 
 .resultTitle {
@@ -205,17 +212,17 @@
   padding: 0.5em 1em;
   border: var(--border-width) solid var(--colors-accent);
   border-radius: var(--radius-medium);
-  background: linear-gradient(var(--colors-accent), var(--colors-accent)) no-repeat 0 0 / 0% 100%;
+  background: transparent;
   color: var(--colors-text);
   font: inherit;
   font-size: var(--button-size);
   cursor: pointer;
-  transition: background-size var(--slow) var(--ease), color var(--slow) var(--ease);
+  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
 }
 
 .all:hover,
 .all:focus-visible {
-  background-size: 100% 100%;
+  background-color: var(--colors-accent);
   color: var(--colors-accent-text);
 }
 

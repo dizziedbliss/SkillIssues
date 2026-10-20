@@ -93,7 +93,8 @@ func lowerAll(vals []string) []string {
 // hasFilters reports whether anything narrows the catalog.
 func (f Filters) hasFilters() bool {
 	return len(f.Difficulties) > 0 || len(f.Languages) > 0 || len(f.Labels) > 0 ||
-		len(f.Topics) > 0 || len(f.Tech) > 0 || f.CommentsMin != nil || f.CommentsMax != nil
+		len(f.Topics) > 0 || len(f.Tech) > 0 || len(f.Repos) > 0 || len(f.Owners) > 0 ||
+		f.CommentsMin != nil || f.CommentsMax != nil
 }
 
 // onlyLanguages reports whether the languages filter is the only filter, the
@@ -166,6 +167,14 @@ func (f Filters) repoConds(arg func(any) string) string {
 	}
 	if len(f.Tech) > 0 {
 		b.WriteString(" AND r.tech && " + arg(lowerAll(f.Tech)) + "::text[]")
+	}
+	if len(f.Repos) > 0 {
+		// repositories_full_name_lower_idx (00003).
+		b.WriteString(" AND lower(r.full_name) = ANY(" + arg(lowerAll(f.Repos)) + "::text[])")
+	}
+	if len(f.Owners) > 0 {
+		// repositories_owner_lower_idx (00049).
+		b.WriteString(" AND lower(split_part(r.full_name, '/', 1)) = ANY(" + arg(lowerAll(f.Owners)) + "::text[])")
 	}
 	return b.String()
 }

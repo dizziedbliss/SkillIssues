@@ -50,21 +50,21 @@
   display: inline-block;
   margin-top: 1.5rem;
   padding: 0.7em 1.1em 0.65em;
-  /* Black slides in from the left on hover, over the red. */
-  background: linear-gradient(var(--ink), var(--ink)) no-repeat 0 0 / 0% 100%, var(--signal);
+  /* Fades to ink on hover, over the red. */
+  background: var(--signal);
   color: var(--ink);
   font-family: var(--mono);
   font-size: var(--button-size);
   line-height: 1.2;
   text-decoration: none;
   transition:
-    background-size var(--slow) var(--ease),
+    background-color var(--slow) var(--ease),
     color var(--slow) var(--ease),
     transform var(--fast) var(--ease);
 }
 
 .button:hover {
-  background-size: 100% 100%, auto;
+  background-color: var(--ink);
   color: var(--signal);
 }
 
@@ -105,9 +105,22 @@
 
 /* ---- sections ---- */
 
+/*
+ * The top: the heading and its paragraph in the left half like every left
+ * section of the zig-zag, and the live bar alone centred on the page.
+ */
 .hero {
-  padding-top: clamp(3.5rem, 7vw, 6rem);
-  max-width: var(--hero-width);
+  padding-top: clamp(2.5rem, 5vw, 4.5rem);
+}
+
+.hero > .heading,
+.hero > .body {
+  max-width: var(--half);
+}
+
+.hero > figure {
+  width: min(100%, 60rem);
+  margin-inline: auto;
 }
 
 .section {
@@ -145,7 +158,9 @@
 /* Narrow screens: one column, every section full width. */
 @media (max-width: 860px) {
   .left,
-  .right {
+  .right,
+  .hero > .heading,
+  .hero > .body {
     max-width: none;
     margin-left: 0;
   }

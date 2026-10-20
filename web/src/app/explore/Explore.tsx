@@ -23,9 +23,14 @@ export function Explore() {
   const [params, setParams] = useSearchParams();
   const query = readQuery(params);
   const [draft, setDraft] = useState(query.search);
-  // Arriving from the search overlay's "filter" opens the panel.
+  // Arriving from the search overlay's "filter" opens the panel, whether or
+  // not Explore was already showing.
   const location = useLocation();
-  const [filtersOpen, setFiltersOpen] = useState(() => !!(location.state as { filters?: boolean } | null)?.filters);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const wantsFilters = !!(location.state as { filters?: boolean } | null)?.filters;
+  useEffect(() => {
+    if (wantsFilters) setFiltersOpen(true);
+  }, [wantsFilters, location.key]);
   const overlay = useSearchOverlay();
   const top = useRef<HTMLDivElement>(null);
 
@@ -106,13 +111,35 @@ export function Explore() {
         <button type="submit" className={s.submit}>{t("explore.search")}</button>
       </form>
 
+      <p className={s.hint}>
+        {t("explore.searchHint")}{" "}
+        <button type="button" className={s.hintLink} onClick={overlay.open}>
+          {t("explore.searchHintLink")}
+        </button>
+      </p>
+
+      {(query.repo.length > 0 || query.owner.length > 0) && (
+        <p className={s.scope}>
+          {t("explore.scope")}{" "}
+          {[...query.repo, ...query.owner].map((v) => (
+            <span key={v} className={s.scopeChip}>{v}</span>
+          ))}
+          <button type="button" className={s.hintLink} onClick={() => update({ repo: [], owner: [] })}>
+            {t("explore.scopeClear")}
+          </button>
+        </p>
+      )}
+
       {filtersOpen && difficulty && (
         <div id="explore-filters">
           <FilterPanel
             key={key}
             value={query}
             difficulty={difficulty}
-            onApply={(panel, levels) => update({ ...panel, difficulty: levels })}
+            onApply={(panel, levels) => {
+              update({ ...panel, difficulty: levels });
+              setFiltersOpen(false);
+            }}
           />
         </div>
       )}

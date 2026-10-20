@@ -8,6 +8,8 @@ import { loadIssueBody } from "../lib/issueBody";
 import { ago } from "../lib/time";
 import { CommentIcon } from "./icons";
 import { SaveButton } from "./SaveButton";
+import { scopeURL } from "./explore/query";
+import { DesktopButton } from "./DesktopButton";
 import s from "./IssuePage.module.css";
 
 /**
@@ -50,6 +52,11 @@ export function IssuePage() {
   if (!issue.data) return <p className={s.note}>{t("issue.loading")}</p>;
 
   const it = issue.data;
+  // GitHub's answer for the description is newer than the catalog: an issue
+  // closed since the last crawl says so here at once.
+  const live = body.data && "live" in body.data ? body.data.live : null;
+  const liveClosed = !!live?.closed;
+  const closedAgo = live?.closedAt ? ago(live.closedAt, locale) : "";
   const number = new Intl.NumberFormat(locale);
   const dates = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric" });
 
@@ -62,7 +69,11 @@ export function IssuePage() {
       <h1 className={s.title}>
         {it.title} <span className={s.number}>#{it.number}</span>
       </h1>
-      {it.state === "CLOSED" && <p className={s.closed}>{t("issue.closed")}</p>}
+      {(it.state === "CLOSED" || liveClosed) && (
+        <p className={s.closed} role="status">
+          {liveClosed && it.state !== "CLOSED" ? t("issue.closedNow", { ago: closedAgo }) : t("issue.closed")}
+        </p>
+      )}
 
       <ul className={s.chips}>
         <li className={s.level}>{t(`difficulty.${it.difficulty}`)}</li>
@@ -78,7 +89,7 @@ export function IssuePage() {
 
       <div className={s.actions}>
         <a href={it.url} target="_blank" rel="noreferrer" className={s.primary}>{t("issue.openGitHub")}</a>
-        <Link to="/download" className={s.secondary}>{t("issue.desktop")}</Link>
+        <DesktopButton issue={it} className={s.secondary} />
         <SaveButton issue={it} label />
       </div>
 
@@ -115,6 +126,19 @@ export function IssuePage() {
             {it.license && <li>{t("issue.license", { license: it.license })}</li>}
             {it.author && <li>{t("issue.author", { login: it.author })}</li>}
             {it.created_at && <li>{t("issue.opened", { date: dates.format(new Date(it.created_at)) })}</li>}
+          </ul>
+          <ul className={s.more}>
+            <li>
+              <Link to={scopeURL({ repo: it.repository })}>{t("issue.moreRepo", { repo: it.repository })}</Link>
+            </li>
+            <li>
+              <Link to={scopeURL({ owner: it.repository.split("/")[0] ?? "" })}>
+                {t("issue.moreOwner", { owner: it.repository.split("/")[0] ?? "" })}
+              </Link>
+            </li>
+            <li>
+              <a href={it.repository_url} target="_blank" rel="noreferrer">{t("issue.onGitHub")}</a>
+            </li>
           </ul>
           {it.tech.length > 0 && (
             <ul className={s.tech}>

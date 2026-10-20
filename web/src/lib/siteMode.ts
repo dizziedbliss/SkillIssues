@@ -3,8 +3,9 @@ import { useSyncExternalStore } from "react";
 /*
  * Light or dark for the landing page, the docs and the written pages. These
  * keep their locked look in both (landing/tokens.module.css); user themes
- * never reach them. The choice lives on <html data-mode> and in this
- * browser; public/mode.js applies it before the first paint.
+ * never reach them. Dark is the default: the page arrives with
+ * <html data-mode="dark">, and public/mode.js takes it off before the first
+ * paint when this browser chose light.
  */
 
 export type SiteMode = "light" | "dark";
@@ -29,7 +30,7 @@ function subscribe(cb: () => void) {
   return () => listeners.delete(cb);
 }
 
-/** The site's mode. Light while prerendering. */
+/** The site's mode. Dark while prerendering, as the page arrives. */
 export function useSiteMode(): SiteMode {
-  return useSyncExternalStore(subscribe, read, () => "light");
+  return useSyncExternalStore(subscribe, read, () => "dark");
 }

@@ -22,6 +22,9 @@ export interface Panel {
 
 export interface CatalogQuery extends Panel {
   search: string;
+  /** Narrowed to one repository (owner/name) or one owner, from an issue's links. */
+  repo: string[];
+  owner: string[];
   /** null: not chosen, so the profile's level applies. */
   difficulty: Difficulty[] | null;
 }
@@ -46,6 +49,8 @@ export function readQuery(p: URLSearchParams): CatalogQuery {
     difficulty: p.has("difficulty")
       ? (list(p, "difficulty").filter((d) => (DIFFICULTIES as string[]).includes(d)) as Difficulty[])
       : null,
+    repo: list(p, "repo"),
+    owner: list(p, "owner"),
     labels: list(p, "labels"),
     tech: list(p, "tech"),
     topics: list(p, "topics"),
@@ -60,7 +65,7 @@ export function writeQuery(q: CatalogQuery): URLSearchParams {
   const p = new URLSearchParams();
   if (q.search) p.set("search", q.search);
   if (q.difficulty) p.set("difficulty", q.difficulty.join(","));
-  for (const k of ["labels", "tech", "topics", "language"] as const) {
+  for (const k of ["repo", "owner", "labels", "tech", "topics", "language"] as const) {
     if (q[k].length) p.set(k, q[k].join(","));
   }
   if (q.comments_min !== undefined) p.set("comments_min", String(q.comments_min));
@@ -76,6 +81,8 @@ export function toFilters(q: CatalogQuery, difficulty: Difficulty[]): IssueFilte
   return {
     sort: q.sort,
     difficulty: difficulty.length ? difficulty : undefined,
+    repo: q.repo,
+    owner: q.owner,
     labels: q.labels,
     tech: q.tech,
     topics: q.topics,
@@ -83,4 +90,15 @@ export function toFilters(q: CatalogQuery, difficulty: Difficulty[]): IssueFilte
     comments_min: q.comments_min,
     comments_max: q.comments_max,
   };
+}
+
+/**
+ * Explore narrowed to a repository or an owner: every difficulty, easiest
+ * first (the shuffled feed would show only one issue per repository).
+ */
+export function scopeURL(scope: { repo: string } | { owner: string }): string {
+  const p = new URLSearchParams("difficulty=&sort=easiest");
+  if ("repo" in scope) p.set("repo", scope.repo);
+  else p.set("owner", scope.owner);
+  return `/app?${p.toString()}`;
 }

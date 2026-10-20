@@ -83,13 +83,14 @@ export function SearchOverlay({ onClose }: { onClose: () => void }) {
   })).filter((g) => g.issues.length > 0);
 
   return (
-    <dialog ref={dialog} className={s.dialog} aria-labelledby="search-title" onClose={onClose}>
+    <dialog ref={dialog} className={s.dialog} aria-labelledby="search-title" aria-describedby="search-sub" onClose={onClose}>
       <div className={s.head}>
         <h2 id="search-title" className={s.title}>{t("search.title")}</h2>
         <button type="button" className={s.close} onClick={() => dialog.current?.close()}>
           {t("search.close")}
         </button>
       </div>
+      <p className={s.sub} id="search-sub">{t("search.sub")}</p>
       <form className={s.form} role="search" onSubmit={submit}>
         <label htmlFor="overlay-search" className={s.label}>{t("explore.searchLabel")}</label>
         <div className={s.box} style={{ viewTransitionName: "search-box" }}>

@@ -50,6 +50,9 @@ export interface IssueFilters {
   labels?: string[];
   topics?: string[];
   tech?: string[];
+  /** owner/name */
+  repo?: string[];
+  owner?: string[];
   comments_min?: number;
   comments_max?: number;
   limit?: number;

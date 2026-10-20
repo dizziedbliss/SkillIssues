@@ -22,6 +22,8 @@ function filterParams(f: IssueFilters): Record<string, string | number | undefin
     labels: list(f.labels),
     topics: list(f.topics),
     tech: list(f.tech),
+    repo: list(f.repo),
+    owner: list(f.owner),
     comments_min: f.comments_min,
     comments_max: f.comments_max,
     limit: f.limit,
