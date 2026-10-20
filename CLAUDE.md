@@ -173,30 +173,38 @@ emit after each committed crawl or discovery page (repository, counts, first tit
 - `flow.enabled` (live) turns the tap off. The visualizer site is not in this repository.
 
 ### Shared packages (`packages/`)
-npm workspace members, imported by both clients as `@skillissues/*` (a real `node_modules`
-symlink, not a relative path reaching outside the importing project):
-- **`packages/markdown`** — sanitised Markdown rendering (`markdown-it` + DOMPurify). Issue
-  bodies are attacker-controlled; never hand-roll rendering in either client.
-- **`packages/api-client`** — one typed client for every API endpoint: the `Issue` /
-  `Contribution` / `Profile` types, `ApiError` (keeps `status` + `detail`, so 401 ≠ 429 ≠
-  network), `AbortController` support, and the recommendations ETag/localStorage
-  revalidation. Pluggable `Transport`: `createFetchTransport` (web) and `createIpcTransport`
-  (desktop, routed through the existing preload bridge).
-- **`packages/ui`** — shared React components: `Modal` (body scroll lock, Escape-to-close,
-  focus trap, backdrop click — fixes the "background scrolls behind the popup" bug for every
-  overlay in both clients), `ConfirmDialog`, `Toast`, `IssueCard`/`IssueList`,
-  `WorkingList`/`SubmissionList`, `DifficultyTabs`, `SectionTabs`, `Badge`, `ProgressBar`,
-  `Skeleton`. Platform differences (desktop's fork/clone/editor buttons, web's "Open in
-  Desktop App" deep link) come in as props/slots passed to these, never as a forked copy of
-  the component.
+npm workspace members, imported as `@skillissues/*` (a real `node_modules` symlink, not a relative
+path reaching outside the importing project). The web app was rebuilt on the first two; the desktop
+app still uses the last three until its own rebuild.
+- **`packages/client`** — the typed API client: response types, `ApiError` (`status`, `problems`;
+  status 0 = never answered), abort support, a pluggable `Transport` (`fetchTransport` for the
+  browser). Cursor paging always sends `?cursor=`, even empty: it is what selects the shuffled feed.
+- **`packages/theme`** — user themes on the client: the TOML schema and stylesheet allowlist
+  mirroring `backend/internal/theme`, run on the same fixtures (`packages/theme/fixtures`, CI runs
+  both sides), the presets, and `compileTheme`/`applyTheme`, which re-validates a theme and applies
+  it through constructed stylesheets scoped to the app's root. `npm test` runs the checks.
+- **`packages/markdown`** — sanitised Markdown rendering (`markdown-it` + DOMPurify). Issue bodies
+  are attacker-controlled; never hand-roll rendering in either client.
+- **`packages/api-client`**, **`packages/ui`** — the previous client and component kit, used only
+  by the desktop app now. Don't build anything new on them.
 
 ### Web (`web/src/`)
-- **`App.tsx`** — top-level router and most of the UI. Guests see `LandingPage`;
-  authenticated users get the challenge catalog.
-- **`LandingPage.tsx`** — 3D CSS perspective hero with cursor-tilt tracking.
-- **`index.css` / `landing.css` / `styles.css`** — theming. Palette: `#f7f6fb` background,
-  `#1e1338` / `#241442` deep violet, `#7c3aed` accent.
-- Avoid `any`; declare interfaces for API payloads.
+- **`landing/`** — the landing page, the owner's design. Its look is **locked**
+  (`landing/tokens.module.css`) and outside the theme system: no user theme reaches it. Each open
+  half of the zig-zag holds a live or explanatory filler (`landing/fillers/`). Fonts are
+  self-hosted through `@fontsource` (Instrument Serif headings and nav, JetBrains Mono everything
+  else, Krona One for the wordmark at 9% tracking over its 24:8 JetBrains Mono line).
+- **`pages/`** — the written pages (`pages/content.ts`); every claim must describe what the code does.
+  Pages marked `draft` say so on the page.
+- **`app/`** — the signed-in app. Until its designs arrive, a plain working catalog.
+- **`lab/`** — drafts for the owner to judge (`/lab/backdrop`); nothing there ships on `/`.
+- **Prerendered**: `npm run build` renders `/` and every content page to HTML
+  (`scripts/prerender.mjs`, `src/entry-server.tsx`); the client hydrates a page only when its
+  `data-route` matches. nginx serves `shell.html` (no markup) for every other route.
+- CSS Modules over custom properties; no Tailwind, no CSS-in-JS. Live counts poll `GET /stats`
+  every 10s (React Query, paused in background tabs).
+- nginx sends a CSP that allows fetching nothing from elsewhere (a theme stylesheet is someone
+  else's code); widen it only deliberately.
 
 Runs **React 19**.
 

@@ -125,6 +125,8 @@ COPY desktop/package.json desktop/
 COPY packages/markdown/package.json packages/markdown/
 COPY packages/api-client/package.json packages/api-client/
 COPY packages/ui/package.json packages/ui/
+COPY packages/client/package.json packages/client/
+COPY packages/theme/package.json packages/theme/
 RUN npm ci
 
 COPY packages/ packages/

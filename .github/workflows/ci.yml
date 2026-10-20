@@ -185,12 +185,20 @@ jobs:
           npm ci
       - name: Typecheck
         run: |
+          (cd packages/client && npx tsc --noEmit -p .)
+          (cd packages/theme && npm run typecheck)
           cd web
           npm run typecheck
+      - name: Theme checks
+        # The same accept/refuse fixtures backend/internal/theme runs, so the
+        # app and the server never disagree about a theme.
+        run: |
+          cd packages/theme
+          npm test
       - name: Build
-        # The real build, not just tsc --noEmit: this is what actually
-        # catches a broken packages/markdown import, since typecheck alone
-        # does not exercise Vite's module resolution the same way.
+        # The real build, which also prerenders the landing and content
+        # pages: it is what catches a broken workspace import or a page
+        # that throws while rendering.
         run: |
           cd web
           npm run build

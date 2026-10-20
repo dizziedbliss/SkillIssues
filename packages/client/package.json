@@ -1,0 +1,9 @@
+{
+  "name": "@skillissues/client",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Typed client for the SkillIssues API, shared by web and desktop: the response types, ApiError (status + message, so 401, 429 and offline differ), abort support and a pluggable transport.",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}
