@@ -28,9 +28,9 @@ const (
 	IssuesDefaultPageSize Key = "api.issues.default_page_size"
 	IssuesSearchPageSize  Key = "api.issues.search_page_size"
 	SearchPerCategoryCap  Key = "api.search.per_category_cap"
-	// SearchSampleSize bounds a search's Title and Author categories: that
-	// many matches are read off the index and ordered by stars, however many
-	// a common word has.
+	// SearchSampleSize bounds a search's Title category (that many matches are
+	// read off the index and ordered by stars, however many a common word has)
+	// and how deep one category of a search pages.
 	SearchSampleSize Key = "api.search.sample_size"
 	// SearchPerRepoCap is the most issues one repository contributes to the
 	// Repository or Language category of a search.
@@ -349,7 +349,7 @@ var Registry = map[Key]Spec{
 	IssuesSearchPageSize:  intSpec(50, 1, 200, "Issues returned for a search query."),
 	SearchPerCategoryCap:  intSpec(25, 1, 100, "Maximum results per match category, so one category cannot flood the rest."),
 	SearchPerRepoCap:      intSpec(3, 1, 100, "Most issues one repository contributes to a search's Repository or Language category, so one large repository cannot fill it."),
-	SearchSampleSize:      intSpec(2000, 100, 100000, "Title and author matches a search reads before ordering them by stars; bounds the work for a common word."),
+	SearchSampleSize:      intSpec(2000, 100, 100000, "Title matches a search reads before ordering them by stars, and the deepest one category of a search pages; bounds the work for a common word."),
 	NotificationsPageSize: intSpec(50, 1, 200, "Notifications returned by GET /notifications."),
 
 	SessionTTLHours:             intSpec(168, 1, 8760, "Session lifetime. Applies to newly issued sessions only."),

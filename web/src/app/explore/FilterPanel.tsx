@@ -220,41 +220,30 @@ function Choices({
   );
 }
 
-/** At least and at most this many comments. */
+/** Comment counts as ranges to pick, not numbers to type. */
+const COMMENT_RANGES: { label: MessageKey; min?: number; max?: number }[] = [
+  { label: "filters.comments.any" },
+  { label: "filters.comments.none", min: 0, max: 0 },
+  { label: "filters.comments.few", min: 1, max: 5 },
+  { label: "filters.comments.some", min: 6, max: 20 },
+  { label: "filters.comments.many", min: 21 },
+];
+
+/** A comment-count range, from a short list; a range typed into the address shows as itself. */
 function Comments({ min, max, onChange }: { min?: number; max?: number; onChange: (min?: number, max?: number) => void }) {
   const t = useT();
-  const { open, setOpen, root, trigger } = usePopover();
-  const id = useId();
-  const parse = (v: string) => (v === "" ? undefined : Math.max(0, Math.floor(Number(v))));
-  const summary = min === undefined && max === undefined ? t("filters.any") : `${min ?? 0}–${max ?? "∞"}`;
-
+  const known = COMMENT_RANGES.find((r) => r.min === min && r.max === max);
+  const value = known ? t(known.label) : `${min ?? 0}–${max ?? "∞"}`;
   return (
-    <div ref={root} className={s.choices}>
-      <button
-        ref={trigger}
-        type="button"
-        className={`${s.select} ${summary !== t("filters.any") ? s.selectChosen : ""}`}
-        aria-expanded={open}
-        aria-controls={id}
-        aria-label={`${t("filters.comments")}: ${summary}`}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <span className={s.selectValue}>{summary}</span>
-        <span className={s.chevron} aria-hidden="true">&gt;</span>
-      </button>
-      {open && (
-        <fieldset id={id} className={`${s.menu} ${s.range}`}>
-          <legend className="visually-hidden">{t("filters.comments")}</legend>
-          <label>
-            {t("filters.min")}
-            <input type="number" min={0} inputMode="numeric" value={min ?? ""} onChange={(e) => onChange(parse(e.target.value), max)} />
-          </label>
-          <label>
-            {t("filters.max")}
-            <input type="number" min={0} inputMode="numeric" value={max ?? ""} onChange={(e) => onChange(min, parse(e.target.value))} />
-          </label>
-        </fieldset>
-      )}
-    </div>
+    <Choices
+      single
+      name={t("filters.comments")}
+      options={COMMENT_RANGES.map((r) => ({ value: t(r.label) }))}
+      chosen={[value]}
+      onChange={(v) => {
+        const r = COMMENT_RANGES.find((x) => t(x.label) === v[0]);
+        if (r) onChange(r.min, r.max);
+      }}
+    />
   );
 }

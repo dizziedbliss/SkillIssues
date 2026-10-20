@@ -1,3 +1,5 @@
+import { useState } from "react";
+import type { PullRequest } from "../../lib/github";
 import { useT } from "../../i18n";
 import { useSession } from "../session";
 import { Achievements, ContribStatus, Graph, PRList, SignInPrompt, StatBoxes } from "./parts";
@@ -27,16 +29,45 @@ export function ContributionsPage() {
       <div className={s.lists}>
         <section aria-labelledby="prs-title" className={s.box}>
           <h2 id="prs-title" className={s.boxTitle}>{t("profile.prs")}</h2>
-          <PRList items={contributions.data?.recent} empty={t("profile.noPRs")} />
+          <MoreList items={contributions.data?.recent} empty={t("profile.noPRs")} all={gitHubPulls(user.username, false)} />
         </section>
         <section aria-labelledby="resolved-title" className={s.box}>
           <h2 id="resolved-title" className={s.boxTitle}>{t("profile.resolved")}</h2>
-          <PRList items={contributions.data?.recentMerged} empty={t("profile.noResolved")} />
+          <MoreList items={contributions.data?.recentMerged} empty={t("profile.noResolved")} all={gitHubPulls(user.username, true)} />
         </section>
       </div>
 
       <h2 className={s.heading}>{t("achieve.title")}</h2>
       <Achievements data={contributions.data} />
     </div>
+  );
+}
+
+/** Pull requests listed at first, and added with each View more. */
+const STEP = 8;
+
+/** Every one of a person's public pull requests on GitHub, merged or all. */
+function gitHubPulls(login: string, merged: boolean): string {
+  return `https://github.com/pulls?q=${encodeURIComponent(`is:pr author:${login}${merged ? " is:merged" : ""}`)}`;
+}
+
+/** A list that starts short: View more shows the next few, then GitHub has the rest. */
+function MoreList({ items, empty, all }: { items: PullRequest[] | undefined; empty: string; all: string }) {
+  const t = useT();
+  const [shown, setShown] = useState(STEP);
+  return (
+    <>
+      <PRList items={items} empty={empty} limit={shown} />
+      {items && items.length > shown && (
+        <button type="button" className={s.more} onClick={() => setShown((n) => n + STEP)}>
+          {t("search.viewMore")}
+        </button>
+      )}
+      {items && items.length > 0 && items.length <= shown && (
+        <a href={all} target="_blank" rel="noreferrer" className={s.more}>
+          {t("contrib.allOnGitHub")}
+        </a>
+      )}
+    </>
   );
 }

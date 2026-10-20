@@ -57,18 +57,27 @@ func TestSearchCategories(t *testing.T) {
 	repoIssue := insertIssue(named, 1, "also mentions "+word, "someone") // Repository wins over Title
 	titleIssue := insertIssue(other, 1, "crash in "+word+" parser", "someone")
 	titleIssue2 := insertIssue(other, 2, word+" again", "someone")
-	authorIssue := insertIssue(other, 3, "unrelated", "dev-"+word)
+	authorIssue := insertIssue(other, 3, "unrelated", "dev-"+word) // authors aren't searched
 	langIssue := insertIssue(inLang, 1, "unrelated", "someone")
+	// Language also matches a repository that uses the language without it
+	// being the main one, after those whose main language it is.
+	usesLang := insertRepo(fmt.Sprintf("org/uses-%d", stamp), "Go", 900)
+	if err := pool.Exec(ctx, `UPDATE repositories SET languages = $2 WHERE id = $1`, usesLang,
+		fmt.Sprintf(`[{"name":"Go","size":9},{"name":%q,"size":1}]`, lang)); err != nil {
+		t.Fatal(err)
+	}
+	techIssue := insertIssue(usesLang, 1, "unrelated", "someone")
 
 	svc := New(pool, func() int { return 25 })
-	search := func(term string, limit, page int) []Issue {
+	searchIn := func(category, term string, limit, page int) []Issue {
 		t.Helper()
-		got, err := svc.SearchIssues(ctx, Filters{Search: term, Limit: limit, Page: page, SearchSample: 2000, SearchPerRepo: 3}, nil, "")
+		got, err := svc.SearchIssues(ctx, Filters{Search: term, Category: category, Limit: limit, Page: page, SearchSample: 2000, SearchPerRepo: 3}, nil, "")
 		if err != nil {
 			t.Fatal(err)
 		}
 		return got
 	}
+	search := func(term string, limit, page int) []Issue { t.Helper(); return searchIn("", term, limit, page) }
 
 	got := search(word, 50, 1)
 	want := []struct {
@@ -78,7 +87,7 @@ func TestSearchCategories(t *testing.T) {
 		// Rank 1 of each category, then rank 2. The two title matches share a
 		// repository and a difficulty, so the more recently updated (the
 		// later insert) ranks first.
-		{repoIssue, "Repository"}, {titleIssue2, "Title"}, {authorIssue, "Author"},
+		{repoIssue, "Repository"}, {titleIssue2, "Title"},
 		{titleIssue, "Title"},
 	}
 	if len(got) != len(want) {
@@ -90,13 +99,31 @@ func TestSearchCategories(t *testing.T) {
 		}
 	}
 
-	if got := search(lang, 50, 1); len(got) != 1 || got[0].ID != langIssue || got[0].MatchCategory != "Language" {
-		t.Errorf("language search = %v, want #%d Language", summary(got), langIssue)
+	for _, it := range got {
+		if it.ID == authorIssue {
+			t.Errorf("an author's login matched: %v", summary(got))
+		}
+	}
+
+	if got := search(lang, 50, 1); len(got) != 2 || got[0].ID != langIssue || got[1].ID != techIssue || got[1].MatchCategory != "Language" {
+		t.Errorf("language search = %v, want #%d then #%d, both Language", summary(got), langIssue, techIssue)
 	}
 
 	// Paging slices the same interleaved list.
-	if p2 := search(word, 2, 2); len(p2) != 2 || p2[0].ID != authorIssue || p2[1].ID != titleIssue {
+	if p2 := search(word, 2, 2); len(p2) != 1 || p2[0].ID != titleIssue {
 		t.Errorf("page 2 of 2 = %v", summary(p2))
+	}
+
+	// One category alone, paged on its own; an issue a higher category took
+	// in the mixed list still belongs to every category it matches.
+	if got := searchIn("Title", word, 50, 1); len(got) != 3 || got[0].MatchCategory != "Title" {
+		t.Errorf("title alone = %v, want its 3 matches", summary(got))
+	}
+	if p := searchIn("Title", word, 2, 2); len(p) != 1 {
+		t.Errorf("title alone, page 2 of 2 = %v, want 1", summary(p))
+	}
+	if got := searchIn("Repository", word, 50, 1); len(got) != 1 || got[0].ID != repoIssue {
+		t.Errorf("repository alone = %v, want #%d", summary(got), repoIssue)
 	}
 	if p9 := search(word, 2, 9); len(p9) != 0 {
 		t.Errorf("past the end = %v, want none", summary(p9))
@@ -114,4 +141,17 @@ func summary(issues []Issue) []string {
 		out[i] = fmt.Sprintf("#%d %s", it.ID, it.MatchCategory)
 	}
 	return out
+}
+
+func TestParseCategory(t *testing.T) {
+	for in, want := range map[string]string{"": "", "repository": "Repository", "TITLE": "Title", "Language": "Language"} {
+		if got, err := ParseCategory(in); err != nil || got != want {
+			t.Errorf("ParseCategory(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+	for _, bad := range []string{"author", "everything"} {
+		if _, err := ParseCategory(bad); err == nil {
+			t.Errorf("ParseCategory(%q): want an error", bad)
+		}
+	}
 }

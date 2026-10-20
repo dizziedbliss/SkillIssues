@@ -67,6 +67,7 @@ type Filters struct {
 	Labels       []string // issue labels, case-insensitively
 	Topics       []string // the repository's GitHub topics
 	Tech         []string // any language GitHub reports in the repository
+	Category     string   // a search's one category (ParseCategory); "" is all of them
 	Repos        []string // owner/name, case-insensitively
 	Owners       []string // the part of owner/name before the slash, case-insensitively
 	CommentsMin  *int

@@ -204,26 +204,6 @@
   font-size: var(--label-size);
 }
 
-.range {
-  display: grid;
-  gap: 0.6rem;
-}
-
-.range label {
-  display: grid;
-  gap: 0.25rem;
-  font-size: var(--label-size);
-}
-
-.range input {
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--colors-border);
-  border-radius: var(--radius-medium);
-  background: var(--colors-background);
-  color: var(--colors-text);
-  font: inherit;
-}
-
 /* ---- Clear and Apply ---- */
 
 .actions {

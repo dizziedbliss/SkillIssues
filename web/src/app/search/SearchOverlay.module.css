@@ -5,7 +5,7 @@
   max-width: none;
   max-height: min(50rem, 100dvh - 4rem);
   margin: clamp(1rem, 8vh, 6rem) auto auto;
-  padding: clamp(1.25rem, 4vw, 4rem) clamp(1rem, 6vw, 7.5rem);
+  padding: 0;
   border: var(--border-width) solid var(--colors-accent);
   border-radius: var(--radius-large);
   background: color-mix(in srgb, var(--colors-surface) 88%, transparent);
@@ -23,6 +23,11 @@
   background: color-mix(in srgb, var(--colors-background) 35%, transparent);
   backdrop-filter: blur(8px);
   animation: dim var(--slow) var(--ease);
+}
+
+/* The panel fills the dialog: a click that reaches the dialog itself is outside it. */
+.panel {
+  padding: clamp(1.25rem, 4vw, 4rem) clamp(1rem, 6vw, 7.5rem);
 }
 
 .head {
@@ -167,8 +172,26 @@
   cursor: pointer;
 }
 
-.group + .group {
-  margin-top: 1.25rem;
+/* The kinds side by side where there's room, stacked where there isn't. */
+.groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.5rem 2rem;
+}
+
+.more {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: var(--colors-accent);
+  font-size: var(--label-size);
+  text-decoration: none;
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 100% / 0% 1px;
+  transition: background-size var(--slow) var(--ease);
+}
+
+.more:hover,
+.more:focus-visible {
+  background-size: 100% 1px;
 }
 
 .groupTitle {

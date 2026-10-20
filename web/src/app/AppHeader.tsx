@@ -24,7 +24,8 @@ export function AppHeader() {
   return (
     <header className={s.header}>
       <div className={s.bar}>
-        <Link to="/" className={s.home} aria-label={t("site.home")}>
+        {/* Inside the app the wordmark is home: Explore. */}
+        <Link to="/app" className={s.home} aria-label={t("app.home")}>
           <Logo size="header" />
         </Link>
         <nav className={s.nav} aria-label={t("app.nav")}>
@@ -40,7 +41,7 @@ export function AppHeader() {
           </Link>
           <button
             type="button"
-            className={`${s.navButton} ${search.isOpen ? s.active : ""}`}
+            className={`${s.navButton} ${search.isOpen || pathname.startsWith("/app/search") ? s.active : ""}`}
             aria-haspopup="dialog"
             aria-keyshortcuts="/ Control+K Meta+K"
             onClick={search.open}

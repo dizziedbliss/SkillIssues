@@ -2,6 +2,8 @@
 
 export type Difficulty = "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "UNCLASSIFIED";
 export type Sort = "shuffle" | "easiest" | "newest";
+/** A search's kinds of match, as match_category names them. */
+export type SearchCategory = "Repository" | "Title" | "Language";
 
 export interface Issue {
   id: number;
@@ -33,7 +35,7 @@ export interface Issue {
   license: string;
   recommendation_score?: number;
   why_recommended?: string[];
-  match_category?: string;
+  match_category?: SearchCategory;
 }
 
 /** GET /issues with ?cursor=: one page and the cursor of the next, null at the end. */
