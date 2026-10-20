@@ -609,6 +609,14 @@ Every key with its default and bounds: `docs/settings.md`.
   `api.issues.rare_language_threshold`) is read through the filters' own indexes and sorted,
   rather than by walking an order index. The dropdown values are `catalog_facets`, recomputed by
   ingestd every `ingest.catalog.facets_refresh_seconds`; never count them per request.
+- **Live counts are kept, never counted per request**: `GET /stats` (open, closed since tracking
+  began, arrived/closed today, indexed issues and repositories, signed-up developers, recent
+  activity) reads `catalog_stats`. Statement-level triggers on `issues` (migration 00043) append one
+  delta row per repository a statement touched, whichever path wrote it, and ingestd folds them in
+  every `ingest.stats.rollup_seconds` and recounts exactly every `ingest.stats.recount_seconds`, in
+  one REPEATABLE READ snapshot so nothing is counted twice (`ingest/stats.go`). `/stats` is public
+  to any origin (the flow site reads it). `GET /repositories/lookup?name=owner/repo` says whether a
+  repository is indexed and why not.
 - **Catalog responses are cacheable only when signed out**: public `Cache-Control` + `ETag` and a
   Redis copy shared through `singleflight`. A signed-in response is ordered by the caller's
   languages and is `private, no-store`.

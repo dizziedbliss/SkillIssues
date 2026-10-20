@@ -267,9 +267,15 @@ func respondIssues(w http.ResponseWriter, r *http.Request, cfg *settings.Snapsho
 		return
 	}
 
-	if maxAge := cfg.Int(settings.CachePublicMaxAgeSeconds); maxAge > 0 {
-		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, stale-while-revalidate=%d",
-			maxAge, cfg.Int(settings.CachePublicStaleSeconds)))
+	respondPublic(w, r, data, cfg.Int(settings.CachePublicMaxAgeSeconds), cfg.Int(settings.CachePublicStaleSeconds))
+}
+
+// respondPublic writes a body that is the same for every caller: cacheable
+// for maxAge seconds (0: revalidate every time), served stale for up to stale
+// more while revalidating, with an ETag so a repeat request gets a 304.
+func respondPublic(w http.ResponseWriter, r *http.Request, data []byte, maxAge, stale int) {
+	if maxAge > 0 {
+		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, stale-while-revalidate=%d", maxAge, stale))
 	} else {
 		w.Header().Set("Cache-Control", "no-cache")
 	}

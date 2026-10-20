@@ -54,7 +54,10 @@ const (
 	// browser or an edge cache can answer a repeat visit without reaching the
 	// API. A response to a signed-in caller is always private, no-store.
 	CachePublicMaxAgeSeconds Key = "api.cache.public_max_age_seconds"
-	CachePublicStaleSeconds  Key = "api.cache.public_stale_seconds"
+	// StatsMaxAgeSeconds is GET /stats's public cache lifetime: short, as the
+	// landing page polls it for its live counts.
+	StatsMaxAgeSeconds      Key = "api.stats.max_age_seconds"
+	CachePublicStaleSeconds Key = "api.cache.public_stale_seconds"
 
 	// CacheRedisTimeoutMs and CacheRedisRetrySeconds keep a Redis outage from
 	// slowing requests down: each call gets a deadline, and after a failure
@@ -255,6 +258,13 @@ const (
 	IngestCatalogFacetsRefreshSeconds   Key = "ingest.catalog.facets_refresh_seconds"
 	IngestCatalogFacetsMaxValues        Key = "ingest.catalog.facets_max_values"
 
+	// Live catalog counts (ingest/stats.go, GET /stats): how often the
+	// trigger-written deltas are folded in, how often the totals are recounted
+	// exactly, and how many recent commits the activity list keeps.
+	IngestStatsRollupSeconds  Key = "ingest.stats.rollup_seconds"
+	IngestStatsRecountSeconds Key = "ingest.stats.recount_seconds"
+	IngestStatsActivityRows   Key = "ingest.stats.activity_rows"
+
 	// FlowEnabled turns the live visualizer's tap on in go-api and ingestd.
 	// Off, nothing is buffered or published; flowd keeps serving an idle stream.
 	FlowEnabled Key = "flow.enabled"
@@ -336,6 +346,7 @@ var Registry = map[Key]Spec{
 
 	CacheHotIssuesTTLSeconds:      intSpec(120, 0, 3600, "Cache lifetime for the default unauthenticated catalog page. 0 disables."),
 	CacheSearchTTLSeconds:         intSpec(60, 0, 3600, "Cache lifetime for unauthenticated search results. 0 disables."),
+	StatsMaxAgeSeconds:            intSpec(10, 0, 3600, "Public cache lifetime of GET /stats, at the edge and in Redis."),
 	CacheRecommendationsTTLSecond: intSpec(300, 0, 3600, "Cache lifetime for per-user recommendations. 0 disables."),
 	CachePublicMaxAgeSeconds:      intSpec(60, 0, 3600, "Cache-Control max-age on catalog and search responses to signed-out callers. 0 sends no-cache."),
 	CachePublicStaleSeconds:       intSpec(300, 0, 86400, "Cache-Control stale-while-revalidate on catalog and search responses to signed-out callers."),
@@ -416,6 +427,9 @@ var Registry = map[Key]Spec{
 	IngestCatalogShuffleIntervalSeconds:       intSpec(86400, 3600, 2592000, "How often the shuffled feed's repository order is re-randomised."),
 	IngestCatalogFacetsRefreshSeconds:         intSpec(86400, 3600, 2592000, "How often the filter dropdowns' values and counts (catalog_facets) are recomputed."),
 	IngestCatalogFacetsMaxValues:              intSpec(300, 10, 5000, "Values kept per filter (labels, topics, tech, languages), the most common first."),
+	IngestStatsRollupSeconds:                  intSpec(5, 1, 3600, "How often ingestd folds the issue-change deltas into the live catalog counts behind GET /stats."),
+	IngestStatsRecountSeconds:                 intSpec(3600, 60, 86400, "How often ingestd recounts open issues and eligible repositories exactly, correcting any drift in the live counts."),
+	IngestStatsActivityRows:                   intSpec(50, 0, 1000, "How many recent crawl and archive commits GET /stats lists as activity."),
 	IssuesFilterMaxValues:                     intSpec(20, 1, 100, "Most values one GET /issues filter may name; more is a 400."),
 	IngestBodiesCacheMaxMB:                    intSpec(512, 0, 100000, "Size the issue body cache is trimmed back to, least recently read first; bodies of saved issues are always kept. 0 keeps only those."),
 	IngestBodiesPruneIntervalSeconds:          intSpec(3600, 60, 86400, "How often the issue body cache is trimmed."),

@@ -63,6 +63,10 @@ type Coordinator struct {
 	// background: the facets count takes a minute and must not hold up the
 	// claim cycle, and must not overlap itself.
 	catalogBusy atomic.Bool
+	// statsBusy is set while a stats rollup (stats.go) runs; lastStatsRollup
+	// is when the last one started.
+	statsBusy       atomic.Bool
+	lastStatsRollup time.Time
 	// lastCandidateIdle is when a candidate lookup last came back short of
 	// a full batch: the backlog is drained, and lookups wait for
 	// ingest.archive.poll_seconds instead of querying every cycle.
@@ -174,6 +178,7 @@ func (c *Coordinator) cycle() {
 	c.pruneExcludedIssues(snap)
 	c.pruneIssueBodies(snap)
 	c.runCatalogJobs(snap)
+	c.runStatsRollup(snap)
 	publishPoolStats(c.initialPool)
 	publishPoolStats(c.deepPool)
 	publishPoolStats(c.discoveryPool)
@@ -640,6 +645,42 @@ func (c *Coordinator) runCatalogJobs(snap *settings.Snapshot) {
 		}()
 		return
 	}
+}
+
+// runStatsRollup folds the live catalog counts' deltas (stats.go) every
+// ingest.stats.rollup_seconds, recounting exactly when
+// ingest.stats.recount_seconds is due, in the background so a slow recount
+// never holds up a cycle. Like the catalog jobs it runs whatever the disk
+// guard says: it only shrinks the deltas table.
+func (c *Coordinator) runStatsRollup(snap *settings.Snapshot) {
+	if c.statsBusy.Load() || time.Since(c.lastStatsRollup) < snap.Seconds(settings.IngestStatsRollupSeconds) {
+		return
+	}
+	recount, err := CatalogJobDue(c.ctx, c.pool, catalogStatsRecount, snap.Seconds(settings.IngestStatsRecountSeconds))
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("stats_rollup").Inc()
+		slog.Warn("failed to read the stats recount schedule", "error", err)
+		return
+	}
+	activityRows := snap.Int(settings.IngestStatsActivityRows)
+	c.lastStatsRollup = time.Now()
+	c.statsBusy.Store(true)
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
+		defer c.statsBusy.Store(false)
+		start := time.Now()
+		if _, err := RollupStats(c.ctx, c.pool, recount, activityRows); err != nil {
+			if c.ctx.Err() == nil {
+				metrics.IngestCycleErrors.WithLabelValues("stats_rollup").Inc()
+				slog.Warn("stats rollup failed; it is retried next cycle", "recount", recount, "error", err)
+			}
+			return
+		}
+		if recount {
+			slog.Info("recounted the catalog stats", "took", time.Since(start).Round(time.Millisecond))
+		}
+	}()
 }
 
 // FetchIssueBody fetches and caches one issue's body for go-api, on the
