@@ -16,9 +16,15 @@
   --mono: "JetBrains Mono", ui-monospace, monospace;
   --logo: "Krona One", sans-serif;
 
-  --gutter: clamp(16px, 4vw, 48px);
-  --column: 46rem;           /* the one content column, centred */
+  --gutter: clamp(16px, 4vw, 64px);
+  --container: 84rem;        /* the zig-zag's frame, equal margins either side */
+  --half: 40rem;             /* one side of the zig-zag */
+  --hero-width: 50rem;
   --measure: 40rem;          /* body text line length, about 65 characters */
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --fast: 160ms;
+  --slow: 380ms;
   --section-gap: clamp(4.5rem, 9vw, 8rem);
 
   --h-size: clamp(2.25rem, 1.4rem + 2.6vw, 3.5rem);

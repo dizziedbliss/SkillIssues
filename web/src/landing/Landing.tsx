@@ -9,16 +9,17 @@ import { Logo } from "./Logo";
 import { external } from "../lib/links";
 
 /**
- * The landing page, as the owner designed it: one centred column with equal
- * margins, white space left white, over a faint glyph-noise background. Its
- * look is locked (tokens.module.css); themes never reach it.
+ * The landing page, as the owner designed it: a zig-zag of sections, each in
+ * the left or right part of a container with equal margins, the other side
+ * left white, over a faint glyph-noise background. One column on narrow
+ * screens. Its look is locked (tokens.module.css); themes never reach it.
  */
 export function Landing() {
   return (
     <div className={`${tokens.page} ${s.page}`}>
       <GlyphNoise />
       <Header />
-      <main className={s.column}>
+      <main className={s.container}>
         <section className={s.hero} aria-labelledby="hero-title">
           <h1 id="hero-title" className={s.heading}>Better software doesn’t happen on its&nbsp;own.</h1>
           <p className={s.body}>
@@ -28,7 +29,7 @@ export function Landing() {
           <LiveBar />
         </section>
 
-        <section className={s.section} aria-labelledby="us-title">
+        <section className={`${s.section} ${s.right}`} aria-labelledby="us-title">
           <h2 id="us-title" className={s.heading}>It’s a lot of issues. And there are a lot of us.</h2>
           <p className={s.body}>
             Every project has work waiting to be done: bugs to fix, improvements to make, and questions to
@@ -53,7 +54,7 @@ export function Landing() {
           <Link to="/app" className={s.button}>Explore open issues</Link>
         </section>
 
-        <section className={s.section} aria-labelledby="dev-title">
+        <section className={`${s.section} ${s.left}`} aria-labelledby="dev-title">
           <p className={s.kicker}>For developers</p>
           <h2 id="dev-title" className={s.heading}>Find an issue that feels like yours.</h2>
           <p className={s.body}>
@@ -64,7 +65,7 @@ export function Landing() {
           <Link to="/app" className={s.button}>Solve issues</Link>
         </section>
 
-        <section className={s.section} aria-labelledby="docs-title">
+        <section className={`${s.section} ${s.right}`} aria-labelledby="docs-title">
           <h2 id="docs-title" className={s.heading}>A good place to start—and help along the way.</h2>
           <p className={s.body}>
             Every project does things a little differently. Our docs will help you get set up, understand the
@@ -72,7 +73,7 @@ export function Landing() {
           </p>
         </section>
 
-        <section className={s.section} aria-labelledby="maint-title">
+        <section className={`${s.section} ${s.left}`} aria-labelledby="maint-title">
           <p className={s.kicker}>For maintainers</p>
           <h2 id="maint-title" className={s.heading}>Your project’s next contributor could be out there looking for you.</h2>
           <p className={s.body}>
@@ -82,7 +83,7 @@ export function Landing() {
           <Link to="/maintainers" className={s.button}>Learn how to include your project</Link>
         </section>
 
-        <section className={s.section} aria-labelledby="desk-title">
+        <section className={`${s.section} ${s.right}`} aria-labelledby="desk-title">
           <h2 id="desk-title" className={s.heading}>Keep the contribution moving.</h2>
           <p className={s.body}>
             Found your issue? The desktop app helps you get into the work: pull the project, make your changes,
@@ -95,7 +96,7 @@ export function Landing() {
           </p>
         </section>
 
-        <section className={s.section} aria-labelledby="effort-title">
+        <section className={`${s.section} ${s.left}`} aria-labelledby="effort-title">
           <h2 id="effort-title" className={s.heading}>Every contribution adds to the bigger effort.</h2>
           <p className={s.body}>
             We’re working on levels and a community leaderboard to celebrate the people helping move open
@@ -103,7 +104,7 @@ export function Landing() {
           </p>
         </section>
 
-        <section className={s.section} aria-labelledby="trust-title">
+        <section className={`${s.section} ${s.left}`} aria-labelledby="trust-title">
           <p className={s.kicker}>Built with trust in mind</p>
           <h2 id="trust-title" className={s.heading}>Know what’s happening with your account and code.</h2>
           <p className={s.body}>
@@ -113,7 +114,7 @@ export function Landing() {
           <Link to="/security" className={s.button}>Read the security docs</Link>
         </section>
 
-        <section className={s.section} aria-labelledby="live-title">
+        <section className={`${s.section} ${s.right}`} aria-labelledby="live-title">
           <h2 id="live-title" className={s.heading}>And you can see how SkillIssues works, too.</h2>
           <p className={s.body}>
             We wanted the product to be open about what’s happening behind the scenes. SkillIssues Live lets
