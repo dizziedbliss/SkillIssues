@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useReducedMotion } from "../lib/useReducedMotion";
+import { useSiteMode } from "../lib/siteMode";
 import s from "./GlyphNoise.module.css";
 
 /*
@@ -23,6 +24,7 @@ function hash(x: number, y: number, step: number): number {
 export function GlyphNoise() {
   const ref = useRef<HTMLCanvasElement>(null);
   const reduced = useReducedMotion();
+  const mode = useSiteMode();
 
   useEffect(() => {
     const canvas = ref.current;
@@ -46,6 +48,8 @@ export function GlyphNoise() {
       ctx.clearRect(0, 0, w, h);
       ctx.font = "11px 'JetBrains Mono', ui-monospace, monospace";
       ctx.textAlign = "center";
+      // The page's ink, so the glyphs follow light and dark.
+      ctx.fillStyle = getComputedStyle(canvas).getPropertyValue("--ink").trim() || "#000000";
       // Each cell redraws its glyph on its own slow clock, so the field
       // shimmers a little at a time instead of flashing all at once.
       const tick = reduced ? 0 : Math.floor(now / 160);
@@ -61,7 +65,7 @@ export function GlyphNoise() {
           const x = col * CELL + CELL / 2;
           const behindText = Math.abs(x - w / 2) < column;
           const alpha = (behindText ? 0.07 : 0.16) * (0.5 + r / DENSITY / 2);
-          ctx.fillStyle = `rgba(0,0,0,${alpha.toFixed(3)})`;
+          ctx.globalAlpha = alpha;
           ctx.fillText(GLYPHS[Math.floor(hash(col, y, step + 7) * GLYPHS.length)]!, x, row * CELL + CELL * 0.7);
         }
       }
@@ -77,7 +81,8 @@ export function GlyphNoise() {
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", onResize);
     };
-  }, [reduced]);
+    // mode: a still field redraws in the new ink.
+  }, [reduced, mode]);
 
   return <canvas ref={ref} className={s.canvas} aria-hidden="true" />;
 }

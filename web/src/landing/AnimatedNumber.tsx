@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "../lib/useReducedMotion";
-
-const format = new Intl.NumberFormat("en-US");
+import { useI18n } from "../i18n";
 
 /**
  * A live count that keeps moving. The first value counts up quickly, eased;
@@ -22,6 +21,8 @@ export function AnimatedNumber({
   glide?: number;
 }) {
   const reduced = useReducedMotion();
+  const { locale } = useI18n();
+  const format = new Intl.NumberFormat(locale);
   const [shown, setShown] = useState<number | undefined>(undefined);
   const current = useRef<number | undefined>(undefined);
 

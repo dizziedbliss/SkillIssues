@@ -83,5 +83,9 @@ export const SCHEMA: Record<string, Record<string, Kind>> = {
   radius: { small: length(0, 48), medium: length(0, 48), large: length(0, 48), pill: length(0, 999) },
   border: { width: length(0, 4), style: oneOf("solid", "dashed", "dotted", "none") },
   shadow: { small: shadow, medium: shadow, large: shadow },
-  motion: { duration, easing: oneOf("linear", "ease", "ease-in", "ease-out", "ease-in-out"), reduce: boolean },
+  motion: {
+    duration, easing: oneOf("linear", "ease", "ease-in", "ease-out", "ease-in-out"), reduce: boolean,
+    // How the app moves between pages.
+    transition: oneOf("wipe", "fade", "slide", "none"),
+  },
 };

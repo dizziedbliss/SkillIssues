@@ -189,7 +189,7 @@ path reaching outside the importing project). Both apps are built on `client`; t
 
 ### Web (`web/src/`)
 - **`landing/`** — the landing page, the owner's design. Its look is **locked**
-  (`landing/tokens.module.css`) and outside the theme system: no user theme reaches it. A zig-zag:
+  (`landing/tokens.module.css`, light and a dark version) and outside the theme system: no user theme reaches it. A zig-zag:
   each section in the left or right part of one container with equal margins, the other side left
   white (one column under 860px), over a faint glyph noise (`GlyphNoise.tsx`, canvas). Body text is
   never under 16px. Motion shares one easing (`--ease`, `--fast`, `--slow`): buttons fill from the
@@ -203,9 +203,24 @@ path reaching outside the importing project). Both apps are built on `client`; t
   whose DOMPurify needs a DOM) and shown by `DocPage.tsx` with a sidebar by section. The four legal pages
   (privacy, terms, security, licenses) stay in `content.ts` by the owner's choice. Pages marked
   `draft` say so on the page. The footer links only to these pages and `/app`.
-- **`app/`** — the signed-in app. Until its designs arrive, a plain working catalog with an account bar
-  (`Account.tsx`: GitHub sign-in, sign-out, delete account — the Privacy policy points there). Sign-in
-  returns to `/?auth=ok` or `/?error=<code>`, which `App.tsx` forwards to `/app`.
+- **`app/`** — the signed-in app, being built from the owner's designs in stages (plan:
+  `~/.claude/plans/quirky-splashing-key.md`). `AppShell.tsx` is its themed root (`data-app`): the
+  header (`AppHeader.tsx`: Explore, and Profile's menu: Settings, Appearance, Language, Sign out —
+  "Sign in" while signed out), the page for the route, and the shared footer. `theme.ts` applies the
+  signed-in person's theme (`GET /me/theme`, else Default) to that root only; Appearance flips to
+  Midnight, or to Default over your own theme. `Explore.tsx` is still the plain catalog until its
+  design lands. `Settings.tsx` holds sign out everywhere and delete account (the Privacy policy points
+  there) and the support links. Sign-in returns to `/?auth=ok` or `/?error=<code>`, which `App.tsx`
+  forwards to `/app`.
+- **`i18n/`** — every interface string of the landing page, footer, header and app is a key in
+  `en.ts`; a translation is a file of the same shape registered in `LOCALES`, and a missing key shows
+  in English. The docs and legal pages stay English. The first render is English (what is
+  prerendered); a stored choice (`si.locale`) applies after hydration. The footer and Profile's menu
+  hold the picker.
+- **Light and dark.** The landing, docs and written pages have a locked dark version
+  (`tokens.module.css`, `html[data-mode="dark"]`, `lib/siteMode.ts`, applied before the first paint
+  by `public/mode.js`); the footer's theme button switches it outside the app and switches the app's
+  theme inside it (`lib/themeToggle.ts`). User themes still never reach those pages.
 - **Prerendered**: `npm run build` renders `/`, the legal pages and every docs page to HTML
   (`scripts/prerender.mjs`, `src/entry-server.tsx`); the client hydrates a page only when its
   `data-route` matches. Vercel serves `shell.html` (no markup) for every other route.
@@ -700,6 +715,9 @@ Every key with its default and bounds: `docs/settings.md`.
   restyle the signed-in app only, never the landing page. `packages/theme` repeats every check on
   the same fixtures (`packages/theme/fixtures`), and the web app's CSP blocks fetches regardless.
   Routes: `GET/POST /themes`, `GET/PUT/DELETE /themes/{id}`, `GET/PUT /me/theme`.
+  `[motion] transition` (`wipe`, `fade`, `slide`, `none`) is how the app moves between pages;
+  the app reads back what CSS can't branch on (`transition`, `reduce`, `[background] pattern`) as
+  `data-*` attributes on its root.
 
 ### Not built
 - **Contributions, XP, levels and badges.** Removed with the no-user-tokens redesign

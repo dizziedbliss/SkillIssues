@@ -1,0 +1,226 @@
+/* The app's header, as designed: the wordmark left, the sections right in the heading face, a red rule under them. */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--colors-background);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  width: calc(100% - 2 * var(--gutter));
+  margin-inline: auto;
+  padding: 1rem 0 0.9rem;
+  border-bottom: var(--border-width) var(--border-style) var(--rule);
+}
+
+.home {
+  color: inherit;
+  text-decoration: none;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: clamp(1.25rem, 3.5vw, 3rem);
+  font-family: var(--serif);
+  font-size: clamp(1.15rem, 1rem + 0.45vw, 1.4rem);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.nav > a,
+.navButton {
+  border: 0;
+  padding: 0 0 0.12em;
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 100% / 0% 1px;
+  color: var(--colors-text);
+  font: inherit;
+  letter-spacing: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-size var(--slow) var(--ease), color var(--slow) var(--ease);
+}
+
+.nav > a:hover,
+.navButton:hover,
+.nav > a:focus-visible,
+.navButton:focus-visible {
+  background-size: 100% 1px;
+}
+
+.nav .active {
+  color: var(--colors-accent);
+}
+
+.navButton:disabled {
+  cursor: progress;
+}
+
+.error {
+  width: calc(100% - 2 * var(--gutter));
+  margin: 0.5rem auto 0;
+  color: var(--colors-danger);
+  font-family: var(--mono);
+  font-size: 0.9375rem;
+}
+
+/* ---- the profile menu ---- */
+
+.menuRoot {
+  position: relative;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  right: 0;
+  min-width: 15rem;
+  padding: 0.35rem 0;
+  border: var(--border-width) solid var(--colors-accent);
+  border-radius: var(--radius-large);
+  background: var(--colors-surface);
+  box-shadow: var(--shadow-medium);
+  font-family: var(--mono);
+  font-size: 0.9375rem;
+  letter-spacing: 0;
+  line-height: 1.3;
+  animation: drop var(--fast) var(--ease);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.55rem 0.9rem;
+  border: 0;
+  background: none;
+  color: var(--colors-text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--fast) var(--ease);
+}
+
+.item:hover,
+.item:focus-visible {
+  background: var(--chip);
+}
+
+.signOut {
+  color: var(--colors-accent);
+}
+
+.value {
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+}
+
+/* The Appearance switch: a pill that slides on. */
+.switch {
+  position: relative;
+  flex: none;
+  width: 2.1rem;
+  height: 1.15rem;
+  border: 1px solid var(--colors-text);
+  border-radius: var(--radius-pill);
+  transition: background-color var(--fast) var(--ease);
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(1.15rem - 6px);
+  height: calc(1.15rem - 6px);
+  border-radius: var(--radius-pill);
+  background: var(--colors-text);
+  transition: translate var(--fast) var(--ease), background-color var(--fast) var(--ease);
+}
+
+[aria-checked="true"] > .switch {
+  border-color: var(--colors-accent);
+  background: var(--colors-accent);
+}
+
+[aria-checked="true"] > .switch::after {
+  translate: 0.92rem 0;
+  background: var(--colors-accent-text);
+}
+
+.languages {
+  margin: 0;
+  padding: 0.25rem 0.9rem 0.6rem 1.6rem;
+  border: 0;
+}
+
+.languages label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.25rem 0;
+  cursor: pointer;
+}
+
+.languages input {
+  margin: 0;
+  accent-color: var(--colors-accent);
+}
+
+.languages p {
+  margin-top: 0.3rem;
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+}
+
+.menuError {
+  padding: 0.4rem 0.9rem 0.6rem;
+  color: var(--colors-danger);
+}
+
+@keyframes drop {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav > a,
+  .navButton,
+  .item,
+  .switch,
+  .switch::after {
+    transition: none;
+  }
+
+  .menu {
+    animation: none;
+  }
+}
+
+/* Narrow screens: the sections take their own row under the wordmark. */
+@media (max-width: 640px) {
+  .bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .nav {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
