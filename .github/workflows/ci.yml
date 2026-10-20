@@ -69,6 +69,7 @@ jobs:
             web:
               - *npm
               - web/**
+              - vercel.json
             desktop:
               - *npm
               - desktop/**
@@ -251,7 +252,7 @@ jobs:
           docker compose -f compose.yaml config --quiet
           POSTGRES_PASSWORD=ci DOMAIN=ci.example.com \
           FRONTEND_URL=https://ci.example.com \
-          GITHUB_REDIRECT_URI=https://ci.example.com/api/auth/github/callback \
+          GITHUB_REDIRECT_URI=https://api.ci.example.com/auth/github/callback API_DOMAIN=api.ci.example.com \
           GITHUB_WEBHOOK_SECRET=ci ADMIN_SYNC_TOKEN=ci \
           METRICS_DB_PASSWORD=ci API_DB_PASSWORD=ci INGEST_DB_PASSWORD=ci FLOW_DB_PASSWORD=ci \
           GRAFANA_ADMIN_PASSWORD=ci GRAFANA_SECRET_KEY=ci STREAM_DOMAIN=stream.ci.example.com \
@@ -260,7 +261,7 @@ jobs:
         # The image compose.prod.yaml runs, so a directive it does not know fails here.
         run: |
           image="$(grep -A1 '^  caddy:' compose.prod.yaml | sed -n 's/^ *image: //p')"
-          docker run --rm -e DOMAIN=ci.example.com -e STREAM_DOMAIN=stream.ci.example.com \
+          docker run --rm -e DOMAIN=ci.example.com -e STREAM_DOMAIN=stream.ci.example.com -e API_DOMAIN=api.ci.example.com \
             -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" "$image" \
             caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
       - name: Set up Docker Buildx
