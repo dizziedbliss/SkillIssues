@@ -1,0 +1,9 @@
+# A dark-first theme with its light half.
+[meta]
+schema = 1
+name = "Night and day"
+base = "midnight"
+
+[light]
+background = "#fdfdfd"
+text = "#141414"

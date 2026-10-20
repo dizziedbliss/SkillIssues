@@ -71,10 +71,10 @@ function Editor({ theme }: { theme: Theme }) {
   const [toml, setToml] = useState(theme.toml);
   const [css, setCss] = useState(theme.css);
   const [isPublic, setPublic] = useState(theme.public);
-  const [dark, setDark] = useState(false);
+  const [mode, setMode] = useState<"light" | "dark">("dark");
 
   // Checked as you type, by the same rules (and words) as the server.
-  const compiled = useMemo(() => compileTheme({ toml, css }, { dark }), [toml, css, dark]);
+  const compiled = useMemo(() => compileTheme({ toml, css }, { mode }), [toml, css, mode]);
   const local = compiled.ok ? [] : compiled.problems;
 
   useLayoutEffect(() => {
@@ -140,12 +140,14 @@ function Editor({ theme }: { theme: Theme }) {
       <aside className={s.previewCol} aria-label={t("settings.themes.preview")}>
         <div className={s.previewHead}>
           <h2 className={s.subheading}>{t("settings.themes.preview")}</h2>
-          {compiled.ok && compiled.value.hasDark && (
-            <label className={s.choice}>
-              <input type="checkbox" checked={dark} onChange={(e) => setDark(e.target.checked)} />
-              {t("settings.themes.previewDark")}
-            </label>
-          )}
+          <span className={s.choices} role="radiogroup" aria-label={t("settings.themes.previewMode")}>
+            {(["light", "dark"] as const).map((m) => (
+              <label key={m} className={s.choice}>
+                <input type="radio" name="preview-mode" checked={mode === m} onChange={() => setMode(m)} />
+                {t(m === "light" ? "settings.themes.previewLight" : "settings.themes.previewDarkHalf")}
+              </label>
+            ))}
+          </span>
         </div>
         {/* The app's own pieces, under the draft theme. */}
         <div className={`${app.app} ${s.preview}`} data-preview="">

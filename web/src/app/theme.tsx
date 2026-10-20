@@ -1,7 +1,7 @@
-import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState, useSyncExternalStore, type RefObject } from "react";
+import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState, type RefObject } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ActiveTheme } from "@skillissues/client";
-import { applyTheme, clearTheme, compileTheme, parseTheme, presets, PRESETS, type PresetName, type ThemeSource } from "@skillissues/theme";
+import { ApiError, type ActiveTheme } from "@skillissues/client";
+import { applyTheme, clearTheme, compileTheme, parseTheme, presets, PRESETS, type Mode, type PresetName, type ThemeSource } from "@skillissues/theme";
 import { api } from "../lib/api";
 import type { ThemeToggle } from "../lib/themeToggle";
 import { useSession } from "./session";
@@ -11,9 +11,12 @@ import { useSession } from "./session";
  *
  * A choice is a built-in (by name) or a stored theme (yours, or a public
  * one). Signed in, the server keeps it (GET/PUT /me/theme); signed out, this
- * browser does, built-ins only. Nothing chosen is Midnight: the app is dark
- * until told otherwise. A theme with a [dark] half shows it when the device
- * asks for dark.
+ * browser does, built-ins only. Nothing chosen is Midnight.
+ *
+ * Every theme has a light and a dark half (its [light] and [dark] tables; the
+ * built-ins all have both). Which one shows is the person's light/dark mode,
+ * kept in this browser and switched by the footer's theme button; it starts
+ * dark.
  *
  * This browser also keeps the last few choices, for Appearance in the menu
  * to switch between, and a copy of the current one so a reload paints in it
@@ -24,6 +27,7 @@ import { useSession } from "./session";
 export const APP_SCOPE = "[data-app]";
 const CHOICE_KEY = "si.app.choice";
 const RECENT_KEY = "si.app.recent";
+const MODE_KEY = "si.app.mode";
 /** Choices Appearance lists. */
 const RECENTS = 4;
 const FALLBACK: PresetName = "midnight";
@@ -73,17 +77,8 @@ function fromActive(a: ActiveTheme | undefined): Choice | null {
   return { id: a.id, name: a.name, toml: a.toml, css: a.css };
 }
 
-const darkQuery = "(prefers-color-scheme: dark)";
-function useDeviceDark(): boolean {
-  return useSyncExternalStore(
-    (cb) => {
-      const m = window.matchMedia(darkQuery);
-      m.addEventListener("change", cb);
-      return () => m.removeEventListener("change", cb);
-    },
-    () => window.matchMedia(darkQuery).matches,
-    () => true,
-  );
+function readMode(): Mode {
+  return read<string>(MODE_KEY) === "light" ? "light" : "dark";
 }
 
 interface Appearance {
@@ -93,6 +88,8 @@ interface Appearance {
   recent: Choice[];
   choose: (c: Choice) => void;
   choosing: boolean;
+  /** Drops a stored theme from the recents: deleted, or no longer shared. */
+  forget: (id: string) => void;
   /** Why the last choice, or the theme itself, could not be applied. */
   problem: string | null;
 }
@@ -110,12 +107,13 @@ export const AppearanceProvider = AppearanceContext.Provider;
 /**
  * Applies the chosen theme to the element behind `root`, and returns what
  * the app's pieces need: the choice and how to change it (Appearance,
- * Settings), and the footer's button, which goes back to the previous one.
+ * Settings), and the footer's button, which switches the theme's light and
+ * dark halves.
  */
 export function useAppTheme(root: RefObject<HTMLElement | null>): { appearance: Appearance; toggle: ThemeToggle } {
   const { user } = useSession();
   const queryClient = useQueryClient();
-  const deviceDark = useDeviceDark();
+  const [mode, setMode] = useState<Mode>(readMode);
   const [local, setLocal] = useState<Choice | null>(() => validChoice(read(CHOICE_KEY)));
   const [recent, setRecent] = useState<Choice[]>(() => (read<unknown[]>(RECENT_KEY) ?? []).map(validChoice).filter((c): c is Choice => !!c));
 
@@ -146,6 +144,21 @@ export function useAppTheme(root: RefObject<HTMLElement | null>): { appearance: 
     // remember and current follow from these; listing them would loop.
   }, [user, active.isSuccess, active.data]);
 
+  const forget = useCallback((id: string) => {
+    setRecent((r) => {
+      const next = r.filter((c) => !("id" in c) || c.id !== id);
+      write(RECENT_KEY, next);
+      return next;
+    });
+    setLocal((l) => {
+      if (l && "id" in l && l.id === id) {
+        write(CHOICE_KEY, null);
+        return null;
+      }
+      return l;
+    });
+  }, []);
+
   const save = useMutation({
     mutationFn: async (c: Choice): Promise<ActiveTheme | Choice> => {
       if (!user) return c;
@@ -155,15 +168,19 @@ export function useAppTheme(root: RefObject<HTMLElement | null>): { appearance: 
       if (user) queryClient.setQueryData(["theme", "active"], res as ActiveTheme);
       remember(c);
     },
+    // A recent theme that is gone (deleted, or made private) leaves the list.
+    onError: (err, c) => {
+      if ("id" in c && err instanceof ApiError && err.status === 404) forget(c.id);
+    },
   });
 
   const source: ThemeSource = "preset" in current ? { toml: `[meta]\nbase = "${current.preset}"\n`, css: "" } : { toml: current.toml, css: current.css };
-  const compiled = useMemo(() => compileTheme(source, { dark: deviceDark }), [source.toml, source.css, deviceDark]);
+  const compiled = useMemo(() => compileTheme(source, { mode }), [source.toml, source.css, mode]);
   const fallback = useMemo(() => {
-    const r = compileTheme({ toml: `[meta]\nbase = "${FALLBACK}"\n`, css: "" });
+    const r = compileTheme({ toml: `[meta]\nbase = "${FALLBACK}"\n`, css: "" }, { mode });
     if (!r.ok) throw new Error(`the ${FALLBACK} preset does not validate`);
     return r.value;
-  }, []);
+  }, [mode]);
   const theme = compiled.ok ? compiled.value : fallback;
 
   useLayoutEffect(() => {
@@ -199,17 +216,17 @@ export function useAppTheme(root: RefObject<HTMLElement | null>): { appearance: 
   );
 
   const problem = save.error?.message ?? active.error?.message ?? (compiled.ok ? null : compiled.problems.join("; "));
-  // The footer's button: back to the theme before this one; with no history,
-  // between Midnight and Default.
-  const previous: Choice =
-    recent.find((c) => !sameChoice(c, current)) ?? { preset: "preset" in current && current.preset === "default" ? FALLBACK : "default" };
-
   return {
-    appearance: { current, recent: recent.length ? recent : [current], choose: (c) => save.mutate(c), choosing: save.isPending, problem },
+    appearance: { current, recent: recent.length ? recent : [current], choose: (c) => save.mutate(c), choosing: save.isPending, forget, problem },
+    // The footer's button: this theme's other half.
     toggle: {
-      on: false,
-      label: (t) => t("mode.switchTo", { name: choiceName(previous) }),
-      toggle: () => save.mutate(previous),
+      on: mode === "dark",
+      label: (t) => t(mode === "dark" ? "mode.toLight" : "mode.toDark"),
+      toggle: () => {
+        const next: Mode = mode === "dark" ? "light" : "dark";
+        setMode(next);
+        write(MODE_KEY, next);
+      },
     },
   };
 }

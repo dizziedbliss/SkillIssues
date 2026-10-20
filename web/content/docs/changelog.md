@@ -44,10 +44,11 @@ The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/
 ### Themes
 
 - **User themes.** Restyle the signed-in app with a theme file of design tokens and an optional stylesheet. Themes sync to your account and can be shared. See [Themes](/docs/themes).
-- **Built-in themes.** Twelve built-ins, including Catppuccin, Dracula, Nord, Gruvbox, Solarized, Tokyo Night and Rosé Pine. Use one as it is, or customise your own copy.
+- **Built-in themes.** Twelve built-ins, each in light and dark, including Catppuccin, Dracula, Nord, Gruvbox, Solarized, Tokyo Night and Rosé Pine. Use one as it is, or customise your own copy.
 - **An editor with a live preview.** Problems are shown as you type, with their line. A preview shows the app in your draft, with a map of which token paints what.
 - **More for theme authors.** Light and dark halves in one theme, more fonts, more tokens, page transitions, `@property` and scroll-driven animation, stable hooks for stylesheets, and `POST /themes/validate` to check a theme without saving it.
 - **Appearance.** The profile menu lists your recent themes to switch between.
+- **Light and dark in every theme.** Every built-in has a light and a dark half, and your own themes can too. The footer's theme button switches between them.
 
 ### Website
 
