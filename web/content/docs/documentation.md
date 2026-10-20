@@ -4,7 +4,7 @@ slug: /docs
 section: SkillIssues
 summary: Everything you need to go from finding an issue to a merged pull request, and to understand how SkillIssues works.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 Start with [Getting started](/docs/getting-started) if you want to fix your first issue. The rest of these pages explain how SkillIssues behaves, so you can trust what you see.
@@ -25,6 +25,7 @@ Start with [Getting started](/docs/getting-started) if you want to fix your firs
 
 ## Guides
 
+- [Is this a good first issue?](/docs/good-first-issues): what to check before you start.
 - [Finding issues](/docs/finding-issues): sorts, filters and search.
 - [Difficulty ratings](/docs/difficulty-ratings): how an issue gets its rating, and why many have none.
 - [Themes](/docs/themes): restyle the signed-in app with a theme file.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -285,4 +286,53 @@ func (s *Service) Active(ctx context.Context, userID int) (*Theme, error) {
 		return nil, fmt.Errorf("theme: active: %w", err)
 	}
 	return &t, nil
+}
+
+// Shared is a public theme in the community listing, with how many accounts
+// use it.
+type Shared struct {
+	Theme
+	Uses int `json:"uses"`
+}
+
+// ListPublic is a page of public themes: "popular" (most used first) or
+// "newest", narrowed to names containing search when it is set. hidden are
+// the themes reports have taken out of lists (internal/report).
+func (s *Service) ListPublic(ctx context.Context, viewerID int, sort, search string, limit, offset int, hidden map[string]bool) ([]Shared, error) {
+	order := "uses DESC, t.updated_at DESC"
+	if sort == "newest" {
+		order = "t.created_at DESC"
+	}
+	ids := make([]string, 0, len(hidden))
+	for id := range hidden {
+		ids = append(ids, id)
+	}
+	out := []Shared{}
+	err := s.db.QueryRows(ctx, `
+		SELECT t.id::text, t.name, t.toml, t.css, t.public, COALESCE(u.username, ''), t.user_id = $1,
+		       t.created_at, t.updated_at,
+		       (SELECT count(*) FROM users a WHERE a.active_theme_id = t.id) AS uses
+		FROM user_themes t JOIN users u ON u.id = t.user_id
+		WHERE t.public AND NOT (t.id::text = ANY($2::text[]))
+		  AND ($3 = '' OR t.name ILIKE '%' || $3 || '%')
+		ORDER BY `+order+` LIMIT $4 OFFSET $5`,
+		[]any{viewerID, ids, escapeLike(strings.TrimSpace(search)), limit, offset},
+		func(rows pgx.Rows) error {
+			var sh Shared
+			if err := rows.Scan(&sh.ID, &sh.Name, &sh.TOML, &sh.CSS, &sh.Public, &sh.Author, &sh.Mine,
+				&sh.CreatedAt, &sh.UpdatedAt, &sh.Uses); err != nil {
+				return err
+			}
+			out = append(out, sh)
+			return nil
+		})
+	if err != nil {
+		return nil, fmt.Errorf("theme: list public: %w", err)
+	}
+	return out, nil
+}
+
+// escapeLike makes a search term literal inside a LIKE pattern.
+func escapeLike(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }

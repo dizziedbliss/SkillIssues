@@ -67,6 +67,7 @@ In the app, **Settings → Themes** has three tabs:
 
 - **Built-in** lists every built-in with its colours. Built-ins can't be changed: **Use** applies one as it is, and **Customize** makes your own copy and opens it in the editor.
 - **Yours** lists your themes: use, edit, duplicate or delete one, or start a **New theme** from the theme you're using or any built-in.
+- **Community** lists the themes people have shared, most used or newest, searchable by name: use one, duplicate it, or report it.
 - **Shared with you** finds a public theme by its id: use it as it is, or **Duplicate** it into your themes to change it.
 
 A new theme, a customised built-in and a duplicate all start as a full copy: every token written out, so you change only the lines you want. Delete a line and it falls back to the base preset.

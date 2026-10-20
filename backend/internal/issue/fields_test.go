@@ -114,3 +114,28 @@ func TestBrowseIssuesRepoAndOwnerFilters(t *testing.T) {
 		}
 	}
 }
+
+// Hidden issues and repositories leave the lists, and the cursor still
+// walks past a page that loses every issue to hiding.
+func TestBrowseLeavesHiddenOut(t *testing.T) {
+	pool := testPool(t)
+	repoID, lang := seedBrowseRepo(t, pool, "hidden")
+	seedBrowseIssues(t, pool, repoID, 6)
+	svc := New(pool, nil)
+	all := walkCatalog(t, svc, Filters{Languages: []string{lang}, Sort: SortEasiest, Limit: 2, RareLanguageBelow: 1000}, nil, nil)
+	if len(all) != 6 {
+		t.Fatalf("walked %d issues, want 6", len(all))
+	}
+
+	// The first page's two issues are hidden: the walk carries on to the rest.
+	svc.SetHidden(func() Hidden { return Hidden{Issues: map[int]bool{all[0]: true, all[1]: true}} })
+	if got := walkCatalog(t, svc, Filters{Languages: []string{lang}, Sort: SortEasiest, Limit: 2, RareLanguageBelow: 1000}, nil, nil); !slices.Equal(got, all[2:]) {
+		t.Errorf("with two hidden, walked %v, want %v", got, all[2:])
+	}
+
+	// A hidden repository takes all of its issues out.
+	svc.SetHidden(func() Hidden { return Hidden{Repositories: map[int]bool{repoID: true}} })
+	if got := walkCatalog(t, svc, Filters{Languages: []string{lang}, Sort: SortEasiest, Limit: 2, RareLanguageBelow: 1000}, nil, nil); len(got) != 0 {
+		t.Errorf("with the repository hidden, walked %v, want none", got)
+	}
+}

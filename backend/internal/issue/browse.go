@@ -136,6 +136,13 @@ func pageLimit(n int) int {
 // Preferred languages reorder the easiest sort only: shuffle and newest are
 // the same for everyone.
 func (s *Service) BrowseIssues(ctx context.Context, f Filters, after *Cursor, prefLangs []string) ([]Issue, *Cursor, error) {
+	// Hidden issues leave after the cursor is taken from the page as read, so
+	// a page that loses every issue still carries on from where it stopped.
+	page, next, err := s.browseIssues(ctx, f, after, prefLangs)
+	return s.visible(page), next, err
+}
+
+func (s *Service) browseIssues(ctx context.Context, f Filters, after *Cursor, prefLangs []string) ([]Issue, *Cursor, error) {
 	sort := f.Sort
 	if sort == "" {
 		sort = SortEasiest

@@ -10,6 +10,10 @@ import { CommentIcon } from "./icons";
 import { SaveButton } from "./SaveButton";
 import { scopeURL } from "./explore/query";
 import { DesktopButton } from "./DesktopButton";
+import { BeginnerCheck } from "./BeginnerCheck";
+import { ReportButton } from "./ReportButton";
+import { loadLinkedPulls } from "../lib/linkedPulls";
+import { external } from "../lib/links";
 import s from "./IssuePage.module.css";
 
 /**
@@ -29,6 +33,13 @@ export function IssuePage() {
     queryFn: ({ signal }) => loadIssueBody(issue.data!, signal),
     enabled: !!issue.data,
     staleTime: 10 * 60_000,
+  });
+  const pulls = useQuery({
+    queryKey: ["linkedPulls", id],
+    queryFn: ({ signal }) => loadLinkedPulls(issue.data!, signal),
+    enabled: !!issue.data,
+    staleTime: 10 * 60_000,
+    retry: false,
   });
   const html = useMemo(() => (body.data && "body" in body.data ? renderMarkdown(body.data.body) : ""), [body.data]);
 
@@ -91,6 +102,9 @@ export function IssuePage() {
         <a href={it.url} target="_blank" rel="noreferrer" className={s.primary} data-ui="button-primary">{t("issue.openGitHub")}</a>
         <DesktopButton issue={it} className={s.secondary} />
         <SaveButton issue={it} label />
+        <span className={s.reportRow}>
+          <ReportButton target={{ type: "issue", id: it.id }} label="report.issue" />
+        </span>
       </div>
 
       <div className={s.columns}>
@@ -116,6 +130,12 @@ export function IssuePage() {
         </section>
 
         <aside className={s.aside} aria-labelledby="issue-repo">
+          <BeginnerCheck
+            issue={it}
+            body={body.data && "body" in body.data ? body.data.body : null}
+            live={live}
+            pulls={{ data: pulls.data, error: pulls.error }}
+          />
           <h2 id="issue-repo" className={s.heading}>{t("issue.repository")}</h2>
           <p className={s.repoName}>
             <a href={it.repository_url} target="_blank" rel="noreferrer">{it.repository}</a>
@@ -139,6 +159,9 @@ export function IssuePage() {
             <li>
               <a href={it.repository_url} target="_blank" rel="noreferrer">{t("issue.onGitHub")}</a>
             </li>
+            <li>
+              <ReportButton target={{ type: "repository", id: it.repository_id }} label="report.repository" />
+            </li>
           </ul>
           {it.tech.length > 0 && (
             <ul className={s.tech}>
@@ -149,6 +172,9 @@ export function IssuePage() {
           )}
         </aside>
       </div>
+      <p className={s.problem}>
+        <a href={external.reportBug} target="_blank" rel="noreferrer">{t("report.problem")}</a>
+      </p>
     </article>
   );
 }

@@ -26,6 +26,9 @@ The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/
 - **Dark by default.** The whole site starts dark. The footer's theme button switches the landing page and docs to light.
 - **Ready for translations.** Every word of the interface can now be translated. English is the only language so far.
 - **Docs search.** Press `/` on any docs page.
+- **Is this a good first issue?** Each issue page checks the issue as GitHub has it now: marked for beginners, described, unassigned, no open pull request, recently active, a short discussion. A new guide explains what to look for. See [Is this a good first issue?](/docs/good-first-issues).
+- **Reporting.** Signed in, report an issue, a repository or a shared theme. Reports are private, and enough of them take it out of lists until it's reviewed. See [Reporting](/docs/reporting).
+- **Community themes.** Browse the themes people have shared, most used or newest, in **Settings → Themes → Community**.
 
 ### Catalog and search
 
