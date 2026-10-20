@@ -1,6 +1,7 @@
 import type { Transport } from "./transport";
 import type {
-  Facets, Issue, IssueFilters, IssuePage, RepositoryLookup, Stats, Theme, ThemeInput,
+  AccountDeleted, Facets, Issue, IssueFilters, IssuePage, RepositoryLookup, Session, SignInStart, Stats, Theme,
+  ThemeInput,
 } from "./types";
 
 function query(params: Record<string, string | number | undefined>): string {
@@ -90,5 +91,29 @@ export class Client {
   /** Apply a theme (your own or a public one); null goes back to the default. */
   setActiveTheme(id: string | null): Promise<Theme | null> {
     return this.send({ method: "PUT", path: "/me/theme", body: { id } }) as Promise<Theme | null>;
+  }
+
+  /** Who is signed in, if anyone. */
+  session(o?: Opts): Promise<Session> {
+    return this.get("/auth/session", o);
+  }
+
+  /**
+   * Starts a GitHub sign-in: sets the state cookie that binds the callback to
+   * this browser and returns the authorize URL to send the browser to. The
+   * callback lands back on the site with ?auth=ok, or ?error=<code>.
+   */
+  beginSignIn(): Promise<SignInStart> {
+    return this.get("/auth/github");
+  }
+
+  /** Ends this session. Sent with a JSON body: the API refuses a cookie-authenticated mutation without one. */
+  async signOut(): Promise<void> {
+    await this.send({ method: "POST", path: "/auth/logout", body: {} });
+  }
+
+  /** Deletes the signed-in account and everything tied to it. Cannot be undone. */
+  deleteAccount(): Promise<AccountDeleted> {
+    return this.send({ method: "POST", path: "/auth/purge", body: { confirm: true } }) as Promise<AccountDeleted>;
   }
 }

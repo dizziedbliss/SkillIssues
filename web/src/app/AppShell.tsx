@@ -4,6 +4,7 @@ import type { Difficulty, Issue, Sort } from "@skillissues/client";
 import tokens from "../landing/tokens.module.css";
 import { Header } from "../landing/Header";
 import { api } from "../lib/api";
+import { Account } from "./Account";
 import s from "./AppShell.module.css";
 
 /** Empty pages to read on its own before saying nothing matches. */
@@ -80,6 +81,7 @@ export default function AppShell() {
     <div className={tokens.page}>
       <Header />
       <main className={s.main}>
+        <Account />
         <p className={s.notice} role="note">
           You’re seeing a simple version of the catalog while the full app is being designed.
         </p>
