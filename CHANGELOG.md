@@ -10,6 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Search returned 503 after about 12 s on the production catalog.
+  - **Cause:** it was one query ORing four kinds of match across a join, which no index could
+    serve.
+  - **Fix:** each category is now its own indexed query, run concurrently. Title and Author order
+    a bounded sample (`api.search.sample_size`); Repository and Language take at most
+    `api.search.per_repo_cap` issues per repository, so one large repository cannot fill a
+    category. Migration 00040.
+  - **Result:** 30–430 ms warm on production, from 2.7 s to 3.3 s on a cold cache.
+  - **Behaviour changes:** a term's `%` and `_` are literal (they were wildcards). Language
+    matches the language name exactly. The derived tag arrays, which repeated the language and
+    the labels, are no longer searched.
+- The web app's search box ran nothing until Search was pressed, but treated whatever was typed
+  as the active search, so the view and paging changed mid-typing. Typing is now local until
+  Search is pressed.
+
+### Fixed
 - Grafana. Every panel was run through Grafana's own query API against production: 107 of
   121 queries returned values. The rest are fixed:
   - **Product dashboard:** six panels queried the contributions and XP tables migration 00027

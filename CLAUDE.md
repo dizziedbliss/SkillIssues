@@ -565,10 +565,21 @@ Every key with its default and bounds: `docs/settings.md`.
 
 ## Key design decisions
 
-- **Balanced search**: `GET /issues?search=` uses a PostgreSQL window CTE
-  (`ROW_NUMBER() OVER (PARTITION BY match_category)`) and caps results per category
-  (`api.search.per_category_cap`) rather than flooding one. Categories: Repository, Title,
-  Language, Author.
+- **Balanced search**: `GET /issues?search=` matches four categories in precedence order:
+  - **Repository:** the name contains the term.
+  - **Title:** full-text match on the title and labels.
+  - **Language:** the repository's language is the term.
+  - **Author:** the author's login contains the term.
+
+  Each category is its own indexed query, run concurrently (`issue/search_categories.go`). An
+  issue appears once, in its first category. Each category is capped at
+  `api.search.per_category_cap`, and the categories are interleaved rank by rank. Never fold
+  them back into one query that ORs the matches across the join: no index serves it, and on the
+  full catalog it ran past the query timeout.
+  - Title and Author order a bounded sample (`api.search.sample_size`) by stars.
+  - Repository and Language take at most `api.search.per_repo_cap` issues per repository.
+  - Terms under 3 characters skip the substring categories, since trigram indexes can't serve
+    them.
 - **Catalog browsing reads in index order**: the catalog order (`difficulty_score`, `updated_at
   DESC`, `id DESC`) is exactly `issues_open_browse_idx` / `issues_open_difficulty_browse_idx`
   (migration 00035). Change one and you must change the other, or every page sorts every open issue.

@@ -62,6 +62,13 @@ type Filters struct {
 	// LanguageCountTTL is api.issues.language_count_ttl_seconds: how long a
 	// language's counted issues are reused before it is counted again.
 	LanguageCountTTL time.Duration
+	// SearchSample is api.search.sample_size: how many title or author
+	// matches a search reads before ordering them by stars
+	// (search_categories.go).
+	SearchSample int
+	// SearchPerRepo is api.search.per_repo_cap: the most issues one
+	// repository contributes to a repository-led search category.
+	SearchPerRepo int
 }
 
 // Service manages issue queries and bookmarks.
@@ -136,21 +143,6 @@ func scanIssue(rows pgx.Rows) (Issue, error) {
 	return it, err
 }
 
-func scanIssueWithCategory(rows pgx.Rows) (Issue, error) {
-	var it Issue
-	err := rows.Scan(
-		&it.ID, &it.GitHubID, &it.Number, &it.Title,
-		&it.URL, &it.State, &it.UpdatedAt,
-		&it.DifficultyScore, &it.Difficulty,
-		&it.RequiredSkills, &it.Technologies, &it.LearningTags,
-		&it.Comments, &it.Author,
-		&it.Repository, &it.RepositoryURL, &it.RepositoryDescription,
-		&it.Language, &it.Stars, &it.License,
-		&it.MatchCategory,
-	)
-	return it, err
-}
-
 // SearchIssues queries the catalog with optional filters and user language preferences.
 func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []string, userName string) ([]Issue, error) {
 	limit := f.Limit
@@ -171,129 +163,7 @@ func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []strin
 	argIdx := 1
 
 	if f.Search != "" {
-		term := "%" + f.Search + "%"
-		sRaw := f.Search
-
-		var diffClause string
-		if f.Difficulty != "" {
-			diffClause = fmt.Sprintf(" AND i.difficulty = $%d", argIdx)
-			args = append(args, strings.ToUpper(f.Difficulty))
-			argIdx++
-		}
-
-		var langClause string
-		if f.Language != "" {
-			langClause = fmt.Sprintf(" AND lower(r.language) = lower($%d)", argIdx)
-			args = append(args, f.Language)
-			argIdx++
-		}
-
-		tIdx := argIdx
-		sIdx := argIdx + 1
-		args = append(args, term, sRaw)
-		argIdx += 2
-
-		// D12: Postgres FTS (title + labels, via the search_vector trigger —
-		// there's no body to search, D17) replaces title ILIKE for the Title
-		// category, and pg_trgm-backed ILIKE replaces it for Repository/
-		// Author fuzzy matching. The Description category is gone entirely —
-		// 4 categories remain (Repository, Title, Language, Author).
-		searchQuery := fmt.Sprintf(`
-			WITH ranked_matches AS (
-				SELECT i.id, COALESCE(i.github_id, 0) AS github_id, i.number, i.title,
-				       i.url AS issue_url, i.state, i.updated_at::text AS updated_at_text,
-				       i.difficulty_score, i.difficulty,
-				       COALESCE(i.required_skills, '{}') AS req_skills,
-				       COALESCE(i.technologies, '{}') AS techs,
-				       COALESCE(i.learning_tags, '{}') AS tags,
-				       i.comments, COALESCE(i.author, split_part(r.full_name, '/', 1)) AS author_name,
-				       r.full_name, r.url AS repo_url, COALESCE(r.description, '') AS repo_desc,
-				       COALESCE(r.language, '') AS repo_lang, r.stars, COALESCE(r.license, '') AS repo_license,
-				       CASE
-				           WHEN lower(r.full_name) ILIKE $%d THEN 'Repository'
-				           WHEN i.search_vector @@ websearch_to_tsquery('english', $%d) THEN 'Title'
-				           WHEN lower(COALESCE(r.language, '')) = lower($%d)
-				                OR lower(COALESCE(r.language, '')) ILIKE $%d
-				                OR $%d = ANY(i.technologies)
-				                OR $%d = ANY(i.learning_tags)
-				                OR $%d = ANY(i.required_skills) THEN 'Language'
-				           WHEN lower(COALESCE(i.author, split_part(r.full_name, '/', 1))) ILIKE $%d THEN 'Author'
-				           ELSE 'Repository'
-				       END AS match_cat,
-				       ROW_NUMBER() OVER (
-				           PARTITION BY CASE
-				               WHEN lower(r.full_name) ILIKE $%d THEN 'Repository'
-				               WHEN i.search_vector @@ websearch_to_tsquery('english', $%d) THEN 'Title'
-				               WHEN lower(COALESCE(r.language, '')) = lower($%d)
-				                    OR lower(COALESCE(r.language, '')) ILIKE $%d
-				                    OR $%d = ANY(i.technologies)
-				                    OR $%d = ANY(i.learning_tags)
-				                    OR $%d = ANY(i.required_skills) THEN 'Language'
-				               WHEN lower(COALESCE(i.author, split_part(r.full_name, '/', 1))) ILIKE $%d THEN 'Author'
-				               ELSE 'Repository'
-				           END
-				           ORDER BY
-				               CASE
-				                   WHEN lower(split_part(r.full_name, '/', 2)) = lower($%d) THEN 1
-				                   WHEN lower(split_part(r.full_name, '/', 2)) ILIKE $%d || '-%%'
-				                        OR lower(split_part(r.full_name, '/', 2)) ILIKE $%d || '_%%'
-				                        OR lower(split_part(r.full_name, '/', 2)) ILIKE '%%-' || $%d THEN 2
-				                   WHEN lower(split_part(r.full_name, '/', 2)) ILIKE $%d || '%%' THEN 3
-				                   ELSE 4
-				               END ASC,
-				               r.stars DESC,
-				               i.difficulty_score ASC NULLS LAST,
-				               i.updated_at DESC
-				       ) as cat_rank
-				FROM issues i
-				JOIN repositories r ON r.id = i.repository_id
-				WHERE i.state = 'OPEN' AND (
-				    r.full_name ILIKE $%d
-				    OR i.search_vector @@ websearch_to_tsquery('english', $%d)
-				    OR r.language ILIKE $%d
-				    OR $%d = ANY(i.technologies) OR $%d = ANY(i.learning_tags) OR $%d = ANY(i.required_skills)
-				    OR i.author ILIKE $%d
-				) %s %s
-			)
-			SELECT id, github_id, number, title, issue_url, state, updated_at_text,
-			       difficulty_score, difficulty, req_skills, techs, tags,
-			       comments, author_name, full_name, repo_url, repo_desc, repo_lang, stars, repo_license,
-			       match_cat
-			FROM ranked_matches
-			WHERE cat_rank <= $%d
-			ORDER BY
-			    cat_rank ASC,
-			    CASE match_cat
-			        WHEN 'Repository' THEN 1
-			        WHEN 'Title' THEN 2
-			        WHEN 'Language' THEN 3
-			        WHEN 'Author' THEN 4
-			        ELSE 5
-			    END ASC
-			LIMIT $%d OFFSET $%d
-		`,
-			tIdx, sIdx, sIdx, tIdx, sIdx, sIdx, sIdx, tIdx,
-			tIdx, sIdx, sIdx, tIdx, sIdx, sIdx, sIdx, tIdx,
-			sIdx, sIdx, sIdx, sIdx, sIdx,
-			tIdx, sIdx, tIdx, sIdx, sIdx, sIdx, tIdx,
-			diffClause, langClause,
-			argIdx, argIdx+1, argIdx+2)
-
-		args = append(args, s.categoryCap(), limit, offset)
-
-		var all []Issue
-		err := s.db.QueryRows(ctx, searchQuery, args, func(rows pgx.Rows) error {
-			it, err := scanIssueWithCategory(rows)
-			if err != nil {
-				return err
-			}
-			all = append(all, it)
-			return nil
-		})
-		if err != nil {
-			return nil, fmt.Errorf("issue: search issues: %w", err)
-		}
-		return all, nil
+		return s.searchCategories(ctx, f, limit, offset)
 	}
 
 	// Browsing by page number: an OFFSET into the catalog order. Kept for
