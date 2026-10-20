@@ -28,6 +28,8 @@ export interface Issue {
   comments: number;
   author: string;
   repository: string;
+  /** SkillIssues' id for the repository: what a repository report names. */
+  repository_id: number;
   repository_url: string;
   repository_description: string;
   language: string;
@@ -202,4 +204,25 @@ export interface Notification {
 export interface Notifications {
   notifications: Notification[];
   unread_count: number;
+}
+
+/** What can be reported, and why (POST /reports). */
+export type ReportTarget = { type: "issue"; id: number } | { type: "repository"; id: number } | { type: "theme"; id: string };
+export const REPORT_REASONS = {
+  issue: ["spam", "abuse", "already-fixed", "not-an-issue", "wrong-difficulty", "other"],
+  repository: ["spam", "malware", "abandoned", "other"],
+  theme: ["abuse", "misleading", "broken", "other"],
+} as const;
+export type ReportReason<T extends ReportTarget["type"]> = (typeof REPORT_REASONS)[T][number];
+
+/** A public theme in the community listing. */
+export interface SharedTheme extends Theme {
+  uses: number;
+}
+
+/** GET /themes/public. */
+export interface SharedThemes {
+  themes: SharedTheme[];
+  page: number;
+  more: boolean;
 }

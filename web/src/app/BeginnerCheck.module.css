@@ -1,0 +1,73 @@
+/* Is this a good first issue? A short list: + passes, ! asks you to look, ? couldn't tell. */
+
+.check {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem 1rem;
+  border: var(--border-width) solid var(--rule);
+  border-radius: var(--radius-large);
+}
+
+.title {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: 1.35rem;
+  letter-spacing: var(--heading-tracking);
+}
+
+.verdict {
+  font-size: 0.9375rem;
+}
+
+.good {
+  color: color-mix(in srgb, var(--colors-success) 55%, var(--colors-text));
+}
+
+.list {
+  display: grid;
+  gap: 0.45rem;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+
+.list li {
+  display: grid;
+  grid-template-columns: 1.4rem minmax(0, 1fr);
+  gap: 0.35rem;
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: var(--radius-small);
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.pass .mark {
+  background: color-mix(in srgb, var(--colors-success) 25%, transparent);
+  color: color-mix(in srgb, var(--colors-success) 55%, var(--colors-text));
+}
+
+.warn .mark {
+  background: color-mix(in srgb, var(--colors-warning) 30%, transparent);
+  color: color-mix(in srgb, var(--colors-warning) 45%, var(--colors-text));
+}
+
+.unknown .mark {
+  border: 1px solid var(--colors-text-muted);
+  color: var(--colors-text-muted);
+}
+
+.unknown {
+  color: var(--colors-text-muted);
+}
+
+.guide {
+  color: var(--colors-text);
+  font-size: var(--label-size);
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+}

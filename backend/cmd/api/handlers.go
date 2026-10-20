@@ -20,6 +20,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/issue"
 	"github.com/dizziedbliss/skillissues/internal/notification"
 	"github.com/dizziedbliss/skillissues/internal/profile"
+	"github.com/dizziedbliss/skillissues/internal/report"
 	"github.com/dizziedbliss/skillissues/internal/settings"
 	"github.com/dizziedbliss/skillissues/internal/theme"
 	"golang.org/x/sync/singleflight"
@@ -38,6 +39,8 @@ type handlers struct {
 	issueSvc        *issue.Service
 	notificationSvc *notification.Service
 	themeSvc        *theme.Service
+	reportSvc       *report.Service
+	hidden          *hiddenStore
 
 	// trustedProxies are the CIDRs whose X-Forwarded-For is believed, for
 	// per-caller caps beyond the global rate limiter. Nil without Redis,

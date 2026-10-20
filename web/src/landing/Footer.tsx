@@ -24,6 +24,7 @@ const columns: { title: MessageKey; items: { label: MessageKey; to: string }[] }
     title: "footer.col.guides",
     items: [
       { label: "footer.gettingStarted", to: "/docs/getting-started" },
+      { label: "footer.goodFirst", to: "/docs/good-first-issues" },
       { label: "footer.howItWorks", to: "/how-it-works" },
       { label: "footer.findingIssues", to: "/docs/finding-issues" },
       { label: "footer.difficulty", to: "/docs/difficulty-ratings" },
@@ -50,6 +51,7 @@ const columns: { title: MessageKey; items: { label: MessageKey; to: string }[] }
       { label: "footer.contact", to: "/contact" },
       { label: "footer.reportBug", to: "/docs/report-a-bug" },
       { label: "footer.requestFeature", to: "/docs/request-a-feature" },
+      { label: "footer.reporting", to: "/docs/reporting" },
     ],
   },
   {

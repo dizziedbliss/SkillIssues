@@ -121,6 +121,26 @@
   color: var(--colors-accent-text);
 }
 
+.reportRow {
+  margin-left: auto;
+}
+
+.aside {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.problem {
+  margin-top: 2.5rem;
+  font-size: var(--label-size);
+}
+
+.problem a {
+  color: var(--colors-text-muted);
+  text-underline-offset: 0.2em;
+}
+
 .columns {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(14rem, 20rem);
@@ -247,7 +267,27 @@
 }
 
 @media (max-width: 860px) {
-  .columns {
+  .reportRow {
+  margin-left: auto;
+}
+
+.aside {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.problem {
+  margin-top: 2.5rem;
+  font-size: var(--label-size);
+}
+
+.problem a {
+  color: var(--colors-text-muted);
+  text-underline-offset: 0.2em;
+}
+
+.columns {
     grid-template-columns: minmax(0, 1fr);
   }
 }

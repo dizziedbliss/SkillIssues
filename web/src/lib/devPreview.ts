@@ -100,6 +100,15 @@ export function previewTransport(real: Transport): Transport {
       persist();
       return th;
     }
+    if (path === "/reports" && method === "POST") return { reported: true };
+    if (path.startsWith("/themes/public")) {
+      // The live API has this once deployed; until then, the preview's own public themes.
+      try {
+        return await real(req);
+      } catch {
+        return { themes: themes.filter((t) => t.public).map((t) => ({ ...t, uses: 0 })), page: 1, more: false };
+      }
+    }
     if (path.startsWith("/themes/") && method === "GET") {
       const found = themes.find((t) => t.id === decodeURIComponent(path.slice("/themes/".length)));
       if (found) return found;

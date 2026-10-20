@@ -1,0 +1,128 @@
+.trigger {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--colors-text-muted);
+  font: inherit;
+  font-size: var(--label-size);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--colors-text-muted) 50%, transparent);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.trigger:hover {
+  color: var(--colors-danger);
+}
+
+.dialog {
+  width: min(32rem, 100% - 2 * var(--gutter));
+  padding: 0;
+  border: var(--border-width) solid var(--colors-accent);
+  border-radius: var(--radius-large);
+  background: var(--colors-surface);
+  box-shadow: var(--shadow-large);
+  color: var(--colors-text);
+}
+
+.dialog::backdrop {
+  background: color-mix(in srgb, var(--colors-background) 50%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.panel {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem 1.4rem 1.4rem;
+}
+
+.title {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: 1.6rem;
+  letter-spacing: var(--heading-tracking);
+}
+
+.body {
+  color: var(--colors-text-muted);
+  font-size: 0.9375rem;
+}
+
+.form {
+  display: grid;
+  gap: 1rem;
+}
+
+.reasons {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.reason {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  cursor: pointer;
+}
+
+.noteField {
+  display: grid;
+  gap: 0.35rem;
+  font-size: var(--label-size);
+}
+
+.noteField textarea {
+  padding: 0.5rem 0.6rem;
+  border: var(--border-width) solid var(--colors-border);
+  border-radius: var(--radius-medium);
+  background: var(--colors-background);
+  color: var(--colors-text);
+  font: inherit;
+  font-size: 0.9375rem;
+}
+
+.error {
+  color: var(--colors-danger);
+  font-size: var(--label-size);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.quiet {
+  border: 0;
+  background: none;
+  color: var(--colors-text);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.primary {
+  justify-self: start;
+  padding: 0.5em 1em;
+  border: 0;
+  border-radius: var(--radius-medium);
+  background: var(--colors-accent);
+  color: var(--colors-accent-text);
+  font: inherit;
+  font-size: var(--button-size);
+  cursor: pointer;
+  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  color: var(--colors-accent);
+}
+
+.primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

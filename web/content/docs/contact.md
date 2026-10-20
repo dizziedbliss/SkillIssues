@@ -18,6 +18,7 @@ SkillIssues is run by one maintainer and has no support email address. The quick
 | Ask a question or start a conversation | [Ask in Discussions](https://github.com/dizziedbliss/SkillIssues/discussions/new?category=q-a). See also [Discussions](/docs/discussions). |
 | Get a repository listed, or removed | [Suggest a repository](/docs/suggest-a-repository) and [For maintainers](/maintainers) |
 | Delete your account or data | In the app, **Settings → Account → Delete account**. If you can't sign in, email privacy@dizziedbliss.lol, not a public issue. See [Privacy policy](/privacy). |
+| Report an issue, a repository or a shared theme | From its page in the app. See [Reporting](/docs/reporting). |
 | Report a security problem | Privately. See [Security](/security). |
 
 ## Before you write

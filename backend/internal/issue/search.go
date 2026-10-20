@@ -33,6 +33,7 @@ type Issue struct {
 	Comments              int      `json:"comments"`
 	Author                string   `json:"author"`
 	Repository            string   `json:"repository"`
+	RepositoryID          int      `json:"repository_id"`
 	RepositoryURL         string   `json:"repository_url"`
 	RepositoryDescription string   `json:"repository_description"`
 	Language              string   `json:"language"`
@@ -110,6 +111,9 @@ type Service struct {
 	// BrowseIssues to choose how to read it.
 	languages languageCounts
 
+	// hidden is what reports have taken out of lists (hidden.go); nil hides nothing.
+	hidden func() Hidden
+
 	// perCategoryCap is read per query so the search shape can be retuned on a
 	// running system. It is a narrow function rather than a config object so the
 	// dependency is explicit and trivial to stub in tests.
@@ -165,7 +169,7 @@ const baseIssueSelect = `
 	       i.comments, COALESCE(i.author, split_part(r.full_name, '/', 1)),
 	       r.full_name, r.url, COALESCE(r.description, ''),
 	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, ''),
-	       i.updated_at, COALESCE(i.created_at::text, ''), i.created_at
+	       i.updated_at, COALESCE(i.created_at::text, ''), i.created_at, i.repository_id
 	FROM issues i
 	JOIN repositories r ON r.id = i.repository_id
 `
@@ -182,7 +186,7 @@ func scanIssue(rows pgx.Rows) (Issue, error) {
 		&it.Comments, &it.Author,
 		&it.Repository, &it.RepositoryURL, &it.RepositoryDescription,
 		&it.Language, &it.Stars, &it.License,
-		&it.updated, &it.CreatedAt, &created,
+		&it.updated, &it.CreatedAt, &created, &it.RepositoryID,
 	)
 	if created != nil {
 		it.created = *created
@@ -192,6 +196,11 @@ func scanIssue(rows pgx.Rows) (Issue, error) {
 
 // SearchIssues queries the catalog with optional filters and user language preferences.
 func (s *Service) SearchIssues(ctx context.Context, f Filters, prefLangs []string, userName string) ([]Issue, error) {
+	found, err := s.searchIssues(ctx, f, prefLangs, userName)
+	return s.visible(found), err
+}
+
+func (s *Service) searchIssues(ctx context.Context, f Filters, prefLangs []string, userName string) ([]Issue, error) {
 	limit := f.Limit
 	if limit <= 0 {
 		limit = 20
@@ -287,7 +296,7 @@ const savedIssueSelect = `
 	       ` + repoTechSelect + `,
 	       i.comments, COALESCE(i.author, split_part(r.full_name, '/', 1)),
 	       r.full_name, r.url, COALESCE(r.description, ''),
-	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, '')
+	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, ''), i.repository_id
 	FROM issues i
 	JOIN repositories r ON r.id = i.repository_id
 `
@@ -302,7 +311,7 @@ func scanSavedIssue(rows pgx.Rows) (Issue, error) {
 		&it.Labels, &it.Tech,
 		&it.Comments, &it.Author,
 		&it.Repository, &it.RepositoryURL, &it.RepositoryDescription,
-		&it.Language, &it.Stars, &it.License,
+		&it.Language, &it.Stars, &it.License, &it.RepositoryID,
 	)
 	return it, err
 }

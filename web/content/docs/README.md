@@ -20,7 +20,7 @@ slug: /docs/getting-started
 section: Guides
 summary: Four steps from the catalog to your first pull request.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 ```
 
@@ -54,9 +54,9 @@ address; the filename is not, so read it from there. The full list is in *Sectio
 | SkillIssues | about: `/about`, desktop-app: `/download`, documentation: `/docs`, skillissues-live: `/docs/skillissues-live`, changelog: `/docs/changelog` |
 | Community | contribute: `/contribute`, discussions: `/docs/discussions`, suggest-a-repository: `/docs/suggest-a-repository`, leaderboard: `/leaderboard`, sponsor: `/sponsor` |
 | Resources | getting-started: `/docs/getting-started`, how-it-works: `/how-it-works`, faq: `/faq`, contribution-guide: `/docs/contributing` |
-| Support | contact: `/contact`, report-a-bug: `/docs/report-a-bug`, request-a-feature: `/docs/request-a-feature` |
+| Support | contact: `/contact`, report-a-bug: `/docs/report-a-bug`, request-a-feature: `/docs/request-a-feature`, reporting: `/docs/reporting` |
 | Legal & Trust | privacy: `/privacy`, terms: `/terms`, security: `/security`, licenses-and-attributions: `/licenses` |
-| Guides | finding-issues: `/docs/finding-issues`, difficulty-ratings: `/docs/difficulty-ratings`, themes: `/docs/themes`, for-maintainers: `/maintainers`, public-api: `/docs/public-api` |
+| Guides | good-first-issues: `/docs/good-first-issues`, finding-issues: `/docs/finding-issues`, difficulty-ratings: `/docs/difficulty-ratings`, themes: `/docs/themes`, for-maintainers: `/maintainers`, public-api: `/docs/public-api` |
 
 ## Relationship to `web/src/pages/content.ts`
 

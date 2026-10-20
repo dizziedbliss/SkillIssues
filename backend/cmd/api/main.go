@@ -29,6 +29,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/middleware"
 	"github.com/dizziedbliss/skillissues/internal/notification"
 	"github.com/dizziedbliss/skillissues/internal/profile"
+	"github.com/dizziedbliss/skillissues/internal/report"
 	"github.com/dizziedbliss/skillissues/internal/settings"
 	"github.com/dizziedbliss/skillissues/internal/theme"
 )
@@ -136,8 +137,14 @@ func main() {
 	})
 	go pruneSessionsLoop(ctx, authSvc, live.Current)
 
+	// What reports have taken out of lists, refreshed on a timer.
+	reportSvc := report.NewService(pool)
+	hidden := &hiddenStore{}
+	issueSvc.SetHidden(hidden.issues)
+	go refreshHiddenLoop(ctx, reportSvc, live.Current, hidden)
+
 	// 6. Build the HTTP router and register all routes
-	mux, err := buildRouter(cfg, live, pool, cacheClient, authSvc, ghOAuth, outbound, profileSvc, issueSvc)
+	mux, err := buildRouter(cfg, live, pool, cacheClient, authSvc, ghOAuth, outbound, profileSvc, issueSvc, reportSvc, hidden)
 	if err != nil {
 		slog.Error("failed to build router", "error", err)
 		os.Exit(1)
@@ -188,6 +195,8 @@ func buildRouter(
 	outbound httpx.Doer,
 	profileSvc *profile.Service,
 	issueSvc *issue.Service,
+	reportSvc *report.Service,
+	hidden *hiddenStore,
 ) (http.Handler, error) {
 	mux := http.NewServeMux()        // public routes — full middleware chain
 	adminMux := http.NewServeMux()   // /admin — own auth, no CORS/rate-limit
@@ -206,6 +215,8 @@ func buildRouter(
 		issueSvc:        issueSvc,
 		notificationSvc: notification.NewService(pool),
 		themeSvc:        theme.NewService(pool),
+		reportSvc:       reportSvc,
+		hidden:          hidden,
 	}
 
 	// ----- Health & Metrics -----
@@ -245,6 +256,10 @@ func buildRouter(
 	mux.Handle("GET /themes", requireAuth(authSvc, http.HandlerFunc(h.listThemes)))
 	mux.Handle("POST /themes", requireAuth(authSvc, http.HandlerFunc(h.createTheme)))
 	mux.HandleFunc("POST /themes/validate", h.validateTheme) // no auth: stores nothing
+	mux.Handle("GET /themes/public", optionalAuth(authSvc, http.HandlerFunc(h.listPublicThemes)))
+
+	// ----- Reports -----
+	mux.Handle("POST /reports", requireAuth(authSvc, http.HandlerFunc(h.createReport)))
 	mux.HandleFunc("GET /themes/{id}", h.getTheme)
 	mux.Handle("PUT /themes/{id}", requireAuth(authSvc, http.HandlerFunc(h.updateTheme)))
 	mux.Handle("DELETE /themes/{id}", requireAuth(authSvc, http.HandlerFunc(h.deleteTheme)))
@@ -265,6 +280,10 @@ func buildRouter(
 	// ----- Admin -----
 	adminMux.Handle("POST /admin/sync/repository/{id}",
 		requireAdmin(cfg.AdminSyncToken, http.HandlerFunc(h.adminSyncRepository)))
+	adminMux.Handle("GET /admin/reports",
+		requireAdmin(cfg.AdminSyncToken, http.HandlerFunc(h.adminListReports)))
+	adminMux.Handle("POST /admin/reports/resolve",
+		requireAdmin(cfg.AdminSyncToken, http.HandlerFunc(h.adminResolveReport)))
 	adminMux.Handle("GET /admin/config",
 		requireAdmin(cfg.AdminSyncToken, http.HandlerFunc(h.adminGetConfig)))
 	adminMux.Handle("PUT /admin/config/{key}",
