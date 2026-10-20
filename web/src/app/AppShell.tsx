@@ -4,7 +4,8 @@ import { Footer } from "../landing/Footer";
 import { useT, type MessageKey } from "../i18n";
 import { ThemeToggleContext } from "../lib/themeToggle";
 import { AppHeader } from "./AppHeader";
-import { Explore } from "./Explore";
+import { Explore } from "./explore/Explore";
+import { IssuePage } from "./IssuePage";
 import { Settings } from "./Settings";
 import { useAppTheme } from "./theme";
 import s from "./App.module.css";
@@ -59,6 +60,7 @@ export default function AppShell() {
         <main className={s.main}>
           <Routes>
             <Route index element={<Explore />} />
+            <Route path="issues/:id" element={<IssuePage />} />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<AppNotFound />} />
           </Routes>

@@ -11,7 +11,7 @@ You don't need an account to browse. Open the catalog and start looking.
 
 ## 1. Find an issue
 
-Browse the catalog, or narrow it to the languages you know and a difficulty you're comfortable with. Beginner issues are ones maintainers marked as a good place to start. Issues with no difficulty label show as unrated, which means nobody has said how hard they are.
+Browse the catalog, or narrow it to the languages you know and a difficulty you're comfortable with. Beginner issues are ones maintainers marked as a good place to start. Issues with no difficulty label show as unranked, which means nobody has said how hard they are.
 
 Read the issue and its comments on GitHub before you begin. Someone may already be on it, or the issue may have changed since you saw it here.
 

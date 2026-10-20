@@ -14,7 +14,7 @@ SkillIssues puts those issues in one place, keeps them current, and helps you fi
 ## What it does
 
 - **Gathers open issues** from public GitHub repositories that are active and have at least 25 stars.
-- **Rates difficulty from maintainer labels.** An issue labelled "good first issue" is beginner. An issue with no difficulty label is unrated, and we never guess that it is easy. See [Difficulty ratings](/docs/difficulty-ratings).
+- **Rates difficulty from maintainer labels.** An issue labelled "good first issue" is beginner. An issue with no difficulty label is unranked, and we never guess that it is easy. See [Difficulty ratings](/docs/difficulty-ratings).
 - **Spreads the feed across the whole backlog.** By default every repository gets one slot, so a project with ten thousand issues doesn't crowd out one with three. See [Finding issues](/docs/finding-issues).
 - **Keeps the data current.** Changes on GitHub usually show up within about two hours. See [How it works](/how-it-works).
 

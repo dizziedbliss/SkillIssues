@@ -28,6 +28,8 @@ type Issue struct {
 	RequiredSkills        []string `json:"required_skills"`
 	Technologies          []string `json:"technologies"`
 	LearningTags          []string `json:"learning_tags"`
+	Labels                []string `json:"labels"` // the issue's GitHub labels, as GitHub has them
+	Tech                  []string `json:"tech"`   // the repository's three largest languages, by GitHub's names
 	Comments              int      `json:"comments"`
 	Author                string   `json:"author"`
 	Repository            string   `json:"repository"`
@@ -137,6 +139,15 @@ func (s *Service) categoryCap() int {
 	return n
 }
 
+// repoTechSelect is a repository's three largest languages by name, from the
+// dataset's languages (a JSON array of {name, size}); empty when unknown.
+const repoTechSelect = `ARRAY(
+	         SELECT e->>'name'
+	         FROM jsonb_array_elements(CASE WHEN jsonb_typeof(r.languages) = 'array' THEN r.languages ELSE '[]'::jsonb END) e
+	         WHERE COALESCE(e->>'name', '') <> ''
+	         ORDER BY CASE WHEN jsonb_typeof(e->'size') = 'number' THEN (e->>'size')::numeric END DESC NULLS LAST
+	         LIMIT 3)`
+
 // No body here: bodies are large, attacker-controlled and fetched on their own
 // (GET /issues/{id}/body, issue_bodies).
 const baseIssueSelect = `
@@ -146,6 +157,8 @@ const baseIssueSelect = `
 	       COALESCE(i.required_skills, '{}'),
 	       COALESCE(i.technologies, '{}'),
 	       COALESCE(i.learning_tags, '{}'),
+	       COALESCE(i.labels, '{}'),
+	       ` + repoTechSelect + `,
 	       i.comments, COALESCE(i.author, split_part(r.full_name, '/', 1)),
 	       r.full_name, r.url, COALESCE(r.description, ''),
 	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, ''),
@@ -162,6 +175,7 @@ func scanIssue(rows pgx.Rows) (Issue, error) {
 		&it.URL, &it.State, &it.UpdatedAt,
 		&it.DifficultyScore, &it.Difficulty,
 		&it.RequiredSkills, &it.Technologies, &it.LearningTags,
+		&it.Labels, &it.Tech,
 		&it.Comments, &it.Author,
 		&it.Repository, &it.RepositoryURL, &it.RepositoryDescription,
 		&it.Language, &it.Stars, &it.License,
@@ -266,6 +280,8 @@ const savedIssueSelect = `
 	       COALESCE(i.required_skills, '{}'),
 	       COALESCE(i.technologies, '{}'),
 	       COALESCE(i.learning_tags, '{}'),
+	       COALESCE(i.labels, '{}'),
+	       ` + repoTechSelect + `,
 	       i.comments, COALESCE(i.author, split_part(r.full_name, '/', 1)),
 	       r.full_name, r.url, COALESCE(r.description, ''),
 	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, '')
@@ -280,6 +296,7 @@ func scanSavedIssue(rows pgx.Rows) (Issue, error) {
 		&it.URL, &it.State, &it.UpdatedAt,
 		&it.DifficultyScore, &it.Difficulty,
 		&it.RequiredSkills, &it.Technologies, &it.LearningTags,
+		&it.Labels, &it.Tech,
 		&it.Comments, &it.Author,
 		&it.Repository, &it.RepositoryURL, &it.RepositoryDescription,
 		&it.Language, &it.Stars, &it.License,

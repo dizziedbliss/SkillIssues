@@ -1,0 +1,120 @@
+/* An issue in a list: red rules between cards, pink chips, the title in the body face. */
+
+.card {
+  padding: clamp(1.25rem, 2.5vw, 1.75rem) clamp(0rem, 2vw, 2rem);
+  border-bottom: var(--border-width) var(--border-style) var(--rule);
+}
+
+.title {
+  font-family: var(--typography-mono-font);
+  font-weight: 400;
+  font-size: clamp(1.1rem, 0.95rem + 0.55vw, 1.4rem);
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+}
+
+.title a {
+  color: inherit;
+  text-decoration: none;
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 100% / 0% 1px;
+  transition: background-size var(--slow) var(--ease);
+}
+
+.title a:hover,
+.title a:focus-visible {
+  background-size: 100% 1px;
+}
+
+.number {
+  color: var(--colors-text-muted);
+}
+
+.repo {
+  margin-top: 0.35rem;
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  margin-top: 0.85rem;
+}
+
+.chips,
+.tech {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chip,
+.techChip,
+.view {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-small);
+  box-shadow: var(--shadow-small);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.chip {
+  background: var(--chip);
+  color: var(--colors-text);
+}
+
+.techChip {
+  border: 1px solid var(--chip);
+  background: var(--colors-surface);
+  color: var(--colors-text);
+}
+
+.end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+  margin-left: auto;
+}
+
+.view {
+  padding: 0.2rem 0.55rem;
+  background: var(--chip-strong);
+  color: var(--colors-text);
+  text-decoration: none;
+  transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+.view:hover {
+  background: var(--colors-accent);
+  color: var(--colors-accent-text);
+}
+
+/* Phones: the languages take their own line; View Issue and the bookmark share the next. */
+@media (max-width: 640px) {
+  .end {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+  }
+
+  .tech {
+    flex-basis: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title a,
+  .view {
+    transition: none;
+  }
+}

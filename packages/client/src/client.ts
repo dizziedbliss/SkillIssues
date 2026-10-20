@@ -1,7 +1,7 @@
 import type { Transport } from "./transport";
 import type {
-  AccountDeleted, Facets, Issue, IssueFilters, IssuePage, RepositoryLookup, Session, SignInStart, Stats, Theme,
-  ThemeInput,
+  AccountDeleted, Facets, Issue, IssueBody, IssueFilters, IssuePage, Profile, RepositoryLookup, SavedChange, Session,
+  SignInStart, Stats, Theme, ThemeInput,
 } from "./types";
 
 function query(params: Record<string, string | number | undefined>): string {
@@ -56,6 +56,38 @@ export class Client {
     return this.get(`/issues${query({ ...filterParams(filters), search: term, page: filters.page })}`, o);
   }
 
+  /** One issue by SkillIssues' id. */
+  issue(id: number, o?: Opts): Promise<Issue> {
+    return this.get(`/issues/${id}`, o);
+  }
+
+  /**
+   * An issue's body from the server's cache, for when GitHub refuses the
+   * browser's own request (its rate limit). Capped per caller; may answer
+   * that it is queued instead.
+   */
+  issueBody(id: number, o?: Opts): Promise<IssueBody> {
+    return this.get(`/issues/${id}/body`, o);
+  }
+
+  /** The signed-in person's saved issues, closed ones included. */
+  saved(o?: Opts): Promise<Issue[]> {
+    return this.get("/saved", o);
+  }
+
+  save(issueID: number): Promise<SavedChange> {
+    return this.send({ method: "POST", path: "/saved", body: { issue_id: issueID } }) as Promise<SavedChange>;
+  }
+
+  unsave(issueID: number): Promise<SavedChange> {
+    return this.send({ method: "DELETE", path: `/saved/${issueID}`, body: {} }) as Promise<SavedChange>;
+  }
+
+  /** The signed-in person's profile. */
+  me(o?: Opts): Promise<Profile> {
+    return this.get("/me", o);
+  }
+
   facets(o?: Opts): Promise<Facets> {
     return this.get("/issues/facets", o);
   }
@@ -81,7 +113,8 @@ export class Client {
   }
 
   async deleteTheme(id: string): Promise<void> {
-    await this.send({ method: "DELETE", path: `/themes/${encodeURIComponent(id)}` });
+    // An empty JSON body: the API refuses a cookie-authenticated mutation without JSON.
+    await this.send({ method: "DELETE", path: `/themes/${encodeURIComponent(id)}`, body: {} });
   }
 
   activeTheme(o?: Opts): Promise<Theme | null> {

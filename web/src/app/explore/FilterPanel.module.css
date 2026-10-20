@@ -1,0 +1,272 @@
+/* The filter panel, as designed: a red frame, the filters in a row, Clear and Apply bottom right. */
+
+.panel {
+  margin-top: 1.5rem;
+  padding: clamp(1rem, 2.5vw, 1.75rem) clamp(1rem, 3vw, 3rem);
+  border: var(--border-width) solid var(--colors-accent);
+  border-radius: var(--radius-large);
+  animation: unfold var(--slow) var(--ease);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 1.25rem clamp(1rem, 2.5vw, 2.25rem);
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.fieldName {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--label-size);
+}
+
+/* "?" and the note it opens on hover or focus. */
+.help {
+  position: relative;
+}
+
+.helpButton {
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--colors-text);
+  font: inherit;
+  cursor: help;
+}
+
+.tip {
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  left: -0.5rem;
+  z-index: 25;
+  width: 16rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--colors-accent);
+  border-radius: var(--radius-large);
+  background: var(--colors-surface);
+  box-shadow: var(--shadow-medium);
+  color: var(--colors-text);
+  font-size: var(--label-size);
+  line-height: 1.45;
+  opacity: 0;
+  visibility: hidden;
+  translate: 0 0.25rem;
+  transition: opacity var(--fast) var(--ease), translate var(--fast) var(--ease), visibility 0s linear var(--fast);
+}
+
+.help:hover .tip,
+.help:focus-within .tip {
+  opacity: 1;
+  visibility: visible;
+  translate: 0 0;
+  transition-delay: 0s;
+}
+
+/* ---- a dropdown ---- */
+
+.choices {
+  position: relative;
+}
+
+.select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: var(--border-width) solid var(--colors-border);
+  border-radius: var(--radius-medium);
+  background: linear-gradient(var(--chip), var(--chip)) no-repeat 0 0 / 0% 100%, var(--colors-surface);
+  color: var(--colors-text);
+  font: inherit;
+  font-size: 0.9375rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background-size var(--slow) var(--ease), border-color var(--fast) var(--ease);
+}
+
+.select:hover,
+.select[aria-expanded="true"] {
+  background-size: 100% 100%, auto;
+}
+
+.selectChosen {
+  border-color: var(--colors-accent);
+}
+
+.selectValue {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 25;
+  width: max(100%, 16rem);
+  margin: 0;
+  padding: 0.5rem;
+  border: var(--border-width) solid var(--colors-accent);
+  border-radius: var(--radius-large);
+  background: var(--colors-surface);
+  box-shadow: var(--shadow-medium);
+  animation: drop var(--fast) var(--ease);
+}
+
+.find {
+  width: 100%;
+  margin-bottom: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--colors-border);
+  border-radius: var(--radius-medium);
+  background: var(--colors-background);
+  color: var(--colors-text);
+  font: inherit;
+  font-size: 0.9375rem;
+}
+
+.options {
+  max-height: 16rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.3rem;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+.option:hover {
+  background: var(--chip);
+}
+
+.option input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--colors-accent);
+}
+
+.optionLabel {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.count {
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.menuNote {
+  padding: 0.35rem 0.3rem;
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+}
+
+.range {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.range label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: var(--label-size);
+}
+
+.range input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--colors-border);
+  border-radius: var(--radius-medium);
+  background: var(--colors-background);
+  color: var(--colors-text);
+  font: inherit;
+}
+
+/* ---- Clear and Apply ---- */
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.clear,
+.apply {
+  padding: 0.5em 1em;
+  border: 0;
+  border-radius: var(--radius-medium);
+  font: inherit;
+  font-size: var(--button-size);
+  cursor: pointer;
+}
+
+.clear {
+  background: none;
+  color: var(--colors-accent);
+}
+
+.apply {
+  background: linear-gradient(var(--colors-text), var(--colors-text)) no-repeat 0 0 / 0% 100%, var(--colors-accent);
+  color: var(--colors-accent-text);
+  transition: background-size var(--slow) var(--ease), color var(--slow) var(--ease);
+}
+
+.apply:hover,
+.apply:focus-visible {
+  background-size: 100% 100%, auto;
+  color: var(--colors-accent);
+}
+
+@keyframes unfold {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes drop {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .menu {
+    animation: none;
+  }
+
+  .tip,
+  .select,
+  .apply {
+    transition: none;
+  }
+}
