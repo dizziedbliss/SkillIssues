@@ -37,9 +37,9 @@ export class Client {
     return this.send({ method: "GET", path, signal: o?.signal }) as Promise<T>;
   }
 
-  /** Live catalog counts. Public and edge-cached for a few seconds. */
+  /** Live catalog counts. Public and edge-cached for a few seconds, so sent without the session cookie. */
   stats(o?: Opts): Promise<Stats> {
-    return this.get("/stats", o);
+    return this.send({ method: "GET", path: "/stats", signal: o?.signal, anonymous: true }) as Promise<Stats>;
   }
 
   /** One page of the catalog; pass the previous page's next_cursor, or "" for the first. */
