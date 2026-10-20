@@ -206,7 +206,7 @@ export const pages: Page[] = [
       "We don’t set cookies or track you. Our network provider (Cloudflare) and our server see your IP address to deliver pages and to limit how many requests one address can make. The rate-limit counter expires within minutes; our web server’s access logs, which include IP addresses, rotate out as they fill.",
       { h: "If you sign in" },
       { list: [
-        "From GitHub: your numeric GitHub id, username, display name and avatar. We do not keep your GitHub token.",
+        "From GitHub: your numeric GitHub id, username and avatar. We do not keep your GitHub token.",
         "From you: the preferences you set (languages, level, interests), the issues you save, and any themes you create.",
         "A session cookie, so you stay signed in.",
       ] },
