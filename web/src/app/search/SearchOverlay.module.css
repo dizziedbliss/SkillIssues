@@ -1,0 +1,261 @@
+/* The search overlay, as designed: a red-framed panel over the page, which blurs behind it. */
+
+.dialog {
+  width: min(90rem, 100% - 2 * var(--gutter));
+  max-width: none;
+  max-height: min(50rem, 100dvh - 4rem);
+  margin: clamp(1rem, 8vh, 6rem) auto auto;
+  padding: clamp(1.25rem, 4vw, 4rem) clamp(1rem, 6vw, 7.5rem);
+  border: var(--border-width) solid var(--colors-accent);
+  border-radius: var(--radius-large);
+  background: color-mix(in srgb, var(--colors-surface) 88%, transparent);
+  box-shadow: var(--shadow-large);
+  color: var(--colors-text);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.dialog[open] {
+  animation: open var(--slow) var(--ease);
+}
+
+.dialog::backdrop {
+  background: color-mix(in srgb, var(--colors-background) 35%, transparent);
+  backdrop-filter: blur(8px);
+  animation: dim var(--slow) var(--ease);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.title {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: clamp(2.25rem, 1.5rem + 2.4vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+}
+
+.close {
+  border: 0;
+  padding: 0.3rem 0;
+  background: none;
+  color: var(--colors-text-muted);
+  font: inherit;
+  font-size: var(--label-size);
+  text-decoration: underline;
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.form {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem clamp(0.75rem, 1.5vw, 1.25rem);
+  margin-top: clamp(1.25rem, 3vw, 2rem);
+}
+
+.label {
+  flex: none;
+  font-family: var(--serif);
+  font-size: 1.4rem;
+  letter-spacing: -0.03em;
+}
+
+.box {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  border: var(--border-width) solid var(--colors-accent);
+  border-radius: var(--radius-medium);
+  background: var(--colors-surface);
+}
+
+.box:focus-within {
+  box-shadow: 0 0 0 1px var(--colors-accent);
+}
+
+.box input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  background: none;
+  color: var(--colors-text);
+  font: inherit;
+  font-size: 0.9375rem;
+}
+
+.box input:focus {
+  outline: none;
+}
+
+.box input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.inBox {
+  flex: none;
+  align-self: stretch;
+  padding: 0 0.85rem;
+  border: 0;
+  background: none;
+  color: var(--colors-text);
+  font: inherit;
+  font-size: var(--label-size);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.filter {
+  color: var(--colors-accent);
+}
+
+.submit {
+  flex: none;
+  padding: 0.55rem 0.9rem;
+  border: 0;
+  border-radius: var(--radius-medium);
+  background: linear-gradient(var(--colors-text), var(--colors-text)) no-repeat 0 0 / 0% 100%, var(--colors-accent);
+  color: var(--colors-accent-text);
+  font: inherit;
+  font-size: var(--label-size);
+  cursor: pointer;
+  transition: background-size var(--slow) var(--ease), color var(--slow) var(--ease);
+}
+
+.submit:hover,
+.submit:focus-visible {
+  background-size: 100% 100%, auto;
+  color: var(--colors-accent);
+}
+
+/* ---- results ---- */
+
+.results {
+  margin-top: 1.5rem;
+}
+
+.note {
+  color: var(--colors-text-muted);
+}
+
+.error {
+  color: var(--colors-danger);
+}
+
+.error button {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--colors-text);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.group + .group {
+  margin-top: 1.25rem;
+}
+
+.groupTitle {
+  padding-bottom: 0.35rem;
+  border-bottom: var(--border-width) var(--border-style) var(--rule);
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+  font-weight: 400;
+}
+
+.result {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.6rem 0.5rem;
+  color: inherit;
+  text-decoration: none;
+  background: linear-gradient(var(--chip), var(--chip)) no-repeat 0 0 / 0% 100%;
+  transition: background-size var(--slow) var(--ease);
+}
+
+.result:hover,
+.result:focus-visible {
+  background-size: 100% 100%;
+}
+
+.resultTitle {
+  overflow-wrap: anywhere;
+}
+
+.number,
+.resultRepo {
+  color: var(--colors-text-muted);
+}
+
+.resultRepo {
+  font-size: var(--label-size);
+}
+
+.all {
+  margin-top: 1.25rem;
+  padding: 0.5em 1em;
+  border: var(--border-width) solid var(--colors-accent);
+  border-radius: var(--radius-medium);
+  background: linear-gradient(var(--colors-accent), var(--colors-accent)) no-repeat 0 0 / 0% 100%;
+  color: var(--colors-text);
+  font: inherit;
+  font-size: var(--button-size);
+  cursor: pointer;
+  transition: background-size var(--slow) var(--ease), color var(--slow) var(--ease);
+}
+
+.all:hover,
+.all:focus-visible {
+  background-size: 100% 100%;
+  color: var(--colors-accent-text);
+}
+
+/* The panel draws itself in from the left edge, the theme's wipe in miniature. */
+@keyframes open {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes dim {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .form {
+    flex-wrap: wrap;
+  }
+
+  .label {
+    flex-basis: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog[open],
+  .dialog::backdrop {
+    animation: none;
+  }
+
+  .submit,
+  .result,
+  .all {
+    transition: none;
+  }
+}

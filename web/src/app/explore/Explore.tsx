@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router";
+import { useLocation, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { Difficulty } from "@skillissues/client";
 import { api } from "../../lib/api";
 import { useT } from "../../i18n";
 import { useSession } from "../session";
+import { useSearchOverlay } from "../search/context";
 import { IssueCard } from "../IssueCard";
 import { FilterPanel } from "./FilterPanel";
 import { Pager } from "./Pager";
@@ -22,7 +23,10 @@ export function Explore() {
   const [params, setParams] = useSearchParams();
   const query = readQuery(params);
   const [draft, setDraft] = useState(query.search);
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Arriving from the search overlay's "filter" opens the panel.
+  const location = useLocation();
+  const [filtersOpen, setFiltersOpen] = useState(() => !!(location.state as { filters?: boolean } | null)?.filters);
+  const overlay = useSearchOverlay();
   const top = useRef<HTMLDivElement>(null);
 
   // The search box follows the address (back, forward, the search overlay).
@@ -66,7 +70,8 @@ export function Explore() {
 
       <form className={s.search} role="search" onSubmit={submit}>
         <label htmlFor="explore-search" className={s.searchLabel}>{t("explore.searchLabel")}</label>
-        <div className={s.box}>
+        {/* Shares its name with the overlay's box, so one glides into the other; never both at once. */}
+        <div className={s.box} style={{ viewTransitionName: overlay.isOpen ? "none" : "search-box" }}>
           <input
             id="explore-search"
             type="search"

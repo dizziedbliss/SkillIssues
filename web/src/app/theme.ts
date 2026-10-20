@@ -98,10 +98,26 @@ export function useAppTheme(root: RefObject<HTMLElement | null>): { toggle: Them
       el.dataset.pattern = style.getPropertyValue("--background-pattern").trim() || "none";
       el.dataset.reduce = style.getPropertyValue("--motion-reduce").trim() === "1" ? "1" : "0";
       el.dataset.transition = style.getPropertyValue("--motion-transition").trim() || "none";
+      // The page transitions' pseudo-elements hang off <html> (transition.css).
+      const html = document.documentElement;
+      html.dataset.transition = el.dataset.transition;
+      html.dataset.reduce = el.dataset.reduce;
+      html.style.setProperty("--vt-duration", style.getPropertyValue("--motion-duration").trim());
+      html.style.setProperty("--vt-easing", style.getPropertyValue("--motion-easing").trim());
     }
   }, [theme, root]);
 
-  useLayoutEffect(() => () => clearTheme(document), []);
+  useLayoutEffect(
+    () => () => {
+      clearTheme(document);
+      const html = document.documentElement;
+      delete html.dataset.transition;
+      delete html.dataset.reduce;
+      html.style.removeProperty("--vt-duration");
+      html.style.removeProperty("--vt-easing");
+    },
+    [],
+  );
 
   const problem = active.error
     ? active.error.message

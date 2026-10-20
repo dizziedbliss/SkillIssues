@@ -1,0 +1,68 @@
+/*
+ * The app's page transitions (transition.ts), by the theme's choice on <html
+ * data-transition>. Global on purpose: the ::view-transition pseudo-elements
+ * hang off the document, not the app's root. --vt-duration and --vt-easing
+ * are the theme's [motion] values, copied to <html> by theme.ts.
+ */
+
+/* wipe: the new page sweeps in from the left, as the buttons fill. */
+html[data-transition="wipe"]::view-transition-old(root) {
+  animation: none;
+}
+
+html[data-transition="wipe"]::view-transition-new(root) {
+  animation: si-wipe var(--vt-duration, 380ms) var(--vt-easing, ease-out) both;
+}
+
+@keyframes si-wipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* fade: one page dissolves into the next. */
+html[data-transition="fade"]::view-transition-old(root),
+html[data-transition="fade"]::view-transition-new(root) {
+  animation-duration: var(--vt-duration, 380ms);
+  animation-timing-function: var(--vt-easing, ease-out);
+}
+
+/* slide: the old page leaves to the left as the new one comes from the right. */
+html[data-transition="slide"]::view-transition-old(root) {
+  animation: si-slide-out var(--vt-duration, 380ms) var(--vt-easing, ease-out) both;
+}
+
+html[data-transition="slide"]::view-transition-new(root) {
+  animation: si-slide-in var(--vt-duration, 380ms) var(--vt-easing, ease-out) both;
+}
+
+@keyframes si-slide-out {
+  to {
+    opacity: 0;
+    translate: -6% 0;
+  }
+}
+
+@keyframes si-slide-in {
+  from {
+    opacity: 0;
+    translate: 6% 0;
+  }
+}
+
+/* Parts that keep their name across pages (the search box) glide between places at the theme's pace. */
+::view-transition-group(*) {
+  animation-duration: var(--vt-duration, 380ms);
+  animation-timing-function: var(--vt-easing, ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

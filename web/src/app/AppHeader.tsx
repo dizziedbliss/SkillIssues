@@ -4,6 +4,8 @@ import { Logo } from "../landing/Logo";
 import { LOCALES, useI18n } from "../i18n";
 import { useThemeToggle } from "../lib/themeToggle";
 import { useSession, useSignIn, useSignOut } from "./session";
+import { useSearchOverlay } from "./search/context";
+import { useNotifications } from "./notifications";
 import s from "./AppHeader.module.css";
 
 /**
@@ -14,6 +16,7 @@ export function AppHeader() {
   const { t } = useI18n();
   const { user, isPending } = useSession();
   const signIn = useSignIn();
+  const search = useSearchOverlay();
   const { pathname } = useLocation();
   // Explore covers the catalog and the issues opened from it.
   const exploring = pathname === "/app" || pathname === "/app/" || pathname.startsWith("/app/issues/");
@@ -28,6 +31,22 @@ export function AppHeader() {
           <Link to="/app" className={exploring ? s.active : undefined} aria-current={exploring ? "page" : undefined}>
             {t("app.nav.explore")}
           </Link>
+          <Link
+            to="/app/contributions"
+            className={pathname.startsWith("/app/contributions") ? s.active : undefined}
+            aria-current={pathname.startsWith("/app/contributions") ? "page" : undefined}
+          >
+            {t("app.nav.contribute")}
+          </Link>
+          <button
+            type="button"
+            className={`${s.navButton} ${search.isOpen ? s.active : ""}`}
+            aria-haspopup="dialog"
+            aria-keyshortcuts="/ Control+K Meta+K"
+            onClick={search.open}
+          >
+            {t("app.nav.search")}
+          </button>
           {user ? (
             <ProfileMenu />
           ) : (
@@ -82,7 +101,8 @@ function ProfileMenu() {
     };
   }, [open]);
 
-  const inAccount = pathname.startsWith("/app/settings");
+  const inAccount = /^\/app\/(settings|profile|saved)/.test(pathname);
+  const unread = useNotifications().data?.unread_count ?? 0;
 
   return (
     <div ref={root} className={s.menuRoot}>
@@ -95,10 +115,27 @@ function ProfileMenu() {
         onClick={() => setOpen((o) => !o)}
       >
         {t("app.nav.profile")}
+        {unread > 0 && (
+          <span className={s.dot}>
+            <span className="visually-hidden">{t("app.nav.unread", { count: unread })}</span>
+          </span>
+        )}
       </button>
       {open && (
         <div id={id} className={s.menu}>
           <ul>
+            <li>
+              <Link to="/app/profile" className={s.item}>{t("app.menu.profile")}</Link>
+            </li>
+            <li>
+              <Link to="/app/saved" className={s.item}>
+                <span>{t("app.menu.saved")}</span>
+                {unread > 0 && <span className={s.count}>{unread}</span>}
+              </Link>
+            </li>
+            <li>
+              <Link to="/app/contributions" className={s.item}>{t("app.menu.contributions")}</Link>
+            </li>
             <li>
               <Link to="/app/settings" className={s.item}>{t("app.menu.settings")}</Link>
             </li>
