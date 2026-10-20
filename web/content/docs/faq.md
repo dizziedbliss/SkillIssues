@@ -4,7 +4,7 @@ slug: /faq
 section: Resources
 summary: Short answers to what people ask most.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 ## Is it free?
@@ -42,6 +42,14 @@ When you browse the shuffled feed with filters that few repositories match, the 
 ## An issue I opened or closed isn't showing the change.
 
 Give it a couple of hours. If it's still wrong after that, [report a bug](/docs/report-a-bug) with the issue's link.
+
+## Where do the numbers on my profile come from?
+
+From GitHub's public search, read by your browser: every public pull request you've opened, the ones that were merged, and the repositories they went to. We don't hold a GitHub token for you, so we can't see anything private, and neither can the profile. Your browser keeps a copy for half an hour, and GitHub limits how often a browser can search, so the numbers may be a few minutes behind.
+
+## Is there a light mode?
+
+Yes. The site starts dark. On the landing page and the docs, the theme button in the footer switches to light. In the app, choose a light theme such as Default or Catppuccin Latte in **Settings → Themes**, or from **Appearance** in the profile menu once you've used it.
 
 ## Can I use SkillIssues without the desktop app?
 

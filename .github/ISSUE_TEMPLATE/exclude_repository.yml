@@ -1,4 +1,4 @@
-name: "🚫 Exclude my repository"
+name: "Exclude my repository"
 description: For maintainers who want a repository left out of the catalog.
 title: "[Exclude]: "
 labels: ["exclusion-request", "triage"]

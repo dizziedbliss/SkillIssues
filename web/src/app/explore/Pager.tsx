@@ -29,7 +29,7 @@ export function Pager({
   }
 
   return (
-    <nav className={s.pager} aria-label={t("explore.pager")}>
+    <nav className={s.pager} aria-label={t("explore.pager")} data-ui="pager">
       <button type="button" className={s.page} aria-label={t("explore.prev")} disabled={index === 0} onClick={() => onGo(index - 1)}>
         &lt;
       </button>

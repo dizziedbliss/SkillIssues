@@ -61,7 +61,7 @@ export function IssuePage() {
   const dates = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric" });
 
   return (
-    <article className={s.page}>
+    <article className={s.page} data-ui="issue">
       <Link to="/app" className={s.back}>{t("issue.back")}</Link>
       <p className={s.repo}>
         <a href={it.repository_url} target="_blank" rel="noreferrer">{it.repository}</a>
@@ -88,13 +88,13 @@ export function IssuePage() {
       </ul>
 
       <div className={s.actions}>
-        <a href={it.url} target="_blank" rel="noreferrer" className={s.primary}>{t("issue.openGitHub")}</a>
+        <a href={it.url} target="_blank" rel="noreferrer" className={s.primary} data-ui="button-primary">{t("issue.openGitHub")}</a>
         <DesktopButton issue={it} className={s.secondary} />
         <SaveButton issue={it} label />
       </div>
 
       <div className={s.columns}>
-        <section className={s.body} aria-labelledby="issue-body">
+        <section className={s.body} aria-labelledby="issue-body" data-ui="issue-body">
           <h2 id="issue-body" className={s.heading}>{t("issue.body")}</h2>
           {body.isPending && <p className={s.note}>{t("issue.bodyLoading")}</p>}
           {body.error && (

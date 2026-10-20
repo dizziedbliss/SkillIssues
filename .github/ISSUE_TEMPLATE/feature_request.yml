@@ -1,4 +1,4 @@
-name: "✨ Feature request"
+name: "Feature request"
 description: Have a concrete idea to make finding or working on an issue better?
 title: "[Feature]: "
 labels: ["enhancement", "triage"]

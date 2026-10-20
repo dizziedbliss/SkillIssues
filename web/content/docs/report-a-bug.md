@@ -4,10 +4,17 @@ slug: /docs/report-a-bug
 section: Support
 summary: How to write a bug report that can be fixed.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
-Bugs are reported as GitHub issues. [Open a bug report](https://github.com/dizziedbliss/SkillIssues/issues/new?labels=bug).
+Bugs are reported as GitHub issues, each kind on its own form, so the report asks for what we need:
+
+- [Something broken on the website or in the API](https://github.com/dizziedbliss/SkillIssues/issues/new?template=bug_report.yml)
+- [Something broken in the desktop app](https://github.com/dizziedbliss/SkillIssues/issues/new?template=desktop.yml)
+- [Something hard or impossible to use with your setup](https://github.com/dizziedbliss/SkillIssues/issues/new?template=accessibility.yml)
+- [A wrong difficulty, or an issue that differs from GitHub](https://github.com/dizziedbliss/SkillIssues/issues/new?template=data_quality.yml)
+- [A theme that won't apply, or a built-in that looks wrong](https://github.com/dizziedbliss/SkillIssues/issues/new?template=theme.yml)
+- [A page or doc that says something untrue](https://github.com/dizziedbliss/SkillIssues/issues/new?template=documentation.yml)
 
 If the problem is a security vulnerability, don't use a public issue. See [Security](/security).
 

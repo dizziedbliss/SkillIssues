@@ -25,6 +25,39 @@ func (p Problems) Unwrap() error { return ErrInvalid }
 // Tokens is a validated theme file: table → key → value.
 type Tokens map[string]map[string]any
 
+// lines maps "[table]" and "table.key" to the line (from 1) where a theme
+// file writes them, so a problem can say where to look. It reads the file's
+// own layout (a [table] header, then key = value lines), which is all a
+// theme file holds.
+func lines(src string) map[string]int {
+	out := map[string]int{}
+	table := ""
+	for i, line := range strings.Split(src, "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]"):
+			table = strings.TrimSpace(strings.Trim(line, "[]"))
+			if _, ok := out["["+table+"]"]; !ok {
+				out["["+table+"]"] = i + 1
+			}
+		case strings.Contains(line, "=") && !strings.HasPrefix(line, "#"):
+			key := strings.Trim(strings.TrimSpace(line[:strings.Index(line, "=")]), `"'`)
+			if _, ok := out[table+"."+key]; !ok {
+				out[table+"."+key] = i + 1
+			}
+		}
+	}
+	return out
+}
+
+// at prefixes a problem with its line, when the file says where.
+func at(where map[string]int, ref, problem string) string {
+	if n, ok := where[ref]; ok {
+		return fmt.Sprintf("line %d: %s", n, problem)
+	}
+	return problem
+}
+
 // ParseTOML parses and validates a theme file against Schema.
 func ParseTOML(src string) (Tokens, error) {
 	var raw map[string]any
@@ -32,6 +65,7 @@ func ParseTOML(src string) (Tokens, error) {
 		return nil, Problems{"not valid TOML: " + err.Error()}
 	}
 	var problems Problems
+	where := lines(src)
 	out := Tokens{}
 	tables := make([]string, 0, len(raw))
 	for t := range raw {
@@ -41,7 +75,7 @@ func ParseTOML(src string) (Tokens, error) {
 	for _, t := range tables {
 		spec, ok := Schema[t]
 		if !ok {
-			problems = append(problems, fmt.Sprintf("[%s] is not a theme table", t))
+			problems = append(problems, at(where, "["+t+"]", fmt.Sprintf("[%s] is not a theme table", t)))
 			continue
 		}
 		values, ok := raw[t].(map[string]any)
@@ -58,11 +92,11 @@ func ParseTOML(src string) (Tokens, error) {
 		for _, k := range keys {
 			kd, ok := spec[k]
 			if !ok {
-				problems = append(problems, fmt.Sprintf("%s.%s is not a theme key", t, k))
+				problems = append(problems, at(where, t+"."+k, fmt.Sprintf("%s.%s is not a theme key", t, k)))
 				continue
 			}
 			if !kd.check(values[k]) {
-				problems = append(problems, fmt.Sprintf("%s.%s is not a valid %s", t, k, kd.name))
+				problems = append(problems, at(where, t+"."+k, fmt.Sprintf("%s.%s is not a valid %s", t, k, kd.name)))
 				continue
 			}
 			out[t][k] = values[k]

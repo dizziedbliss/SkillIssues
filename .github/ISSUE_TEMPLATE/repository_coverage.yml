@@ -1,4 +1,4 @@
-name: "🔎 My repository isn't indexed, or is indexed wrongly"
+name: "My repository isn't indexed, or is indexed wrongly"
 description: A repository is missing from the catalog, or shows the wrong stars, issues or state.
 title: "[Repository]: "
 labels: ["repository-coverage", "triage"]

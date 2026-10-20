@@ -4,7 +4,7 @@ slug: /docs/themes
 section: Guides
 summary: How to restyle the signed-in app with a theme file of design tokens and an optional stylesheet, with every key and rule spelled out.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 A theme restyles the signed-in app. It has two parts:
@@ -50,6 +50,32 @@ Set `base` in the `[meta]` table to start from one of these:
 | `midnight` | The same page, after dark. |
 | `terminal` | Green on black, all mono. |
 | `contrast` | Larger type, heavier lines. |
+| `catppuccin-mocha` | Catppuccin's dark pastels. |
+| `catppuccin-latte` | Catppuccin's light flavour. |
+| `dracula` | Dracula's purples and pinks. |
+| `nord` | Nord's arctic blues. |
+| `gruvbox` | Gruvbox dark, warm and earthy. |
+| `solarized-light` | Solarized, light, with its orange as the accent so buttons stay readable. |
+| `tokyo-night` | Tokyo Night's blues. |
+| `rose-pine` | Rosé Pine's muted dark. |
+
+The palettes come from each project's published colours. The rounded ones also round corners and fade between pages.
+
+## Starting a theme in the app
+
+In the app, **Settings → Themes** has three tabs:
+
+- **Built-in** lists every built-in with its colours. Built-ins can't be changed: **Use** applies one as it is, and **Customize** makes your own copy and opens it in the editor.
+- **Yours** lists your themes: use, edit, duplicate or delete one, or start a **New theme** from the theme you're using or any built-in.
+- **Shared with you** finds a public theme by its id: use it as it is, or **Duplicate** it into your themes to change it.
+
+A new theme, a customised built-in and a duplicate all start as a full copy: every token written out, so you change only the lines you want. Delete a line and it falls back to the base preset.
+
+**Appearance** in the profile menu lists your last few themes, to switch between in one click, and **See more themes** opens this page. With nothing chosen, the app uses Midnight.
+
+### The editor
+
+The editor checks your theme as you type, by the same rules and in the same words as the server, with the line each problem is on. Beside it, a **preview** shows the app's own pieces (the nav, an issue card, buttons, a field, a notice, code) in your draft, without changing the theme the app is using. A theme with a `[dark]` half has a switch to preview that half. Under the preview, a token map says which token paints what.
 
 ## Tables and keys
 
@@ -63,7 +89,7 @@ A theme file may contain only the tables and keys below. Each token becomes a CS
 | `author` | text | Up to 60 bytes. |
 | `version` | text | Up to 20 bytes. |
 | `description` | text | Up to 280 bytes. |
-| `base` | choice | `default`, `midnight`, `terminal` or `contrast`. |
+| `base` | choice | One of the base presets below: `default`, `midnight`, `terminal`, `contrast`, `catppuccin-mocha`, `catppuccin-latte`, `dracula`, `nord`, `gruvbox`, `solarized-light`, `tokyo-night` or `rose-pine`. |
 | `schema` | number | Exactly `1`. This is the file format version. |
 
 Text limits count bytes, so plain English text uses one per character and accented letters or emoji use more. A theme without a `name` is called "Untitled". Text can't contain `<`, `>` or null characters.
@@ -87,6 +113,16 @@ Every key here takes a colour.
 | `warning` | Warning states. |
 | `danger` | Errors and destructive actions. |
 | `selection` | Selected text. |
+| `accent-hover` | Buttons under the pointer. Without it, the text colour. |
+| `link` | Links in issue descriptions. Without it, the text colour. |
+| `info` | Notices. Without it, the accent. |
+| `code-background` | Code in issue descriptions. Without it, `surface-raised`. |
+
+### `[dark]`
+
+The same keys as `[colors]`, for a light and dark pair in one theme. When your device asks for dark (its `prefers-color-scheme`), the keys you set here replace those in `[colors]`; the rest stay. Leave the table out and the theme looks the same either way.
+
+The app also sets the CSS `color-scheme` of its root to `dark` or `light` from the background colour in use, so scrollbars and form controls match. Inside your stylesheet, `light-dark()` follows it.
 
 ### `[background]`
 
@@ -96,6 +132,12 @@ Every key here takes a colour.
 | `pattern` | choice | `none`, `grid`, `dots` or `lines`. |
 | `pattern-color` | colour | Any colour. |
 | `pattern-size` | length | `4px` to `96px`. |
+| `image-size` | choice | `cover` (the default), `contain` or `auto`. |
+| `image-position` | choice | `center` (the default), `top`, `bottom`, `left` or `right`. |
+| `image-repeat` | choice | `no-repeat` (the default), `repeat`, `repeat-x` or `repeat-y`. |
+| `image-attachment` | choice | `fixed` (the default: it stays put as the page scrolls) or `scroll`. |
+
+The image is the app root's background, under the pattern. A data URI is part of the theme file, so it counts towards the size limit.
 
 ### `[typography]`
 
@@ -109,8 +151,11 @@ Every key here takes a colour.
 | `line-height` | number | `1` to `2`. |
 | `heading-weight` | number | `100` to `900`. |
 | `body-weight` | number | `100` to `900`. |
+| `heading-transform` | choice | `none`, `uppercase`, `lowercase` or `capitalize`. |
+| `heading-tracking` | length | Letter spacing of headings and the nav, `-4px` to `8px` (`-0.25em` to `0.5em`). |
+| `body-tracking` | length | Letter spacing of everything else, `-2px` to `6px`. |
 
-Fonts a theme may name: `Instrument Serif`, `JetBrains Mono`, `Krona One`, `system-ui`, `serif`, `sans-serif` and `monospace`. The first three are served by SkillIssues itself, so a theme never makes your browser fetch a font from another site. A font that isn't on the list is refused.
+Fonts a theme may name: `Instrument Serif` (a display serif), `JetBrains Mono`, `Krona One` (a wide display sans), `Inter` (a neutral grotesque), `Barlow Condensed` (a condensed grotesque), `Silkscreen` (a pixel font), `system-ui`, `serif`, `sans-serif` and `monospace`. The first six are served by SkillIssues itself, and your browser fetches one only when a theme uses it, so a theme never makes it fetch a font from another site. A font that isn't on the list is refused. `@font-face` stays refused: the site's security policy allows fonts only from SkillIssues.
 
 ### `[spacing]`
 
@@ -120,6 +165,7 @@ Fonts a theme may name: `Instrument Serif`, `JetBrains Mono`, `Krona One`, `syst
 | `density` | choice | `compact`, `comfortable` or `spacious`. |
 | `page-gutter` | length | `8px` to `96px`. |
 | `max-width` | length | `640px` to `2400px`. |
+| `sidebar-width` | length | `160px` to `480px`: the menu beside Settings. |
 
 ### `[radius]`
 
@@ -141,7 +187,7 @@ In the app, `small` rounds tags and chips, `medium` buttons and fields, `large` 
 
 ### `[shadow]`
 
-`small`, `medium` and `large` each take a shadow. In the app, `small` sits under tags and buttons, `medium` under menus and `large` under dialogs such as search.
+`small`, `medium`, `large` and `focus` each take a shadow. In the app, `small` sits under tags and buttons, `medium` under menus, `large` under dialogs such as search, and `focus` around whatever has keyboard focus, with the focus ring.
 
 ### `[motion]`
 
@@ -150,7 +196,10 @@ In the app, `small` rounds tags and chips, `medium` buttons and fields, `large` 
 | `duration` | duration | A whole number of milliseconds from `0ms` to `2000ms`, such as `160ms`. |
 | `easing` | choice | `linear`, `ease`, `ease-in`, `ease-out` or `ease-in-out`. |
 | `reduce` | boolean | `true` or `false`. |
-| `transition` | choice | How the app moves from one page to the next: `wipe` (the new page sweeps in from the left), `fade`, `slide` or `none`. Every transition stops when your system asks for reduced motion. |
+| `transition` | choice | How the app moves from one page to the next: `wipe` (the new page sweeps in from the left), `fade`, `slide`, `slide-up`, `iris` (it opens from the centre in a circle), `glitch` (a few offset slices, then the page) or `none`. |
+| `stagger` | duration | `0ms` to `200ms`: the delay between one list item and the next as a list appears. `0ms`, the default, shows them together. |
+
+`reduce = true` is the same as your system asking for reduced motion: nothing in the app transitions or animates, page transitions included, and that applies to your stylesheet's animations too. The app's root carries `data-reduce="1"` when it is on, so a rule can key off it as well as off `@media (prefers-reduced-motion: reduce)`.
 
 ## Value types
 
@@ -160,7 +209,7 @@ In the app, `small` rounds tags and chips, `medium` buttons and fields, `large` 
 | length | A number followed by `px`, `rem` or `em`, such as `15px` or `1.5rem`. The range limits above are in pixels. `rem` and `em` count as 16 pixels each, so `1rem` is `16px`. A bare number without a unit is refused. |
 | number | A plain TOML number inside the range, such as `1.25` or `400`. Don't put it in quotes. |
 | choice | One of the listed words, in quotes. |
-| font | One of the seven font names above, in quotes. |
+| font | One of the ten font names above, in quotes. |
 | image | `none`, or a base64 data URI of a PNG, JPEG, GIF or WebP image. A web address is refused. |
 | shadow | `none`, or an optional `inset` followed by two to four lengths in pixels and then a colour, such as `0px 2px 8px rgba(0, 0, 0, 0.4)`. The colour is a hex colour or `rgb()`, `rgba()`, `hsl()`, `hsla()` or `oklch()`. A length of `0` needs its unit, so write `0px`. |
 | duration | A whole number of milliseconds followed by `ms`, up to `2000ms`. |
@@ -170,12 +219,41 @@ In the app, `small` rounds tags and chips, `medium` buttons and fields, `large` 
 
 The stylesheet is plain CSS for anything the tokens can't do. It is optional. Its rules reach only elements inside the signed-in app.
 
-The stylesheet depends on the app's markup, which can change as the app is rebuilt. Prefer tokens where you can, and use the custom properties (`var(--colors-accent)`) inside your rules so they follow the theme.
+Prefer tokens where you can, and use the custom properties (`var(--colors-accent)`) inside your rules so they follow the theme. For anything else, select the app's pieces by their hooks below, not by class names: classes change whenever the app is rebuilt, hooks don't.
+
+### Hooks
+
+These `data-ui` attributes are stable. Select them as `[data-ui="card"]`.
+
+| Hook | What it is |
+|---|---|
+| `header`, `nav`, `nav-item`, `menu` | The app's header, its sections, one section's link, the profile menu. |
+| `page` | The page under the header. |
+| `footer` | The footer. |
+| `search`, `search-dialog` | A search bar; the search overlay. |
+| `filters`, `difficulty`, `pager` | The filter panel, the difficulty buttons, the page numbers. |
+| `card`, `card-title`, `card-repo`, `chips`, `tech` | An issue in a list: the card, its title, its repository, its labels, its repository's languages. |
+| `button`, `button-primary`, `bookmark` | Buttons, the main one on a page, the save bookmark. |
+| `issue`, `issue-body` | An issue's page, its description. |
+| `stat`, `graph`, `achievement`, `activity` | On the profile: a number, the year's graph, a milestone (`data-ui-state="done"` or `"locked"`), an activity box. |
+| `settings-nav` | The menu beside Settings. |
+| `link`, `input`, `notice` | A link, a field, a notice. |
+
+Items of a list that animates in also carry `data-ui-index` and `--ui-index` (their place in the list), which is how `[motion] stagger` works; your own animation can use them.
+
+### How the stylesheet is scoped
+
+Your rules are wrapped in `@scope ([data-app])`, so they reach only the app:
+
+- `:scope` is the app's root element. Use it where you'd reach for `:root` or `body`: `:scope::before` can draw over the whole app.
+- `:root`, `html` and `body` are outside the scope and match nothing.
+- Any property may be set, `position: fixed` included, and any pseudo-class or pseudo-element, such as `::before`, `::selection` or `::-webkit-scrollbar` (on the app's own scrolling areas, in browsers that support it). The page's main scrollbar belongs to the document, outside the scope.
 
 ### What is allowed
 
 - Ordinary rules, selectors, declarations and comments.
 - These at-rules: `@media`, `@supports`, `@keyframes`, `@container` and `@layer`.
+- `@property`, to register your own custom properties so they can be animated, such as a gradient's angle. Only names that start with `--theme-` may be registered, so the app's own tokens keep behaving as they do. These rules are lifted out of the scope, where the browser requires them.
 - `url()` only when it holds a base64 `data:image` of a PNG, JPEG, GIF or WebP image. Quotes are optional.
 - Custom properties and `var()`.
 - These functions:
@@ -184,6 +262,7 @@ The stylesheet depends on the app's markup, which can change as the app is rebui
   - Gradients: `linear-gradient`, `radial-gradient`, `conic-gradient` and their `repeating-` forms.
   - Transforms: `translate`, `translatex`, `translatey`, `translatez`, `translate3d`, `rotate`, `rotatex`, `rotatey`, `rotatez`, `rotate3d`, `scale`, `scalex`, `scaley`, `scalez`, `scale3d`, `skew`, `skewx`, `skewy`, `matrix`, `matrix3d`, `perspective`.
   - Timing: `cubic-bezier`, `steps`, `linear`.
+  - Scroll-driven animation: `scroll` and `view`, for `animation-timeline`.
   - Filters: `blur`, `brightness`, `contrast`, `drop-shadow`, `grayscale`, `hue-rotate`, `invert`, `opacity`, `saturate`, `sepia`.
   - Layout: `repeat`, `minmax`, `fit-content`, `counter`, `counters`.
   - Shapes: `inset`, `circle`, `ellipse`, `polygon`.
@@ -201,11 +280,11 @@ The stylesheet depends on the app's markup, which can change as the app is rebui
 - The HTML comment markers `<!--` and `-->`, and the `<` character.
 - Malformed `url()` or strings.
 
-If a theme is refused, the response lists each reason, up to 20.
+If a theme is refused, the response lists each reason (up to 20 from the stylesheet), each with its line: `line 7: colors.acent is not a theme key`, `stylesheet line 3: @import is not allowed`. Problems in the file and in the stylesheet come back together.
 
 ## Size and number limits
 
-By default, one theme's TOML and stylesheet together can be up to 64 KiB (65,536 bytes), and one account can keep up to 20 themes. These are live settings, so they can change.
+By default, one theme's TOML and stylesheet together can be up to 64 KiB (65,536 bytes), background image included, and one account can keep up to 20 themes. These are live settings, so they can change.
 
 ## A full example
 
@@ -310,8 +389,9 @@ Themes are stored by the API. These routes need you to be signed in, except wher
 | `GET /themes/{id}` | Read a theme. Your own, or any public one. Public themes can be read without signing in. |
 | `PUT /themes/{id}` | Replace a theme you own. Same body as `POST`. |
 | `DELETE /themes/{id}` | Delete a theme you own. |
-| `GET /me/theme` | The theme applied to your account, or `null`. |
-| `PUT /me/theme` | Apply `{"id": "..."}`, your own theme or a public one. Send `{"id": null}` to go back to the default. |
+| `POST /themes/validate` | Check `{"toml": "...", "css": "..."}` exactly as a save would, storing nothing: `{"valid": true, "name": "..."}`, or 422 with every problem and its line. No sign-in needed. |
+| `GET /me/theme` | What your account has applied: a theme, `{"preset": "nord"}` for a built-in used as it is, or `null` (the app's default, Midnight). |
+| `PUT /me/theme` | Apply `{"id": "..."}` (your own theme or a public one) or `{"preset": "nord"}` (a built-in). Send `{"id": null}` to go back to the default. |
 
 An invalid theme is answered with status 422 and `{"error": "...", "problems": ["...", "..."]}`. Creating a theme past your account's limit is a 409.
 

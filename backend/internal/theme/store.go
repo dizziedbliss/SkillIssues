@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -54,17 +55,27 @@ type Service struct{ db *db.Pool }
 // NewService returns a theme store over pool.
 func NewService(pool *db.Pool) *Service { return &Service{db: pool} }
 
-// check validates a theme and returns its name: meta.name, or "Untitled".
-func check(in Input, lim Limits) (string, error) {
+// Check validates a theme without storing it (POST /themes/validate, and
+// every save) and returns its name: meta.name, or "Untitled". Problems in
+// the file and in the stylesheet come back together, so an author fixes
+// both in one pass.
+func Check(in Input, lim Limits) (string, error) {
 	if size := len(in.TOML) + len(in.CSS); size > lim.MaxBytes {
 		return "", Problems{fmt.Sprintf("the theme is %d bytes; the limit is %d", size, lim.MaxBytes)}
 	}
-	tok, err := ParseTOML(in.TOML)
-	if err != nil {
-		return "", err
+	tok, tomlErr := ParseTOML(in.TOML)
+	cssErr := CheckCSS(in.CSS)
+	var all Problems
+	for _, err := range []error{tomlErr, cssErr} {
+		var p Problems
+		if errors.As(err, &p) {
+			all = append(all, p...)
+		} else if err != nil {
+			return "", err
+		}
 	}
-	if err := CheckCSS(in.CSS); err != nil {
-		return "", err
+	if len(all) > 0 {
+		return "", all
 	}
 	name := tok.Name()
 	if name == "" {
@@ -119,7 +130,7 @@ func (s *Service) Get(ctx context.Context, viewerID int, id string) (Theme, erro
 
 // Create validates and stores a theme for the caller.
 func (s *Service) Create(ctx context.Context, userID int, in Input, lim Limits) (Theme, error) {
-	name, err := check(in, lim)
+	name, err := Check(in, lim)
 	if err != nil {
 		return Theme{}, err
 	}
@@ -156,7 +167,7 @@ func (s *Service) Update(ctx context.Context, userID int, id string, in Input, l
 	if !uuidRe.MatchString(id) {
 		return Theme{}, ErrNotFound
 	}
-	name, err := check(in, lim)
+	name, err := Check(in, lim)
 	if err != nil {
 		return Theme{}, err
 	}
@@ -207,7 +218,7 @@ func (s *Service) Delete(ctx context.Context, userID int, id string) error {
 // one. An empty id goes back to the default.
 func (s *Service) SetActive(ctx context.Context, userID int, id string) error {
 	if id == "" {
-		if err := s.db.Exec(ctx, `UPDATE users SET active_theme_id = NULL WHERE id = $1`, userID); err != nil {
+		if err := s.db.Exec(ctx, `UPDATE users SET active_theme_id = NULL, active_preset = NULL WHERE id = $1`, userID); err != nil {
 			return fmt.Errorf("theme: clear active: %w", err)
 		}
 		return nil
@@ -218,7 +229,7 @@ func (s *Service) SetActive(ctx context.Context, userID int, id string) error {
 	var set bool
 	err := s.db.QueryRow(ctx, `
 		WITH u AS (
-		  UPDATE users SET active_theme_id = t.id FROM user_themes t
+		  UPDATE users SET active_theme_id = t.id, active_preset = NULL FROM user_themes t
 		  WHERE users.id = $1 AND t.id = $2 AND (t.public OR t.user_id = $1)
 		  RETURNING 1
 		) SELECT count(*) > 0 FROM u`, []any{userID, id}, func(row pgx.Row) error { return row.Scan(&set) })
@@ -229,6 +240,37 @@ func (s *Service) SetActive(ctx context.Context, userID int, id string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// SetActivePreset applies a built-in theme (one of Presets) as it is.
+func (s *Service) SetActivePreset(ctx context.Context, userID int, preset string) error {
+	if !slices.Contains(Presets, preset) {
+		return ErrNotFound
+	}
+	var n int64
+	err := s.db.QueryRow(ctx, `WITH u AS (UPDATE users SET active_theme_id = NULL, active_preset = $2 WHERE id = $1 RETURNING 1)
+		SELECT count(*) FROM u`, []any{userID, preset}, func(row pgx.Row) error { return row.Scan(&n) })
+	if err != nil {
+		return fmt.Errorf("theme: set active preset: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("theme: set active preset: no user %d", userID)
+	}
+	return nil
+}
+
+// ActivePreset is the built-in the caller has applied as it is, or "".
+func (s *Service) ActivePreset(ctx context.Context, userID int) (string, error) {
+	var preset *string
+	err := s.db.QueryRow(ctx, `SELECT active_preset FROM users WHERE id = $1`, []any{userID},
+		func(row pgx.Row) error { return row.Scan(&preset) })
+	if err != nil {
+		return "", fmt.Errorf("theme: active preset: %w", err)
+	}
+	if preset == nil {
+		return "", nil
+	}
+	return *preset, nil
 }
 
 // Active returns the theme the caller has applied, or nil for the default.

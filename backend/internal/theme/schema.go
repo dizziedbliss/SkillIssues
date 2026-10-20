@@ -89,10 +89,16 @@ func textUpTo(n int) func(any) bool {
 
 // Fonts a theme may name. They are self-hosted by the web app, so a theme
 // never makes the page fetch a font from elsewhere.
-var Fonts = []string{"Instrument Serif", "JetBrains Mono", "Krona One", "system-ui", "serif", "sans-serif", "monospace"}
+var Fonts = []string{
+	"Instrument Serif", "JetBrains Mono", "Krona One", "Inter", "Barlow Condensed", "Silkscreen",
+	"system-ui", "serif", "sans-serif", "monospace",
+}
 
 // Presets a theme may start from (meta.base).
-var Presets = []string{"default", "midnight", "terminal", "contrast"}
+var Presets = []string{
+	"default", "midnight", "terminal", "contrast",
+	"catppuccin-mocha", "catppuccin-latte", "dracula", "nord", "gruvbox", "solarized-light", "tokyo-night", "rose-pine",
+}
 
 var (
 	color    = kind{"color", str(isColor)}
@@ -115,6 +121,24 @@ func number(lo, hi float64) kind { return kind{"number", numberIn(lo, hi)} }
 func enum(vals ...string) kind   { return kind{"enum", oneOf(vals...)} }
 func text(n int) kind            { return kind{"text", textUpTo(n)} }
 
+// colorKeys are the colour tokens, in [colors] and again in [dark].
+var colorKeys = map[string]kind{
+	"background": color, "surface": color, "surface-raised": color, "text": color, "text-muted": color,
+	"accent": color, "accent-text": color, "accent-hover": color, "border": color, "focus": color,
+	"success": color, "warning": color, "danger": color, "info": color, "selection": color,
+	"link": color, "code-background": color,
+}
+
+// staggerDelay is a duration of at most 200ms.
+var staggerDelay = kind{"duration", str(func(s string) bool {
+	m := durRe.FindStringSubmatch(s)
+	if m == nil {
+		return false
+	}
+	n, _ := strconv.Atoi(m[1])
+	return n <= 200
+})}
+
 // Schema is every table and key a theme file may hold. A key not listed is
 // an error, so a typo is reported instead of silently ignored. Each becomes
 // the CSS custom property --<table>-<key> (tokens.go in packages/theme).
@@ -124,31 +148,35 @@ var Schema = map[string]map[string]kind{
 		"base":   enum(Presets...),
 		"schema": number(SchemaVersion, SchemaVersion),
 	},
-	"colors": {
-		"background": color, "surface": color, "surface-raised": color, "text": color, "text-muted": color,
-		"accent": color, "accent-text": color, "border": color, "focus": color,
-		"success": color, "warning": color, "danger": color, "selection": color,
-	},
+	"colors": colorKeys,
+	// The same keys for the dark half of a light/dark pair: Appearance's
+	// switch moves between [colors] and these.
+	"dark": colorKeys,
 	"background": {
 		"image": image, "pattern": enum("none", "grid", "dots", "lines"), "pattern-color": color,
 		"pattern-size": length(4, 96),
+		"image-size":   enum("cover", "contain", "auto"), "image-position": enum("center", "top", "bottom", "left", "right"),
+		"image-repeat": enum("no-repeat", "repeat", "repeat-x", "repeat-y"), "image-attachment": enum("fixed", "scroll"),
 	},
 	"typography": {
 		"heading-font": font, "body-font": font, "mono-font": font,
 		"base-size": length(12, 22), "scale": number(1, 1.6), "line-height": number(1, 2),
 		"heading-weight": number(100, 900), "body-weight": number(100, 900),
+		"heading-transform": enum("none", "uppercase", "lowercase", "capitalize"),
+		"heading-tracking":  length(-4, 8), "body-tracking": length(-2, 6),
 	},
 	"spacing": {
 		"unit": length(2, 8), "density": enum("compact", "comfortable", "spacious"),
-		"page-gutter": length(8, 96), "max-width": length(640, 2400),
+		"page-gutter": length(8, 96), "max-width": length(640, 2400), "sidebar-width": length(160, 480),
 	},
 	"radius": {"small": length(0, 48), "medium": length(0, 48), "large": length(0, 48), "pill": length(0, 999)},
 	"border": {"width": length(0, 4), "style": enum("solid", "dashed", "dotted", "none")},
-	"shadow": {"small": shadow, "medium": shadow, "large": shadow},
+	"shadow": {"small": shadow, "medium": shadow, "large": shadow, "focus": shadow},
 	"motion": {
 		"duration": duration, "easing": enum("linear", "ease", "ease-in", "ease-out", "ease-in-out"), "reduce": boolean,
-		// How the app moves between pages: the page wipes in from the left,
-		// fades, slides, or simply changes.
-		"transition": enum("wipe", "fade", "slide", "none"),
+		// How the app moves between pages.
+		"transition": enum("wipe", "fade", "slide", "slide-up", "iris", "glitch", "none"),
+		// The delay between one list item and the next as a list appears.
+		"stagger": staggerDelay,
 	},
 }

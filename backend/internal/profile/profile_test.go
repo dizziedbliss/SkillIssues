@@ -2,6 +2,7 @@ package profile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -51,5 +52,51 @@ func TestFullProfileJoinedAt(t *testing.T) {
 	}
 	if p.JoinedAt != "2026-09-20T08:30:00Z" {
 		t.Errorf("joined_at = %q, want 2026-09-20T08:30:00Z", p.JoinedAt)
+	}
+}
+
+// An update is stored whole, creating a missing preferences row, or refused
+// whole with ErrInvalid: never trimmed or defaulted.
+func TestUpdateProfile(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	login := fmt.Sprintf("profile-update-%d", time.Now().UnixNano())
+	var id int
+	if err := pool.QueryRow(ctx, `INSERT INTO users (github_id, username) VALUES ($1, $1) RETURNING id`,
+		[]any{login}, func(row pgx.Row) error { return row.Scan(&id) }); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := pool.Exec(context.Background(), `DELETE FROM users WHERE id = $1`, id); err != nil {
+			t.Errorf("cleanup: %v", err)
+		}
+	})
+	svc := New(pool)
+	lim := Limits{BioMaxChars: 10, MaxLanguages: 2, MaxInterests: 2}
+
+	// No preferences row yet: the update creates it.
+	p, err := svc.UpdateProfile(ctx, id, ProfileUpdate{
+		Bio: " hi ", ExperienceLevel: "advanced", TargetLevel: "ADVANCED",
+		PreferredLanguages: []string{"Go", " go ", "", "Rust"}, Interests: []string{"cli"},
+	}, lim)
+	if err != nil {
+		t.Fatalf("UpdateProfile: %v", err)
+	}
+	if p.Bio != "hi" || p.ExperienceLevel != "ADVANCED" || len(p.PreferredLanguages) != 2 || p.PreferredLanguages[1] != "Rust" || len(p.Interests) != 1 {
+		t.Errorf("stored %+v", p)
+	}
+
+	for name, bad := range map[string]ProfileUpdate{
+		"unknown level":    {ExperienceLevel: "guru", TargetLevel: "ADVANCED"},
+		"long bio":         {Bio: "far too long a bio", ExperienceLevel: "BEGINNER", TargetLevel: "ADVANCED"},
+		"many languages":   {ExperienceLevel: "BEGINNER", TargetLevel: "ADVANCED", PreferredLanguages: []string{"a", "b", "c"}},
+		"markup in a name": {ExperienceLevel: "BEGINNER", TargetLevel: "ADVANCED", Interests: []string{"<b>"}},
+	} {
+		if _, err := svc.UpdateProfile(ctx, id, bad, lim); !errors.Is(err, ErrInvalid) {
+			t.Errorf("%s: err = %v, want ErrInvalid", name, err)
+		}
+	}
+	if p, err := svc.GetFullProfile(ctx, id); err != nil || p.Bio != "hi" {
+		t.Errorf("a refused update changed the profile: %+v, %v", p, err)
 	}
 }

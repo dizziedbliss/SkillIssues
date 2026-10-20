@@ -1,5 +1,5 @@
-name: "🐛 Bug report"
-description: Something broken or behaving suspiciously in the web app or the backend? Help us squash it.
+name: "Bug report"
+description: Something broken or behaving oddly in the website or the API.
 title: "[Bug]: "
 labels: ["bug", "triage"]
 body:

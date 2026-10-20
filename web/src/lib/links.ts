@@ -6,7 +6,7 @@ export const external = {
   askQuestion: "https://github.com/dizziedbliss/SkillIssues/discussions/categories/q-a",
   // GitHub's private vulnerability reporting: visible only to the maintainers.
   reportVulnerability: "https://github.com/dizziedbliss/SkillIssues/security/advisories/new",
-  reportBug: "https://github.com/dizziedbliss/SkillIssues/issues/new?labels=bug",
-  requestFeature: "https://github.com/dizziedbliss/SkillIssues/issues/new?labels=enhancement",
+  reportBug: "https://github.com/dizziedbliss/SkillIssues/issues/new?template=bug_report.yml",
+  requestFeature: "https://github.com/dizziedbliss/SkillIssues/issues/new?template=feature_request.yml",
   live: "https://flow.dizziedbliss.lol",
 } as const;

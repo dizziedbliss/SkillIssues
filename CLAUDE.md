@@ -207,9 +207,11 @@ path reaching outside the importing project). Both apps are built on `client`; t
 - **`app/`** — the signed-in app, being built from the owner's designs in stages (plan:
   `~/.claude/plans/quirky-splashing-key.md`). `AppShell.tsx` is its themed root (`data-app`): the
   header (`AppHeader.tsx`: Explore, and Profile's menu: Settings, Appearance, Language, Sign out —
-  "Sign in" while signed out), the page for the route, and the shared footer. `theme.ts` applies the
-  signed-in person's theme (`GET /me/theme`, else Default) to that root only; Appearance flips to
-  Midnight, or to Default over your own theme. `explore/` is the catalog as designed: its state
+  "Sign in" while signed out), the page for the route, and the shared footer. `theme.tsx` applies the
+  chosen theme to that root only: a built-in by name or a stored theme, kept by the server signed in
+  (`GET/PUT /me/theme`) and by the browser signed out; nothing chosen is Midnight. A theme's `[dark]`
+  half shows when the device prefers dark. The browser keeps the last few choices: Appearance in the
+  menu lists them to switch between (no switch), with "See more themes". `explore/` is the catalog as designed: its state
   lives in the address (`query.ts`: absent `difficulty` means the profile's level, empty means all),
   the filter panel takes `/issues/facets`, and the pager (`useCatalog.ts`) pages forward on cursors
   and back over the pages seen, reading on through short pages. `IssuePage.tsx` (`/app/issues/:id`)
@@ -234,8 +236,14 @@ path reaching outside the importing project). Both apps are built on `client`; t
   are milestones over the same numbers. `/app/saved` lists saved issues under their notifications, and
   Profile shows a red dot while any are unread. `lib/devPreview.ts` (development builds only,
   `?preview=signed-in`) answers the account endpoints locally, since GitHub sign-in returns to
-  production. `Settings.tsx` holds sign out everywhere and delete account (the Privacy policy points
-  there) and the support links. Sign-in returns to `/?auth=ok` or `/?error=<code>`, which `App.tsx`
+  production. `settings/` is Settings: the profile form (`PUT /profile`, refused whole with the
+  reason past the `api.profile.*` limits), one view per address beside a menu (`/app/settings/<view>`):
+  themes in tabs (built-ins are read-only: Use applies one as it is, Customize makes an editable
+  copy; yours: use, edit, duplicate, delete, new as a full copy; shared by id: use or duplicate) and
+  an editor page (`themes/:id`) that checks as you type, with a live preview of the app's own
+  components in a separate stylesheet slot and a token map; the desktop app; the account (sign out
+  everywhere, delete; the Privacy policy points there); support. Components carry stable `data-ui`
+  hooks for theme stylesheets (documented in the themes guide); don't rename one casually. Sign-in returns to `/?auth=ok` or `/?error=<code>`, which `App.tsx`
   forwards to `/app`.
 - **`i18n/`** — every interface string of the landing page, footer, header and app is a key in
   `en.ts`; a translation is a file of the same shape registered in `LOCALES`, and a missing key shows
@@ -245,8 +253,8 @@ path reaching outside the importing project). Both apps are built on `client`; t
 - **Light and dark; dark by default.** The landing, docs and written pages have a locked dark
   version (`tokens.module.css`, `html[data-mode="dark"]`, set in `index.html`; `public/mode.js` takes
   it off before the first paint when the browser chose light; `lib/siteMode.ts`), and the app starts
-  on Midnight until Appearance is switched; the footer's theme button switches it outside the app and switches the app's
-  theme inside it (`lib/themeToggle.ts`). User themes still never reach those pages.
+  on Midnight; the footer's theme button switches the site outside the app, and goes back to the
+  previous theme inside it (`lib/themeToggle.ts`). User themes still never reach those pages.
 - **Prerendered**: `npm run build` renders `/`, the legal pages and every docs page to HTML
   (`scripts/prerender.mjs`, `src/entry-server.tsx`); the client hydrates a page only when its
   `data-route` matches. Vercel serves `shell.html` (no markup) for every other route.
@@ -642,7 +650,7 @@ Every key with its default and bounds: `docs/settings.md`.
   `CLOSED` transition — whichever path closed it.
   Never add a Go code path that writes them for issue closure; `internal/notification` only
   reads and marks them read (`GET /notifications`, `POST /notifications/{id}/read`,
-  `POST /notifications/read-all`). No client shows them yet.
+  `POST /notifications/read-all`). The web app shows them on Saved issues, with a dot on Profile while any are unread.
 
 ### Frontend
 - Use a maintained Markdown library with sanitisation; never hand-roll Markdown rendering.
@@ -742,10 +750,17 @@ Every key with its default and bounds: `docs/settings.md`.
   and shareable by id once public; making one private takes it off every other account. They
   restyle the signed-in app only, never the landing page. `packages/theme` repeats every check on
   the same fixtures (`packages/theme/fixtures`), and the web app's CSP blocks fetches regardless.
-  Routes: `GET/POST /themes`, `GET/PUT/DELETE /themes/{id}`, `GET/PUT /me/theme`.
-  `[motion] transition` (`wipe`, `fade`, `slide`, `none`) is how the app moves between pages;
-  the app reads back what CSS can't branch on (`transition`, `reduce`, `[background] pattern`) as
-  `data-*` attributes on its root.
+  Routes: `GET/POST /themes`, `POST /themes/validate` (a dry run, no sign-in), `GET/PUT/DELETE
+  /themes/{id}`, `GET/PUT /me/theme` (`{"id"}`, `{"preset"}` for a built-in as it is, kept in
+  `users.active_preset`, migration 00051, or null). Built-ins (`Presets`, both sides) include
+  well-known palettes. Problems carry their line (`line 7: …`, `stylesheet line 3: …`), word for word
+  the same on both sides (`fixtures/problems`). Tokens added after the first release (`colors.link`,
+  `info`, `accent-hover`, `code-background`, `[dark]`, typography case and tracking,
+  `sidebar-width`, `shadow.focus`, `motion.stagger`, background image placement) are optional and
+  the app falls back without them; Default doesn't set them, so presets inherit nothing wrong.
+  `@property` is allowed only for `--theme-*` names and is lifted out of `@scope` by `applyTheme`;
+  `scroll()`/`view()` are allowed for scroll-driven animation. The app reads back what CSS can't
+  branch on (`transition`, `reduce`, `[background] pattern`) as `data-*` attributes on its root.
 
 ### Not built
 - **Contributions, XP, levels and badges.** Removed with the no-user-tokens redesign

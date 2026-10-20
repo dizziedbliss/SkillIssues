@@ -118,6 +118,15 @@ export interface Theme {
   updated_at: string;
 }
 
+/** GET /me/theme: a stored theme, a built-in applied as it is, or null (the default). */
+export type ActiveTheme = Theme | { preset: string } | null;
+
+/** POST /themes/validate when the theme is valid. */
+export interface ThemeCheck {
+  valid: true;
+  name: string;
+}
+
 export interface ThemeInput {
   toml: string;
   css: string;
@@ -169,6 +178,15 @@ export interface Profile {
   preferred_languages: string[];
   /** When the account was created here (RFC 3339). */
   joined_at: string;
+}
+
+/** PUT /profile: the whole editable profile. */
+export interface ProfileUpdate {
+  bio: string;
+  experience_level: Level;
+  target_level: Level;
+  interests: string[];
+  preferred_languages: string[];
 }
 
 /** One notification: today only an issue you saved being closed on GitHub. */

@@ -4,14 +4,14 @@ slug: /docs/discussions
 section: Community
 summary: Where to ask questions and talk with other people, until GitHub Discussions is turned on.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 GitHub Discussions is not enabled for the SkillIssues repository yet. Until it is, use GitHub issues for questions, ideas and conversation.
 
 ## Where to go
 
-- **A question about how something works.** Check the [FAQ](/faq) and [How it works](/how-it-works) first. If they don't answer it, [open an issue](https://github.com/dizziedbliss/SkillIssues/issues/new).
+- **A question about how something works.** Check the [FAQ](/faq) and [How it works](/how-it-works) first. If they don't answer it, [ask in Discussions](https://github.com/dizziedbliss/SkillIssues/discussions/new?category=q-a).
 - **Something is broken.** See [Report a bug](/docs/report-a-bug).
 - **An idea.** See [Request a feature](/docs/request-a-feature).
 - **A repository is missing.** See [Suggest a repository](/docs/suggest-a-repository).

@@ -9,9 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource/barlow-condensed": "5.3.0",
     "@fontsource/instrument-serif": "5.3.0",
+    "@fontsource/inter": "5.3.0",
     "@fontsource/jetbrains-mono": "5.3.0",
     "@fontsource/krona-one": "5.3.0",
+    "@fontsource/silkscreen": "5.3.0",
     "@skillissues/client": "2.0.0",
     "@skillissues/markdown": "1.0.0",
     "@skillissues/theme": "1.0.0",
