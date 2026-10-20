@@ -222,6 +222,8 @@ func buildRouter(
 	// ----- Issues -----
 	mux.Handle("GET /issues", optionalAuth(authSvc, http.HandlerFunc(h.listIssues)))
 	mux.HandleFunc("GET /issues/facets", h.getIssueFacets)
+	mux.HandleFunc("GET /stats", h.getStats)
+	mux.HandleFunc("GET /repositories/lookup", h.lookupRepository)
 	mux.HandleFunc("GET /issues/{id}", h.getIssue) // no auth required
 	mux.Handle("GET /issues/{id}/body", optionalAuth(authSvc, http.HandlerFunc(h.getIssueBody)))
 
