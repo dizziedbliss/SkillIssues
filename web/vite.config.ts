@@ -1,18 +1,25 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import path from 'node:path';
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import path from "node:path";
 
 export default defineConfig({
   plugins: [react()],
   server: {
-    // App.tsx imports @skillissues/markdown/@skillissues/api-client/@skillissues/ui
-    // via the npm workspace symlink under node_modules, which resolves to
-    // their real path under packages/*. Vite checks fs.allow against that
-    // resolved real path, not the specifier, so the default (the web/
-    // project root only) must still be widened or the dev server 403s once
-    // a request actually reaches the symlink target.
-    fs: {
-      allow: [path.resolve(import.meta.dirname, '..')],
+    // The @skillissues/* packages are workspace symlinks; Vite checks
+    // fs.allow against their real path under packages/, outside web/.
+    fs: { allow: [path.resolve(import.meta.dirname, "..")] },
+    proxy: {
+      // Same-origin /api in development, as Caddy does in production.
+      "/api": {
+        target: process.env.VITE_API_PROXY ?? "http://localhost:8000",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api/, ""),
+      },
     },
+  },
+  build: {
+    // The prerender step (scripts/prerender.mjs) reads the manifest to
+    // preload the fonts the first paint needs.
+    manifest: true,
   },
 });
