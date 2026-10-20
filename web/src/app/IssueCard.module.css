@@ -72,6 +72,13 @@
   color: var(--colors-text);
 }
 
+.closed {
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--colors-success);
+  border-radius: var(--radius-small);
+  font-size: 0.9375rem;
+}
+
 .techChip {
   border: 1px solid var(--chip);
   background: var(--colors-surface);

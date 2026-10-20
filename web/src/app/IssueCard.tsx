@@ -29,6 +29,7 @@ export function IssueCard({ issue }: { issue: Issue }) {
       <p className={s.repo}>{issue.repository}</p>
       <div className={s.row}>
         <ul className={s.chips}>
+          {issue.state === "CLOSED" && <li className={s.closed}>{t("issue.closedChip")}</li>}
           {updated && (
             <li className={s.chip} title={t("issue.updated", { ago: updated })}>
               {updated}

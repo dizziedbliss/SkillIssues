@@ -1,0 +1,179 @@
+/* The profile, as designed: you and your numbers on the left, red-framed activity boxes on the right. */
+
+.page {
+  width: min(100%, 84rem);
+  margin-inline: auto;
+}
+
+.hello {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: clamp(2.25rem, 1.5rem + 2.4vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  padding-left: clamp(0rem, 5vw, 5rem);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 28rem) minmax(0, 1fr);
+  gap: 2.5rem clamp(2rem, 7vw, 7rem);
+  margin-top: clamp(1.5rem, 4vw, 3rem);
+}
+
+.left {
+  display: grid;
+  gap: 1.5rem;
+  align-content: start;
+}
+
+.who {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  gap: 1.25rem;
+}
+
+.avatar {
+  width: 4rem;
+  height: 4rem;
+  border-radius: var(--radius-pill);
+  background: var(--colors-surface-raised);
+  object-fit: cover;
+}
+
+.name {
+  font-family: var(--serif);
+  font-size: clamp(2rem, 1.6rem + 1.2vw, 2.5rem);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.handle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin-top: 0.35rem;
+  font-family: var(--serif);
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+}
+
+.bio {
+  margin-top: 0.6rem;
+  color: var(--colors-text-muted);
+  font-family: var(--serif);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.bio a,
+.none a {
+  color: inherit;
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+}
+
+.languages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.languages li:not(.none) {
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-small);
+  background: var(--chip);
+  box-shadow: var(--shadow-small);
+  font-size: 0.9375rem;
+}
+
+.none {
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+}
+
+.heading {
+  margin-top: 0.5rem;
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: 1.4rem;
+  letter-spacing: -0.03em;
+}
+
+.right {
+  display: grid;
+  gap: 1.75rem;
+  align-content: start;
+}
+
+.right .heading {
+  margin-top: 0;
+}
+
+.box {
+  min-height: 9.5rem;
+  padding: 0.6rem 0.75rem 0.9rem;
+  border: var(--border-width) solid var(--colors-accent);
+  border-radius: var(--radius-large);
+}
+
+.boxTitle {
+  margin-bottom: 0.4rem;
+  font-family: var(--typography-mono-font);
+  font-size: 1.25rem;
+  font-weight: 400;
+}
+
+.savedList {
+  display: grid;
+}
+
+.savedList li {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.5rem 0.4rem;
+}
+
+.savedList li + li {
+  border-top: 1px solid color-mix(in srgb, var(--rule) 50%, transparent);
+}
+
+.savedList a {
+  color: inherit;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.savedList a:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--colors-accent);
+}
+
+.savedList span.muted {
+  font-size: var(--label-size);
+}
+
+.more {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: var(--colors-text);
+  font-size: var(--label-size);
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+}
+
+.muted {
+  color: var(--colors-text-muted);
+}
+
+.error {
+  margin-top: 1rem;
+  color: var(--colors-danger);
+}
+
+@media (max-width: 960px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

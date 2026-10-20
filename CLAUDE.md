@@ -214,7 +214,18 @@ path reaching outside the importing project). Both apps are built on `client`; t
   and back over the pages seen, reading on through short pages. `IssuePage.tsx` (`/app/issues/:id`)
   reads the body from GitHub in the browser and asks `GET /issues/{id}/body` only when GitHub
   rate-limits it (`lib/issueBody.ts`), rendered through `packages/markdown`. Bookmarks
-  (`SaveButton.tsx`, `saved.ts`) save optimistically and say so when the API refuses. `Settings.tsx` holds sign out everywhere and delete account (the Privacy policy points
+  (`SaveButton.tsx`, `saved.ts`) save optimistically and say so when the API refuses.
+  Search (`search/SearchOverlay.tsx`: the nav, `/` or Ctrl/⌘K) is a modal over the blurred page with
+  results as you type; its box shares a `view-transition-name` with Explore's, so "see all" glides
+  into Explore. Page changes inside the app run the theme's `[motion] transition` through View
+  Transitions (`transition.ts`, `transition.css`; never under reduced motion). The profile
+  (`profile/`: `/app/profile`, and `/app/contributions` for Contribute) counts the person's public
+  pull requests from GitHub's search **in the browser**, with no token (`lib/github.ts`, cached per
+  browser, GitHub's rate limit shown as such), so the server still holds no user token; achievements
+  are milestones over the same numbers. `/app/saved` lists saved issues under their notifications, and
+  Profile shows a red dot while any are unread. `lib/devPreview.ts` (development builds only,
+  `?preview=signed-in`) answers the account endpoints locally, since GitHub sign-in returns to
+  production. `Settings.tsx` holds sign out everywhere and delete account (the Privacy policy points
   there) and the support links. Sign-in returns to `/?auth=ok` or `/?error=<code>`, which `App.tsx`
   forwards to `/app`.
 - **`i18n/`** — every interface string of the landing page, footer, header and app is a key in

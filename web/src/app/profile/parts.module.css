@@ -1,0 +1,264 @@
+/* The profile's pieces: red-framed number boxes, the year's graph, achievements, pull request lists. */
+
+.pageTitle {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: clamp(2.25rem, 1.5rem + 2.4vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+}
+
+.note {
+  color: var(--colors-text-muted);
+  font-size: 0.9375rem;
+}
+
+.muted {
+  color: var(--colors-text-muted);
+}
+
+.error {
+  color: var(--colors-danger);
+  font-size: 0.9375rem;
+}
+
+.error button,
+.link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--colors-text);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.button {
+  margin-top: 1.5rem;
+  padding: 0.55em 1em;
+  border: 0;
+  border-radius: var(--radius-medium);
+  background: linear-gradient(var(--colors-text), var(--colors-text)) no-repeat 0 0 / 0% 100%, var(--colors-accent);
+  color: var(--colors-accent-text);
+  font: inherit;
+  font-size: var(--button-size);
+  cursor: pointer;
+  transition: background-size var(--slow) var(--ease), color var(--slow) var(--ease);
+}
+
+.button:hover,
+.button:focus-visible {
+  background-size: 100% 100%, auto;
+  color: var(--colors-accent);
+}
+
+.signIn {
+  max-width: 36rem;
+}
+
+.signIn .note {
+  margin-top: 1rem;
+  font-size: 1rem;
+}
+
+/* ---- numbers ---- */
+
+.stats,
+.achievements {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(0.75rem, 2.5vw, 2.25rem);
+  margin: 0;
+}
+
+.stat,
+.achievement {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  min-height: 4.5rem;
+  padding: 0.55rem 0.65rem;
+  border: var(--border-width) solid var(--colors-accent);
+  border-radius: var(--radius-large);
+}
+
+.achievement {
+  flex-direction: column;
+  border-color: var(--rule);
+  color: var(--colors-text-muted);
+}
+
+.done {
+  border-color: var(--colors-accent);
+  color: var(--colors-text);
+}
+
+.statValue {
+  margin: 0;
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+  line-height: 1;
+}
+
+.statLabel {
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+.progress {
+  margin-top: auto;
+  font-size: 0.75rem;
+}
+
+.done .progress {
+  color: var(--colors-accent);
+}
+
+/* ---- the year ---- */
+
+.graph {
+  margin: 0;
+  padding: 0.6rem 0.7rem 0.8rem;
+  border-radius: var(--radius-large);
+  background: var(--chip);
+}
+
+.graphTitle {
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.graphScroll {
+  overflow-x: auto;
+}
+
+.months,
+.days {
+  display: grid;
+  grid-template-columns: repeat(53, minmax(0, 1fr));
+  min-width: 20rem;
+  gap: 2px;
+}
+
+.months {
+  margin-bottom: 0.25rem;
+  font-size: 0.625rem;
+  color: var(--colors-text-muted);
+  white-space: nowrap;
+}
+
+.days {
+  grid-template-rows: repeat(7, auto);
+  grid-auto-flow: column;
+}
+
+.day {
+  display: inline-block;
+  aspect-ratio: 1;
+  min-width: 4px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--colors-surface) 70%, transparent);
+}
+
+.day[data-level="1"] {
+  background: color-mix(in srgb, var(--colors-accent) 30%, var(--colors-surface));
+}
+
+.day[data-level="2"] {
+  background: color-mix(in srgb, var(--colors-accent) 55%, var(--colors-surface));
+}
+
+.day[data-level="3"] {
+  background: color-mix(in srgb, var(--colors-accent) 78%, var(--colors-surface));
+}
+
+.day[data-level="4"] {
+  background: var(--colors-accent);
+}
+
+.graphLarge {
+  padding: 1rem 1.25rem 1.1rem;
+}
+
+.graphLarge .graphTitle {
+  font-size: 0.9375rem;
+}
+
+.graphLarge .months {
+  font-size: 0.75rem;
+}
+
+.graphLarge .months,
+.graphLarge .days {
+  min-width: 40rem;
+  gap: 3px;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 0.6rem;
+  color: var(--colors-text-muted);
+  font-size: 0.75rem;
+}
+
+.legend .day {
+  width: 0.7rem;
+}
+
+/* ---- pull requests ---- */
+
+.prs {
+  display: grid;
+}
+
+.pr {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.55rem 0.4rem;
+  color: inherit;
+  text-decoration: none;
+  background: linear-gradient(var(--chip), var(--chip)) no-repeat 0 0 / 0% 100%;
+  transition: background-size var(--slow) var(--ease);
+}
+
+.pr:hover,
+.pr:focus-visible {
+  background-size: 100% 100%;
+}
+
+.prs li + li .pr {
+  border-top: 1px solid color-mix(in srgb, var(--rule) 50%, transparent);
+}
+
+.prTitle {
+  overflow-wrap: anywhere;
+}
+
+.prMeta {
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+}
+
+.merged {
+  /* Green, darkened toward the ink so it reads as text. */
+  color: color-mix(in srgb, var(--colors-success) 55%, var(--colors-text));
+}
+
+@media (max-width: 480px) {
+  .stats,
+  .achievements {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .pr {
+    transition: none;
+  }
+}

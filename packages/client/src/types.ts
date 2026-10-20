@@ -162,4 +162,21 @@ export interface Profile {
   demonstrated_skills: string[];
   interests: string[];
   preferred_languages: string[];
+  /** When the account was created here (RFC 3339). */
+  joined_at: string;
+}
+
+/** One notification: today only an issue you saved being closed on GitHub. */
+export interface Notification {
+  id: number;
+  kind: "issue_closed";
+  created_at: string;
+  read_at: string | null;
+  issue: { id: number; repository: string; number: number; title: string; url: string; state: "OPEN" | "CLOSED" };
+}
+
+/** GET /notifications. */
+export interface Notifications {
+  notifications: Notification[];
+  unread_count: number;
 }
