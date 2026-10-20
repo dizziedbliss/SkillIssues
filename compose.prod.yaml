@@ -145,6 +145,9 @@ services:
     environment:
       DATABASE_URL: postgresql://skillissues_api:${API_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-skillissues}
       DB_MAX_CONNS: ${API_DB_MAX_CONNS:-15}
+      # Keeps label bitmaps exact (internal/config/env.go DBWorkMemMB); at
+      # most pool size x this, and only while queries sort or build bitmaps.
+      DB_WORK_MEM_MB: ${API_DB_WORK_MEM_MB:-32}
       REDIS_URL: redis://redis:6379/0
       # https:// is mandatory here, not cosmetic: the session cookie is
       # only marked Secure when FRONTEND_URL starts with https://, and
