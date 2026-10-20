@@ -22,12 +22,21 @@ import (
 // shuffleFeed returns one page of the shuffled feed after the cursor.
 func (s *Service) shuffleFeed(ctx context.Context, f Filters, after *Cursor) ([]Issue, *Cursor, error) {
 	limit := pageLimit(f.Limit)
-	rare, err := s.isRare(ctx, f, nil)
-	if err != nil {
-		return nil, nil, err
+	// The walk is bounded (f.ShuffleWalkMaxRepos) and finishes from the
+	// matches when it runs long, so it needs no rarity count up front — that
+	// count could cost more than the page. Only a languages-only filter is
+	// checked, from the cached per-language counts, since a rare language is
+	// read far faster from its matches.
+	rare := false
+	if f.onlyLanguages() {
+		var err error
+		if rare, err = s.isRare(ctx, f, nil); err != nil {
+			return nil, nil, err
+		}
 	}
 	var hits []shuffleHit
 	var next *Cursor
+	var err error
 	if rare {
 		hits, next, err = s.shuffleFromMatches(ctx, f, after, limit)
 	} else {
