@@ -1,4 +1,4 @@
-name: "📚 Documentation or website content"
+name: "Documentation or website content"
 description: A typo, an outdated command, or a page on the site that says something untrue?
 title: "[Docs]: "
 labels: ["documentation", "website", "triage"]

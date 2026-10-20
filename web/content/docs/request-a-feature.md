@@ -7,7 +7,7 @@ draft: false
 updated: 2026-10-21
 ---
 
-Ideas are collected as GitHub issues. [Open a feature request](https://github.com/dizziedbliss/SkillIssues/issues/new?labels=enhancement).
+Ideas are collected as GitHub issues. [Open a feature request](https://github.com/dizziedbliss/SkillIssues/issues/new?template=feature_request.yml). An idea that's still taking shape is welcome in [Discussions](https://github.com/dizziedbliss/SkillIssues/discussions/new?category=ideas) first.
 
 ## What makes a good request
 

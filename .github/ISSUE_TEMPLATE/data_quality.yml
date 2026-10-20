@@ -1,4 +1,4 @@
-name: "🏷️ Wrong difficulty or stale issue data"
+name: "Wrong difficulty or stale issue data"
 description: An issue shows the wrong difficulty, or what we show differs from what's on GitHub.
 title: "[Data]: "
 labels: ["data-quality", "triage"]

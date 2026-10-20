@@ -4,7 +4,7 @@ slug: /docs/suggest-a-repository
 section: Community
 summary: How to find out whether a repository is listed, why it might not be, and what to do about it.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 There is no form to submit a repository, because there is nothing to sign up for. A public repository is listed automatically once it qualifies. The quickest way to get a clear answer is to look it up.
@@ -50,7 +50,7 @@ These thresholds can change, and tightening them is applied within the hour. The
 
 New repositories are found in two ways: a monthly sweep of GitHub's repository search, and the public GitHub event stream, where a repository with fresh issue activity is checked and listed if it qualifies. A repository that qualifies today may therefore take a little while to appear.
 
-If it has been a while, or the lookup says it is listed but you don't see its issues, [open an issue](https://github.com/dizziedbliss/SkillIssues/issues/new) with the repository's name (`owner/repo`) and what the lookup returned.
+If it has been a while, or the lookup says it is listed but you don't see its issues, [open a repository report](https://github.com/dizziedbliss/SkillIssues/issues/new?template=repository_coverage.yml) with the repository's name (`owner/repo`) and what the lookup returned.
 
 ## If you want a repository removed
 
