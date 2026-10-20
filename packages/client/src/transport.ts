@@ -5,25 +5,32 @@ export interface Request {
   path: string;
   body?: unknown;
   signal?: AbortSignal;
+  /**
+   * Sent without the session cookie. For endpoints that answer any origin
+   * with `Access-Control-Allow-Origin: *` (GET /stats, read by other sites
+   * too): a browser refuses a wildcard answer to a credentialed request.
+   */
+  anonymous?: boolean;
 }
 
 /** A transport performs one request and returns the parsed JSON body (undefined for 204). */
 export type Transport = (req: Request) => Promise<unknown>;
 
 /**
- * The browser transport: same-origin fetch with the session cookie. JSON
+ * The browser transport: fetch with the session cookie (the API may be on
+ * another host of the same site; its CORS allows this origin). JSON
  * bodies are sent with Content-Type: application/json, which the API
  * requires of every cookie-authenticated mutation.
  */
 export function fetchTransport(baseURL: string): Transport {
   const base = baseURL.replace(/\/$/, "");
-  return async ({ method, path, body, signal }) => {
+  return async ({ method, path, body, signal, anonymous }) => {
     let res: Response;
     try {
       res = await fetch(base + path, {
         method,
         signal,
-        credentials: "include",
+        credentials: anonymous ? "omit" : "include",
         headers: body === undefined ? undefined : { "Content-Type": "application/json" },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
