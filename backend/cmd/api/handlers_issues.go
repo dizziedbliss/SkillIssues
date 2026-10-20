@@ -111,6 +111,8 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 	f.Page = page
 	f.RareLanguageBelow = cfg.Int(settings.IssuesRareLanguageThreshold)
 	f.LanguageCountTTL = cfg.Seconds(settings.IssuesLanguageCountTTLSeconds)
+	f.RareProbe = cfg.Millis(settings.IssuesRareProbeMs)
+	f.ShuffleWalkMaxRepos = cfg.Int(settings.IssuesShuffleWalkMaxRepos)
 	f.SearchSample = cfg.Int(settings.SearchSampleSize)
 	f.SearchPerRepo = cfg.Int(settings.SearchPerRepoCap)
 

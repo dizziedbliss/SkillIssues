@@ -69,22 +69,23 @@ func RollupStats(ctx context.Context, pool *db.Pool, recount bool, activityRows 
 	}
 
 	if recount {
-		// issues_indexed counts every issue ever inserted, so pruning must not
-		// lower it: the recount only ever raises it (and seeds it).
+		// Open issues and eligible repositories are counted through partial
+		// indexes. issues_indexed counts every issue ever inserted, which
+		// pruning must not lower and the deltas keep exactly, so the whole
+		// table (a sequential scan of gigabytes) is counted only to seed it.
 		if _, err := tx.Exec(ctx, `
-			WITH counts AS (
-			  SELECT (SELECT count(*) FROM issues WHERE state = 'OPEN')        AS open,
-			         (SELECT count(*) FROM issues)                             AS total,
-			         (SELECT count(*) FROM repositories WHERE is_eligible)     AS repos
-			)
 			INSERT INTO catalog_stats AS s (key, value)
-			SELECT 'open_issues', open FROM counts
-			UNION ALL SELECT 'issues_indexed', total FROM counts
-			UNION ALL SELECT 'repositories_indexed', repos FROM counts
-			ON CONFLICT (key) DO UPDATE SET
-			  value = CASE WHEN s.key = 'issues_indexed' THEN greatest(s.value, EXCLUDED.value) ELSE EXCLUDED.value END,
-			  updated_at = now()`); err != nil {
+			SELECT 'open_issues', (SELECT count(*) FROM issues WHERE state = 'OPEN')
+			UNION ALL SELECT 'repositories_indexed', (SELECT count(*) FROM repositories WHERE is_eligible)
+			ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`); err != nil {
 			return 0, fmt.Errorf("ingest: recount catalog stats: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO catalog_stats (key, value)
+			SELECT 'issues_indexed', count(*) FROM issues
+			WHERE NOT EXISTS (SELECT 1 FROM catalog_stats WHERE key = 'issues_indexed')
+			ON CONFLICT (key) DO NOTHING`); err != nil {
+			return 0, fmt.Errorf("ingest: seed issues_indexed: %w", err)
 		}
 		if err := markCatalogJobTx(ctx, tx, catalogStatsRecount); err != nil {
 			return 0, fmt.Errorf("ingest: mark stats recount: %w", err)

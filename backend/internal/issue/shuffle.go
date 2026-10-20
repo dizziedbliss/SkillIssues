@@ -71,6 +71,12 @@ type shuffleHit struct {
 // a time, and takes each one's best matching open issue, until the page is
 // full or the repositories run out. Batches double, so a filter only a few
 // repositories pass costs a handful of queries, not hundreds.
+//
+// A filter with plenty of matches can still sit in few repositories ("kind/bug"
+// lives in a few hundred of 300k), and then most repositories walked hold
+// none, each read to its end. Past f.ShuffleWalkMaxRepos the rest of the page
+// comes from the matching issues instead (shuffleFromMatches), which for such
+// a filter is the cheaper read.
 func (s *Service) shuffleWalk(ctx context.Context, f Filters, after *Cursor, limit int) ([]shuffleHit, *Cursor, error) {
 	var hits []shuffleHit
 	var key, repo int
@@ -78,7 +84,22 @@ func (s *Service) shuffleWalk(ctx context.Context, f Filters, after *Cursor, lim
 	if started {
 		key, repo = after.Key, after.ID
 	}
+	walked := 0
 	for batch := 2 * limit; ; batch *= 2 {
+		if f.ShuffleWalkMaxRepos > 0 && walked >= f.ShuffleWalkMaxRepos {
+			var from *Cursor
+			if started {
+				from = &Cursor{Sort: SortShuffle, Key: key, ID: repo}
+			}
+			rest, next, err := s.shuffleFromMatches(ctx, f, from, limit-len(hits))
+			if err != nil {
+				return nil, nil, err
+			}
+			return append(hits, rest...), next, nil
+		}
+		if f.ShuffleWalkMaxRepos > 0 {
+			batch = min(batch, max(f.ShuffleWalkMaxRepos-walked, 2*limit))
+		}
 		var q searchQuery
 		var position string
 		if started {
@@ -117,6 +138,7 @@ func (s *Service) shuffleWalk(ctx context.Context, f Filters, after *Cursor, lim
 		if err != nil {
 			return nil, nil, fmt.Errorf("issue: walk shuffled repositories: %w", err)
 		}
+		walked += scanned
 		if full {
 			return hits, &Cursor{Sort: SortShuffle, Key: key, ID: repo}, nil
 		}

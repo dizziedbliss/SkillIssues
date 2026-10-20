@@ -38,8 +38,10 @@ func (h *handlers) getRecommendations(w http.ResponseWriter, r *http.Request) {
 
 	cfg := h.live.Current()
 	base := issue.Filters{
-		RareLanguageBelow: cfg.Int(settings.IssuesRareLanguageThreshold),
-		LanguageCountTTL:  cfg.Seconds(settings.IssuesLanguageCountTTLSeconds),
+		RareLanguageBelow:   cfg.Int(settings.IssuesRareLanguageThreshold),
+		LanguageCountTTL:    cfg.Seconds(settings.IssuesLanguageCountTTLSeconds),
+		RareProbe:           cfg.Millis(settings.IssuesRareProbeMs),
+		ShuffleWalkMaxRepos: cfg.Int(settings.IssuesShuffleWalkMaxRepos),
 	}
 	candidates, err := h.issueSvc.RecommendationCandidates(r.Context(), base,
 		p.PreferredLanguages, p.TargetLevel, limit, cfg.Int(settings.RecommendationsCandidatePool))

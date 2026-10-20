@@ -76,6 +76,14 @@ type Filters struct {
 	// LanguageCountTTL is api.issues.language_count_ttl_seconds: how long a
 	// language's counted issues are reused before it is counted again.
 	LanguageCountTTL time.Duration
+	// RareProbe is api.issues.rare_probe_ms: how long isRare may spend
+	// counting a combination of filters. One whose matches take longer to
+	// count than this has too many to sort, so it is read in index order.
+	RareProbe time.Duration
+	// ShuffleWalkMaxRepos is api.issues.shuffle_walk_max_repos: how many
+	// repositories the shuffled feed walks for one page before reading the
+	// rest of it from the matching issues instead (shuffle.go).
+	ShuffleWalkMaxRepos int
 	// SearchSample is api.search.sample_size: how many title or author
 	// matches a search reads before ordering them by stars
 	// (search_categories.go).
