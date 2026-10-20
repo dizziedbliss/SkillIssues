@@ -3,16 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      The page reaches nothing itself: every API and GitHub call goes through
+      the main process (window.skillissues). connect-src allows only the dev
+      server's hot-reload socket.
+    -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; connect-src http://localhost:8000; img-src 'self' https: data:; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none';"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://avatars.githubusercontent.com; font-src 'self'; connect-src 'self' ws://localhost:*; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'"
     />
-    <title>SkillIssues Desktop</title>
+    <title>SkillIssues</title>
     <link rel="icon" type="image/png" href="icon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="app.css" />
   </head>
   <body>
     <div id="root"></div>

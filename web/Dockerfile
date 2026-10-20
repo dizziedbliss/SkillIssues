@@ -15,9 +15,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY web/package.json web/
 COPY desktop/package.json desktop/
+COPY packages/client/package.json packages/client/
+COPY packages/theme/package.json packages/theme/
 COPY packages/markdown/package.json packages/markdown/
-COPY packages/api-client/package.json packages/api-client/
-COPY packages/ui/package.json packages/ui/
 RUN npm ci
 
 COPY packages/ packages/
