@@ -174,8 +174,8 @@ jobs:
       - name: Install
         # web, desktop and packages/* are one npm workspace (root
         # package.json) — a single install at the root resolves
-        # @skillissues/markdown, @skillissues/api-client and
-        # @skillissues/ui as real node_modules symlinks. Node 22's bundled
+        # @skillissues/client, @skillissues/theme and
+        # @skillissues/markdown as real node_modules symlinks. Node 22's bundled
         # npm (10.9.x) has a known bug where `npm ci` hard-fails on an
         # unrelated optionalDependency's platform mismatch instead of
         # skipping it, once enough workspace members (desktop's
@@ -223,6 +223,13 @@ jobs:
         run: |
           cd desktop
           npm run check
+      - name: Security rules
+        # security.ts holds the app's boundaries (window flags, API allowlist,
+        # link allowlist, workspace containment, how the push token reaches
+        # git); these tests pin them.
+        run: |
+          cd desktop
+          npm test
       - name: Build
         # electron-vite build is what actually catches a renderer import
         # breaking at the bundler level (e.g. a packages/* workspace
