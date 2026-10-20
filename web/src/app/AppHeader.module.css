@@ -136,6 +136,14 @@
   background: var(--chip);
 }
 
+/* Under Appearance: more themes, in Settings. */
+.subItem {
+  padding-top: 0;
+  padding-left: 1.6rem;
+  color: var(--colors-accent);
+  font-size: var(--label-size);
+}
+
 .signOut {
   color: var(--colors-accent);
 }

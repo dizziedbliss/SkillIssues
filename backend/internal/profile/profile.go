@@ -3,9 +3,12 @@ package profile
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/jackc/pgx/v5"
@@ -93,42 +96,92 @@ func (s *Service) GetFullProfile(ctx context.Context, userID int) (*FullProfile,
 	return &p, nil
 }
 
-// UpdateProfile updates bio, experience level, target level, interests, and preferred languages.
-func (s *Service) UpdateProfile(ctx context.Context, userID int, update ProfileUpdate) (*FullProfile, error) {
+// Limits bound what UpdateProfile stores (api.profile.* settings).
+type Limits struct {
+	BioMaxChars  int
+	MaxLanguages int
+	MaxInterests int
+}
+
+// ErrInvalid wraps a profile update that is refused, with the reason.
+var ErrInvalid = errors.New("profile: invalid update")
+
+var levels = []string{"BEGINNER", "INTERMEDIATE", "ADVANCED"}
+
+// maxNameRunes is the longest one interest or language name may be: a format
+// rule (a name, not a sentence), like the theme schema's text lengths.
+const maxNameRunes = 60
+
+// cleanList trims a list, drops empty and repeated values (case-insensitively,
+// keeping the first spelling) and refuses one longer than max.
+func cleanList(name string, vals []string, max int) ([]string, error) {
+	out := []string{}
+	seen := map[string]bool{}
+	for _, v := range vals {
+		v = strings.TrimSpace(v)
+		k := strings.ToLower(v)
+		if v == "" || seen[k] {
+			continue
+		}
+		if utf8.RuneCountInString(v) > maxNameRunes || strings.ContainsAny(v, "<>\x00") {
+			return nil, fmt.Errorf("%w: %s value %q is not a name", ErrInvalid, name, v)
+		}
+		seen[k] = true
+		out = append(out, v)
+	}
+	if len(out) > max {
+		return nil, fmt.Errorf("%w: at most %d %s", ErrInvalid, max, name)
+	}
+	return out, nil
+}
+
+// UpdateProfile replaces bio, experience level, target level, interests and
+// preferred languages. Anything out of bounds is refused with ErrInvalid,
+// never trimmed or defaulted.
+func (s *Service) UpdateProfile(ctx context.Context, userID int, update ProfileUpdate, lim Limits) (*FullProfile, error) {
 	expLevel := strings.ToUpper(strings.TrimSpace(update.ExperienceLevel))
-	if expLevel != "BEGINNER" && expLevel != "INTERMEDIATE" && expLevel != "ADVANCED" {
-		expLevel = "BEGINNER"
+	if !slices.Contains(levels, expLevel) {
+		return nil, fmt.Errorf("%w: experience_level must be BEGINNER, INTERMEDIATE or ADVANCED", ErrInvalid)
 	}
 	targetLevel := strings.ToUpper(strings.TrimSpace(update.TargetLevel))
-	if targetLevel != "BEGINNER" && targetLevel != "INTERMEDIATE" && targetLevel != "ADVANCED" {
-		targetLevel = "INTERMEDIATE"
+	if !slices.Contains(levels, targetLevel) {
+		return nil, fmt.Errorf("%w: target_level must be BEGINNER, INTERMEDIATE or ADVANCED", ErrInvalid)
 	}
-
-	if update.Interests == nil {
-		update.Interests = []string{}
+	bio := strings.TrimSpace(update.Bio)
+	if n := utf8.RuneCountInString(bio); n > lim.BioMaxChars {
+		return nil, fmt.Errorf("%w: the bio is %d characters, more than %d", ErrInvalid, n, lim.BioMaxChars)
 	}
-	if update.PreferredLanguages == nil {
-		update.PreferredLanguages = []string{}
-	}
-
-	err := s.db.Exec(ctx,
-		`UPDATE developer_profiles SET bio = $1, experience_level = $2, target_level = $3
-		 WHERE user_id = $4`,
-		update.Bio, expLevel, targetLevel, userID,
-	)
+	interests, err := cleanList("interests", update.Interests, lim.MaxInterests)
 	if err != nil {
-		return nil, fmt.Errorf("profile: update profile: %w", err)
+		return nil, err
 	}
-
-	err = s.db.Exec(ctx,
-		`UPDATE developer_preferences SET interests = $1, preferred_languages = $2
-		 WHERE user_id = $3`,
-		update.Interests, update.PreferredLanguages, userID,
-	)
+	langs, err := cleanList("preferred_languages", update.PreferredLanguages, lim.MaxLanguages)
 	if err != nil {
-		return nil, fmt.Errorf("profile: update preferences: %w", err)
+		return nil, err
 	}
 
+	// Both rows in one transaction, each an upsert: a missing row is created,
+	// never silently left unchanged.
+	err = s.db.InTx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO developer_profiles (user_id, bio, experience_level, target_level) VALUES ($1, $2, $3, $4)
+			 ON CONFLICT (user_id) DO UPDATE SET bio = EXCLUDED.bio,
+			   experience_level = EXCLUDED.experience_level, target_level = EXCLUDED.target_level`,
+			userID, bio, expLevel, targetLevel); err != nil {
+			return fmt.Errorf("update profile: %w", err)
+		}
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO developer_preferences (user_id, interests, preferred_languages) VALUES ($1, $2, $3)
+			 ON CONFLICT (user_id) DO UPDATE SET interests = EXCLUDED.interests,
+			   preferred_languages = EXCLUDED.preferred_languages`,
+			userID, interests, langs); err != nil {
+			return fmt.Errorf("update preferences: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("profile: %w", err)
+	}
 	return s.GetFullProfile(ctx, userID)
 }
 

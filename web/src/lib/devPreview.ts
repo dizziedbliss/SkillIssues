@@ -1,4 +1,4 @@
-import type { Issue, Notification, Profile, Transport } from "@skillissues/client";
+import type { Issue, Notification, Profile, ProfileUpdate, Theme, ThemeInput, Transport } from "@skillissues/client";
 
 /*
  * Development only (import.meta.env.DEV; the production build drops this
@@ -24,7 +24,7 @@ export function previewOn(): boolean {
   }
 }
 
-const profile: Profile = {
+let profile: Profile = {
   id: 1,
   username: PREVIEW_LOGIN,
   name: "Max!!",
@@ -42,17 +42,26 @@ const profile: Profile = {
 const STATE = "si.devPreview.state";
 const stored = (() => {
   try {
-    return JSON.parse(localStorage.getItem(STATE) ?? "null") as { saved: Issue[]; notifications: Notification[] } | null;
+    return JSON.parse(localStorage.getItem(STATE) ?? "null") as {
+      saved: Issue[];
+      notifications: Notification[];
+      profile?: Profile;
+      themes?: Theme[];
+      active?: string | null;
+    } | null;
   } catch {
     return null;
   }
 })();
+if (stored?.profile) profile = stored.profile;
 const saved = new Map<number, Issue>((stored?.saved ?? []).map((i) => [i.id, i]));
 let notifications: Notification[] = stored?.notifications ?? [];
+let themes: Theme[] = stored?.themes ?? [];
+let active: string | null = stored?.active ?? null;
 
 function persist() {
   try {
-    localStorage.setItem(STATE, JSON.stringify({ saved: [...saved.values()], notifications }));
+    localStorage.setItem(STATE, JSON.stringify({ saved: [...saved.values()], notifications, profile, themes, active }));
   } catch {
     // Storage blocked: the preview forgets on reload.
   }
@@ -66,7 +75,42 @@ export function previewTransport(real: Transport): Transport {
       return { authenticated: true, user: { id: 1, username: PREVIEW_LOGIN, avatar_url: profile.avatar_url } };
     }
     if (path === "/me" && method === "GET") return profile;
-    if (path === "/me/theme" && method === "GET") return null;
+    if (path === "/me/theme" && method === "GET") return themes.find((t) => t.id === active) ?? null;
+    if (path === "/me/theme" && method === "PUT") {
+      active = (req.body as { id: string | null }).id;
+      persist();
+      return themes.find((t) => t.id === active) ?? null;
+    }
+    if (path === "/profile" && method === "PUT") {
+      // The real API checks bounds; the preview only stores.
+      profile = { ...profile, ...(req.body as ProfileUpdate) };
+      persist();
+      return profile;
+    }
+    if (path === "/themes" && method === "GET") return themes;
+    if (path === "/themes" && method === "POST") {
+      const input = req.body as ThemeInput;
+      const name = /name\s*=\s*"([^"]*)"/.exec(input.toml)?.[1] ?? "Untitled";
+      const now = new Date().toISOString();
+      const th: Theme = { id: crypto.randomUUID(), name, ...input, author: PREVIEW_LOGIN, mine: true, created_at: now, updated_at: now };
+      themes = [th, ...themes];
+      persist();
+      return th;
+    }
+    if (path.startsWith("/themes/") && (method === "PUT" || method === "DELETE")) {
+      const id = decodeURIComponent(path.slice("/themes/".length));
+      if (method === "DELETE") {
+        themes = themes.filter((t) => t.id !== id);
+        if (active === id) active = null;
+        persist();
+        return {};
+      }
+      const input = req.body as ThemeInput;
+      const name = /name\s*=\s*"([^"]*)"/.exec(input.toml)?.[1] ?? "Untitled";
+      themes = themes.map((t) => (t.id === id ? { ...t, ...input, name, updated_at: new Date().toISOString() } : t));
+      persist();
+      return themes.find((t) => t.id === id);
+    }
     if (path === "/saved" && method === "GET") return [...saved.values()];
     if (path === "/saved" && method === "POST") {
       const id = (req.body as { issue_id: number }).issue_id;

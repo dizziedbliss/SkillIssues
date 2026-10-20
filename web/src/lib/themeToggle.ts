@@ -13,6 +13,8 @@ export interface ThemeToggle {
   /** What pressing it does, for its label. */
   label: (t: Translate) => string;
   toggle: () => void;
+  /** Inside the app: switch Appearance back so the chosen theme shows. */
+  showChosen?: () => void;
 }
 
 export const ThemeToggleContext = createContext<ThemeToggle | null>(null);

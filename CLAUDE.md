@@ -234,8 +234,11 @@ path reaching outside the importing project). Both apps are built on `client`; t
   are milestones over the same numbers. `/app/saved` lists saved issues under their notifications, and
   Profile shows a red dot while any are unread. `lib/devPreview.ts` (development builds only,
   `?preview=signed-in`) answers the account endpoints locally, since GitHub sign-in returns to
-  production. `Settings.tsx` holds sign out everywhere and delete account (the Privacy policy points
-  there) and the support links. Sign-in returns to `/?auth=ok` or `/?error=<code>`, which `App.tsx`
+  production. `settings/` is Settings: the profile form (`PUT /profile`, refused whole with the
+  reason past the `api.profile.*` limits), themes (yours: use, edit with live checks by the same
+  rules as the server, delete; new from a built-in; a shared one by id), the desktop app, sign out
+  everywhere and delete account (the Privacy policy points there), and support. Appearance's "Add
+  more" opens its themes section. Sign-in returns to `/?auth=ok` or `/?error=<code>`, which `App.tsx`
   forwards to `/app`.
 - **`i18n/`** — every interface string of the landing page, footer, header and app is a key in
   `en.ts`; a translation is a file of the same shape registered in `LOCALES`, and a missing key shows
