@@ -36,9 +36,15 @@ func (h *handlers) getRecommendations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	candidates, err := h.issueSvc.GetRecommendationCandidates(r.Context())
+	cfg := h.live.Current()
+	base := issue.Filters{
+		RareLanguageBelow: cfg.Int(settings.IssuesRareLanguageThreshold),
+		LanguageCountTTL:  cfg.Seconds(settings.IssuesLanguageCountTTLSeconds),
+	}
+	candidates, err := h.issueSvc.RecommendationCandidates(r.Context(), base,
+		p.PreferredLanguages, p.TargetLevel, limit, cfg.Int(settings.RecommendationsCandidatePool))
 	if err != nil {
-		middleware.RespondError(w, http.StatusInternalServerError, "failed to load candidate issues")
+		respondIssueQueryError(w, r, err)
 		return
 	}
 
