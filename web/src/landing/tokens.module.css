@@ -1,32 +1,33 @@
 /*
  * The landing page's design, locked. These values come from the owner's
  * design and are not part of the theme system: a user theme restyles the
- * signed-in app, never this page. Sizes are the design's at 1461px wide,
- * scaling down fluidly below it.
+ * signed-in app, never this page. Text sizes never go below 16px for body
+ * copy or 14px for labels, and scale up fluidly on wider screens.
  */
 .page {
   --ink: #000000;
   --paper: #ffffff;
   --signal: #ff0000;
   --closed: #5ac800;
-  --quiet: #6b6b6b;
+  --quiet: #595959;          /* 7:1 on white */
   --hair: #000000;
 
   --serif: "Instrument Serif", "Times New Roman", serif;
   --mono: "JetBrains Mono", ui-monospace, monospace;
   --logo: "Krona One", sans-serif;
 
-  --gutter: clamp(16px, 3.1vw, 45px);
-  --split: 43.84%;           /* where right-hand sections start: 646px at 1461 */
-  --measure: 46rem;          /* body text line length, under 80 characters */
+  --gutter: clamp(16px, 4vw, 48px);
+  --column: 46rem;           /* the one content column, centred */
+  --measure: 40rem;          /* body text line length, about 65 characters */
+  --section-gap: clamp(4.5rem, 9vw, 8rem);
 
-  --h-size: clamp(2.5rem, 1.2rem + 3.1vw, 3.65rem);
-  --h-track: -0.035em;
-  --body-size: clamp(0.94rem, 0.8rem + 0.42vw, 1.19rem);
-  --body-leading: 1.32;
-  --body-track: 0.01em;
-  --label-size: 0.6rem;
-  --button-size: 0.72rem;
+  --h-size: clamp(2.25rem, 1.4rem + 2.6vw, 3.5rem);
+  --h-track: -0.03em;
+  --body-size: clamp(1rem, 0.92rem + 0.25vw, 1.125rem);
+  --body-leading: 1.6;
+  --body-track: 0;
+  --label-size: 0.875rem;
+  --button-size: 0.9375rem;
 
   background: var(--paper);
   color: var(--ink);
