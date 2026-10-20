@@ -40,7 +40,7 @@ func (s *Service) RecommendationCandidates(ctx context.Context, base Filters, la
 	for _, f := range tries {
 		f.Sort = SortShuffle
 		f.RareLanguageBelow, f.LanguageCountTTL = base.RareLanguageBelow, base.LanguageCountTTL
-		f.RareProbe, f.ShuffleWalkMaxRepos = base.RareProbe, base.ShuffleWalkMaxRepos
+		f.RareProbe, f.ShuffleWalkMaxRepos, f.ShuffleWalkBudget = base.RareProbe, base.ShuffleWalkMaxRepos, base.ShuffleWalkBudget
 		var after *Cursor
 		for len(out) < pool {
 			f.Limit = pageLimit(pool - len(out))

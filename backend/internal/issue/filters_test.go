@@ -167,11 +167,15 @@ func TestShuffleFeedOneIssuePerRepository(t *testing.T) {
 	for _, rareBelow := range []int{0, 1000} {   // 0 walks repositories; 1000 makes them rare
 		// A walk cut short after 1 or 2 repositories finishes the page from
 		// the matches, and the feed is the same.
+		// A walk cut short by its time budget returns short pages with a
+		// cursor; walked to the end, the feed is the same.
 		for _, walkMax := range []int{0, 1, 2} {
-			for _, limit := range []int{1, 2, 10} {
-				got := f.walk(t, Filters{Sort: SortShuffle, Limit: limit, RareLanguageBelow: rareBelow, ShuffleWalkMaxRepos: walkMax})
-				if !slices.Equal(got, want) {
-					t.Errorf("rare below %d, walk max %d, limit %d: %v, want %v", rareBelow, walkMax, limit, got, want)
+			for _, budget := range []time.Duration{0, time.Nanosecond} {
+				for _, limit := range []int{1, 2, 10} {
+					got := f.walk(t, Filters{Sort: SortShuffle, Limit: limit, RareLanguageBelow: rareBelow, ShuffleWalkMaxRepos: walkMax, ShuffleWalkBudget: budget})
+					if !slices.Equal(got, want) {
+						t.Errorf("rare below %d, walk max %d, budget %v, limit %d: %v, want %v", rareBelow, walkMax, budget, limit, got, want)
+					}
 				}
 			}
 		}
@@ -181,6 +185,18 @@ func TestShuffleFeedOneIssuePerRepository(t *testing.T) {
 	got := f.walk(t, Filters{Sort: SortShuffle, Limit: 10, Difficulties: []string{"ADVANCED", "INTERMEDIATE"}})
 	if len(got) != 2 || got[1] != otherBest {
 		t.Errorf("filtered shuffle = %v, want big's ADVANCED issue then %d", got, otherBest)
+	}
+
+	// A label filter is matched a batch at a time; each repository still
+	// shows its best labelled issue, in shuffle order.
+	bigDocs := f.issue(t, big, 4, "ADVANCED", 8, 0, t0, "Docs")
+	f.issue(t, big, 5, "UNCLASSIFIED", nil, 0, t0, "docs")
+	smallDocs := f.issue(t, small, 2, "INTERMEDIATE", 5, 0, t0, "DOCS")
+	for _, limit := range []int{1, 10} {
+		got = f.walk(t, Filters{Sort: SortShuffle, Limit: limit, Labels: []string{"docs"}})
+		if want := []int{smallDocs, bigDocs}; !slices.Equal(got, want) {
+			t.Errorf("label shuffle, limit %d = %v, want %v", limit, got, want)
+		}
 	}
 }
 

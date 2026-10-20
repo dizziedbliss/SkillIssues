@@ -55,6 +55,7 @@ readable through the endpoint above and copied into backups.
 | `api.issues.rare_language_threshold` | 20000 | 0–1000000 | Browsing a language (`?language=`, or a signed-in caller's preferred languages) with fewer open issues than this sorts that language's issues instead of walking the catalog index (0 = always walk) |
 | `api.issues.rare_probe_ms` | 500 | 0–10000 | Time limit on counting a filter combination to choose how to read it; slower = read in index order |
 | `api.issues.shuffle_walk_max_repos` | 3000 | 0–1000000 | Repositories one shuffled-feed page walks before reading the rest from the matching issues |
+| `api.issues.shuffle_walk_budget_ms` | 2000 | 0–9000 | Time one shuffled-feed page may look before it is returned short, with a cursor to continue from |
 | `api.issues.language_count_ttl_seconds` | 600 | 0–86400 | How long each language's counted open issues are reused for that decision (0 = count every request) |
 
 ## Ingestion
