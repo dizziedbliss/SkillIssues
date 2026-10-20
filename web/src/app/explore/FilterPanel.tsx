@@ -39,7 +39,7 @@ export function FilterPanel({
   ];
 
   return (
-    <section className={s.panel} aria-label={t("filters.title")}>
+    <section className={s.panel} aria-label={t("filters.title")} data-ui="filters">
       <div className={s.fields}>
         {lists.map((l) => (
           <Field key={l.key} name={t(l.name)} help={t(l.help)}>

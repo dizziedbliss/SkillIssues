@@ -73,7 +73,7 @@ export function Explore() {
     <div className={s.explore}>
       <h1 className={s.title}>{t("explore.title")}</h1>
 
-      <form className={s.search} role="search" onSubmit={submit}>
+      <form className={s.search} role="search" onSubmit={submit} data-ui="search">
         <label htmlFor="explore-search" className={s.searchLabel}>{t("explore.searchLabel")}</label>
         {/* Shares its name with the overlay's box, so one glides into the other; never both at once. */}
         <div className={s.box} style={{ viewTransitionName: overlay.isOpen ? "none" : "search-box" }}>
@@ -146,7 +146,7 @@ export function Explore() {
 
       <div ref={top} className={s.levels}>
         <h2 className={s.next}>{query.search ? t("explore.results", { term: query.search }) : t("explore.next")}</h2>
-        <div className={s.chips} role="group" aria-label={t("explore.difficulties")}>
+        <div className={s.chips} role="group" aria-label={t("explore.difficulties")} data-ui="difficulty">
           {DIFFICULTIES.map((d) => (
             <button
               key={d}
@@ -174,8 +174,8 @@ export function Explore() {
           <p className={s.quiet}>{query.search ? t("explore.emptySearch") : t("explore.empty")}</p>
         )}
         <div className={catalog.isPlaceholderData ? s.stale : undefined}>
-          {issues.map((it) => (
-            <IssueCard key={it.id} issue={it} />
+          {issues.map((it, i) => (
+            <IssueCard key={it.id} issue={it} index={i} />
           ))}
         </div>
       </div>

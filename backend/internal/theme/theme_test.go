@@ -70,3 +70,39 @@ func TestName(t *testing.T) {
 		t.Errorf("Name() = %q, %v", tok.Name(), err)
 	}
 }
+
+// The same problems, word for word and line for line, as packages/theme
+// reports for these files.
+func TestProblemFixtures(t *testing.T) {
+	files, err := filepath.Glob(filepath.Join(fixtures, "problems", "*"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no problem fixtures (%v)", err)
+	}
+	for _, f := range files {
+		if strings.HasSuffix(f, ".txt") {
+			continue
+		}
+		t.Run(filepath.Base(f), func(t *testing.T) {
+			src, err := os.ReadFile(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := os.ReadFile(strings.TrimSuffix(f, filepath.Ext(f)) + ".txt")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.HasSuffix(f, ".css") {
+				err = CheckCSS(string(src))
+			} else {
+				_, err = ParseTOML(string(src))
+			}
+			var got Problems
+			if !errors.As(err, &got) {
+				t.Fatalf("no problems: %v", err)
+			}
+			if w := strings.Split(strings.TrimSpace(string(want)), "\n"); strings.Join(got, "\n") != strings.Join(w, "\n") {
+				t.Errorf("problems:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(w, "\n"))
+			}
+		})
+	}
+}

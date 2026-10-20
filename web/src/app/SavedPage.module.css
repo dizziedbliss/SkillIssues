@@ -8,7 +8,7 @@
   font-weight: var(--typography-heading-weight);
   font-size: clamp(2.25rem, 1.5rem + 2.4vw, 3.25rem);
   line-height: 1.05;
-  letter-spacing: -0.035em;
+  letter-spacing: var(--heading-tracking);
   padding-left: clamp(0rem, 5vw, 5rem);
   padding-bottom: 1.5rem;
   border-bottom: var(--border-width) var(--border-style) var(--rule);
@@ -33,7 +33,7 @@
   font-family: var(--serif);
   font-weight: var(--typography-heading-weight);
   font-size: 1.4rem;
-  letter-spacing: -0.03em;
+  letter-spacing: var(--heading-tracking);
 }
 
 .update {

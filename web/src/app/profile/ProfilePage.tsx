@@ -88,7 +88,7 @@ export function ProfilePage() {
 
         <section className={s.right} aria-labelledby="activity-title">
           <h2 id="activity-title" className={s.heading}>{t("profile.activity")}</h2>
-          <div className={s.box}>
+          <div className={s.box} data-ui="activity">
             <h3 className={s.boxTitle}>{t("profile.prs")}</h3>
             <PRList items={contributions.data?.recent} empty={t("profile.noPRs")} limit={SHOWN} />
             {contributions.data && contributions.data.total > SHOWN && (

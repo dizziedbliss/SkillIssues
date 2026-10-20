@@ -244,6 +244,7 @@ func buildRouter(
 	// ----- Themes -----
 	mux.Handle("GET /themes", requireAuth(authSvc, http.HandlerFunc(h.listThemes)))
 	mux.Handle("POST /themes", requireAuth(authSvc, http.HandlerFunc(h.createTheme)))
+	mux.HandleFunc("POST /themes/validate", h.validateTheme) // no auth: stores nothing
 	mux.HandleFunc("GET /themes/{id}", h.getTheme)
 	mux.Handle("PUT /themes/{id}", requireAuth(authSvc, http.HandlerFunc(h.updateTheme)))
 	mux.Handle("DELETE /themes/{id}", requireAuth(authSvc, http.HandlerFunc(h.deleteTheme)))

@@ -4,6 +4,9 @@ const fontStacks: Record<string, string> = {
   "Instrument Serif": `"Instrument Serif", "Times New Roman", serif`,
   "JetBrains Mono": `"JetBrains Mono", ui-monospace, monospace`,
   "Krona One": `"Krona One", sans-serif`,
+  Inter: `"Inter", system-ui, sans-serif`,
+  "Barlow Condensed": `"Barlow Condensed", "Arial Narrow", sans-serif`,
+  Silkscreen: `"Silkscreen", ui-monospace, monospace`,
   "system-ui": "system-ui, sans-serif",
   serif: "serif",
   "sans-serif": "sans-serif",
@@ -22,7 +25,8 @@ export function toDeclarations(base: Tokens, theme: Tokens): string {
   const merged: Tokens = {};
   for (const src of [base, theme]) {
     for (const [table, values] of Object.entries(src)) {
-      if (table === "meta") continue;
+      // meta describes the theme; dark is folded into colors by compileTheme.
+      if (table === "meta" || table === "dark") continue;
       merged[table] = { ...merged[table], ...values };
     }
   }

@@ -1,0 +1,28 @@
+[colors]
+accent-hover = "#aa0000"
+info = "#0070f3"
+code-background = "#f4f4f4"
+
+[background]
+image-size = "contain"
+image-position = "top"
+image-repeat = "repeat-x"
+image-attachment = "scroll"
+
+[typography]
+heading-font = "Barlow Condensed"
+body-font = "Inter"
+mono-font = "Silkscreen"
+heading-transform = "uppercase"
+heading-tracking = "0.05em"
+body-tracking = "0.5px"
+
+[spacing]
+sidebar-width = "280px"
+
+[shadow]
+focus = "0px 0px 0px 3px #ff000080"
+
+[motion]
+transition = "iris"
+stagger = "40ms"
