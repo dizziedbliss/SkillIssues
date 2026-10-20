@@ -87,7 +87,8 @@ export const SCHEMA: Record<string, Record<string, Kind>> = {
     schema: number(SCHEMA_VERSION, SCHEMA_VERSION),
   },
   colors: colorKeys,
-  // The dark half of a light/dark pair: Appearance's switch moves between [colors] and these.
+  // A theme's light and dark halves: in that mode, the keys set here replace those in [colors].
+  light: colorKeys,
   dark: colorKeys,
   background: {
     image, pattern: oneOf("none", "grid", "dots", "lines"), "pattern-color": color, "pattern-size": length(4, 96),

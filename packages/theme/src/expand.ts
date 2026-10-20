@@ -1,3 +1,4 @@
+import { effective, type Mode } from "./modes.ts";
 import { presets, type PresetName } from "./presets.ts";
 import { SCHEMA } from "./schema.ts";
 import { parseTheme, type Result, type Tokens } from "./validate.ts";
@@ -9,7 +10,7 @@ function tomlValue(v: string | number | boolean): string {
 
 /**
  * Every token of a theme, written out: the theme over its base preset over
- * Default. A new theme starts from this, so changing anything is editing a
+ * Default, in both modes. A new theme starts from this, so changing anything is editing a
  * line rather than looking a key up; a line deleted falls back to `base`.
  * `src` is a theme file (a preset's or a person's); the result is a valid
  * theme named `name`.
@@ -18,29 +19,28 @@ export function expandTheme(src: string, name: string): Result<string> {
   const theme = parseTheme(src);
   if (!theme.ok) return theme;
   const base = ((theme.value.meta?.base as PresetName | undefined) ?? "default") as PresetName;
-  const layers: Tokens[] = [];
-  for (const s of base === "default" ? [presets.default] : [presets.default, presets[base]]) {
-    const r = parseTheme(s);
-    if (!r.ok) throw new Error(`preset ${base} does not validate`);
-    layers.push(r.value);
-  }
-  layers.push(theme.value);
+  const plain = effective(theme.value, null);
+  const halves: Record<Mode, Tokens> = { light: effective(theme.value, "light"), dark: effective(theme.value, "dark") };
 
   const lines = [
     `# Every token, so you can change any of them. Delete a line and it falls back to the ${base} preset.`,
+    "# [light] and [dark] hold the colours that change in each mode (the app's light/dark button).",
     "[meta]",
     "schema = 1",
     `name = ${tomlValue(name)}`,
     `base = ${tomlValue(base)}`,
   ];
   for (const [table, keys] of Object.entries(SCHEMA)) {
-    if (table === "meta") continue;
-    const values: string[] = [];
-    for (const key of Object.keys(keys)) {
-      const v = layers.reduce<string | number | boolean | undefined>((acc, l) => l[table]?.[key] ?? acc, undefined);
-      if (v !== undefined) values.push(`${key} = ${tomlValue(v)}`);
-    }
+    if (table === "meta" || table === "light" || table === "dark") continue;
+    const values = Object.keys(keys)
+      .filter((key) => plain[table]?.[key] !== undefined)
+      .map((key) => `${key} = ${tomlValue(plain[table]![key]!)}`);
     if (values.length) lines.push("", `[${table}]`, ...values);
+  }
+  for (const mode of ["light", "dark"] as const) {
+    const colors = halves[mode].colors ?? {};
+    const changed = Object.keys(SCHEMA.colors!).filter((k) => colors[k] !== undefined && colors[k] !== plain.colors?.[k]);
+    if (changed.length) lines.push("", `[${mode}]`, ...changed.map((k) => `${k} = ${tomlValue(colors[k]!)}`));
   }
   return { ok: true, value: lines.join("\n") + "\n" };
 }

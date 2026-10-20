@@ -25,8 +25,8 @@ export function toDeclarations(base: Tokens, theme: Tokens): string {
   const merged: Tokens = {};
   for (const src of [base, theme]) {
     for (const [table, values] of Object.entries(src)) {
-      // meta describes the theme; dark is folded into colors by compileTheme.
-      if (table === "meta" || table === "dark") continue;
+      // meta describes the theme; light and dark are folded into colors (modes.ts).
+      if (table === "meta" || table === "light" || table === "dark") continue;
       merged[table] = { ...merged[table], ...values };
     }
   }

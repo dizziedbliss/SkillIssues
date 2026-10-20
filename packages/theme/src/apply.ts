@@ -1,6 +1,6 @@
 import { checkCSS } from "./css.ts";
-import { presets, type PresetName } from "./presets.ts";
 import { toDeclarations } from "./tokens.ts";
+import { effective, type Mode } from "./modes.ts";
 import { parseTheme, type Result } from "./validate.ts";
 
 export interface ThemeSource {
@@ -13,8 +13,8 @@ export interface CompiledTheme {
   name: string;
   declarations: string;
   css: string;
-  /** Whether the theme carries a [dark] half, for Appearance's switch to move to. */
-  hasDark: boolean;
+  /** Whether its light and dark halves differ, so the light/dark button changes something. */
+  hasModes: boolean;
 }
 
 /** @property rules (only --theme-* ones pass checkCSS): registered globally, outside the app's @scope. */
@@ -25,39 +25,27 @@ const propertyRule = /@property\s+--theme-[\w-]+\s*\{[^{}]*\}/g;
  * preset. A theme fetched from the server is checked again here: what is
  * applied to the page is only ever what this function accepted.
  */
-export function compileTheme(src: ThemeSource, opts: { dark?: boolean } = {}): Result<CompiledTheme> {
+export function compileTheme(src: ThemeSource, opts: { mode?: Mode } = {}): Result<CompiledTheme> {
   const theme = parseTheme(src.toml);
   const cssProblems = checkCSS(src.css);
   if (!theme.ok || cssProblems.length) {
     return { ok: false, problems: [...(theme.ok ? [] : theme.problems), ...cssProblems] };
   }
-  const baseName = (theme.value.meta?.base as PresetName | undefined) ?? "default";
-  const base = parseTheme(presets.default);
-  const preset = baseName === "default" ? base : parseTheme(presets[baseName]);
-  if (!base.ok || !preset.ok) throw new Error(`preset ${baseName} does not validate`);
-  const baseTokens = baseName === "default" ? base.value : mergeTokens(base.value, preset.value);
   const own = theme.value;
-  const hasDark = !!own.dark && Object.keys(own.dark).length > 0;
-  // The dark half replaces the colours it names; the light ones stay for the rest.
-  const chosen = opts.dark && hasDark ? { ...own, colors: { ...own.colors, ...own.dark } } : own;
+  const tokens = effective(own, opts.mode ?? null);
+  const light = JSON.stringify(effective(own, "light").colors);
+  const dark = JSON.stringify(effective(own, "dark").colors);
   return {
     ok: true,
     value: {
       name: String(own.meta?.name ?? "Untitled"),
-      declarations: toDeclarations(baseTokens, chosen),
+      declarations: toDeclarations({}, tokens),
       css: src.css,
-      hasDark,
+      hasModes: light !== dark,
     },
   };
 }
 
-function mergeTokens(a: Record<string, Record<string, unknown>>, b: Record<string, Record<string, unknown>>) {
-  const out: Record<string, Record<string, string | number | boolean>> = {};
-  for (const src of [a, b]) {
-    for (const [t, v] of Object.entries(src)) out[t] = { ...out[t], ...(v as Record<string, string | number | boolean>) };
-  }
-  return out;
-}
 
 const sheets = new WeakMap<Document, Map<string, { tokens: CSSStyleSheet; custom: CSSStyleSheet }>>();
 

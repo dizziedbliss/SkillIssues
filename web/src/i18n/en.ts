@@ -69,7 +69,7 @@ export const en = {
   // ---- light and dark, language ----
   "mode.toDark": "Switch to dark mode",
   "mode.toLight": "Switch to light mode",
-  "mode.switchTo": (p: { name: string }) => `Switch to ${p.name}`,
+
   "language.choose": "Language",
   "language.more": "More languages are on the way.",
 
@@ -426,7 +426,9 @@ export const en = {
   "settings.themes.backToThemes": "Back to your themes",
   "settings.themes.notYours": "Only the theme’s author can edit it. Duplicate it into your themes to make changes.",
   "settings.themes.preview": "Preview",
-  "settings.themes.previewDark": "Its dark half",
+  "settings.themes.previewMode": "Which half to preview",
+  "settings.themes.previewLight": "Light",
+  "settings.themes.previewDarkHalf": "Dark",
   "settings.themes.tokenMap": "What each token paints",
   "settings.themes.sampleButton": "Save changes",
   "settings.themes.sampleSecondary": "Cancel",
