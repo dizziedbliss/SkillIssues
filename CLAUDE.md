@@ -98,7 +98,8 @@ npm run typecheck # tsc --noEmit
 cd desktop
 npm run dev       # electron-vite dev server, renderer HMR
 npm run build && npm start   # build then run the built app (no HMR)
-npm run check     # tsc --noEmit over src/main, src/preload
+npm run check     # tsc --noEmit over main, preload, shared and renderer
+npm test          # the security rules (src/main/security.test.ts)
 npm run dist      # build, then electron-builder release artifacts
 ```
 
@@ -174,8 +175,8 @@ emit after each committed crawl or discovery page (repository, counts, first tit
 
 ### Shared packages (`packages/`)
 npm workspace members, imported as `@skillissues/*` (a real `node_modules` symlink, not a relative
-path reaching outside the importing project). The web app was rebuilt on the first two; the desktop
-app still uses the last three until its own rebuild.
+path reaching outside the importing project). Both apps are built on `client`; the web app also on
+`theme`.
 - **`packages/client`** — the typed API client: response types, `ApiError` (`status`, `problems`;
   status 0 = never answered), abort support, a pluggable `Transport` (`fetchTransport` for the
   browser). Cursor paging always sends `?cursor=`, even empty: it is what selects the shuffled feed.
@@ -185,8 +186,6 @@ app still uses the last three until its own rebuild.
   it through constructed stylesheets scoped to the app's root. `npm test` runs the checks.
 - **`packages/markdown`** — sanitised Markdown rendering (`markdown-it` + DOMPurify). Issue bodies
   are attacker-controlled; never hand-roll rendering in either client.
-- **`packages/api-client`**, **`packages/ui`** — the previous client and component kit, used only
-  by the desktop app now. Don't build anything new on them.
 
 ### Web (`web/src/`)
 - **`landing/`** — the landing page, the owner's design. Its look is **locked**
@@ -211,14 +210,34 @@ app still uses the last three until its own rebuild.
 Runs **React 19**.
 
 ### Desktop (`desktop/`)
-`electron-vite` layout: `src/main/index.ts` (windows, IPC, git — TypeScript, non-strict),
-`src/preload/index.ts` (context bridge — `contextIsolation: true` is mandatory),
-`src/renderer/` (React + TypeScript on `packages/ui`/`packages/api-client`, entry
-`src/renderer/src/main.tsx`; it reaches the API only via the preload bridge). Builds to
-`out/main`, `out/preload`, `out/renderer`. Git operations run as async child processes so
-the UI never blocks.
+`electron-vite`, TypeScript strict throughout. **`src/shared/contract.ts` is the only interface between
+the page and the main process**: every channel, its arguments and its `Result` (errors cross as data).
+The preload exposes exactly one `window.skillissues` method per channel, and the main process will not
+start with a channel unhandled (`src/main/ipc.ts`); each handler checks the caller is the app's own
+top frame.
+- **`src/main/security.ts`** holds the boundaries as pure functions, pinned by `security.test.ts`
+  (`npm test`, CI): the window's `webPreferences` (`contextIsolation`, `sandbox`, no Node), the API
+  paths the page may reach through the main process's proxy (`api.ts`), the links that may open in
+  the browser (GitHub and the site), repository and branch names, workspace containment, and how the
+  push token reaches git. Loosen one only deliberately.
+- **Sign-in** (`auth.ts`): a no-scope GitHub device flow on the Login app (client id from `GET
+  /auth/github/device`), posted once to `POST /auth/github/device`; the app keeps only the session.
+  **Pushing** takes a second device flow for `public_repo`, whose token never leaves the machine and
+  must belong to the signed-in account.
+- **Tokens** (`store.ts`) are kept with `safeStorage`. Where the OS has no real encryption (Linux's
+  `basic_text` backend) they stay in memory only and the person signs in each launch; they are never
+  written in clear.
+- **Git** (`git.ts`, `workspace.ts`) runs as async child processes with argument lists, never a shell.
+  The push token reaches git through `GIT_CONFIG_*` environment entries (an `http.extraheader` for
+  github.com), never argv, and is redacted from anything shown. A workspace is the person's fork,
+  cloned into the workspace folder, on `skillissues/<number>-<slug>`, with the original as `upstream`;
+  every path is re-checked to be inside that folder after resolving links. VS Code opens through its
+  `vscode://` link.
+- **The renderer** (`src/renderer/src`) is React on `@skillissues/client` over the IPC proxy. Its CSP
+  lets it reach no network itself. Until the designs arrive: sign-in, catalog, an issue panel from
+  fork to pull request, and settings (workspace folder, push connection, sign out, delete account).
 
-Runs **Electron 44**.
+Runs **Electron 44**. Release builds: `.github/workflows/release.yml`.
 
 ### Database (`backend/internal/migrate/migrations/`)
 Goose migrations, embedded into the binaries with `go:embed`. **This directory is the single
