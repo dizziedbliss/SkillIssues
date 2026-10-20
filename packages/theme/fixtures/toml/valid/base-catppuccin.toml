@@ -1,0 +1,8 @@
+# A theme may start from any built-in, the well-known palettes included.
+[meta]
+schema = 1
+name = "Mocha, warmer"
+base = "catppuccin-mocha"
+
+[colors]
+accent = "#f5c2e7"

@@ -357,7 +357,8 @@
 }
 
 .inline .subheading,
-.inline .error {
+.inline .error,
+.wide {
   grid-column: 1 / -1;
 }
 
@@ -392,4 +393,36 @@
   .primary {
     transition: none;
   }
+}
+
+/* Built-in themes: a strip of each one's colours, its name, Use. */
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+  gap: 0.75rem;
+}
+
+.swatchCard {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
+  border-radius: var(--radius-large);
+  font-size: 0.9375rem;
+}
+
+.swatches {
+  display: flex;
+}
+
+.swatches span {
+  width: 0.9rem;
+  height: 1.6rem;
+  border: 1px solid color-mix(in srgb, var(--colors-text) 25%, transparent);
+}
+
+.swatches span + span {
+  margin-left: -1px;
 }

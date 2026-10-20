@@ -2,18 +2,26 @@ import { useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, type Theme } from "@skillissues/client";
-import { compileTheme, PRESETS, type PresetName } from "@skillissues/theme";
+import { compileTheme, expandPreset, expandTheme, parseTheme, presets, PRESETS, type PresetName } from "@skillissues/theme";
 import { api } from "../../lib/api";
 import { useT } from "../../i18n";
 import { useThemeToggle } from "../../lib/themeToggle";
 import s from "./Settings.module.css";
 
-const presetNames: Record<PresetName, string> = { default: "Default", midnight: "Midnight", terminal: "Terminal", contrast: "High contrast" };
-
-/** A new theme's file: its name and the preset it starts from; everything else is the preset's. */
-function starter(name: string, base: PresetName): string {
-  return `[meta]\nschema = 1\nname = ${JSON.stringify(name)}\nbase = "${base}"\n\n# Override any token here, for example:\n# [colors]\n# accent = "#ff0000"\n`;
+/** A built-in's name and a few of its colours, from its own file. */
+function describe(p: PresetName) {
+  const base = parseTheme(presets.default);
+  const own = parseTheme(presets[p]);
+  const colors = { ...(base.ok ? base.value.colors : {}), ...(own.ok ? own.value.colors : {}) };
+  return {
+    name: String((own.ok && own.value.meta?.name) || p),
+    swatches: [colors.background, colors.surface, colors.text, colors.accent].map(String),
+  };
 }
+const builtIns = PRESETS.map((p) => ({ key: p, ...describe(p) }));
+
+/** Where a new theme starts: a full copy of the theme in use, or of a built-in. */
+const IN_USE = "in-use";
 
 /** The problems an API refusal carries, or its message. */
 function problemsOf(e: Error | null): string[] {
@@ -33,7 +41,7 @@ export function Themes() {
   const toggle = useThemeToggle();
   const [editing, setEditing] = useState<Theme | null>(null);
   const [name, setName] = useState("");
-  const [base, setBase] = useState<PresetName>("midnight");
+  const [from, setFrom] = useState<string>(IN_USE);
   const [sharedId, setSharedId] = useState("");
 
   const mine = useQuery({ queryKey: ["themes"], queryFn: ({ signal }) => api.themes({ signal }) });
@@ -47,10 +55,38 @@ export function Themes() {
     },
   });
   const create = useMutation({
-    mutationFn: () => api.createTheme({ toml: starter(name.trim() || presetNames[base], base), css: "", public: false }),
+    mutationFn: () => {
+      const inUse = from === IN_USE ? active.data : null;
+      const fallback = from === IN_USE ? (inUse?.name ?? t("settings.themes.default")) : (builtIns.find((b) => b.key === from)?.name ?? from);
+      const title = name.trim() || t("settings.themes.copyOf", { name: fallback });
+      let toml: string;
+      if (inUse) {
+        const r = expandTheme(inUse.toml, title);
+        if (!r.ok) throw new Error(r.problems.join("; "));
+        toml = r.value;
+      } else {
+        toml = expandPreset((from === IN_USE ? "default" : from) as PresetName, title);
+      }
+      return api.createTheme({ toml, css: inUse?.css ?? "", public: false });
+    },
     onSuccess: (theme) => {
       setName("");
       setEditing(theme);
+      return queryClient.invalidateQueries({ queryKey: ["themes"] });
+    },
+  });
+  // A built-in is used through a copy in your themes (the server applies only
+  // stored themes); a copy you already have is reused.
+  const useBuiltIn = useMutation({
+    mutationFn: async (key: PresetName) => {
+      const b = builtIns.find((x) => x.key === key)!;
+      const have = mine.data?.find((th) => th.name === b.name);
+      const theme = have ?? (await api.createTheme({ toml: expandPreset(key, b.name), css: "", public: false }));
+      return api.setActiveTheme(theme.id);
+    },
+    onSuccess: (theme) => {
+      queryClient.setQueryData(["theme", "active"], theme);
+      toggle.showChosen?.();
       return queryClient.invalidateQueries({ queryKey: ["themes"] });
     },
   });
@@ -60,7 +96,7 @@ export function Themes() {
   });
 
   const activeId = active.data?.id ?? null;
-  const failure = use.error ?? remove.error;
+  const failure = use.error ?? remove.error ?? useBuiltIn.error;
 
   return (
     <div className={s.themes}>
@@ -76,6 +112,33 @@ export function Themes() {
       </p>
       {active.error && <p className={s.error} role="alert">{active.error.message}</p>}
       {failure && <p className={s.error} role="alert">{failure.message}</p>}
+
+      <h3 className={s.subheading}>{t("settings.themes.builtIn")}</h3>
+      <ul className={s.gallery}>
+        {builtIns.map((b) => (
+          <li key={b.key} className={s.swatchCard}>
+            <span className={s.swatches} aria-hidden="true">
+              {b.swatches.map((c, i) => (
+                <span key={i} style={{ background: c }} />
+              ))}
+            </span>
+            <span>{b.name}</span>
+            {(b.key === "default" ? active.isSuccess && !active.data : active.data?.name === b.name) ? (
+              <span className={s.ok}>{t("settings.themes.using")}</span>
+            ) : (
+              <button
+                type="button"
+                className={s.quietButton}
+                // Default is no theme at all; the others are applied through a copy.
+                onClick={() => (b.key === "default" ? use.mutate(null) : useBuiltIn.mutate(b.key))}
+                disabled={useBuiltIn.isPending || use.isPending}
+              >
+                {t("settings.themes.use")}
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
 
       <h3 className={s.subheading}>{t("settings.themes.mine")}</h3>
       {mine.error && <p className={s.error} role="alert">{mine.error.message}</p>}
@@ -114,15 +177,17 @@ export function Themes() {
         }}
       >
         <h3 className={s.subheading}>{t("settings.themes.new")}</h3>
+        <p className={`${s.hint} ${s.wide}`}>{t("settings.themes.newHelp")}</p>
         <label className={s.field}>
           <span className={s.label}>{t("settings.themes.name")}</span>
-          <input className={s.input} value={name} maxLength={60} placeholder={presetNames[base]} onChange={(e) => setName(e.target.value)} />
+          <input className={s.input} value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
         </label>
         <label className={s.field}>
           <span className={s.label}>{t("settings.themes.base")}</span>
-          <select className={s.input} value={base} onChange={(e) => setBase(e.target.value as PresetName)}>
-            {PRESETS.map((p) => (
-              <option key={p} value={p}>{presetNames[p]}</option>
+          <select className={s.input} value={from} onChange={(e) => setFrom(e.target.value)}>
+            <option value={IN_USE}>{t("settings.themes.inUse", { name: active.data?.name ?? t("settings.themes.default") })}</option>
+            {builtIns.map((b) => (
+              <option key={b.key} value={b.key}>{b.name}</option>
             ))}
           </select>
         </label>

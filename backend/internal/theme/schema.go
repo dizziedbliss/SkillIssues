@@ -92,7 +92,10 @@ func textUpTo(n int) func(any) bool {
 var Fonts = []string{"Instrument Serif", "JetBrains Mono", "Krona One", "system-ui", "serif", "sans-serif", "monospace"}
 
 // Presets a theme may start from (meta.base).
-var Presets = []string{"default", "midnight", "terminal", "contrast"}
+var Presets = []string{
+	"default", "midnight", "terminal", "contrast",
+	"catppuccin-mocha", "catppuccin-latte", "dracula", "nord", "gruvbox", "solarized-light", "tokyo-night", "rose-pine",
+}
 
 var (
 	color    = kind{"color", str(isColor)}

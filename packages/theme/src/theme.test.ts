@@ -6,6 +6,8 @@ import { parseTheme } from "./validate.ts";
 import { checkCSS } from "./css.ts";
 import { presets } from "./presets.ts";
 import { compileTheme } from "./apply.ts";
+import { expandPreset, expandTheme } from "./expand.ts";
+import { PRESETS } from "./schema.ts";
 
 // The same fixtures backend/internal/theme runs: both sides must agree.
 const fixtures = join(import.meta.dirname, "../fixtures");
@@ -41,4 +43,23 @@ test("a theme compiles over its base preset", () => {
   assert.match(r.value.declarations, /--colors-accent: #2b6bff;/);
   assert.match(r.value.declarations, /--colors-background: #0a0a0c;/); // from midnight
   assert.match(r.value.declarations, /--typography-heading-font: "Instrument Serif"/); // from default
+});
+
+test("a preset written out in full compiles to exactly that preset", () => {
+  for (const name of PRESETS) {
+    const full = expandPreset(name, "Copy");
+    const a = compileTheme({ toml: full, css: "" });
+    const b = compileTheme({ toml: `[meta]\nbase = "${name}"\n`, css: "" });
+    assert.ok(a.ok && b.ok, `${name}: ${a.ok ? "" : a.problems.join("; ")}`);
+    assert.equal(a.value.declarations, b.value.declarations, name);
+    assert.equal(a.value.name, "Copy");
+  }
+});
+
+test("a person's theme written out keeps their overrides over its base", () => {
+  const r = expandTheme('[meta]\nbase = "nord"\n[colors]\naccent = "#123456"\n', "Mine");
+  assert.ok(r.ok);
+  assert.match(r.value, /accent = "#123456"/);
+  assert.match(r.value, /background = "#2e3440"/); // from nord
+  assert.match(r.value, /heading-font = "Instrument Serif"/); // from default
 });
