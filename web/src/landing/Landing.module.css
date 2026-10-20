@@ -1,0 +1,191 @@
+/* Layout of the landing page. Values are the design's at 1461px (tokens.module.css). */
+
+.page main {
+  position: relative;
+  padding: 0 var(--gutter);
+}
+
+.page header,
+.page footer {
+  position: relative;
+}
+
+/* ---- type ---- */
+
+.heading {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: var(--h-size);
+  line-height: 0.98;
+  letter-spacing: var(--h-track);
+  max-width: var(--hw, none);
+  /* Wrap greedily, as the design does: "pretty" moves words to avoid short last lines. */
+  text-wrap: wrap;
+  font-kerning: normal;
+}
+
+.body {
+  font-size: var(--body-size);
+  line-height: var(--body-leading);
+  letter-spacing: var(--body-track);
+  max-width: var(--bw, var(--measure));
+}
+
+.heading + .body {
+  margin-top: 0.9em;
+}
+
+.body + .body {
+  margin-top: 0.15em;
+}
+
+.kicker {
+  font-size: var(--body-size);
+  letter-spacing: var(--body-track);
+  margin-bottom: 0.15em;
+}
+
+.button {
+  display: inline-block;
+  margin-top: 1.1rem;
+  padding: 0.5em 0.8em 0.45em;
+  background: var(--signal);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: var(--button-size);
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 120ms linear, color 120ms linear;
+}
+
+.button:hover {
+  background: var(--ink);
+  color: var(--signal);
+}
+
+.ctaLine {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.4rem;
+  margin-top: 1.1rem;
+}
+
+.ctaLine .button {
+  margin-top: 0;
+  padding-inline: 1.9em;
+}
+
+.aside {
+  font-size: var(--label-size);
+  line-height: 1;
+}
+
+.made {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.75em;
+  font-size: var(--body-size);
+  margin-bottom: 0.3em;
+}
+
+/* ---- sections ---- */
+
+.hero {
+  padding-top: clamp(4rem, 7vw, 6.6rem);
+}
+
+.row {
+  display: grid;
+  align-items: start;
+  margin-top: clamp(5rem, 10vw, 9.5rem);
+}
+
+/* Text in the right-hand half; its open left half holds the filler. */
+.right {
+  grid-template-columns: var(--split) 1fr;
+}
+
+/* Text in the left-hand half; the filler sits right of it. */
+.left {
+  grid-template-columns: minmax(0, 55%) 1fr;
+}
+
+.filler {
+  min-width: 0;
+}
+
+.right .filler {
+  padding-right: clamp(1.5rem, 5vw, 6rem);
+}
+
+.left .filler {
+  padding-left: clamp(1.5rem, 4vw, 5rem);
+}
+
+.centred {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-top: clamp(6rem, 13vw, 12rem);
+}
+
+.centred .heading,
+.centred .body {
+  margin-inline: auto;
+}
+
+.closing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: clamp(7rem, 14vw, 13rem) 0 clamp(5rem, 9vw, 8rem);
+}
+
+.closing .body {
+  margin-inline: auto;
+}
+
+/* A heading the design runs on one line across both halves. */
+.wide {
+  max-width: none;
+}
+
+@media (min-width: 1200px) {
+  .wide {
+    width: max-content;
+    max-width: calc(100vw - 2 * var(--gutter));
+  }
+
+  /* its filler starts under the heading's line */
+  .below {
+    margin-top: calc(var(--h-size) * 2.3);
+  }
+}
+
+/* ---- narrow screens: one column, text first ---- */
+
+@media (max-width: 900px) {
+  .right,
+  .left {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+
+  .right .filler {
+    order: 2;
+    padding-right: 0;
+  }
+
+  .left .filler {
+    padding-left: 0;
+  }
+
+  .heading {
+    max-width: none;
+  }
+}

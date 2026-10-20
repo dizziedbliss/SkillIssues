@@ -1,0 +1,367 @@
+/*
+ * The pieces in the halves the design leaves open. One vocabulary for all of
+ * them, from technical drawings: black hairlines, mono figures, small red
+ * markers. Nothing here competes with the headings.
+ */
+
+.caption {
+  font-size: var(--label-size);
+  line-height: 1.4;
+  color: var(--quiet);
+  margin-top: 0.75rem;
+}
+
+.marker {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  background: var(--signal);
+  flex: none;
+}
+
+.live {
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--signal);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live { animation: none; }
+}
+
+/* ---- stat grid ---- */
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid var(--hair);
+  max-width: 34rem;
+}
+
+.cell {
+  padding: 1.1rem 1rem 1.2rem 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.cell:nth-child(odd) {
+  border-right: 1px solid var(--hair);
+}
+
+.cell:nth-child(even) {
+  padding-left: 1.1rem;
+}
+
+.figure {
+  font-size: clamp(1.5rem, 1rem + 1.4vw, 2.4rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.label {
+  margin-top: 0.55rem;
+  font-size: var(--label-size);
+  line-height: 1.3;
+}
+
+.gridHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+  font-size: var(--label-size);
+}
+
+/* ---- issue cards ---- */
+
+.cards {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 32rem;
+  margin-left: auto;
+}
+
+.card {
+  display: block;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--hair);
+  color: inherit;
+  text-decoration: none;
+  background: var(--paper);
+}
+
+.card:hover {
+  border-color: var(--signal);
+}
+
+.cardRepo {
+  font-size: var(--label-size);
+  color: var(--quiet);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardTitle {
+  margin-top: 0.35rem;
+  font-family: var(--serif);
+  font-size: clamp(1.15rem, 0.9rem + 0.5vw, 1.45rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.7rem;
+}
+
+.chip {
+  border: 1px solid var(--hair);
+  padding: 0.15em 0.45em;
+  font-size: var(--label-size);
+  line-height: 1.2;
+}
+
+.cardsFoot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.textButton {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: var(--label-size);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+  margin-top: 0.75rem;
+}
+
+.skeleton {
+  height: 6.4rem;
+  border: 1px solid var(--hair);
+  background: repeating-linear-gradient(135deg, transparent 0 6px, #0000000d 6px 7px);
+}
+
+/* ---- lookup ---- */
+
+.lookup {
+  max-width: 30rem;
+  margin-left: auto;
+}
+
+.field {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--hair);
+}
+
+.field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0.6rem 0;
+  background: transparent;
+  font-family: var(--mono);
+  font-size: var(--body-size);
+}
+
+.field input:focus {
+  outline: none;
+}
+
+.field:focus-within {
+  border-bottom-color: var(--signal);
+}
+
+.field button {
+  border: 0;
+  background: var(--signal);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: var(--button-size);
+  padding: 0 1rem;
+  cursor: pointer;
+}
+
+.field button:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+.fieldLabel {
+  font-size: var(--label-size);
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+.result {
+  margin-top: 1rem;
+  font-size: calc(var(--body-size) * 0.85);
+  line-height: 1.4;
+  min-height: 2.8em;
+}
+
+.result strong {
+  font-weight: 500;
+}
+
+/* ---- app window (ASCII) ---- */
+
+.window {
+  font-size: clamp(0.5rem, 0.32rem + 0.42vw, 0.74rem);
+  line-height: 1.32;
+  white-space: pre;
+  overflow: hidden;
+}
+
+.window em {
+  font-style: normal;
+  color: var(--signal);
+}
+
+/* ---- language chart ---- */
+
+.chart {
+  max-width: 30rem;
+  margin-left: auto;
+}
+
+.chartRow {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) 5.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.38rem 0;
+  font-size: var(--label-size);
+  border-bottom: 1px solid #00000022;
+}
+
+.chartTrack {
+  height: 0.55rem;
+  border: 1px solid var(--hair);
+}
+
+.chartFill {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+
+.chartRow:first-child .chartFill {
+  background: var(--signal);
+}
+
+.chartNum {
+  text-align: right;
+}
+
+/* ---- trust facts ---- */
+
+.facts {
+  max-width: 30rem;
+  margin-left: auto;
+  border-top: 1px solid var(--hair);
+}
+
+.fact {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.85rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.fact .marker {
+  margin-top: 0.4em;
+}
+
+.factTitle {
+  font-family: var(--serif);
+  font-size: clamp(1.2rem, 0.95rem + 0.5vw, 1.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.factText {
+  grid-column: 2;
+  font-size: var(--label-size);
+  line-height: 1.5;
+}
+
+/* ---- activity ticker ---- */
+
+.ticker {
+  max-width: 32rem;
+  font-size: var(--label-size);
+}
+
+.tickerHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--hair);
+}
+
+.tickerRow {
+  display: grid;
+  grid-template-columns: 4.6rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  padding: 0.42rem 0;
+  border-bottom: 1px solid #00000022;
+  align-items: baseline;
+}
+
+.tickerRow a {
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tickerRow a:hover {
+  text-decoration: underline;
+}
+
+.fresh {
+  animation: fresh 1.6s ease-out;
+}
+
+@keyframes fresh {
+  from { background: #ff000026; }
+  to { background: transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fresh { animation: none; }
+}
+
+.empty {
+  padding: 0.8rem 0;
+  color: var(--quiet);
+}
+
+@media (max-width: 900px) {
+  .cards, .lookup, .chart, .facts {
+    margin-left: 0;
+  }
+}

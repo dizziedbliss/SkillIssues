@@ -1,0 +1,95 @@
+.main {
+  padding: clamp(3.5rem, 7vw, 6.5rem) var(--gutter) clamp(5rem, 9vw, 8rem);
+}
+
+.main article {
+  max-width: 46rem;
+}
+
+.title {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: var(--h-size);
+  line-height: 0.98;
+  letter-spacing: var(--h-track);
+}
+
+.lede {
+  margin-top: 1rem;
+  font-size: var(--body-size);
+  line-height: var(--body-leading);
+}
+
+.draft {
+  display: inline-block;
+  margin-top: 1.5rem;
+  padding: 0.35em 0.6em;
+  border: 1px solid var(--signal);
+  font-size: var(--label-size);
+}
+
+.body {
+  margin-top: clamp(2rem, 4vw, 3.5rem);
+  font-size: calc(var(--body-size) * 0.9);
+  line-height: 1.55;
+}
+
+.h2 {
+  margin-top: 2.4rem;
+  margin-bottom: 0.6rem;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(1.6rem, 1.2rem + 1vw, 2.2rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.h2:first-child {
+  margin-top: 0;
+}
+
+.p + .p {
+  margin-top: 0.9em;
+}
+
+.list {
+  display: grid;
+  gap: 0.6em;
+  margin: 0.9em 0;
+}
+
+.list li {
+  display: grid;
+  grid-template-columns: 0.5rem 1fr;
+  gap: 0.8rem;
+}
+
+.list li::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-top: 0.55em;
+  background: var(--signal);
+}
+
+.linkLine {
+  margin-top: 1.2rem;
+}
+
+.linkLine + .linkLine {
+  margin-top: 0.5rem;
+}
+
+.button {
+  display: inline-block;
+  padding: 0.5em 0.8em 0.45em;
+  background: var(--signal);
+  color: var(--ink);
+  font-size: var(--button-size);
+  text-decoration: none;
+}
+
+.button:hover {
+  background: var(--ink);
+  color: var(--signal);
+}
