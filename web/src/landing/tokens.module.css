@@ -17,7 +17,7 @@
   --logo: "Krona One", sans-serif;
 
   --gutter: clamp(16px, 3.1vw, 45px);
-  --split: 44.2%;            /* where right-hand sections start */
+  --split: 43.84%;           /* where right-hand sections start: 646px at 1461 */
   --measure: 46rem;          /* body text line length, under 80 characters */
 
   --h-size: clamp(2.5rem, 1.2rem + 3.1vw, 3.65rem);

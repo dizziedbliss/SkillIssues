@@ -158,7 +158,7 @@ export function Landing() {
             </p>
             <Link to="/security" className={s.button}>Read the security docs</Link>
           </div>
-          <div className={s.filler}>
+          <div className={`${s.filler} ${s.below}`}>
             <TrustFacts />
           </div>
         </section>

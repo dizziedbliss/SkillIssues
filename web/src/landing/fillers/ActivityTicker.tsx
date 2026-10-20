@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { Activity } from "@skillissues/client";
 import { useStats } from "../../lib/useStats";
 import s from "./Filler.module.css";
 
@@ -10,15 +11,30 @@ const time = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digi
  * in or saw them close, as they land. A row that arrived since the last poll
  * flashes once, so the movement is the data's, not decoration.
  */
+/** Runs of commits to one repository read as one line: a crawl writes a page at a time. */
+function merge(activity: Activity[]): Activity[] {
+  const out: Activity[] = [];
+  for (const a of activity) {
+    const last = out[out.length - 1];
+    if (last && last.repository === a.repository) {
+      last.arrived += a.arrived;
+      last.closed += a.closed;
+    } else {
+      out.push({ ...a });
+    }
+  }
+  return out;
+}
+
 export function ActivityTicker() {
   const { data } = useStats();
-  const rows = (data?.activity ?? []).slice(0, ROWS);
+  const rows = merge(data?.activity ?? []).slice(0, ROWS);
   const seen = useRef<Set<string> | null>(null);
   const keyOf = (a: { at: string; repository: string }) => a.at + a.repository;
   const fresh = new Set(seen.current ? rows.filter((r) => !seen.current!.has(keyOf(r))).map(keyOf) : []);
 
   useEffect(() => {
-    if (data) seen.current = new Set(data.activity.map(keyOf));
+    if (data) seen.current = new Set(merge(data.activity).map(keyOf));
   }, [data]);
 
   return (
