@@ -20,11 +20,22 @@
 .columns a {
   color: var(--quiet);
   text-decoration: none;
+  /* The underline draws in from the left. */
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 100% / 0% 1px;
+  padding-bottom: 0.12em;
+  transition: background-size var(--slow) var(--ease), color var(--slow) var(--ease);
 }
 
-.columns a:hover {
+.columns a:hover,
+.columns a:focus-visible {
   color: var(--ink);
-  text-decoration: underline;
+  background-size: 100% 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .columns a {
+    transition: none;
+  }
 }
 
 .sign {

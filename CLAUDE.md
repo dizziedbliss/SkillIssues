@@ -189,9 +189,12 @@ path reaching outside the importing project). Both apps are built on `client`; t
 
 ### Web (`web/src/`)
 - **`landing/`** — the landing page, the owner's design. Its look is **locked**
-  (`landing/tokens.module.css`) and outside the theme system: no user theme reaches it. One centred
-  column with equal margins and its white space left empty, over a faint glyph noise
-  (`GlyphNoise.tsx`, canvas, still under reduced motion). Body text is never under 16px. Fonts are
+  (`landing/tokens.module.css`) and outside the theme system: no user theme reaches it. A zig-zag:
+  each section in the left or right part of one container with equal margins, the other side left
+  white (one column under 860px), over a faint glyph noise (`GlyphNoise.tsx`, canvas). Body text is
+  never under 16px. Motion shares one easing (`--ease`, `--fast`, `--slow`): buttons fill from the
+  left, links draw their underline, live counts glide between polls; all of it stops under reduced
+  motion. Fonts are
   self-hosted through `@fontsource` (Instrument Serif headings and nav, JetBrains Mono everything
   else, Krona One for the wordmark at 9% tracking over its 24:8 JetBrains Mono line).
 - **`pages/`** — the written pages (`pages/content.ts`); every claim must describe what the code does.
