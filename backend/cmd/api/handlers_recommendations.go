@@ -42,6 +42,7 @@ func (h *handlers) getRecommendations(w http.ResponseWriter, r *http.Request) {
 		LanguageCountTTL:    cfg.Seconds(settings.IssuesLanguageCountTTLSeconds),
 		RareProbe:           cfg.Millis(settings.IssuesRareProbeMs),
 		ShuffleWalkMaxRepos: cfg.Int(settings.IssuesShuffleWalkMaxRepos),
+		ShuffleWalkBudget:   cfg.Millis(settings.IssuesShuffleWalkBudgetMs),
 	}
 	candidates, err := h.issueSvc.RecommendationCandidates(r.Context(), base,
 		p.PreferredLanguages, p.TargetLevel, limit, cfg.Int(settings.RecommendationsCandidatePool))
