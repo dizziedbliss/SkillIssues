@@ -133,6 +133,30 @@ func TestRollupStatsFoldsDeltas(t *testing.T) {
 	if arrived != 2 || closed != 1 {
 		t.Errorf("activity for the repository: %d arrived, %d closed, want 2 and 1", arrived, closed)
 	}
+
+	// Several statements in one transaction are one activity row.
+	if err := pool.InTx(ctx, func(tx pgx.Tx) error {
+		for n := 3; n <= 4; n++ {
+			if _, err := tx.Exec(ctx, `INSERT INTO issues (repository_id, number, title, url, difficulty, state)
+			      VALUES ($1, $2, 't', 'u', 'UNCLASSIFIED', 'OPEN')`, repo, n); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RollupStats(ctx, pool, false, 50); err != nil {
+		t.Fatal(err)
+	}
+	var rows, sum int
+	if err := pool.QueryRow(ctx, `SELECT count(*), coalesce(sum(arrived), 0) FROM catalog_activity
+	      WHERE repository_id = $1 AND arrived = 2`, []any{repo}, func(row pgx.Row) error { return row.Scan(&rows, &sum) }); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 2 { // the first transaction's row and this one's
+		t.Errorf("one transaction of two inserts: %d activity rows with arrived=2, want 2 in all", rows)
+	}
 }
 
 func readStats(t *testing.T, pool *db.Pool) map[string]int64 {
