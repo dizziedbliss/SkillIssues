@@ -15,6 +15,15 @@ on:
 permissions:
   contents: read
 
+# One release at a time. Three merges a minute apart once ran three deploys on
+# the host at once: each `compose up` replaced the others' containers, go-api
+# exited 0 mid-start, and two of the three failed. A run that arrives while one
+# is going waits; a newer arrival replaces a waiting one, since it holds every
+# change the waiting one would have shipped. A running deploy is never cancelled.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_OWNER: dizziedbliss
