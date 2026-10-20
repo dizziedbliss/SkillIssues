@@ -51,9 +51,12 @@ func RollupStats(ctx context.Context, pool *db.Pool, recount bool, activityRows 
 		  GROUP BY 1 HAVING sum(arrived) > 0 OR sum(closed) > 0
 		  ON CONFLICT (day) DO UPDATE SET arrived = c.arrived + EXCLUDED.arrived, closed = c.closed + EXCLUDED.closed
 		), activity AS (
+		  -- One row per repository and transaction: a commit that ran several
+		  -- statements on one repository wrote a delta for each.
 		  INSERT INTO catalog_activity (at, repository_id, arrived, closed)
-		  SELECT at, repository_id, arrived, closed FROM d
-		  WHERE arrived > 0 OR closed > 0
+		  SELECT at, repository_id, sum(arrived), sum(closed) FROM d
+		  GROUP BY at, repository_id
+		  HAVING sum(arrived) > 0 OR sum(closed) > 0
 		  ORDER BY at DESC LIMIT $1
 		)
 		SELECT count(*) FROM d`, activityRows).Scan(&folded)
