@@ -20,7 +20,7 @@ const defaultLinkOpen: RendererRule =
 // Issue bodies render inline; links should open in a new tab and never hand
 // the issue's origin a `window.opener` reference back into this app.
 md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
-  const token = tokens[idx];
+  const token = tokens[idx]!;
   token.attrSet("target", "_blank");
   token.attrSet("rel", "noreferrer noopener");
   return defaultLinkOpen(tokens, idx, options, env, self);

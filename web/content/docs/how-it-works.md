@@ -40,7 +40,7 @@ You can sort by easiest or newest instead, and filter by labels, languages, the 
 
 ## How difficulty is rated
 
-Difficulty comes from the labels maintainers put on issues, like "good first issue" or "difficulty/hard". An issue with no such label is unrated. We never guess that an unlabelled issue is easy. See [Difficulty ratings](/docs/difficulty-ratings).
+Difficulty comes from the labels maintainers put on issues, like "good first issue" or "difficulty/hard". An issue with no such label is unranked. We never guess that an unlabelled issue is easy. See [Difficulty ratings](/docs/difficulty-ratings).
 
 ## What we don't do
 

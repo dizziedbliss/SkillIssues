@@ -7,7 +7,7 @@ draft: false
 updated: 2026-10-20
 ---
 
-SkillIssues doesn't judge how hard an issue is. It reads the labels that maintainers have put on it. If a maintainer has marked an issue as a good first issue, it shows as Beginner. If nobody has said anything about difficulty, the issue is Unrated.
+SkillIssues doesn't judge how hard an issue is. It reads the labels that maintainers have put on it. If a maintainer has marked an issue as a good first issue, it shows as Beginner. If nobody has said anything about difficulty, the issue is Unranked.
 
 ## The four ratings
 
@@ -16,11 +16,11 @@ SkillIssues doesn't judge how hard an issue is. It reads the labels that maintai
 | Beginner | A maintainer labelled the issue as easy, or as suitable for newcomers. |
 | Intermediate | A maintainer labelled the issue as medium difficulty, or as open to contributions. |
 | Advanced | A maintainer labelled the issue as hard, large or specialised. |
-| Unrated | None of the issue's labels says anything about difficulty. |
+| Unranked | None of the issue's labels says anything about difficulty. |
 
-## Unrated is not easy
+## Unranked is not easy
 
-An issue with no difficulty label is Unrated, never Beginner. Not knowing how hard an issue is isn't the same as it being easy, and sending a newcomer to a hard issue because it lacked a label would be worse than not rating it. Unrated issues have no difficulty score and sort after rated ones when you sort by easiest.
+An issue with no difficulty label is Unranked, never Beginner. Not knowing how hard an issue is isn't the same as it being easy, and sending a newcomer to a hard issue because it lacked a label would be worse than not rating it. Unranked issues have no difficulty score and sort after rated ones when you sort by easiest.
 
 SkillIssues reads only labels. It doesn't read the issue text or count comments to guess difficulty.
 
@@ -65,7 +65,7 @@ The easiest match wins. The labels are checked for Beginner first, then Intermed
 ## Things to know
 
 - Some labels in the lists are not difficulty labels in the strict sense. `documentation`, `docs` and `typo` count as Beginner because such changes are usually small. `enhancement` and `feature` count as Intermediate, and `security` and `performance` as Advanced. A maintainer using them for another purpose can produce a rating that doesn't fit the issue.
-- Many projects label difficulty in ways SkillIssues doesn't recognise, so their issues stay Unrated even though they are easy or hard. Unrated means "unknown".
+- Many projects label difficulty in ways SkillIssues doesn't recognise, so their issues stay Unranked even though they are easy or hard. Unranked means "unknown".
 - Ratings follow the labels. If a maintainer changes a label on GitHub, the rating follows once the change reaches SkillIssues, usually within about two hours.
 - A rating is a hint, not a promise. Read the issue before you start.
 

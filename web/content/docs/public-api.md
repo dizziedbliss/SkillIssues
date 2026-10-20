@@ -60,7 +60,7 @@ curl "$API/issues?cursor=&difficulty=beginner&language=Go&limit=10"
 |---|---|
 | `search` | A search term. See [Finding issues](/docs/finding-issues) for how search works. |
 | `sort` | `shuffle`, `easiest` or `newest`. Browsing only; a search ignores it. See Sorting. |
-| `difficulty` | `BEGINNER`, `INTERMEDIATE`, `ADVANCED` or `UNCLASSIFIED`, in any case. `UNCLASSIFIED` means unrated. |
+| `difficulty` | `BEGINNER`, `INTERMEDIATE`, `ADVANCED` or `UNCLASSIFIED`, in any case. `UNCLASSIFIED` means unranked. |
 | `language` | The repository's main language. |
 | `tech` | Any language GitHub reports for the repository. |
 | `topics` | The repository's GitHub topics. |
@@ -78,7 +78,7 @@ curl "$API/issues?cursor=&difficulty=beginner&language=Go&limit=10"
 | Sort | Order |
 |---|---|
 | `shuffle` | Each repository's best open issue, with repositories in a random order that is redrawn daily and is the same for everyone in between. The default for cursor paging. |
-| `easiest` | By difficulty score ascending (unrated last), then most recently updated, then id. The default for page numbers. |
+| `easiest` | By difficulty score ascending (unranked last), then most recently updated, then id. The default for page numbers. |
 | `newest` | Most recently opened first. |
 
 ### Paging
@@ -123,6 +123,8 @@ A few rules for cursors:
   "required_skills": ["Go"],
   "technologies": ["Go"],
   "learning_tags": ["good first issue", "bug"],
+  "labels": ["good first issue", "bug"],
+  "tech": ["Go", "Shell"],
   "comments": 3,
   "author": "octocat",
   "repository": "owner/repo",
@@ -139,9 +141,11 @@ A few rules for cursors:
 | `id` | SkillIssues' own id for the issue. Use it with `GET /api/issues/{id}`. |
 | `github_id`, `number`, `url` | The issue's identity on GitHub. |
 | `difficulty` | `BEGINNER`, `INTERMEDIATE`, `ADVANCED` or `UNCLASSIFIED`. |
-| `difficulty_score` | A number, or `null` for an unrated issue. Never `0` or a default. |
+| `difficulty_score` | A number, or `null` for an unranked issue. Never `0` or a default. |
 | `updated_at` | GitHub's own last-updated time, not when we fetched it. |
 | `created_at` | When the issue was opened on GitHub. Empty when unknown. |
+| `labels` | The issue's labels exactly as GitHub has them. |
+| `tech` | The repository's three largest languages, largest first, by GitHub's names. Empty when unknown. The `tech` filter takes the same names in any case. |
 | `match_category` | Search results only: `Repository`, `Title`, `Language` or `Author`. |
 
 `recommendation_score` and `why_recommended` appear only on personalised results, which need an account, so you won't see them on public calls.
