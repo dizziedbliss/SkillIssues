@@ -11,6 +11,7 @@
   --closed: #5ac800;
   --quiet: #595959;          /* 7:1 on white */
   --hair: #000000;
+  --wash: #f2f2f2;           /* code and quiet panels */
 
   --serif: "Instrument Serif", "Times New Roman", serif;
   --mono: "JetBrains Mono", ui-monospace, monospace;
@@ -40,4 +41,17 @@
   font-family: var(--mono);
   min-height: 100vh;
   overflow-x: clip;
+}
+
+/*
+ * The same page, dark: black paper, white ink, the same red. Chosen with the
+ * footer's theme button (lib/siteMode.ts); still locked, never a user theme.
+ */
+:global(html[data-mode="dark"]) .page {
+  --ink: #ffffff;
+  --paper: #000000;
+  --quiet: #a6a6a6;          /* 8:1 on black */
+  --hair: #ffffff;
+  --wash: #161616;
+  color-scheme: dark;
 }

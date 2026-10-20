@@ -1,0 +1,4 @@
+[motion]
+duration = "220ms"
+easing = "ease-in-out"
+transition = "fade"

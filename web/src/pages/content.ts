@@ -115,7 +115,7 @@ export const pages: Page[] = [
       "We aim to reply within 30 days.",
       { h: "Deleting your data" },
       "Sign in, open the app and choose Delete account: it happens straight away. If you can’t sign in, email privacy@dizziedbliss.lol with your GitHub username and we will delete it; we may ask you to confirm the request from that GitHub account first, for example with a comment on GitHub. Please don’t post a deletion request in a public issue, since that publishes your username and request. Deleting your account removes your profile, preferences, saved issues, themes, sessions and notifications. You can also remove the sign-in app from your authorised applications in GitHub’s settings.",
-      { link: { label: "Open the app", to: "/app" } },
+      { link: { label: "Open the app", to: "/app/settings" } },
       { h: "Security and breaches" },
       "We protect your data as described on the Security page. If a breach affects your personal data, we will tell the people affected and the authorities as the law requires.",
       { h: "Children" },

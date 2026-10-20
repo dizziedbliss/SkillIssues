@@ -3,6 +3,7 @@ import tokens from "../landing/tokens.module.css";
 import { Header } from "../landing/Header";
 import { Footer } from "../landing/Footer";
 import type { Block, Page } from "./content";
+import { useT } from "../i18n";
 import s from "./ContentPage.module.css";
 
 function render(b: Block, i: number) {
@@ -27,6 +28,7 @@ function render(b: Block, i: number) {
 
 /** A written page of the public site, in the landing page's locked style. */
 export function ContentPage({ page }: { page: Page }) {
+  const t = useT();
   return (
     <div className={tokens.page}>
       <Header />
@@ -36,7 +38,7 @@ export function ContentPage({ page }: { page: Page }) {
           <p className={s.lede}>{page.lede}</p>
           {page.draft && (
             <p className={s.draft} role="note">
-              Draft: this page is being reviewed and may change before it is final.
+              {t("page.draft")}
             </p>
           )}
           <div className={s.body}>{page.body.map(render)}</div>

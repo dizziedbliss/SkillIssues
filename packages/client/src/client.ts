@@ -112,6 +112,11 @@ export class Client {
     await this.send({ method: "POST", path: "/auth/logout", body: {} });
   }
 
+  /** Ends every session of the signed-in account, on every device. */
+  async signOutEverywhere(): Promise<void> {
+    await this.send({ method: "POST", path: "/auth/logout-all", body: {} });
+  }
+
   /** Deletes the signed-in account and everything tied to it. Cannot be undone. */
   deleteAccount(): Promise<AccountDeleted> {
     return this.send({ method: "POST", path: "/auth/purge", body: { confirm: true } }) as Promise<AccountDeleted>;

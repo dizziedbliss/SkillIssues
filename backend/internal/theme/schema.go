@@ -145,5 +145,10 @@ var Schema = map[string]map[string]kind{
 	"radius": {"small": length(0, 48), "medium": length(0, 48), "large": length(0, 48), "pill": length(0, 999)},
 	"border": {"width": length(0, 4), "style": enum("solid", "dashed", "dotted", "none")},
 	"shadow": {"small": shadow, "medium": shadow, "large": shadow},
-	"motion": {"duration": duration, "easing": enum("linear", "ease", "ease-in", "ease-out", "ease-in-out"), "reduce": boolean},
+	"motion": {
+		"duration": duration, "easing": enum("linear", "ease", "ease-in", "ease-out", "ease-in-out"), "reduce": boolean,
+		// How the app moves between pages: the page wipes in from the left,
+		// fades, slides, or simply changes.
+		"transition": enum("wipe", "fade", "slide", "none"),
+	},
 }
