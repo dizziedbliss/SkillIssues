@@ -81,9 +81,10 @@ func (s *Service) Stats(ctx context.Context, activity int) (CatalogStats, error)
 		return out, nil
 	}
 	err = s.db.QueryRows(ctx, `
-		SELECT a.at, r.full_name, a.arrived, a.closed
+		SELECT a.at, r.full_name, sum(a.arrived)::int, sum(a.closed)::int
 		FROM catalog_activity a JOIN repositories r ON r.id = a.repository_id
-		ORDER BY a.at DESC, a.id DESC LIMIT $1`, []any{activity}, func(rows pgx.Rows) error {
+		GROUP BY a.at, r.full_name
+		ORDER BY a.at DESC, r.full_name LIMIT $1`, []any{activity}, func(rows pgx.Rows) error {
 		var a Activity
 		if err := rows.Scan(&a.At, &a.Repository, &a.Arrived, &a.Closed); err != nil {
 			return err
