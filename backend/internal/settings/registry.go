@@ -87,6 +87,11 @@ const (
 	// /recommendations reads off the shuffled feed before scoring them.
 	RecommendationsCandidatePool Key = "api.recommendations.candidate_pool"
 
+	// ThemesMaxPerUser and ThemesMaxBytes bound what an account stores as
+	// themes (internal/theme).
+	ThemesMaxPerUser Key = "api.themes.max_per_user"
+	ThemesMaxBytes   Key = "api.themes.max_bytes"
+
 	// IssuesQueryTimeoutMs is the deadline on the queries behind one
 	// GET /issues or GET /issues/{id}. It sits below the server's write
 	// timeout, so a slow query is cancelled and answered with a 503 instead of
@@ -366,6 +371,8 @@ var Registry = map[Key]Spec{
 	IssuesMaxLimit:                intSpec(100, 1, 500, "Largest ?limit honoured by GET /issues; a larger request is clamped."),
 	IssuesMaxPage:                 intSpec(200, 1, 10000, "Deepest ?page honoured by GET /issues; a deeper request is clamped. Deep offsets are expensive."),
 	RecommendationsMaxLimit:       intSpec(20, 1, 100, "Largest ?limit honoured by GET /recommendations; a larger request is clamped."),
+	ThemesMaxPerUser:              intSpec(20, 1, 200, "Most themes one account may keep."),
+	ThemesMaxBytes:                intSpec(65536, 1024, 524288, "Largest theme, TOML and stylesheet together, in bytes."),
 	RecommendationsCandidatePool:  intSpec(200, 10, 1000, "Open issues GET /recommendations reads off the shuffled feed, matching the caller's languages and level, before scoring them."),
 	IssuesLanguageCountTTLSeconds: intSpec(600, 0, 86400, "How long a language's counted open issues are reused when deciding how to browse it. 0 counts on every request."),
 	IssuesRareProbeMs:             intSpec(500, 0, 10000, "How long counting a combination of filters may take when deciding how to browse it; one that takes longer is read in index order. 0 does not bound it."),

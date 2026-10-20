@@ -635,6 +635,15 @@ Every key with its default and bounds: `docs/settings.md`.
   when Redis is down — within `api.cache.redis_timeout_ms`, and after a failure Redis is skipped
   (`cache_skipped_total`) except one probe per `api.cache.redis_retry_seconds`.
 
+- **Themes are someone else's code on your page**: a theme (`internal/theme`) is a TOML file of
+  design tokens checked against a fixed schema — an unknown key is an error — plus an optional
+  stylesheet checked token by token against an allowlist: no `url()` but base64 raster `data:`
+  images, no `@import`/`@font-face`, no function off the list, no escapes. Themes are per account
+  and shareable by id once public; making one private takes it off every other account. They
+  restyle the signed-in app only, never the landing page. `packages/theme` repeats every check on
+  the same fixtures (`packages/theme/fixtures`), and the web app's CSP blocks fetches regardless.
+  Routes: `GET/POST /themes`, `GET/PUT/DELETE /themes/{id}`, `GET/PUT /me/theme`.
+
 ### Not built
 - **Contributions, XP, levels and badges.** Removed with the no-user-tokens redesign
   (migration 00027): the old design awarded XP from PRs verified with a stored user token.
