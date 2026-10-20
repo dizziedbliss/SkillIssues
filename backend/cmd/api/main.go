@@ -30,6 +30,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/notification"
 	"github.com/dizziedbliss/skillissues/internal/profile"
 	"github.com/dizziedbliss/skillissues/internal/settings"
+	"github.com/dizziedbliss/skillissues/internal/theme"
 )
 
 func main() {
@@ -204,6 +205,7 @@ func buildRouter(
 		profileSvc:      profileSvc,
 		issueSvc:        issueSvc,
 		notificationSvc: notification.NewService(pool),
+		themeSvc:        theme.NewService(pool),
 	}
 
 	// ----- Health & Metrics -----
@@ -237,6 +239,15 @@ func buildRouter(
 	mux.Handle("GET /notifications", requireAuth(authSvc, http.HandlerFunc(h.getNotifications)))
 	mux.Handle("POST /notifications/read-all", requireAuth(authSvc, http.HandlerFunc(h.markAllNotificationsRead)))
 	mux.Handle("POST /notifications/{id}/read", requireAuth(authSvc, http.HandlerFunc(h.markNotificationRead)))
+
+	// ----- Themes -----
+	mux.Handle("GET /themes", requireAuth(authSvc, http.HandlerFunc(h.listThemes)))
+	mux.Handle("POST /themes", requireAuth(authSvc, http.HandlerFunc(h.createTheme)))
+	mux.HandleFunc("GET /themes/{id}", h.getTheme)
+	mux.Handle("PUT /themes/{id}", requireAuth(authSvc, http.HandlerFunc(h.updateTheme)))
+	mux.Handle("DELETE /themes/{id}", requireAuth(authSvc, http.HandlerFunc(h.deleteTheme)))
+	mux.Handle("GET /me/theme", requireAuth(authSvc, http.HandlerFunc(h.getActiveTheme)))
+	mux.Handle("PUT /me/theme", requireAuth(authSvc, http.HandlerFunc(h.setActiveTheme)))
 
 	// ----- Recommendations -----
 	mux.Handle("GET /recommendations", requireAuth(authSvc, http.HandlerFunc(h.getRecommendations)))

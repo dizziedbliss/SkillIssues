@@ -60,6 +60,8 @@ jobs:
             backend:
               - *shared
               - backend/**
+              # internal/theme runs the theme fixtures packages/theme shares.
+              - packages/theme/fixtures/**
             vulncheck:
               - *shared
               - backend/**
