@@ -196,7 +196,9 @@ app still uses the last three until its own rebuild.
   else, Krona One for the wordmark at 9% tracking over its 24:8 JetBrains Mono line).
 - **`pages/`** — the written pages (`pages/content.ts`); every claim must describe what the code does.
   Pages marked `draft` say so on the page.
-- **`app/`** — the signed-in app. Until its designs arrive, a plain working catalog.
+- **`app/`** — the signed-in app. Until its designs arrive, a plain working catalog with an account bar
+  (`Account.tsx`: GitHub sign-in, sign-out, delete account — the Privacy policy points there). Sign-in
+  returns to `/?auth=ok` or `/?error=<code>`, which `App.tsx` forwards to `/app`.
 - **`lab/`** — backdrop drafts for the owner to judge, with a switcher, behind `/` and `/lab/backdrop`
   until one is picked. They load after hydration (`DeferredBackdrop` in `App.tsx`), so the
   prerendered page and first paint never include them.
