@@ -23,7 +23,7 @@ Nothing. Sign-in only reads who you are (your GitHub id, username and avatar), a
 
 It may be under the star floor, inactive for two years, archived, a fork, or without a main language. The repository lookup on the home page tells you which. See [Suggest a repository](/docs/suggest-a-repository).
 
-## Why does an issue say "unrated"?
+## Why does an issue say "unranked"?
 
 Its maintainers haven't labelled its difficulty. We don't guess. See [Difficulty ratings](/docs/difficulty-ratings).
 

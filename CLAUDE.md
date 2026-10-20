@@ -208,8 +208,13 @@ path reaching outside the importing project). Both apps are built on `client`; t
   header (`AppHeader.tsx`: Explore, and Profile's menu: Settings, Appearance, Language, Sign out —
   "Sign in" while signed out), the page for the route, and the shared footer. `theme.ts` applies the
   signed-in person's theme (`GET /me/theme`, else Default) to that root only; Appearance flips to
-  Midnight, or to Default over your own theme. `Explore.tsx` is still the plain catalog until its
-  design lands. `Settings.tsx` holds sign out everywhere and delete account (the Privacy policy points
+  Midnight, or to Default over your own theme. `explore/` is the catalog as designed: its state
+  lives in the address (`query.ts`: absent `difficulty` means the profile's level, empty means all),
+  the filter panel takes `/issues/facets`, and the pager (`useCatalog.ts`) pages forward on cursors
+  and back over the pages seen, reading on through short pages. `IssuePage.tsx` (`/app/issues/:id`)
+  reads the body from GitHub in the browser and asks `GET /issues/{id}/body` only when GitHub
+  rate-limits it (`lib/issueBody.ts`), rendered through `packages/markdown`. Bookmarks
+  (`SaveButton.tsx`, `saved.ts`) save optimistically and say so when the API refuses. `Settings.tsx` holds sign out everywhere and delete account (the Privacy policy points
   there) and the support links. Sign-in returns to `/?auth=ok` or `/?error=<code>`, which `App.tsx`
   forwards to `/app`.
 - **`i18n/`** — every interface string of the landing page, footer, header and app is a key in

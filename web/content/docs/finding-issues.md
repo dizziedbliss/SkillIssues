@@ -4,7 +4,7 @@ slug: /docs/finding-issues
 section: Guides
 summary: How the catalog is ordered, how to filter it, and how search works.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 The catalog lists open issues from every repository SkillIssues tracks. You can browse it in one of three orders, narrow it with filters, or search it.
@@ -13,15 +13,19 @@ The catalog lists open issues from every repository SkillIssues tracks. You can 
 
 | Sort | What you get |
 |---|---|
-| Shuffled | The default. Every repository gets one slot, showing its best open issue. The order of repositories is redrawn once a day and is the same for everyone in between. |
-| Easiest first | Rated issues first, easiest to hardest, then the most recently updated. Unrated issues come last. |
+| Shuffle | The default. Every repository gets one slot, showing its best open issue. The order of repositories is redrawn once a day and is the same for everyone in between. |
+| Easiest | Rated issues first, easiest to hardest, then the most recently updated. Unranked issues come last. |
 | Newest | The most recently opened issues first. |
 
 The shuffled feed is meant to spread attention across the whole backlog rather than the biggest projects. A repository with ten thousand open issues gets the same single slot as one with three. Because it surfaces each repository's best issue, you see variety instead of one project's whole queue. If you want a specific order, pick easiest or newest.
 
 If you're signed in, your preferred languages come first.
 
+Choose the sort under **filter**, beside the search box.
+
 ## Filters
+
+Press **filter** beside the search box to open the filters. Each has a **?** that says what it matches. Pick what you want, then press **Apply**. **Clear** removes them all.
 
 You can combine any of these:
 
@@ -31,8 +35,10 @@ You can combine any of these:
 | Languages | The repository's main language. |
 | Tech | Any language GitHub reports for the repository, not just the main one. |
 | Topics | The repository's GitHub topics. |
-| Difficulty | Beginner, Intermediate, Advanced or Unrated. See [Difficulty ratings](/docs/difficulty-ratings). |
+| Difficulty | Beginner, Intermediate, Advanced or Unranked. See [Difficulty ratings](/docs/difficulty-ratings). |
 | Comments | A minimum and a maximum number of comments. A maximum of 0 means "no comments yet". |
+
+The difficulty buttons under the search box are the same filter, one press away. Press one to add or remove it. With none pressed, you see every difficulty. If you're signed in, they start at the experience level in your profile.
 
 ### How filters combine
 
@@ -44,7 +50,7 @@ The values in each filter's list come from the catalog itself, most common first
 
 ## Search
 
-Type a term and press Search. Nothing is searched while you type, and the catalog doesn't change until you press Search.
+Type a term and press Search. Nothing is searched while you type, and the catalog doesn't change until you press Search. **x clear** empties the search.
 
 Search looks in four places at once and shows a mix of all of them:
 
@@ -67,7 +73,11 @@ A few details:
 
 ## When a page looks short or empty
 
-When you browse the shuffled feed, and especially when you combine filters that few repositories match, the catalog may stop looking after a couple of seconds and give you a short page, or even an empty one, along with a way to carry on from where it stopped. This doesn't mean you've reached the end. Only a response with no way to continue means the end. The website keeps reading a few more pages before it tells you nothing matches. If you're using the API directly, see [Public API](/docs/public-api) for what to do.
+When you browse the shuffled feed, and especially when you combine filters that few repositories match, the catalog may stop looking after a couple of seconds and give you a short page, or even an empty one, along with a way to carry on from where it stopped. This doesn't mean you've reached the end. Only a response with no way to continue means the end. The website keeps reading a few more pages to fill each page before it tells you nothing matches.
+
+## Pages
+
+The numbers under the list are the pages you've already seen, so you can go back to any of them, plus the next one when there is one. The shuffled feed has no fixed page 7 to jump to, so the numbers grow as you go. If you're using the API directly, see [Public API](/docs/public-api) for what to do.
 
 ## Reading an issue
 

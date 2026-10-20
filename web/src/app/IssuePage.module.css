@@ -1,0 +1,247 @@
+/* One issue: its title large in the body face, chips, actions, then the description beside the repository. */
+
+.page {
+  width: min(100%, 80rem);
+  margin-inline: auto;
+}
+
+.back {
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+  text-decoration: underline;
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+}
+
+.repo {
+  margin-top: 1.5rem;
+  font-size: var(--label-size);
+}
+
+.repo a,
+.repoName a {
+  color: var(--colors-text-muted);
+}
+
+.title {
+  margin-top: 0.5rem;
+  font-family: var(--typography-mono-font);
+  font-weight: 400;
+  font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2.25rem);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.number {
+  color: var(--colors-text-muted);
+}
+
+.closed {
+  display: inline-block;
+  margin-top: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--colors-success);
+  color: var(--colors-text);
+  font-size: var(--label-size);
+}
+
+.chips,
+.tech {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chips {
+  margin-top: 1.25rem;
+}
+
+.chip,
+.level,
+.tech li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-small);
+  box-shadow: var(--shadow-small);
+  background: var(--chip);
+  font-size: 0.9375rem;
+}
+
+.level {
+  background: var(--colors-accent);
+  color: var(--colors-accent-text);
+}
+
+.tech li {
+  border: 1px solid var(--chip);
+  background: var(--colors-surface);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-top: 1.75rem;
+  padding-bottom: 1.75rem;
+  border-bottom: var(--border-width) var(--border-style) var(--rule);
+}
+
+.primary,
+.secondary {
+  padding: 0.5em 1em;
+  border-radius: var(--radius-medium);
+  font-size: var(--button-size);
+  text-decoration: none;
+  transition: background-size var(--slow) var(--ease), color var(--slow) var(--ease);
+}
+
+.primary {
+  background: linear-gradient(var(--colors-text), var(--colors-text)) no-repeat 0 0 / 0% 100%, var(--colors-accent);
+  color: var(--colors-accent-text);
+}
+
+.primary:hover,
+.primary:focus-visible {
+  background-size: 100% 100%, auto;
+  color: var(--colors-accent);
+}
+
+.secondary {
+  border: var(--border-width) solid var(--colors-accent);
+  background: linear-gradient(var(--colors-accent), var(--colors-accent)) no-repeat 0 0 / 0% 100%;
+  color: var(--colors-text);
+}
+
+.secondary:hover,
+.secondary:focus-visible {
+  background-size: 100% 100%;
+  color: var(--colors-accent-text);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 20rem);
+  gap: 2rem clamp(2rem, 5vw, 5rem);
+  margin-top: 2rem;
+}
+
+.heading {
+  margin-bottom: 1rem;
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: 1.6rem;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.note {
+  color: var(--colors-text-muted);
+}
+
+.error {
+  color: var(--colors-danger);
+}
+
+.description {
+  margin-top: 0.5rem;
+}
+
+.facts {
+  display: grid;
+  gap: 0.3rem;
+  margin: 1rem 0;
+  color: var(--colors-text-muted);
+  font-size: 0.9375rem;
+}
+
+/* ---- the description: someone else's Markdown, sanitised ---- */
+
+.prose {
+  max-width: 48rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.prose > * + * {
+  margin-top: 1em;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+  margin-top: 1.5em;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 1.4rem;
+  list-style: revert;
+}
+
+.prose a {
+  color: var(--colors-text);
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+}
+
+.prose code {
+  padding: 0.1em 0.3em;
+  background: var(--colors-surface-raised);
+  font-family: var(--typography-mono-font);
+  font-size: 0.9em;
+}
+
+.prose pre {
+  overflow-x: auto;
+  padding: 1rem;
+  background: var(--colors-surface-raised);
+  font-size: 0.875rem;
+}
+
+.prose pre code {
+  padding: 0;
+  background: none;
+}
+
+.prose blockquote {
+  padding-left: 1rem;
+  border-left: 3px solid var(--colors-accent);
+  color: var(--colors-text-muted);
+}
+
+.prose img {
+  max-width: 100%;
+  height: auto;
+}
+
+.prose table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.prose th,
+.prose td {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--rule);
+  text-align: left;
+}
+
+@media (max-width: 860px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primary,
+  .secondary {
+    transition: none;
+  }
+}

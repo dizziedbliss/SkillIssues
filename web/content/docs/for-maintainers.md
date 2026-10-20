@@ -42,7 +42,7 @@ An issue that closes on GitHub is marked closed when GitHub says so, and removed
 
 ### Label difficulty
 
-SkillIssues rates difficulty from your labels. Issues with no difficulty label are shown as unrated, and we never guess that one is easy. Labelling a few issues puts them in front of the people who want them.
+SkillIssues rates difficulty from your labels. Issues with no difficulty label are shown as unranked, and we never guess that one is easy. Labelling a few issues puts them in front of the people who want them.
 
 Labels that work for each rating:
 
