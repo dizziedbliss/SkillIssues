@@ -27,7 +27,7 @@ updated: 2026-10-20
 | `slug` | string | The URL path of the page, with a leading slash. Unique across all pages. It is the address the site already serves the page at, or `/docs/<name>` for a page that is new. |
 | `section` | string | Where the page belongs in navigation. One of `SkillIssues`, `Community`, `Resources`, `Support`, `Legal & Trust`, `Guides`. |
 | `summary` | string | One sentence describing the page. Use it for the page's meta description and for link cards on the index. |
-| `draft` | boolean | `true` when the page is waiting for the owner's review. Show a visible draft notice. Only `privacy` and `terms` are drafts today. Those two also carry a note at the top of the body. |
+| `draft` | boolean | `true` when the page is waiting for the owner's review. Show a visible draft notice. No page is a draft today. |
 | `updated` | date | `YYYY-MM-DD`, the day the page last changed. |
 
 A page keeps the address the site already uses for it (`about.md` is `/about`, `faq.md` is
