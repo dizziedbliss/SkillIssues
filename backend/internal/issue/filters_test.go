@@ -255,6 +255,11 @@ func TestRecommendationCandidates(t *testing.T) {
 	aEasy := f.issue(t, a, 1, "BEGINNER", 2, 0, t0)
 	aHard := f.issue(t, a, 2, "ADVANCED", 8, 0, t0)
 	bEasy := f.issue(t, b, 1, "BEGINNER", 2, 0, t0)
+	// Repositories outside the language, so widening to the whole catalog
+	// finds something even in an otherwise empty database.
+	for k := 0; k < 6; k++ {
+		f.issue(t, f.repo(t, 10+k, "Rust"), 1, "BEGINNER", 2, 0, t0)
+	}
 
 	ctx := context.Background()
 	for _, rareBelow := range []int{0, 1000} {
