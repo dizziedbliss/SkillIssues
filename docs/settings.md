@@ -27,6 +27,8 @@ readable through the endpoint above and copied into backups.
 | `api.issues.default_page_size` | 20 | 1–100 | Issues per page when browsing without a search term |
 | `api.issues.search_page_size` | 50 | 1–200 | Issues returned for a search query |
 | `api.search.per_category_cap` | 25 | 1–100 | Maximum search results per match category |
+| `api.search.sample_size` | 2000 | 100–100000 | Title and author matches a search reads before ordering them by stars; bounds the work for a common word |
+| `api.search.per_repo_cap` | 3 | 1–100 | Most issues one repository contributes to a search's Repository or Language category |
 | `api.notifications.page_size` | 50 | 1–200 | Notifications returned by `GET /notifications` |
 | `api.session.ttl_hours` | 168 | 1–8760 | Session lifetime; applies to newly issued sessions |
 | `api.session.prune_interval_seconds` | 3600 | 60–86400 | How often expired sessions and abandoned OAuth handshakes are deleted |

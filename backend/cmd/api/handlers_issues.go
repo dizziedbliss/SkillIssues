@@ -108,6 +108,8 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 
 		RareLanguageBelow: cfg.Int(settings.IssuesRareLanguageThreshold),
 		LanguageCountTTL:  cfg.Seconds(settings.IssuesLanguageCountTTLSeconds),
+		SearchSample:      cfg.Int(settings.SearchSampleSize),
+		SearchPerRepo:     cfg.Int(settings.SearchPerRepoCap),
 	}
 
 	_, cursorMode := q["cursor"]
