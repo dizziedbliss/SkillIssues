@@ -243,3 +243,57 @@ func TestCursorSortMismatch(t *testing.T) {
 		t.Errorf("err = %v, want ErrBadCursor", err)
 	}
 }
+
+// Recommendation candidates come from the caller's languages and level first,
+// and widen only when those hold fewer than wanted.
+func TestRecommendationCandidates(t *testing.T) {
+	f := newFilterFixture(t)
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	tech := f.topic + "lang"
+	a := f.repo(t, 1, "Go", tech)
+	b := f.repo(t, 2, "Go", tech)
+	aEasy := f.issue(t, a, 1, "BEGINNER", 2, 0, t0)
+	aHard := f.issue(t, a, 2, "ADVANCED", 8, 0, t0)
+	bEasy := f.issue(t, b, 1, "BEGINNER", 2, 0, t0)
+	// Repositories outside the language, so widening to the whole catalog
+	// finds something even in an otherwise empty database.
+	for k := 0; k < 6; k++ {
+		f.issue(t, f.repo(t, 10+k, "Rust"), 1, "BEGINNER", 2, 0, t0)
+	}
+
+	ctx := context.Background()
+	for _, rareBelow := range []int{0, 1000} {
+		base := Filters{RareLanguageBelow: rareBelow}
+
+		got, err := f.svc.RecommendationCandidates(ctx, base, []string{" " + tech + " "}, "beginner", 1, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ids := idsOf(got); !slices.Equal(ids, []int{aEasy, bEasy}) {
+			t.Errorf("rare below %d, beginner: %v, want %v", rareBelow, ids, []int{aEasy, bEasy})
+		}
+
+		got, err = f.svc.RecommendationCandidates(ctx, base, []string{tech}, "ADVANCED", 1, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ids := idsOf(got); !slices.Equal(ids, []int{aHard}) {
+			t.Errorf("rare below %d, advanced: %v, want %v", rareBelow, ids, []int{aHard})
+		}
+
+		// Wanting more than the languages hold widens to the whole catalog,
+		// the matching issues first, without repeating one.
+		got, err = f.svc.RecommendationCandidates(ctx, base, []string{tech}, "ADVANCED", 5, 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := idsOf(got)
+		if len(ids) != 8 || ids[0] != aHard || !slices.Contains(ids[1:3], aEasy) || !slices.Contains(ids[1:3], bEasy) {
+			t.Errorf("rare below %d, widened: %v, want %d, then %d and %d, then 5 more", rareBelow, ids, aHard, aEasy, bEasy)
+		}
+		slices.Sort(ids)
+		if len(slices.Compact(ids)) != 8 {
+			t.Errorf("rare below %d, widened: an issue listed twice", rareBelow)
+		}
+	}
+}

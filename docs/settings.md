@@ -45,6 +45,7 @@ readable through the endpoint above and copied into backups.
 | `api.issues.max_limit` | 100 | 1–500 | Largest `?limit` on `GET /issues`; larger is clamped |
 | `api.issues.max_page` | 200 | 1–10000 | Deepest `?page` on `GET /issues`; deeper is clamped |
 | `api.recommendations.max_limit` | 20 | 1–100 | Largest `?limit` on `GET /recommendations`; larger is clamped |
+| `api.recommendations.candidate_pool` | 200 | 10–1000 | Open issues `GET /recommendations` reads off the shuffled feed (caller's languages and level) before scoring |
 | `api.bodies.fallback_misses_per_hour` | 30 | 0–10000 | Issue bodies one caller may have fetched from GitHub per hour through `GET /issues/{id}/body`; cached bodies do not count (0 = cache only) |
 | `api.issues.filter_max_values` | 20 | 1–100 | Most values one `GET /issues` filter may name; more is a 400 |
 | `api.issues.query_timeout_ms` | 10000 | 100–25000 | Deadline for the queries behind one `GET /issues` or `GET /issues/{id}`; a query that misses it is cancelled and the caller gets 503. Keep it below the server's 30 s write timeout |
