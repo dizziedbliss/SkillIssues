@@ -29,6 +29,9 @@ readable through the endpoint above and copied into backups.
 | `api.search.per_category_cap` | 25 | 1–100 | Maximum search results per match category |
 | `api.search.sample_size` | 2000 | 100–100000 | Title matches a search reads before ordering them by stars, and the deepest one category of a search pages; bounds the work for a common word |
 | `api.search.per_repo_cap` | 3 | 1–100 | Most issues one repository contributes to a search's Repository or Language category |
+| `api.profile.bio_max_chars` | 280 | 0–2000 | The longest bio a profile may hold, in characters |
+| `api.profile.max_languages` | 12 | 1–100 | The most preferred languages a profile may list |
+| `api.profile.max_interests` | 12 | 1–100 | The most interests a profile may list |
 | `api.notifications.page_size` | 50 | 1–200 | Notifications returned by `GET /notifications` |
 | `api.session.ttl_hours` | 168 | 1–8760 | Session lifetime; applies to newly issued sessions |
 | `api.session.prune_interval_seconds` | 3600 | 60–86400 | How often expired sessions and abandoned OAuth handshakes are deleted |

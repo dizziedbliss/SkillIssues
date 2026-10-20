@@ -1,7 +1,7 @@
 import type { Transport } from "./transport";
 import type {
-  AccountDeleted, Facets, Issue, IssueBody, IssueFilters, IssuePage, Notifications, Profile, RepositoryLookup,
-  SavedChange, SearchCategory, Session, SignInStart, Stats, Theme, ThemeInput,
+  AccountDeleted, Facets, Issue, IssueBody, IssueFilters, IssuePage, Notifications, Profile, ProfileUpdate,
+  RepositoryLookup, SavedChange, SearchCategory, Session, SignInStart, Stats, Theme, ThemeInput,
 } from "./types";
 
 function query(params: Record<string, string | number | undefined>): string {
@@ -101,6 +101,16 @@ export class Client {
   /** The signed-in person's profile. */
   me(o?: Opts): Promise<Profile> {
     return this.get("/me", o);
+  }
+
+  /** Replaces the editable profile; refused whole (400, with the reason) when out of bounds. */
+  updateProfile(input: ProfileUpdate): Promise<Profile> {
+    return this.send({ method: "PUT", path: "/profile", body: input }) as Promise<Profile>;
+  }
+
+  /** The languages and frameworks a profile may choose from. */
+  async preferenceOptions(o?: Opts): Promise<string[]> {
+    return (await this.get<{ options: string[] }>("/preferences/options", o)).options;
   }
 
   /** The signed-in person's latest notifications and how many are unread. */

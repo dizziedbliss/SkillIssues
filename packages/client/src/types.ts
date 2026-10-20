@@ -171,6 +171,15 @@ export interface Profile {
   joined_at: string;
 }
 
+/** PUT /profile: the whole editable profile. */
+export interface ProfileUpdate {
+  bio: string;
+  experience_level: Level;
+  target_level: Level;
+  interests: string[];
+  preferred_languages: string[];
+}
+
 /** One notification: today only an issue you saved being closed on GitHub. */
 export interface Notification {
   id: number;

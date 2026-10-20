@@ -136,6 +136,10 @@ export function useAppTheme(root: RefObject<HTMLElement | null>): { toggle: Them
         setAlt(!alt);
         store(ALT_KEY, alt ? "0" : "1");
       },
+      showChosen: () => {
+        setAlt(false);
+        store(ALT_KEY, "0");
+      },
     },
   };
 }

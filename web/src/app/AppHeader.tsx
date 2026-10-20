@@ -145,6 +145,7 @@ function ProfileMenu() {
                 <span>{t("app.menu.appearance")}</span>
                 <span className={s.switch} aria-hidden="true" />
               </button>
+              <Link to="/app/settings#themes" className={`${s.item} ${s.subItem}`}>{t("app.menu.addThemes")}</Link>
             </li>
             <li>
               <button type="button" className={s.item} aria-expanded={languages} onClick={() => setLanguages((l) => !l)}>

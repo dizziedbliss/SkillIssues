@@ -9,7 +9,7 @@ import { IssuePage } from "./IssuePage";
 import { SavedPage } from "./SavedPage";
 import { ProfilePage } from "./profile/ProfilePage";
 import { ContributionsPage } from "./profile/ContributionsPage";
-import { Settings } from "./Settings";
+import { Settings } from "./settings/Settings";
 import { useAppTheme } from "./theme";
 import { useRouteSettled, useTransitionNavigate } from "./transition";
 import { SearchContext } from "./search/context";
