@@ -5,6 +5,7 @@ import { Footer } from "../landing/Footer";
 import type { Block, Page } from "./content";
 import { useT } from "../i18n";
 import s from "./ContentPage.module.css";
+import { useDocumentTitle } from "../lib/title";
 
 function render(b: Block, i: number) {
   if (typeof b === "string") return <p key={i} className={s.p}>{b}</p>;
@@ -29,6 +30,7 @@ function render(b: Block, i: number) {
 /** A written page of the public site, in the landing page's locked style. */
 export function ContentPage({ page }: { page: Page }) {
   const t = useT();
+  useDocumentTitle(page.title);
   return (
     <div className={tokens.page}>
       <Header />

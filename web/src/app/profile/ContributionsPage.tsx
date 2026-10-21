@@ -5,10 +5,12 @@ import { ContribStatus, Graph, PullRequests, SignInPrompt, StatBoxes } from "./p
 import { useContributions, useTrackedPulls, useXP } from "./data";
 import { Badges, RecentXP, SyncStatus, TrackedPulls } from "./xp";
 import s from "./ContributionsPage.module.css";
+import { useDocumentTitle } from "../../lib/title";
 
 /** Contribute and My contributions: your numbers, your year, and your pull requests in full. */
 export function ContributionsPage() {
   const t = useT();
+  useDocumentTitle(t("contrib.title"));
   const { user, isPending } = useSession();
   const contributions = useContributions();
   const xp = useXP();

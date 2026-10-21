@@ -198,12 +198,11 @@ path reaching outside the importing project). Both apps are built on `client`; t
   hover colour, links draw their underline, live counts glide between polls; all of it stops under reduced
   motion. Fonts are
   self-hosted through `@fontsource` (Instrument Serif headings and nav, JetBrains Mono everything
-  else, Krona One for the wordmark: the owner's mark (`LogoMark.tsx`: a ring, a rough dashed ring, a red "!",
-  inline so its black is the ink), then SkillIssues in the ink with the "i" of Skill red, one ink
-  underline across, `Logo.tsx`). The favicon and the desktop icon are the mark (`public/favicon.svg`,
-  its black white in a dark browser theme; PNGs rendered from it). In the site and app headers the logo
-  swaps with the live count every few seconds (`LogoLive.tsx`: closed against open, `GET /stats`; never
-  under reduced motion).
+  else, Krona One for the wordmark: SkillIssues in the ink, the "i" of Skill red, one ink underline across,
+  `Logo.tsx`). The owner's mark (a ring, a rough dashed ring, a red "!") is the favicon and the app
+  icons only, never beside the wordmark (`public/favicon.svg`, its black white in a dark browser theme;
+  PNGs rendered from it). In the site and app headers the logo swaps with the live count every few
+  seconds (`LogoLive.tsx`: closed against open, `GET /stats`; never under reduced motion).
 - **`pages/`** — the written pages; every claim must describe what the code does. The docs are Markdown in
   `web/content/docs/` (frontmatter `slug`, `title`, `section`, `summary`), read and rendered at build
   time by `docs.ts` (markdown-it, raw HTML off: first-party text, so not through `packages/markdown`,
@@ -281,6 +280,12 @@ path reaching outside the importing project). Both apps are built on `client`; t
 - **Prerendered**: `npm run build` renders `/`, the legal pages and every docs page to HTML
   (`scripts/prerender.mjs`, `src/entry-server.tsx`); the client hydrates a page only when its
   `data-route` matches. Vercel serves `shell.html` (no markup) for every other route.
+  Each prerendered page gets its head from `src/seo.ts`: description, canonical address, Open Graph and
+  Twitter tags with `public/og.png`, and JSON-LD (WebSite with search and Organization on `/`,
+  SoftwareApplication on `/download`, TechArticle on docs). `shell.html` gets the defaults with no
+  canonical. The build also writes `sitemap.xml` and `robots.txt` (private app pages disallowed);
+  `public/manifest.webmanifest` makes it installable. In the app, `useDocumentTitle` keeps the tab's
+  title right as it navigates. Every claim in `seo.ts` must be true of the site, like the docs.
 - CSS Modules over custom properties; no Tailwind, no CSS-in-JS. Live counts poll `GET /stats`
   every 10s (React Query, paused in background tabs).
 - The CSP (`vercel.json`) allows fetching nothing from elsewhere but the API host and GitHub's API,

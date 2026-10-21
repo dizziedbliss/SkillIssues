@@ -8,9 +8,11 @@ import { useI18n } from "../i18n";
 import { DocSearch } from "./DocSearch";
 import { Downloads } from "./Downloads";
 import s from "./DocPage.module.css";
+import { useDocumentTitle } from "../lib/title";
 
 /** A documentation page: the sidebar of every page by section, and the rendered Markdown. */
 export function DocPage({ doc }: { doc: Doc }) {
+  useDocumentTitle(doc.title);
   const navigate = useNavigate();
   const { t, locale } = useI18n();
   const dateFormat = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
