@@ -5,11 +5,13 @@ import { useI18n } from "../../i18n";
 import { api } from "../../lib/api";
 import { Badges, LanguageLevels, LevelCard } from "../profile/xp";
 import s from "./people.module.css";
+import { useDocumentTitle } from "../../lib/title";
 
 /** Someone's public profile: only there if they chose to show it. */
 export function PublicProfilePage() {
   const { t, locale } = useI18n();
   const login = useParams().login ?? "";
+  useDocumentTitle(login || null);
   const profile = useQuery({
     queryKey: ["publicProfile", login.toLowerCase()],
     queryFn: ({ signal }) => api.publicProfile(login, { signal }),

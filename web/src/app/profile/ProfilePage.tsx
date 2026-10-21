@@ -8,6 +8,7 @@ import { useContributions, useProfile, useTrackedPulls, useXP } from "./data";
 import { BackfillReveal, Badges, LanguageLevels, LevelCard, Quests, SyncStatus, TrackedPulls } from "./xp";
 import { useMyPath } from "../path/data";
 import s from "./ProfilePage.module.css";
+import { useDocumentTitle } from "../../lib/title";
 
 /** The greeting for the reader's time of day. */
 function greeting() {
@@ -28,6 +29,7 @@ const SHOWN = 4;
  */
 export function ProfilePage() {
   const { t, locale } = useI18n();
+  useDocumentTitle(t("app.nav.profile"));
   const { user, isPending } = useSession();
   const profile = useProfile();
   const contributions = useContributions();

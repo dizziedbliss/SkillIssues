@@ -19,6 +19,7 @@ import { loadLinkedPulls } from "../lib/linkedPulls";
 import { external } from "../lib/links";
 import s from "./IssuePage.module.css";
 import { exploreURL } from "./explore/where";
+import { useDocumentTitle } from "../lib/title";
 
 /**
  * One issue: what it is, where it lives, and what to do next (open it on
@@ -32,6 +33,7 @@ export function IssuePage() {
   const valid = Number.isInteger(id) && id > 0;
 
   const issue = useQuery({ queryKey: ["issue", id], queryFn: ({ signal }) => api.issue(id, { signal }), enabled: valid });
+  useDocumentTitle(issue.data ? `${issue.data.title} · ${issue.data.repository}` : null);
   const body = useQuery({
     queryKey: ["issueBody", id],
     queryFn: ({ signal }) => loadIssueBody(issue.data!, signal),

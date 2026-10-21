@@ -7,6 +7,7 @@ import { SignInPrompt } from "./profile/parts";
 import { useSaved } from "./saved";
 import { useSession } from "./session";
 import s from "./SavedPage.module.css";
+import { useDocumentTitle } from "../lib/title";
 
 /**
  * Your saved issues, closed ones included, under any updates about them:
@@ -14,6 +15,7 @@ import s from "./SavedPage.module.css";
  */
 export function SavedPage() {
   const { t, locale } = useI18n();
+  useDocumentTitle(t("app.menu.saved"));
   const { user, isPending } = useSession();
   const saved = useSaved();
   const notes = useNotifications();
