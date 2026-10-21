@@ -42,6 +42,7 @@ func (h *handlers) getMyXP(w http.ResponseWriter, r *http.Request) {
 		"recent":     recent,
 		"sync":       sync,
 		"badge_keys": xp.BadgeKeys(),
+		"quests":     xp.Quests(events),
 	})
 }
 

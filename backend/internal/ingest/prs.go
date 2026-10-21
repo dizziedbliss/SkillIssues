@@ -358,7 +358,100 @@ func awardTx(ctx context.Context, tx pgx.Tx, st PRSyncState, rules xp.Rules) (ma
 		}
 		written[a.Source] += int(tag.RowsAffected())
 	}
+	if err := questsTx(ctx, tx, st.UserID, rules, written); err != nil {
+		return nil, err
+	}
+	if err := pathTx(ctx, tx, st.UserID, rules, written); err != nil {
+		return nil, err
+	}
 	return written, nil
+}
+
+// questsTx pays the quests the person's ledger now completes.
+func questsTx(ctx context.Context, tx pgx.Tx, userID int, rules xp.Rules, written map[string]int) error {
+	rows, err := tx.Query(ctx, `SELECT source, COALESCE(key, ''), amount, detail, earned_at FROM xp_events WHERE user_id = $1`, userID)
+	if err != nil {
+		return fmt.Errorf("ingest: read ledger for quests: %w", err)
+	}
+	var events []xp.Event
+	paid := map[string]bool{}
+	for rows.Next() {
+		var e xp.Event
+		var detail []byte
+		if err := rows.Scan(&e.Source, &e.Key, &e.Amount, &detail, &e.EarnedAt); err != nil {
+			rows.Close()
+			return fmt.Errorf("ingest: scan ledger for quests: %w", err)
+		}
+		if err := json.Unmarshal(detail, &e.Detail); err != nil {
+			rows.Close()
+			return fmt.Errorf("ingest: decode ledger detail: %w", err)
+		}
+		if e.Key != "" {
+			paid[e.Key] = true
+		}
+		events = append(events, e)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("ingest: read ledger for quests: %w", err)
+	}
+	for _, a := range xp.QuestAwards(rules, events, paid) {
+		tag, err := tx.Exec(ctx,
+			`INSERT INTO xp_events (user_id, source, key, amount, earned_at) VALUES ($1, $2, $3, $4, $5)
+			 ON CONFLICT (user_id, source, key) WHERE key IS NOT NULL DO NOTHING`,
+			userID, a.Source, a.Key, a.Amount, a.EarnedAt)
+		if err != nil {
+			return fmt.Errorf("ingest: pay quest %s: %w", a.Key, err)
+		}
+		written[a.Source] += int(tag.RowsAffected())
+	}
+	return nil
+}
+
+// pathTx marks the steps of the person's learning path that a merged pull
+// request of theirs has closed, and when every step is done, finishes the
+// path and pays it.
+func pathTx(ctx context.Context, tx pgx.Tx, userID int, rules xp.Rules, written map[string]int) error {
+	var pathID int64
+	err := tx.QueryRow(ctx,
+		`SELECT id FROM learning_paths WHERE user_id = $1 AND finished_at IS NULL AND abandoned_at IS NULL`, userID).Scan(&pathID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("ingest: read learning path: %w", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE learning_path_steps s SET done_at = m.merged_at
+		 FROM (SELECT l.issue_id, min(p.merged_at) AS merged_at
+		       FROM pull_requests p JOIN pull_request_issues l ON l.pull_request_id = p.id
+		       WHERE p.user_id = $2 AND p.state = 'MERGED' GROUP BY l.issue_id) m
+		 WHERE s.path_id = $1 AND s.done_at IS NULL AND s.issue_id = m.issue_id`, pathID, userID); err != nil {
+		return fmt.Errorf("ingest: mark learning path steps: %w", err)
+	}
+	var finished *time.Time
+	if err := tx.QueryRow(ctx,
+		`SELECT CASE WHEN count(*) > 0 AND count(*) = count(done_at) THEN max(done_at) END
+		 FROM learning_path_steps WHERE path_id = $1`, pathID).Scan(&finished); err != nil {
+		return fmt.Errorf("ingest: check learning path: %w", err)
+	}
+	if finished == nil {
+		return nil
+	}
+	if _, err := tx.Exec(ctx, `UPDATE learning_paths SET finished_at = $2 WHERE id = $1`, pathID, *finished); err != nil {
+		return fmt.Errorf("ingest: finish learning path: %w", err)
+	}
+	if rules.PathReward > 0 {
+		tag, err := tx.Exec(ctx,
+			`INSERT INTO xp_events (user_id, source, key, amount, earned_at) VALUES ($1, 'path', $2, $3, $4)
+			 ON CONFLICT (user_id, source, key) WHERE key IS NOT NULL DO NOTHING`,
+			userID, fmt.Sprintf("path:%d", pathID), rules.PathReward, *finished)
+		if err != nil {
+			return fmt.Errorf("ingest: pay learning path: %w", err)
+		}
+		written[xp.SourcePath] += int(tag.RowsAffected())
+	}
+	return nil
 }
 
 func loadXPPullsTx(ctx context.Context, tx pgx.Tx, userID int) ([]xp.PR, error) {
@@ -366,7 +459,9 @@ func loadXPPullsTx(ctx context.Context, tx pgx.Tx, userID int) ([]xp.PR, error) 
 		`SELECT p.id, p.repository_id, COALESCE(r.language, ''), p.state, p.created_at, p.merged_at, p.checks,
 		        p.approvals, p.changes_requested, p.no_xp_reason,
 		        COALESCE(json_agg(json_build_object('id', i.id, 'difficulty', i.difficulty, 'created_at', i.created_at,
-		                 'labels', COALESCE(i.labels, '{}'))) FILTER (WHERE i.id IS NOT NULL), '[]')
+		                 'labels', COALESCE(i.labels, '{}'),
+		                 'claimed', EXISTS (SELECT 1 FROM issue_claims c WHERE c.issue_id = i.id AND c.user_id = p.user_id)))
+		                 FILTER (WHERE i.id IS NOT NULL), '[]')
 		 FROM pull_requests p
 		 JOIN repositories r ON r.id = p.repository_id
 		 LEFT JOIN pull_request_issues l ON l.pull_request_id = p.id
@@ -390,12 +485,13 @@ func loadXPPullsTx(ctx context.Context, tx pgx.Tx, userID int) ([]xp.PR, error) 
 			Difficulty string     `json:"difficulty"`
 			CreatedAt  *time.Time `json:"created_at"`
 			Labels     []string   `json:"labels"`
+			Claimed    bool       `json:"claimed"`
 		}
 		if err := json.Unmarshal(issues, &linked); err != nil {
 			return nil, fmt.Errorf("ingest: decode linked issues: %w", err)
 		}
 		for _, l := range linked {
-			p.Issues = append(p.Issues, xp.Issue{ID: l.ID, Difficulty: l.Difficulty, CreatedAt: l.CreatedAt, Labels: l.Labels})
+			p.Issues = append(p.Issues, xp.Issue{ID: l.ID, Difficulty: l.Difficulty, CreatedAt: l.CreatedAt, Labels: l.Labels, ClaimedByAuthor: l.Claimed})
 		}
 		out = append(out, p)
 	}

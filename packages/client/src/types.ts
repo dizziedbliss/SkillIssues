@@ -281,6 +281,40 @@ export interface MyXP {
   sync: PRSync;
   /** Every badge, in display order: those not in summary.badges are still to earn. */
   badge_keys: string[];
+  /** Every quest, in display order, with how far you are. */
+  quests: QuestProgress[];
+}
+
+/** One quest: done once have reaches need. */
+export interface QuestProgress {
+  key: string;
+  have: number;
+  need: number;
+  done_at: string | null;
+}
+
+/** A kind of work a learning path is made of. */
+export interface PathRole {
+  key: string;
+  tech?: string[];
+  labels?: string[];
+}
+
+/** One issue of a learning path. */
+export interface PathStep {
+  position: number;
+  difficulty: Difficulty;
+  done_at: string | null;
+  /** Null once the catalog dropped the issue. */
+  issue: Issue | null;
+}
+
+/** Your learning path in progress. */
+export interface LearningPath {
+  id: number;
+  role: string;
+  started_at: string;
+  steps: PathStep[];
 }
 
 /** Your claim on an issue. */

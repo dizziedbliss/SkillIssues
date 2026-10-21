@@ -43,6 +43,8 @@ type Rules struct {
 	Opened              int
 	OpenedWeeklyCap     int
 	LevelStep           int
+	QuestReward         int
+	PathReward          int
 }
 
 // RulesFrom reads Rules from a settings snapshot.
@@ -66,6 +68,8 @@ func RulesFrom(s *settings.Snapshot) Rules {
 		Opened:              s.Int(settings.XPOpened),
 		OpenedWeeklyCap:     s.Int(settings.XPOpenedWeeklyCap),
 		LevelStep:           s.Int(settings.XPLevelStep),
+		QuestReward:         s.Int(settings.XPQuestReward),
+		PathReward:          s.Int(settings.XPPathReward),
 	}
 }
 
@@ -75,6 +79,8 @@ type Issue struct {
 	Difficulty string // BEGINNER, INTERMEDIATE, ADVANCED or UNCLASSIFIED
 	CreatedAt  *time.Time
 	Labels     []string
+	// ClaimedByAuthor: the pull request's author had claimed this issue.
+	ClaimedByAuthor bool
 }
 
 // PR is a stored pull request, as the rules need it.
@@ -106,7 +112,8 @@ type Detail struct {
 	Capped       int    `json:"capped,omitempty"`  // taken off by xp.repo_daily_cap
 	RepositoryID int    `json:"repository_id,omitempty"`
 	Language     string `json:"language,omitempty"`
-	Docs         bool   `json:"docs,omitempty"` // the closed issue is labelled documentation
+	Docs         bool   `json:"docs,omitempty"`    // the closed issue is labelled documentation
+	Claimed      bool   `json:"claimed,omitempty"` // it closes an issue its author had claimed
 }
 
 // Award is one ledger row to write.
@@ -186,6 +193,9 @@ func Plan(r Rules, joined time.Time, prs []PR, paid []Paid) []Award {
 		d.Base = base
 		if issue != nil {
 			d.Difficulty, d.IssueID, d.Docs = issue.Difficulty, issue.ID, isDocs(issue.Labels)
+			for _, i := range p.Issues {
+				d.Claimed = d.Claimed || i.ClaimedByAuthor
+			}
 			if issue.CreatedAt != nil && r.BacklogDays > 0 && at.Sub(*issue.CreatedAt) >= time.Duration(r.BacklogDays)*24*time.Hour {
 				d.Backlog = r.BacklogBonus
 			}

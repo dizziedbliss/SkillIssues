@@ -257,3 +257,67 @@ func TestPullRequestPassRefusesAnotherAccount(t *testing.T) {
 		t.Errorf("outcome %+v, stored %d: want other_account and nothing stored", out, stored)
 	}
 }
+
+// A merge that closes a learning path's last step finishes the path and pays
+// it, and the quests it completes are paid in the same pass.
+func TestPullRequestPassFinishesPathsAndQuests(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	w := newPRTestWorld(t, pool)
+	if _, err := EnsurePRSync(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	var pathID int64
+	if err := pool.QueryRow(ctx, `INSERT INTO learning_paths (user_id, role) VALUES ($1, 'docs') RETURNING id`, []any{w.userID},
+		func(r pgx.Row) error { return r.Scan(&pathID) }); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.Exec(ctx, `INSERT INTO learning_path_steps (path_id, position, issue_id, difficulty) VALUES ($1, 1, $2, 'BEGINNER')`,
+		pathID, w.issueID); err != nil {
+		t.Fatal(err)
+	}
+	// A claim makes the merge count for claimed_and_done.
+	if err := pool.Exec(ctx, `INSERT INTO issue_claims (issue_id, user_id, expires_at) VALUES ($1, $2, now() + interval '7 days')`,
+		w.issueID, w.userID); err != nil {
+		t.Fatal(err)
+	}
+	merged := w.joined.AddDate(0, 2, 0)
+	pr := w.pull(w.ghID*10+7, w.ghA, "MERGED", &merged, merged)
+	pr.Closes = []github.ClosingIssue{{RepositoryID: w.ghA, Repository: w.nameA, Number: 3}}
+	rules := testRules
+	rules.QuestReward, rules.PathReward = 50, 200
+	out, err := ApplyPullsPage(ctx, pool, w.state(t, pool), github.UserPullsPage{
+		Found: true, DatabaseID: w.ghID, Pulls: []github.UserPullRequest{pr},
+	}, rules, testIntervals, merged.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Awards[xp.SourcePath] != 1 {
+		t.Errorf("path awards = %d, want 1 (%+v)", out.Awards[xp.SourcePath], out.Awards)
+	}
+	quests := map[string]bool{}
+	if err := pool.QueryRows(ctx, `SELECT key FROM xp_events WHERE user_id = $1 AND source = 'quest'`, []any{w.userID},
+		func(rows pgx.Rows) error {
+			var k string
+			if err := rows.Scan(&k); err != nil {
+				return err
+			}
+			quests[k] = true
+			return nil
+		}); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"first_merge_here", "claimed_and_done", "docs_fix", "backlog_dive"} {
+		if !quests[xp.QuestKey(k)] {
+			t.Errorf("quest %s not paid; paid: %v", k, quests)
+		}
+	}
+	var finished *time.Time
+	if err := pool.QueryRow(ctx, `SELECT finished_at FROM learning_paths WHERE id = $1`, []any{pathID},
+		func(r pgx.Row) error { return r.Scan(&finished) }); err != nil {
+		t.Fatal(err)
+	}
+	if finished == nil || !finished.Equal(merged) {
+		t.Errorf("path finished_at = %v, want the merge time %v", finished, merged)
+	}
+}

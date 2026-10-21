@@ -26,6 +26,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/flow"
 	"github.com/dizziedbliss/skillissues/internal/httpx"
 	"github.com/dizziedbliss/skillissues/internal/issue"
+	"github.com/dizziedbliss/skillissues/internal/learnpath"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
 	"github.com/dizziedbliss/skillissues/internal/notification"
@@ -227,6 +228,7 @@ func buildRouter(
 		progressSvc:     progress.New(pool),
 		claimSvc:        claimSvc,
 		claimed:         claimed,
+		pathSvc:         learnpath.New(pool, issueSvc),
 		hidden:          hidden,
 	}
 
@@ -258,6 +260,13 @@ func buildRouter(
 	mux.Handle("POST /issues/{id}/claim", requireAuth(authSvc, http.HandlerFunc(h.claimIssue)))
 	mux.Handle("DELETE /issues/{id}/claim", requireAuth(authSvc, http.HandlerFunc(h.releaseIssue)))
 	mux.Handle("GET /me/claims", requireAuth(authSvc, http.HandlerFunc(h.getMyClaims)))
+
+	// ----- Learning paths -----
+	mux.HandleFunc("GET /paths/roles", h.getPathRoles)
+	mux.Handle("GET /me/path", requireAuth(authSvc, http.HandlerFunc(h.getMyPath)))
+	mux.Handle("POST /me/path", requireAuth(authSvc, http.HandlerFunc(h.startPath)))
+	mux.Handle("DELETE /me/path", requireAuth(authSvc, http.HandlerFunc(h.abandonPath)))
+	mux.Handle("POST /me/path/steps/{position}/swap", requireAuth(authSvc, http.HandlerFunc(h.swapPathStep)))
 
 	// ----- Saved issues -----
 	mux.Handle("GET /saved", requireAuth(authSvc, http.HandlerFunc(h.getSaved)))

@@ -1,4 +1,4 @@
-import type { Claim, Issue, MyXP, Notification, Profile, ProfileUpdate, Theme, ThemeInput, TrackedPull, Transport } from "@skillissues/client";
+import type { Claim, Issue, LearningPath, MyXP, Notification, Profile, ProfileUpdate, Theme, ThemeInput, TrackedPull, Transport } from "@skillissues/client";
 
 /*
  * Development only (import.meta.env.DEV; the production build drops this
@@ -59,6 +59,8 @@ const saved = new Map<number, Issue>((stored?.saved ?? []).map((i) => [i.id, i])
 let notifications: Notification[] = stored?.notifications ?? [];
 /** Claims, kept for the page's life only. */
 const claims = new Map<number, Claim>();
+/** The learning path, kept for the page's life only. */
+let learning: LearningPath | null = null;
 let themes: Theme[] = stored?.themes ?? [];
 let active: string | null = stored?.active ?? null;
 let activePreset: string | null = stored?.activePreset ?? null;
@@ -175,6 +177,33 @@ export function previewTransport(real: Transport): Transport {
       }
       return { claimed: claims.has(id), yours: claims.get(id) ?? null };
     }
+    if (path === "/paths/roles") {
+      return { roles: ["frontend", "backend", "docs", "devops", "data", "mobile"].map((key) => ({ key })) };
+    }
+    if (path === "/me/path" && method === "GET") return { path: learning };
+    if (path === "/me/path" && method === "DELETE") {
+      learning = null;
+      return undefined;
+    }
+    if (path === "/me/path" && method === "POST") {
+      const page = (await real({ method: "GET", path: "/issues?limit=10&cursor=&unassigned=true" })) as { issues: Issue[] };
+      learning = {
+        id: 1, role: (req.body as { role: string }).role, started_at: new Date().toISOString(),
+        steps: page.issues.slice(0, 5).map((issue, i) => ({
+          position: i + 1, difficulty: i < 3 ? "BEGINNER" : "INTERMEDIATE",
+          done_at: i === 0 ? new Date().toISOString() : null, issue,
+        })),
+      };
+      return { path: learning };
+    }
+    if (path.startsWith("/me/path/steps/") && learning) {
+      const pos = Number(path.split("/")[4]);
+      const page = (await real({ method: "GET", path: "/issues?limit=20&cursor=&unassigned=true" })) as { issues: Issue[] };
+      const used = new Set(learning.steps.map((st) => st.issue?.id));
+      const next = page.issues.find((i) => !used.has(i.id)) ?? null;
+      learning = { ...learning, steps: learning.steps.map((st) => (st.position === pos ? { ...st, issue: next } : st)) };
+      return { path: learning };
+    }
     if (path === "/me/xp") return sampleXP();
     if (path.startsWith("/me/pulls") && method === "GET") return { pull_requests: samplePulls() };
     if (path === "/me/pulls/refresh") return { next_allowed_at: new Date(Date.now() + 5 * 60_000).toISOString() };
@@ -235,6 +264,15 @@ function sampleXP(): MyXP {
       { source: "backfill", amount: 32, detail: { base: 50, first_in_repo: 15, percent: 50 }, earned_at: day(200), pull_request: pr(5, "Typo in the README", "golang/go") },
     ],
     sync: { tracked: true, synced_through: day(0), backfilling: false, last_checked_at: day(0.01), next_check_at: day(-0.01), requested_at: null, last_error: null },
+    quests: [
+      { key: "first_merge_here", have: 1, need: 1, done_at: day(200) },
+      { key: "claimed_and_done", have: 0, need: 1, done_at: null },
+      { key: "docs_fix", have: 1, need: 1, done_at: day(25) },
+      { key: "two_languages", have: 2, need: 2, done_at: day(30) },
+      { key: "three_repos", have: 3, need: 3, done_at: day(40) },
+      { key: "three_in_a_month", have: 2, need: 3, done_at: null },
+      { key: "backlog_dive", have: 1, need: 1, done_at: day(12) },
+    ],
     badge_keys: ["first_merge", "merges_5", "merges_10", "merges_25", "merges_50", "merges_100", "repos_3", "repos_10", "languages_3",
       "languages_5", "docs_fix", "backlog_hero", "advanced_fix", "streak_4", "streak_12", "level_5", "level_10", "level_20"],
   };

@@ -219,3 +219,49 @@ func TestSummariseStreaksBadgesAndLanguages(t *testing.T) {
 		t.Error("merges_10 with five merges")
 	}
 }
+
+func TestQuests(t *testing.T) {
+	at := func(day int) time.Time { return joined.AddDate(0, 0, day) }
+	merge := func(day int, lang string, repo int, d Detail) Event {
+		d.Language, d.RepositoryID = lang, repo
+		return Event{Source: SourceMerged, Amount: 50, Detail: d, EarnedAt: at(day)}
+	}
+	events := []Event{
+		{Source: SourceBackfill, Amount: 25, Detail: Detail{Language: "C", RepositoryID: 9, Docs: true}, EarnedAt: at(-90)}, // never counts
+		merge(3, "Go", 1, Detail{}),
+		merge(10, "Go", 2, Detail{Claimed: true}),
+		merge(12, "Rust", 3, Detail{Backlog: 50}),
+	}
+	got := map[string]QuestProgress{}
+	for _, q := range Quests(events) {
+		got[q.Key] = q
+	}
+	done := func(key string, day int) {
+		t.Helper()
+		if q := got[key]; q.DoneAt == nil || !q.DoneAt.Equal(at(day)) {
+			t.Errorf("%s = %+v, want done on day %d", key, q, day)
+		}
+	}
+	done("first_merge_here", 3)
+	done("claimed_and_done", 10)
+	done("two_languages", 12)
+	done("three_repos", 12)
+	done("three_in_a_month", 12)
+	done("backlog_dive", 12)
+	if q := got["docs_fix"]; q.DoneAt != nil || q.Have != 0 {
+		t.Errorf("a backfilled docs fix completed docs_fix: %+v", q)
+	}
+
+	r := rules
+	r.QuestReward = 50
+	paid := map[string]bool{QuestKey("first_merge_here"): true}
+	awards := QuestAwards(r, events, paid)
+	if len(awards) != 5 {
+		t.Fatalf("awards = %+v, want the 5 done and unpaid", awards)
+	}
+	for _, a := range awards {
+		if a.Source != SourceQuest || a.Amount != 50 || a.Key == QuestKey("first_merge_here") {
+			t.Errorf("award %+v", a)
+		}
+	}
+}
