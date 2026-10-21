@@ -1,7 +1,11 @@
 // Response shapes of the SkillIssues API. Field names are the wire names.
 
 export type Difficulty = "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "UNCLASSIFIED";
-export type Sort = "shuffle" | "easiest" | "newest";
+/** foryou is the cursor-paging default; shuffle stays for older callers. */
+export type Sort = "foryou" | "easiest" | "newest" | "shuffle";
+/** Why the For you feed chose an issue. */
+export type ForYouReason = "language" | "tech" | "returning" | "history" | "level" | "interest" | "welcoming" | "waiting";
+
 /** A search's kinds of match, as match_category names them. */
 export type SearchCategory = "Repository" | "Title" | "Language";
 
@@ -46,6 +50,8 @@ export interface Issue {
   recommendation_score?: number;
   why_recommended?: string[];
   match_category?: SearchCategory;
+  /** Why For you put it here, most telling first. */
+  for_you?: ForYouReason[];
 }
 
 /** GET /issues with ?cursor=: one page and the cursor of the next, null at the end. */

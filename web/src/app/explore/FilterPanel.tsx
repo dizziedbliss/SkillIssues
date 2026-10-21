@@ -73,7 +73,7 @@ export function FilterPanel({
             name={t("filters.sort")}
             options={SORTS.map((x) => ({ value: x, label: t(`sort.${x}`) }))}
             chosen={[draft.sort]}
-            onChange={(v) => setDraft({ ...draft, sort: (v[0] as Sort | undefined) ?? "shuffle" })}
+            onChange={(v) => setDraft({ ...draft, sort: (v[0] as Sort | undefined) ?? "foryou" })}
           />
         </Field>
       </div>

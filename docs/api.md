@@ -60,7 +60,7 @@ malformed, is a 400.
 | `topics` | the repository's GitHub topics |
 | `labels` | the issue's labels, case-insensitively |
 | `comments_min`, `comments_max` | the comment count, inclusive; `comments_max=0` is "no comments yet" |
-| `sort` | browsing only. `shuffle` is each repository's best issue, repositories in a random order redrawn every `ingest.catalog.shuffle_interval_seconds`, the same for everyone in between. It's the default for cursor paging. `easiest` is difficulty then recently updated, the default for `?page`. `newest` is most recently opened. Shuffle and newest page only by cursor: `?page=2&sort=newest` is a 400. A search ignores it and orders by match category |
+| `sort` | browsing only. `foryou` is the default for cursor paging: the shuffled walk from a point seeded per caller per day, each chunk (`api.foryou.pool_repos`) ordered by a weighted random draw on Fit × Doable × Need (`internal/issue/foryou.go`), issues carrying `for_you` reasons. `shuffle` is each repository's best issue, repositories in a random order redrawn every `ingest.catalog.shuffle_interval_seconds`, the same for everyone in between. `easiest` is difficulty then recently updated, the default for `?page`. `newest` is most recently opened. For you, shuffle and newest page only by cursor: `?page=2&sort=newest` is a 400. A search orders by match category unless `sort` is `easiest` or `newest` |
 
 Values for `labels`, `topics`, `tech` and `language` come from `GET /issues/facets`.
 

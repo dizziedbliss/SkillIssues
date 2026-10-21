@@ -142,12 +142,12 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 	if f.Search != "" && (f.Sort == issue.SortEasiest || f.Sort == issue.SortNewest) {
 		f.SearchSort = f.Sort
 	}
-	// Cursor paging defaults to the shuffled feed; paging by number keeps the
-	// easiest order it always had. Shuffle and newest page only by cursor.
+	// Cursor paging defaults to For you; paging by number keeps the easiest
+	// order it always had. For you, shuffle and newest page only by cursor.
 	if f.Sort == "" {
 		f.Sort = issue.SortEasiest
 		if cursorMode {
-			f.Sort = issue.SortShuffle
+			f.Sort = issue.SortForYou
 		}
 	}
 	if !cursorMode && f.Page > 1 && f.Search == "" && f.Sort != issue.SortEasiest {
@@ -236,7 +236,14 @@ func (h *handlers) loadIssues(ctx context.Context, userID int, f issue.Filters, 
 	// The first page of a browse and every cursor page are read in index
 	// order; only a deeper ?page, or a search, takes the OFFSET query.
 	if f.Search == "" && (cursorMode || f.Page == 1) {
-		issues, next, err := h.issueSvc.BrowseIssues(ctx, f, after, prefLangs)
+		var issues []issue.Issue
+		var next *issue.Cursor
+		var err error
+		if f.Sort == issue.SortForYou {
+			issues, next, err = h.forYouPage(ctx, userID, f, after)
+		} else {
+			issues, next, err = h.issueSvc.BrowseIssues(ctx, f, after, prefLangs)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -591,4 +598,37 @@ func (h *handlers) getIssueFacets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondIssues(w, r, cfg, data, true)
+}
+
+// forYouPage reads a page of the For you feed for the caller: their profile and
+// merge history when signed in, nothing when not (one draw a day for everyone).
+func (h *handlers) forYouPage(ctx context.Context, userID int, f issue.Filters, after *issue.Cursor) ([]issue.Issue, *issue.Cursor, error) {
+	cfg := h.live.Current()
+	percent := func(k settings.Key) float64 { return float64(cfg.Int(k)) / 100 }
+	rules := issue.ForYouRules{
+		Pool:         cfg.Int(settings.ForYouPoolRepos),
+		Randomness:   percent(settings.ForYouRandomnessPercent),
+		WeightFit:    percent(settings.ForYouWeightFitPercent),
+		WeightDoable: percent(settings.ForYouWeightDoable),
+		WeightNeed:   percent(settings.ForYouWeightNeed),
+		ExposureHalf: float64(cfg.Int(settings.ForYouExposureHalf)),
+		ChunkTTL:     cfg.Seconds(settings.ForYouChunkTTLSeconds),
+		Now:          time.Now(),
+	}
+	var viewer issue.ForYouViewer
+	if userID != 0 {
+		p, err := h.profileSvc.GetFullProfile(ctx, userID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load profile for For you: %w", err)
+		}
+		langs, repos, err := h.progressSvc.MergedHistory(ctx, userID)
+		if err != nil {
+			return nil, nil, err
+		}
+		viewer = issue.ForYouViewer{
+			ID: userID, Languages: p.PreferredLanguages, Interests: p.Interests,
+			Level: p.ExperienceLevel, Target: p.TargetLevel, MergedLanguages: langs, MergedRepos: repos,
+		}
+	}
+	return h.issueSvc.ForYouPage(ctx, f, after, viewer, rules)
 }

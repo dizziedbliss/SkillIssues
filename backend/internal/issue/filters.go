@@ -15,10 +15,15 @@ import (
 type Sort string
 
 const (
+	// SortForYou is the default when browsing by cursor: the shuffled walk
+	// from a point seeded per person per day, each chunk of it ordered by a
+	// weighted random draw on how well each issue fits, how doable it looks
+	// and how much it needs someone (foryou.go).
+	SortForYou Sort = "foryou"
 	// SortShuffle walks repositories in a random order that ingestd redraws
 	// periodically (repositories.shuffle_key) and shows each one's best open
 	// issue: every repository gets the same one slot, however many issues it
-	// has. The default when browsing by cursor.
+	// has. Learning paths pick from it; the app no longer offers it.
 	SortShuffle Sort = "shuffle"
 	// SortEasiest is catalogOrder: difficulty, then most recently updated.
 	// The default when paging by number, and the only sort a signed-in
@@ -33,6 +38,8 @@ func ParseSort(s string) (Sort, error) {
 	switch Sort(strings.ToLower(strings.TrimSpace(s))) {
 	case "":
 		return "", nil
+	case SortForYou:
+		return SortForYou, nil
 	case SortShuffle:
 		return SortShuffle, nil
 	case SortEasiest:
@@ -40,7 +47,7 @@ func ParseSort(s string) (Sort, error) {
 	case SortNewest:
 		return SortNewest, nil
 	}
-	return "", fmt.Errorf("unknown sort %q: use shuffle, easiest or newest", s)
+	return "", fmt.Errorf("unknown sort %q: use foryou, easiest, newest or shuffle", s)
 }
 
 // Difficulties are the values the difficulty filter accepts.

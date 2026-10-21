@@ -148,6 +148,10 @@ func main() {
 	claimSvc := claim.New(pool)
 	claimed := &claimedStore{}
 	issueSvc.SetClaimed(claimed.get)
+	if cacheClient != nil {
+		// Without Redis, For you draws every chunk afresh and counts no serves.
+		issueSvc.SetForYouStore(cache.NewForYou(cacheClient, func() int { return live.Current().Int(settings.ForYouExposureDays) }))
+	}
 	issueSvc.SetHealthRules(func() issue.HealthRules {
 		cfg := live.Current()
 		return issue.HealthRules{

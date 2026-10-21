@@ -15,6 +15,12 @@ The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/
 
 ## October 2026
 
+### For you, 21 October
+
+- **For you replaces Shuffle** as Explore's default. It picks issues that suit you (your languages, your level, what you've merged before), that look likely to get merged (labelled, a short discussion, recently active, a welcoming repository), and that have waited, with few people shown them lately. Each page is a weighted draw, so good matches come first more often but everyone sees different issues. Each card says why it's there. See [Finding issues](/docs/finding-issues).
+- **Explore starts from your profile.** Signed in, your preferred languages and level are the starting filters, shown under the search box with **Show every language**.
+- **Coming back keeps your place.** Opening an issue and returning, by Back or the link, keeps Explore's filters and page.
+
 ### Owner feedback, 21 October
 
 - **Working on, in the desktop app.** Every issue you've started in the app, and what's next for each. Commit (a title and an optional description), push (commits only) and open the pull request (you write it, and choose whether it closes the issue) are separate steps, each offered once there's something to do.

@@ -55,6 +55,14 @@ readable through the endpoint above and copied into backups.
 | `api.recommendations.max_limit` | 20 | 1–100 | Largest `?limit` on `GET /recommendations`; larger is clamped |
 | `api.recommendations.default_limit` | 3 | 1–100 | Recommendations returned without `?limit` (never above `max_limit`); only this size is cached |
 | `api.recommendations.candidate_pool` | 200 | 10–1000 | Open issues `GET /recommendations` reads off the shuffled feed (caller's languages and level) before scoring |
+| `api.foryou.pool_repos` | 150 | 20–1000 | Repositories the For you feed walks per chunk; each chunk is ordered by one draw |
+| `api.foryou.randomness_percent` | 60 | 0–300 | How random For you's draw is: 100 samples in proportion to score, 0 is a plain ranking |
+| `api.foryou.weight_fit_percent` | 100 | 0–300 | Weight (exponent, percent) of Fit: languages, level, interests, past merges |
+| `api.foryou.weight_doable_percent` | 100 | 0–300 | Weight of Doable: labelled, short discussion, recent, welcoming repository |
+| `api.foryou.weight_need_percent` | 100 | 0–300 | Weight of Need: how long it has waited, how few were shown it |
+| `api.foryou.exposure_days` | 7 | 1–30 | Days of serves counted against an issue |
+| `api.foryou.exposure_half` | 20 | 0–100000 | Serves in that window at which an issue's Need halves (0 ignores serves) |
+| `api.foryou.chunk_ttl_seconds` | 1800 | 0–86400 | How long a drawn chunk is kept in Redis (0 draws every time) |
 | `api.themes.max_per_user` | 20 | 1–200 | Most themes one account may keep |
 | `api.themes.max_bytes` | 65536 | 1024–524288 | Largest theme (TOML + stylesheet) in bytes |
 | `api.bodies.fallback_misses_per_hour` | 30 | 0–10000 | Issue bodies one caller may have fetched from GitHub per hour through `GET /issues/{id}/body`; cached bodies do not count (0 = cache only) |
