@@ -28,32 +28,24 @@ func (s *Service) visible(list []Issue, dropClaimed bool) []Issue {
 	if s.hidden != nil {
 		h = s.hidden()
 	}
-	claimed := s.claimedNow()
-	if len(h.Issues) == 0 && len(h.Repositories) == 0 && len(claimed) == 0 {
-		return list
-	}
+	claimed, rules := s.claimedNow(), s.rulesNow()
 	out := list[:0:0]
 	for _, it := range list {
-		if h.Issues[it.ID] || h.Repositories[it.RepositoryID] {
+		if h.Issues[it.ID] || h.Repositories[it.RepositoryID] || (dropClaimed && claimed[it.ID]) {
 			continue
 		}
-		if claimed[it.ID] {
-			if dropClaimed {
-				continue
-			}
-			it.Claimed = true
-		}
+		s.annotate(&it, claimed, rules)
 		out = append(out, it)
 	}
 	return out
 }
 
-// markClaimed sets Claimed on issues shown whatever their claim: an issue's
-// own page and saved issues.
+// markClaimed annotates issues shown whatever their claim: an issue's own
+// page and saved issues.
 func (s *Service) markClaimed(list []Issue) {
-	claimed := s.claimedNow()
+	claimed, rules := s.claimedNow(), s.rulesNow()
 	for i := range list {
-		list[i].Claimed = claimed[list[i].ID]
+		s.annotate(&list[i], claimed, rules)
 	}
 }
 

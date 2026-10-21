@@ -150,6 +150,15 @@ export function IssuePage() {
           <ul className={s.facts}>
             <li>{t("issue.stars", { count: number.format(it.stars) })}</li>
             {it.license && <li>{t("issue.license", { license: it.license })}</li>}
+            {it.repository_health && (
+              <li>
+                {t("health.facts", {
+                  outside: it.repository_health.outside,
+                  sampled: it.repository_health.sampled,
+                  days: Math.max(1, Math.round(it.repository_health.median_merge_hours / 24)),
+                })}
+              </li>
+            )}
             {it.author && <li>{t("issue.author", { login: it.author })}</li>}
             {it.created_at && <li>{t("issue.opened", { date: dates.format(new Date(it.created_at)) })}</li>}
           </ul>

@@ -148,6 +148,14 @@ func main() {
 	claimSvc := claim.New(pool)
 	claimed := &claimedStore{}
 	issueSvc.SetClaimed(claimed.get)
+	issueSvc.SetHealthRules(func() issue.HealthRules {
+		cfg := live.Current()
+		return issue.HealthRules{
+			MinSample:    cfg.Int(settings.HealthMinSample),
+			WelcomingMin: cfg.Int(settings.HealthWelcomingMin),
+			SlowHours:    cfg.Int(settings.HealthSlowHours),
+		}
+	})
 	go refreshClaimedLoop(ctx, claimSvc, live.Current, claimed)
 
 	// 6. Build the HTTP router and register all routes

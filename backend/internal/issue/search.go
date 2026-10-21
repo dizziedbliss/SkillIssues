@@ -35,16 +35,21 @@ type Issue struct {
 	// when it has none or the crawl hasn't read it yet.
 	ContributingURL *string `json:"contributing_url"`
 	// Claimed: someone on SkillIssues said they are working on it.
-	Claimed               bool   `json:"claimed"`
-	Comments              int    `json:"comments"`
-	Author                string `json:"author"`
-	Repository            string `json:"repository"`
-	RepositoryID          int    `json:"repository_id"`
-	RepositoryURL         string `json:"repository_url"`
-	RepositoryDescription string `json:"repository_description"`
-	Language              string `json:"language"`
-	Stars                 int    `json:"stars"`
-	License               string `json:"license"`
+	Claimed bool `json:"claimed"`
+	// Health is how the repository's latest merges went; nil until the
+	// crawl has read enough of them.
+	Health *Health `json:"repository_health"`
+
+	healthSampled, healthOutside, healthMedianHours *int
+	Comments                                        int    `json:"comments"`
+	Author                                          string `json:"author"`
+	Repository                                      string `json:"repository"`
+	RepositoryID                                    int    `json:"repository_id"`
+	RepositoryURL                                   string `json:"repository_url"`
+	RepositoryDescription                           string `json:"repository_description"`
+	Language                                        string `json:"language"`
+	Stars                                           int    `json:"stars"`
+	License                                         string `json:"license"`
 
 	// Enriched fields added by recommendation scoring or search ranking
 	RecommendationScore int      `json:"recommendation_score,omitempty"`
@@ -121,6 +126,8 @@ type Service struct {
 	// hidden is what reports have taken out of lists (hidden.go); nil hides nothing.
 	hidden  func() Hidden
 	claimed func() map[int]bool
+	// healthRules decides Health's flags (health.go).
+	healthRules func() HealthRules
 
 	// perCategoryCap is read per query so the search shape can be retuned on a
 	// running system. It is a narrow function rather than a config object so the
@@ -178,7 +185,7 @@ const baseIssueSelect = `
 	       r.full_name, r.url, COALESCE(r.description, ''),
 	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, ''),
 	       i.updated_at, COALESCE(i.created_at::text, ''), i.created_at, i.repository_id, i.assignees,
-	       r.contributing_url
+	       r.contributing_url, r.health_sampled, r.health_outside, r.health_median_merge_hours
 	FROM issues i
 	JOIN repositories r ON r.id = i.repository_id
 `
@@ -196,7 +203,7 @@ func scanIssue(rows pgx.Rows) (Issue, error) {
 		&it.Repository, &it.RepositoryURL, &it.RepositoryDescription,
 		&it.Language, &it.Stars, &it.License,
 		&it.updated, &it.CreatedAt, &created, &it.RepositoryID, &it.Assignees,
-		&it.ContributingURL,
+		&it.ContributingURL, &it.healthSampled, &it.healthOutside, &it.healthMedianHours,
 	)
 	if created != nil {
 		it.created = *created
@@ -273,9 +280,7 @@ func (s *Service) GetIssue(ctx context.Context, id int) (*Issue, error) {
 	if found == nil {
 		return nil, db.ErrNotFound
 	}
-	if s.claimedNow()[found.ID] {
-		found.Claimed = true
-	}
+	s.annotate(found, s.claimedNow(), s.rulesNow())
 	return found, nil
 }
 
@@ -310,7 +315,7 @@ const savedIssueSelect = `
 	       i.comments, COALESCE(i.author, split_part(r.full_name, '/', 1)),
 	       r.full_name, r.url, COALESCE(r.description, ''),
 	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, ''), i.repository_id, i.assignees,
-	       r.contributing_url
+	       r.contributing_url, r.health_sampled, r.health_outside, r.health_median_merge_hours
 	FROM issues i
 	JOIN repositories r ON r.id = i.repository_id
 `
@@ -326,7 +331,7 @@ func scanSavedIssue(rows pgx.Rows) (Issue, error) {
 		&it.Comments, &it.Author,
 		&it.Repository, &it.RepositoryURL, &it.RepositoryDescription,
 		&it.Language, &it.Stars, &it.License, &it.RepositoryID, &it.Assignees,
-		&it.ContributingURL,
+		&it.ContributingURL, &it.healthSampled, &it.healthOutside, &it.healthMedianHours,
 	)
 	return it, err
 }

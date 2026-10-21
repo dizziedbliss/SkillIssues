@@ -31,6 +31,8 @@ export interface Issue {
   contributing_url: string | null;
   /** Someone on SkillIssues said they're working on it. */
   claimed: boolean;
+  /** How the repository's latest merges went; null until enough were read. */
+  repository_health: RepositoryHealth | null;
   comments: number;
   author: string;
   repository: string;
@@ -339,6 +341,19 @@ export interface LearningPath {
   role: string;
   started_at: string;
   steps: PathStep[];
+}
+
+/** A repository's latest merged pull requests, summarised. */
+export interface RepositoryHealth {
+  /** Merged pull requests read. */
+  sampled: number;
+  /** Of those, by people outside the project. */
+  outside: number;
+  median_merge_hours: number;
+  /** Enough of those merges came from outside the project. */
+  welcoming: boolean;
+  /** Its median merge takes a long time. */
+  slow: boolean;
 }
 
 /** Your claim on an issue. */

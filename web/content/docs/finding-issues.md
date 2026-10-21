@@ -87,3 +87,10 @@ The numbers under the list are the pages you've already seen, so you can go back
 ## Reading an issue
 
 SkillIssues shows you what GitHub has about an issue, such as its title, labels, comment count and repository. The full text and discussion live on GitHub. Read them there before you start, and say on the issue that you're taking it. See [Getting started](/docs/getting-started).
+
+Cards also say how the repository treats contributions, from its last 20 merged pull requests, once it has at least 5:
+
+- **Merges outside contributions**: at least 3 of them came from people outside the project (not its owners, organisation members or collaborators). A project that merges outsiders' work is a good place to start.
+- **Slow to merge**: its pull requests usually take 60 days or more to merge. Expect to wait for a review.
+
+The issue page gives the numbers. They're read again each time the catalog re-reads the repository.

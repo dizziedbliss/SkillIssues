@@ -41,7 +41,7 @@ type Opts = { signal?: AbortSignal };
 function withLists(i: Issue): Issue {
   return {
     ...i, labels: i.labels ?? [], tech: i.tech ?? [], assignees: i.assignees ?? null,
-    contributing_url: i.contributing_url ?? null, claimed: i.claimed ?? false,
+    contributing_url: i.contributing_url ?? null, claimed: i.claimed ?? false, repository_health: i.repository_health ?? null,
   };
 }
 

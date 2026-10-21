@@ -756,6 +756,12 @@ Every key with its default and bounds: `docs/settings.md`.
   marks `learning_path_steps` done from merged pull requests that close them, finishing and paying the
   path (`path:<id>`). go-api starts, swaps and abandons paths (`internal/learnpath`, issues picked by
   `issue.Service.Pick` off the shuffled feed: unassigned, unclaimed, one per repository).
+- **Repository health is read with the stats, flagged on read** (migration 00061): a pass's first page
+  also reads the last `ingest.health.sample` merged pull requests (`healthOf`: merges by people who
+  aren't OWNER/MEMBER/COLLABORATOR, and the median hours to merge; GitHub's first-timer associations
+  don't survive the merge, so they aren't used). `issue.Service` turns the stored numbers into
+  `repository_health.welcoming`/`slow` against `api.health.*` per request, so a threshold change
+  needs no re-crawl.
 - **Public profiles are opt-in; the leaderboard is off** (migration 00060): `users.public_profile`
   (default false, set through `PUT /profile`) gates `GET /users/{login}` (a private or missing account
   is the same 404) and every leaderboard row. `GET /leaderboards?period=month|all&language=` answers

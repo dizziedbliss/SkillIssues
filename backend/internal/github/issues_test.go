@@ -187,3 +187,23 @@ func TestFetchUserPullRequests(t *testing.T) {
 		t.Errorf("own = %+v", own)
 	}
 }
+
+// Health counts merges from outside the project and takes the median time to
+// merge, the middle pair averaged when there are an even number.
+func TestHealthOf(t *testing.T) {
+	node := func(assoc string, hours int) mergedPullNode {
+		created := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+		return mergedPullNode{AuthorAssociation: assoc, CreatedAt: created.Format(time.RFC3339),
+			MergedAt: created.Add(time.Duration(hours) * time.Hour).Format(time.RFC3339)}
+	}
+	h, err := healthOf([]mergedPullNode{node("OWNER", 1), node("CONTRIBUTOR", 10), node("FIRST_TIME_CONTRIBUTOR", 30), node("MEMBER", 100)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.Sampled != 4 || h.Outside != 2 || h.MedianMergeHours == nil || *h.MedianMergeHours != 20 {
+		t.Errorf("health = %+v (median %v)", h, h.MedianMergeHours)
+	}
+	if h, err := healthOf(nil); err != nil || h.Sampled != 0 || h.MedianMergeHours != nil {
+		t.Errorf("nothing merged = %+v, %v", h, err)
+	}
+}
