@@ -111,7 +111,8 @@ results per category, so one category cannot flood the page.
 
 **Recommendations** (`internal/recommendation/score.go`):
 `15 × language match + 8 × technology match + 2 × shared skills + shared interests +
-max(0, 5 − |difficulty − target|) + min(3, stars / 25000 + 1)`.
+max(0, 5 − |difficulty − target|)`, over a bounded pool read off the shuffled feed. Stars never
+enter it; ties keep the feed's order.
 
 ## 5. Auth and credentials
 
