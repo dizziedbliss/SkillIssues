@@ -5,6 +5,7 @@ import { useT } from "@web/i18n";
 import { call, desktop } from "./bridge";
 import { DeviceFlow } from "./DeviceFlow";
 import { finishSignIn } from "./signIn";
+import { useAppRoot } from "./appRoot";
 import s from "./desktop.module.css";
 
 /** Sign-in, as a dialog over the app: GitHub's device flow, then back to where you were. */
@@ -16,7 +17,7 @@ export function SignInDialog() {
     if (dialog.current && !dialog.current.open) dialog.current.showModal();
   }, []);
   // Inside the app's root, so the theme's tokens reach it.
-  const host = document.querySelector("[data-app]") ?? document.body;
+  const host = useAppRoot() ?? document.body;
   return createPortal(
     <dialog ref={dialog} className={s.dialog} aria-labelledby="signin-title"
       // Closing it isn't a failure: the person just didn't sign in.

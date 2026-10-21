@@ -1,7 +1,9 @@
-import { ipcMain, shell, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
+import { ipcMain, nativeTheme, shell, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
 import { channels, type Channel, type IssueRef, type Result } from "../shared/contract";
 import { proxy } from "./api";
 import { githubGet } from "./githubRead";
+import { isHexColor } from "./security";
+import * as updater from "./updater";
 import * as auth from "./auth";
 import { isAllowedExternalURL } from "./security";
 import * as workspace from "./workspace";
@@ -13,6 +15,9 @@ import * as workspace from "./workspace";
  */
 
 type Handler = (...args: unknown[]) => unknown;
+
+/** The title bar's height, here and in the page (desktop.module.css). */
+export const TITLE_BAR_HEIGHT = 36;
 
 export function registerIpc(
   window: () => BrowserWindow | null,
@@ -68,6 +73,17 @@ export function registerIpc(
     return githubGet(url);
   });
   handle(channels.takeLink, () => takeLink());
+  handle(channels.windowInfo, () => ({ platform: process.platform }));
+  handle(channels.titleBar, (colors) => {
+    const { symbol, dark } = (colors ?? {}) as { symbol?: unknown; dark?: unknown };
+    if (typeof symbol !== "string" || !isHexColor(symbol) || typeof dark !== "boolean") throw new Error("Not a colour.");
+    nativeTheme.themeSource = dark ? "dark" : "light";
+    // macOS draws its own traffic lights; elsewhere the buttons overlay the page.
+    if (process.platform !== "darwin") window()?.setTitleBarOverlay({ color: "#00000000", symbolColor: symbol, height: TITLE_BAR_HEIGHT });
+  });
+  handle(channels.updateState, () => updater.updateState());
+  handle(channels.checkUpdates, () => updater.checkUpdates());
+  handle(channels.installUpdate, () => updater.installUpdate());
   handle(channels.openExternal, async (url) => {
     if (typeof url !== "string" || !isAllowedExternalURL(url)) throw new Error("That link can't be opened from the app.");
     await shell.openExternal(url);

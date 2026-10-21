@@ -1,8 +1,9 @@
-import { app, BrowserWindow, Menu, session, shell } from "electron";
+import { app, BrowserWindow, Menu, nativeTheme, session, shell } from "electron";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { channels } from "../shared/contract";
-import { registerIpc } from "./ipc";
+import { registerIpc, TITLE_BAR_HEIGHT } from "./ipc";
+import { startUpdates } from "./updater";
 import { deepLinkPath, isAllowedExternalURL, webPreferences } from "./security";
 import { loadStore } from "./store";
 
@@ -58,6 +59,12 @@ function createWindow() {
     minHeight: 620,
     show: false,
     backgroundColor: "#0a0a0c", // Midnight, the app's default, so it opens dark
+    // No native frame: the page draws a slim title bar, and the window's own
+    // buttons sit over it (Windows, Linux) or inset (macOS), as Discord does.
+    titleBarStyle: "hidden",
+    ...(process.platform === "darwin"
+      ? { trafficLightPosition: { x: 14, y: 12 } }
+      : { titleBarOverlay: { color: "#00000000", symbolColor: "#f2f2f2", height: TITLE_BAR_HEIGHT } }),
     title: "SkillIssues",
     icon: path.join(app.getAppPath(), "icon.png"),
     autoHideMenuBar: true,
@@ -93,12 +100,15 @@ app.on("second-instance", (_event, argv) => {
 
 app.whenReady().then(() => {
   loadStore();
+  // Dark until the page says which mode its theme is in (the app starts dark).
+  nativeTheme.themeSource = "dark";
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
   const registered = registerIpc(() => win, isAppURL, takeLink);
   const missing = Object.values(channels).filter((c) => !registered.includes(c));
   if (missing.length) throw new Error(`IPC channels without a handler: ${missing.join(", ")}`);
   createWindow();
+  startUpdates(() => undefined);
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

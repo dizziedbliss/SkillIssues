@@ -120,6 +120,11 @@ export function isAllowedApiCall(method: string, rawPath: string): boolean {
   return apiPaths.some((p) => p.method === method && p.pattern.test(pathname));
 }
 
+/** A #rrggbb colour, the only form the title bar accepts. */
+export function isHexColor(v: string): boolean {
+  return /^#[0-9a-fA-F]{6}$/.test(v);
+}
+
 /** owner/name as GitHub allows it. */
 const repoName = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/;
 

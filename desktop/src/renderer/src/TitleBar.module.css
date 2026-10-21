@@ -1,0 +1,104 @@
+/*
+ * The window's title bar: 36px (main/ipc.ts TITLE_BAR_HEIGHT), slightly
+ * darker than the page, draggable everywhere but its buttons. It leaves room
+ * for the window's own buttons: on Windows and Linux they overlay its right
+ * end (the titlebar-area environment values say where); on macOS they're
+ * inset at its left.
+ */
+
+.bar {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 100;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: 36px;
+  padding-left: max(0.5rem, env(titlebar-area-x, 0px));
+  padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 0.5rem);
+  background: color-mix(in srgb, var(--colors-background) 82%, black);
+  border-bottom: 1px solid color-mix(in srgb, var(--colors-text) 8%, transparent);
+  color: var(--colors-text);
+  font-family: var(--typography-body-font, inherit);
+  font-size: 0.8125rem;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.mac {
+  padding-left: 80px;
+}
+
+.left,
+.right {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.right {
+  justify-content: flex-end;
+}
+
+.title {
+  overflow: hidden;
+  color: var(--colors-text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--colors-text-muted);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: background-color var(--fast, 120ms) var(--ease, ease), color var(--fast, 120ms) var(--ease, ease);
+}
+
+.icon:hover:not(:disabled),
+.icon:focus-visible {
+  background: color-mix(in srgb, var(--colors-text) 10%, transparent);
+  color: var(--colors-text);
+}
+
+.icon:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* An update ready: green, as everywhere people know it from. */
+.update {
+  color: var(--colors-success);
+}
+
+.update:hover:not(:disabled) {
+  color: var(--colors-success);
+}
+
+.progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding-inline: 0.4rem;
+  color: var(--colors-text-muted);
+  font-variant-numeric: tabular-nums;
+  -webkit-app-region: no-drag;
+}
+
+.error {
+  padding-inline: 0.4rem;
+  color: var(--colors-danger);
+  -webkit-app-region: no-drag;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon {
+    transition: none;
+  }
+}

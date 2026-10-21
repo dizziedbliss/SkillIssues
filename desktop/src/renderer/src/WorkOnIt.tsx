@@ -6,6 +6,7 @@ import { useT } from "@web/i18n";
 import type { AuthState, Workspace } from "../../shared/contract";
 import { call, desktop } from "./bridge";
 import { DeviceFlow } from "./DeviceFlow";
+import { useAppRoot } from "./appRoot";
 import s from "./desktop.module.css";
 
 /**
@@ -54,7 +55,7 @@ function WorkDialog({ issue, onClose }: { issue: Issue; onClose: () => void }) {
 
   const failure = start.error ?? push.error ?? pr.error ?? reveal.error ?? ws.error ?? auth.error;
   const w = ws.data;
-  const host = document.querySelector("[data-app]") ?? document.body;
+  const host = useAppRoot() ?? document.body;
 
   return createPortal(
     <dialog ref={dialog} className={s.dialog} aria-labelledby="work-title" onClose={onClose} data-ui="work-on-it">

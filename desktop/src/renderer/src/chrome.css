@@ -1,0 +1,45 @@
+/*
+ * The desktop window around the app. The window itself never scrolls: the
+ * title bar stays put, and the app below it is its own scrolling area, so the
+ * scrollbar sits inside, under the title bar, not along the window's edge.
+ */
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  box-sizing: border-box;
+  padding-top: 36px; /* the title bar: main/ipc.ts TITLE_BAR_HEIGHT */
+  -webkit-font-smoothing: antialiased;
+}
+
+[data-app] {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: none;
+  scrollbar-gutter: stable;
+}
+
+/* Scrollbars that sit quietly in the theme, not the OS default slab. */
+[data-app]::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+[data-app]::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--colors-text) 22%, transparent) padding-box;
+}
+
+[data-app]::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--colors-text) 35%, transparent) padding-box;
+}
+
+[data-app]::-webkit-scrollbar-track,
+[data-app]::-webkit-scrollbar-corner {
+  background: transparent;
+}
