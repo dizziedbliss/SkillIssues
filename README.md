@@ -17,27 +17,35 @@ with XP, levels and badges awarded only after GitHub confirms the merge.
 - **Classifies difficulty from labels.** `good first issue`, `difficulty/easy`, `size/xs` and
   similar become `BEGINNER`; medium and hard labels become `INTERMEDIATE` and `ADVANCED`. An
   issue with no difficulty label is `UNCLASSIFIED` — unknown, not easy.
-- **Search and filter** by repository, title, language/technology and author. Search results
-  are balanced across those categories so one can't drown out the rest.
-- **Recommends issues** from your profile: preferred languages, skills, interests and target
-  level.
+- **Search and filter** by repository, title and language/technology. Search results are
+  balanced across those categories so one can't drown out the rest.
+- **A feed that fits you**: *For you* weighs your languages, level and interests, how doable an
+  issue is and how long it has waited. Every repository gets the same one slot, and stars never
+  count.
 - **Sets up a workspace** from the desktop app: forks with your own GitHub account, clones into
   your workspace folder, creates a branch, pushes, and opens VS Code.
-- **Verifies the pull request** on GitHub — merged, and authored by you — before awarding XP.
+- **Pays XP only for merges GitHub confirms**: it reads your public pull requests with its own
+  credential and never asks for, or keeps, a token of yours.
 
 ### XP and levels
 
-| Difficulty | Base XP |
-| :--- | ---: |
-| `BEGINNER` | 75 |
-| `INTERMEDIATE` | 140 |
-| `ADVANCED` | 250 |
+A merge earns a base amount from the hardest catalog issue it closes:
 
-Every merged PR adds **+25**, **+15** for your first or second merge in that repository, and
-**+10** if the issue spans more than one skill or technology — so a beginner issue can be worth
-up to 125. Levels get steadily more expensive: level 2 at 300 XP, 3 at 750, 4 at 1,350, 5 at
-2,100 (each level costs 150 more than the last). Badges: *First Blood* (1 merge), *Bug Wrangler*
-(3), *Touch Grass* (5), *Polyglot* (2 languages), *World Traveller* (2 repositories).
+| The pull request | Base XP |
+| :--- | ---: |
+| Closes a `BEGINNER` issue | 75 |
+| Closes an `INTERMEDIATE` issue | 140 |
+| Closes an `ADVANCED` issue | 250 |
+| Closes an issue of unknown difficulty | 100 |
+| Closes no catalog issue | 50 |
+
+Bonuses: **+15** for your first merge in a repository, **+50** for an issue open six months or
+more, **+15** when the repository's checks pass, **+10** for a maintainer's approval and **+5** for
+a merge with no changes requested (+20 and +10 in a repository without checks). Merges from before
+you signed up earn half; capped at 400 XP per repository per day. Level *L* starts at
+100 × *L*(*L*−1)/2 XP: 100, 300, 600, 1,000… Streaks, badges, quests and learning paths come on
+top. Every number is a live `xp.*` setting; the full rules are in
+[How XP works](https://skillissues.dizziedbliss.lol/docs/xp).
 
 ---
 
@@ -47,18 +55,18 @@ up to 125. Levels get steadily more expensive: level 2 at 300 XP, 3 at 750, 4 at
 SkillIssues/
 ├── backend/        Go: cmd/{api,ingestd,flowd,migrate,repoimport,healthcheck}, internal/*
 │                   schema = backend/internal/migrate/migrations (goose, embedded)
-├── web/            React 19 + Vite + TypeScript web app
+├── web/            React 19 + Vite + TypeScript site and app (deployed to Vercel)
 ├── desktop/        Electron 44 app (React + TypeScript renderer)
-├── packages/       shared npm workspaces: api-client, ui, markdown
+├── packages/       shared npm workspaces: client (typed API), theme, markdown
 ├── monitoring/     Prometheus config, Grafana provisioning and dashboards
-├── scripts/        deploy-remote.sh (run on the VPS), backup-db.sh
+├── scripts/        deploy-remote.sh and decrypt-env.sh (run on the VPS), backup-db.sh, CI checks
 ├── systemd/        daily backup timer for the VPS
 ├── benchmark/      Python v6 ingestion prototype and its benchmark data (historical)
-├── docs/           API reference, live settings, ingestion design
+├── docs/           API reference, live settings, database reference, ingestion design
 ├── compose.yaml        local stack (builds from source)
 ├── compose.prod.yaml   production stack (pulls images from GHCR)
 ├── Caddyfile           production reverse proxy / TLS
-└── Dockerfile          one file, targets: api, ingestd, flowd, migrate, web, repoimport
+└── Dockerfile          one file, targets: api, ingestd, flowd, migrate, repoimport
 ```
 
 ---
@@ -68,7 +76,7 @@ SkillIssues/
 ### Prerequisites
 
 - Docker with Compose v2
-- Go 1.26, Node.js 22 and npm 11 (only for running services natively or working on the clients)
+- Go 1.27 (what CI and the images use; `go.mod` needs 1.26 or later), Node.js 22 and npm 11 (only for running services natively or working on the clients)
 - A GitHub token for `GITHUB_TOKEN` — the crawler only reads public data, so a token with no
   scopes is enough
 
