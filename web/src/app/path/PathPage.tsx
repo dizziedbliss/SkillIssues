@@ -5,6 +5,7 @@ import { SignInPrompt } from "../profile/parts";
 import { useSession } from "../session";
 import { useMyPath, usePathAction, usePathRoles } from "./data";
 import s from "./PathPage.module.css";
+import { useDocumentTitle } from "../../lib/title";
 
 /**
  * A learning path: pick a kind of work and get five catalog issues, three
@@ -13,6 +14,7 @@ import s from "./PathPage.module.css";
  */
 export function PathPage() {
   const { t, locale } = useI18n();
+  useDocumentTitle(t("path.title"));
   const { user, isPending } = useSession();
   const path = useMyPath();
   const roles = usePathRoles();

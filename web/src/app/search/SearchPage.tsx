@@ -12,6 +12,7 @@ import { useSearchOverlay } from "./context";
 import es from "../explore/Explore.module.css";
 import s from "./SearchPage.module.css";
 import { PersonResult } from "./PersonResult";
+import { useDocumentTitle } from "../../lib/title";
 
 /** Issues on a page of one kind. */
 const PAGE_SIZE = 20;
@@ -25,6 +26,7 @@ const PER_KIND = 4;
  */
 export function SearchPage() {
   const t = useT();
+  useDocumentTitle(t("app.nav.search"));
   const [params, setParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
