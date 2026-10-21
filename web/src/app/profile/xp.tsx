@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import { ApiError, type MyXP, type TrackedPull, type XPEvent } from "@skillissues/client";
+import { ApiError, type MyXP, type TrackedPull, type XPEvent, type XPSummary } from "@skillissues/client";
 import { useI18n, type MessageKey } from "../../i18n";
 import { ago } from "../../lib/time";
 import { useRefreshPulls } from "./data";
@@ -13,12 +13,15 @@ import s from "./xp.module.css";
  * computes nothing here.
  */
 
-/** Your level and how far into it you are, with the streak beneath. */
-export function LevelCard({ data }: { data: MyXP | undefined }) {
+/**
+ * A level and how far into it, with the streak beneath. own is your own card:
+ * it nudges you to keep the streak and links to how XP works.
+ */
+export function LevelCard({ summary, own = true }: { summary: XPSummary | undefined; own?: boolean }) {
   const { t, locale } = useI18n();
   const n = new Intl.NumberFormat(locale);
-  if (!data) return <div className={s.card} data-ui="level" aria-busy="true" />;
-  const { level, total, streak } = data.summary;
+  if (!summary) return <div className={s.card} data-ui="level" aria-busy="true" />;
+  const { level, total, streak } = summary;
   const span = Math.max(1, level.next - level.start);
   const into = Math.min(span, Math.max(0, total - level.start));
   return (
@@ -39,23 +42,23 @@ export function LevelCard({ data }: { data: MyXP | undefined }) {
       <p className={s.muted}>{t("xp.toNext", { left: n.format(level.next - total), level: level.level + 1 })}</p>
       <p className={s.streak}>
         {streak.current > 0 ? t("xp.streak", { weeks: streak.current }) : t("xp.streakNone")}
-        {streak.current > 0 && !streak.this_week && <span className={s.muted}> {t("xp.streakKeep")}</span>}
+        {own && streak.current > 0 && !streak.this_week && <span className={s.muted}> {t("xp.streakKeep")}</span>}
         {streak.best > 1 && <span className={s.muted}> {t("xp.streakBest", { weeks: streak.best })}</span>}
       </p>
-      <Link to="/docs/xp" className={s.how}>{t("xp.how")}</Link>
+      {own && <Link to="/docs/xp" className={s.how}>{t("xp.how")}</Link>}
     </section>
   );
 }
 
 /** Every badge in the server's display order, earned or still to earn. */
-export function Badges({ data }: { data: MyXP | undefined }) {
+export function Badges({ summary, keys }: { summary: XPSummary | undefined; keys: string[] | undefined }) {
   const { t, locale } = useI18n();
-  if (!data) return null;
-  const earned = new Map(data.summary.badges.map((b) => [b.key, b.earned_at]));
+  if (!summary || !keys) return null;
+  const earned = new Map(summary.badges.map((b) => [b.key, b.earned_at]));
   const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" });
   return (
     <ul className={s.badges}>
-      {data.badge_keys.map((key) => {
+      {keys.map((key) => {
         const at = earned.get(key);
         const name = `badge.${key}` as MessageKey;
         return (
@@ -71,15 +74,15 @@ export function Badges({ data }: { data: MyXP | undefined }) {
 }
 
 /** XP earned in repositories of each main language, as levels. */
-export function LanguageLevels({ data }: { data: MyXP | undefined }) {
+export function LanguageLevels({ summary }: { summary: XPSummary | undefined }) {
   const { t, locale } = useI18n();
-  if (!data || data.summary.languages.length === 0) return null;
+  if (!summary || summary.languages.length === 0) return null;
   const n = new Intl.NumberFormat(locale);
   return (
     <section aria-labelledby="xp-languages">
       <h3 id="xp-languages" className={s.subheading}>{t("xp.languages")}</h3>
       <ul className={s.languages}>
-        {data.summary.languages.map((l) => (
+        {summary.languages.map((l) => (
           <li key={l.language} data-ui="language-level">
             <span>{l.language}</span>
             <span className={s.muted}>

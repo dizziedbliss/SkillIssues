@@ -756,6 +756,11 @@ Every key with its default and bounds: `docs/settings.md`.
   marks `learning_path_steps` done from merged pull requests that close them, finishing and paying the
   path (`path:<id>`). go-api starts, swaps and abandons paths (`internal/learnpath`, issues picked by
   `issue.Service.Pick` off the shuffled feed: unassigned, unclaimed, one per repository).
+- **Public profiles are opt-in; the leaderboard is off** (migration 00060): `users.public_profile`
+  (default false, set through `PUT /profile`) gates `GET /users/{login}` (a private or missing account
+  is the same 404) and every leaderboard row. `GET /leaderboards?period=month|all&language=` answers
+  404 until `api.leaderboards.enabled`. Both are `no-store`, so turning a profile off takes effect at
+  once. Web: `/app/u/:login`, `/app/leaderboard` (`app/people/`).
 - **Claims are SkillIssues-only and held in memory for lists** (`internal/claim`, migration 00058):
   one active claim per issue, `api.claims.max_active` per person; active until released, or past
   `api.claims.days` only while the claimer has an open tracked pull request that closes the issue
