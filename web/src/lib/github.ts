@@ -7,6 +7,8 @@
  * as an error, never as zeros.
  */
 
+import { platform } from "../app/platform";
+
 const API = "https://api.github.com/search/issues";
 const CACHE_MS = 30 * 60_000;
 const CACHE_PREFIX = "si.gh.";
@@ -74,7 +76,7 @@ interface SearchPage {
 
 async function search(q: string, perPage: number, page: number, signal?: AbortSignal): Promise<SearchPage> {
   const url = `${API}?q=${encodeURIComponent(q)}&sort=created&order=desc&per_page=${perPage}&page=${page}`;
-  const res = await fetch(url, { headers: { Accept: "application/vnd.github+json" }, credentials: "omit", signal });
+  const res = await platform().githubFetch(url, { signal });
   if (res.ok) return (await res.json()) as SearchPage;
   if (res.status === 403 || res.status === 429) {
     const reset = Number(res.headers.get("x-ratelimit-reset"));

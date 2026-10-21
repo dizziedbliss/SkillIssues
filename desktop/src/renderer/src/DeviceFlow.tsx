@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useT } from "@web/i18n";
 import type { AuthState, DeviceCode, Result } from "../../shared/contract";
 import { call, desktop } from "./bridge";
+import s from "./desktop.module.css";
 
 /*
  * GitHub's device flow, shown: a button, then the code to type on the page
@@ -18,6 +20,7 @@ export function DeviceFlow({
   wait: () => Promise<Result<AuthState>>;
   onDone: (state: AuthState) => void;
 }) {
+  const t = useT();
   const [code, setCode] = useState<DeviceCode | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,31 +48,31 @@ export function DeviceFlow({
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      setCopied(false);
+      setCopied(false); // the code is on screen to type instead
     }
   }
 
   return (
-    <div className="device">
+    <div className={s.device}>
       {code ? (
         <>
-          <p>GitHub is open in your browser. Enter this code there:</p>
-          <p className="code" aria-live="polite">{code.user_code}</p>
-          <div className="row">
-            <button type="button" className="link" onClick={copy}>{copied ? "Copied" : "Copy code"}</button>
-            <button type="button" className="link" onClick={() => void desktop.openExternal(code.verification_uri)}>
-              Open the page again
+          <p>{t("app.device.enter")}</p>
+          <p className={s.code} aria-live="polite">{code.user_code}</p>
+          <div className={s.row}>
+            <button type="button" className={s.link} onClick={copy}>{copied ? t("app.device.copied") : t("app.device.copy")}</button>
+            <button type="button" className={s.link} onClick={() => void desktop.openExternal(code.verification_uri)}>
+              {t("app.device.reopen")}
             </button>
-            <button type="button" className="link" onClick={() => void desktop.authCancel()}>Cancel</button>
+            <button type="button" className={s.link} onClick={() => void desktop.authCancel()}>{t("app.device.cancel")}</button>
           </div>
-          <p className="quiet">Waiting for GitHub…</p>
+          <p className={s.muted}>{t("app.device.waiting")}</p>
         </>
       ) : (
-        <button type="button" className="button" onClick={() => void begin()} disabled={busy}>
-          {busy ? "Starting…" : label}
+        <button type="button" className={s.button} onClick={() => void begin()} disabled={busy}>
+          {busy ? t("app.device.starting") : label}
         </button>
       )}
-      {error && <p className="error" role="alert">{error}</p>}
+      {error && <p className={s.error} role="alert">{error}</p>}
     </div>
   );
 }

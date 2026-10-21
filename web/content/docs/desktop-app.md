@@ -4,14 +4,14 @@ slug: /download
 section: SkillIssues
 summary: What the desktop app is for, where to get it, and why your GitHub token stays on your computer.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 The desktop app handles the Git side of fixing an issue, so you don't juggle terminals and browser tabs. It is built for Windows, macOS and Linux.
 
 ## What it is for
 
-Finding an issue happens in the catalog on the website. The desktop app picks up from there:
+The desktop app is the whole SkillIssues app (Explore, search, issue pages, your profile and XP, Settings and themes) plus the Git side. On an issue page, **Work on it here** picks up from there:
 
 - It forks the project and clones your fork to a workspace folder you choose.
 - It creates a branch for your change.
@@ -19,6 +19,8 @@ Finding an issue happens in the catalog on the website. The desktop app picks up
 - It pushes your branch to your fork when you're ready.
 
 The website can't do any of this, on purpose. See the next section.
+
+**Open in the desktop app** on the website opens the same issue in the app, if it's installed. Docs and legal pages open in your browser.
 
 ## Why a desktop app
 

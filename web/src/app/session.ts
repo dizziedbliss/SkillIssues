@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { platform } from "./platform";
 import { api } from "../lib/api";
 import { useT } from "../i18n";
 
@@ -8,15 +9,19 @@ export function useSession() {
   return { ...q, user: q.data?.authenticated ? q.data.user : undefined };
 }
 
-/** Starts a GitHub sign-in; the browser leaves for GitHub and comes back to /app. */
+/** Starts a GitHub sign-in: on the web the browser leaves for GitHub and comes back to /app. */
 export function useSignIn() {
   const t = useT();
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      const start = await api.beginSignIn();
-      if (!start.enabled || !start.authorize_url) throw new Error(start.error || t("auth.unavailable"));
-      window.location.assign(start.authorize_url);
-    },
+    mutationFn: () =>
+      platform().signIn(async () => {
+        const start = await api.beginSignIn();
+        if (!start.enabled || !start.authorize_url) throw new Error(start.error || t("auth.unavailable"));
+        return start.authorize_url;
+      }),
+    // The desktop signs in without leaving the page: read who it is now.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["session"] }),
   });
 }
 
@@ -24,7 +29,12 @@ export function useSignIn() {
 export function useSignOut(everywhere = false) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => (everywhere ? api.signOutEverywhere() : api.signOut()),
+    mutationFn: async () => {
+      if (everywhere) await api.signOutEverywhere();
+      const own = platform().signOut;
+      if (own) await own();
+      else if (!everywhere) await api.signOut();
+    },
     onSuccess: () => {
       queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== "session" });
       return queryClient.invalidateQueries({ queryKey: ["session"] });

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useLocation, useSearchParams } from "react-router";
+import { SiteLink } from "../SiteLink";
+import { useLocation, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { Difficulty } from "@skillissues/client";
 import { api } from "../../lib/api";
@@ -160,7 +161,7 @@ export function Explore() {
             </button>
           ))}
         </div>
-        <Link to="/docs/good-first-issues" className={s.newHere}>{t("explore.newHere")}</Link>
+        <SiteLink to="/docs/good-first-issues" className={s.newHere}>{t("explore.newHere")}</SiteLink>
       </div>
 
       <div className={s.results} aria-busy={catalog.isFetching}>
