@@ -9,6 +9,7 @@ import { SignInPrompt } from "../profile/parts";
 import { useSession } from "../session";
 import { scopeURL } from "../explore/query";
 import s from "./ModerationPage.module.css";
+import { useDocumentTitle } from "../../lib/title";
 
 /**
  * Reports, for moderators: everything with open reports, most reported first,
@@ -18,6 +19,7 @@ import s from "./ModerationPage.module.css";
  */
 export function ModerationPage() {
   const { t, locale } = useI18n();
+  useDocumentTitle(t("mod.title"));
   const { user, isPending } = useSession();
   const queryClient = useQueryClient();
   const [confirmDialog, confirm] = useConfirm();

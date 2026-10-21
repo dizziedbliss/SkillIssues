@@ -8,6 +8,7 @@ import { GlyphNoise } from "./GlyphNoise";
 import { Logo } from "./Logo";
 import { external } from "../lib/links";
 import { useT } from "../i18n";
+import { useDocumentTitle } from "../lib/title";
 
 /**
  * The landing page, as the owner designed it: a zig-zag of sections, each in
@@ -16,6 +17,7 @@ import { useT } from "../i18n";
  * screens. Its look is locked (tokens.module.css); themes never reach it.
  */
 export function Landing() {
+  useDocumentTitle(null);
   const t = useT();
   return (
     <div className={`${tokens.page} ${s.page}`}>

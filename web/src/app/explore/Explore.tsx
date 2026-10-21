@@ -14,6 +14,7 @@ import { DIFFICULTIES, readQuery, toFilters, writeQuery, type CatalogQuery } fro
 import { useCatalog } from "./useCatalog";
 import s from "./Explore.module.css";
 import { rememberExplore } from "./where";
+import { useDocumentTitle } from "../../lib/title";
 
 /**
  * Explore, as designed: the heading, the search bar (with clear, the filter
@@ -22,6 +23,7 @@ import { rememberExplore } from "./where";
  */
 export function Explore() {
   const t = useT();
+  useDocumentTitle(t("app.nav.explore"));
   const [params, setParams] = useSearchParams();
   const query = readQuery(params);
   const [draft, setDraft] = useState(query.search);

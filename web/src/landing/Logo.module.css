@@ -1,19 +1,11 @@
-/* The mark and the wordmark: Krona One in the ink, the "i" of Skill red, one ink underline across. */
+/* The wordmark: Krona One in the ink, the "i" of Skill red, one ink underline across. */
 
 .logo {
   --size: 1.5rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45em;
+  display: inline-block;
   color: var(--ink, #000);
   font-size: var(--size);
   white-space: nowrap;
-}
-
-.mark {
-  width: 1.7em;
-  height: 1.7em;
-  flex: none;
 }
 
 .word {
