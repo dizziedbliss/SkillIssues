@@ -394,14 +394,18 @@ func (s *Service) newestByDifficulty(ctx context.Context, f Filters, after *Curs
 	for i, d := range f.Difficulties {
 		one := f
 		one.Difficulties = []string{d}
-		// A plain equality on the score, so the planner sees the rated index's range.
-		cond, order := " AND i.difficulty_score IS NULL", newestOrder
+		cond, order := "", newestOrder
 		if score, ok := difficultyScores[d]; ok {
+			// A rated difficulty is its score alone (sync.ClassifyLabels fixes
+			// one per difficulty; TestDifficultyScoresMatchClassifier pins it).
+			// Stated once: the filter's difficulty and score conditions on top
+			// made the planner multiply three estimates into 25 rows where
+			// there were 189k, and read them all through the wrong index (22s
+			// in production).
+			one.Difficulties = nil
 			cond = fmt.Sprintf(" AND i.difficulty_score = %d", score)
 			// The same order (the score is one value here), but only the rated
-			// index provides it: ordered by created_at alone, the planner bets
-			// on finding LIMIT rated issues early in issues_open_newest_idx and
-			// walks millions of unrated ones instead (11s in production).
+			// index provides it, so its first rows are the page.
 			order = ratedNewestOrder
 		}
 		g.Go(func() error {
