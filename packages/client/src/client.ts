@@ -1,8 +1,8 @@
 import type { Transport } from "./transport";
 import type {
-  AccountDeleted, ActiveTheme, Facets, Issue, IssueBody, IssueFilters, IssuePage, Notifications, Profile, ProfileUpdate,
+  AccountDeleted, ActiveTheme, Facets, Issue, IssueBody, IssueFilters, IssuePage, MyXP, Notifications, Profile, ProfileUpdate,
   ReportTarget, RepositoryLookup, SavedChange, SearchCategory, Session, SharedThemes, SignInStart, Stats, Theme, ThemeCheck,
-  ThemeInput,
+  ThemeInput, TrackedPull,
 } from "./types";
 
 function query(params: Record<string, string | number | undefined>): string {
@@ -126,6 +126,24 @@ export class Client {
 
   async readAllNotifications(): Promise<void> {
     await this.send({ method: "POST", path: "/notifications/read-all", body: {} });
+  }
+
+  /** Your level, streak, badges and latest XP, and where tracking stands. */
+  myXP(o?: Opts): Promise<MyXP> {
+    return this.get("/me/xp", o);
+  }
+
+  /** Your pull requests to catalog repositories, newest-updated first. */
+  async myPulls(state: "open" | "all" = "all", o?: Opts): Promise<TrackedPull[]> {
+    return (await this.get<{ pull_requests: TrackedPull[] }>(`/me/pulls${query({ state: state === "all" ? undefined : state })}`, o)).pull_requests;
+  }
+
+  /**
+   * Asks for your pull requests to be read again soon. Refused (429) within a
+   * few minutes of the last ask; resolves to when the next is allowed.
+   */
+  async refreshPulls(): Promise<string> {
+    return ((await this.send({ method: "POST", path: "/me/pulls/refresh", body: {} })) as { next_allowed_at: string }).next_allowed_at;
   }
 
   facets(o?: Opts): Promise<Facets> {

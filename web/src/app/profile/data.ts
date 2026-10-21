@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { loadContributions } from "../../lib/github";
 import { useSession } from "../session";
@@ -22,5 +22,34 @@ export function useContributions() {
     enabled: !!login,
     staleTime: 30 * 60_000,
     retry: false,
+  });
+}
+
+/** How often XP is re-read while a page shows it: the tracker reads on its own schedule. */
+const XP_POLL_MS = 2 * 60_000;
+
+/** Your level, streak, badges and latest XP (GET /me/xp). */
+export function useXP() {
+  const { user } = useSession();
+  return useQuery({ queryKey: ["xp"], queryFn: ({ signal }) => api.myXP({ signal }), enabled: !!user, refetchInterval: XP_POLL_MS });
+}
+
+/** Your pull requests to catalog repositories (GET /me/pulls). */
+export function useTrackedPulls() {
+  const { user } = useSession();
+  return useQuery({
+    queryKey: ["pulls"],
+    queryFn: ({ signal }) => api.myPulls("all", { signal }),
+    enabled: !!user,
+    refetchInterval: XP_POLL_MS,
+  });
+}
+
+/** "Check now": the tracker reads your pull requests on its next cycle. */
+export function useRefreshPulls() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.refreshPulls(),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["xp"] }),
   });
 }

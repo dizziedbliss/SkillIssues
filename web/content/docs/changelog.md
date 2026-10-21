@@ -27,6 +27,7 @@ The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/
 - **Ready for translations.** Every word of the interface can now be translated. English is the only language so far.
 - **Docs search.** Press `/` on any docs page.
 - **Is this a good first issue?** Each issue page checks the issue as GitHub has it now: marked for beginners, described, unassigned, no open pull request, recently active, a short discussion. A new guide explains what to look for. See [Is this a good first issue?](/docs/good-first-issues).
+- **XP, levels, streaks and badges.** Merged pull requests to repositories in the catalog earn XP, more for closing harder and older issues. SkillIssues reads them from public GitHub data with its own credential, never yours, and past merges count at half XP. Your profile shows your level, a level per language, your weekly streak, badges, and every pull request earning XP. See [How XP works](/docs/xp).
 - **Reporting.** Signed in, report an issue, a repository or a shared theme. Reports are private, and enough of them take it out of lists until it's reviewed. See [Reporting](/docs/reporting).
 - **Community themes.** Browse the themes people have shared, most used or newest, in **Settings → Themes → Community**.
 

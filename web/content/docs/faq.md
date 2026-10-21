@@ -57,7 +57,7 @@ Yes. The desktop app only handles Git for you. See [The desktop app](/download).
 
 ## Is there a leaderboard, or XP?
 
-Not yet. See [Leaderboard](/leaderboard).
+There's XP. Merged pull requests to repositories in the catalog earn it, read from public GitHub data without your token. See [How XP works](/docs/xp). The leaderboard isn't open yet. See [Leaderboard](/leaderboard).
 
 ## Can I change how the app looks?
 
