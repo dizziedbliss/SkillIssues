@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { Issue, IssueFilters } from "@skillissues/client";
 import { api } from "../../lib/api";
+import { placeFor, rememberPlace } from "./where";
 
 /** Issues on one page of Explore. */
 export const PAGE_SIZE = 20;
@@ -40,8 +41,13 @@ async function browsePage(filters: IssueFilters, cursor: string, signal: AbortSi
  */
 export function useCatalog(key: string, search: string, filters: IssueFilters | null) {
   // furthest: the deepest page reached, so the pager keeps offering it.
-  const [state, setState] = useState({ key, cursors: [""], index: 0, furthest: 0 });
-  if (state.key !== key) setState({ key, cursors: [""], index: 0, furthest: 0 });
+  // Coming back to the same filters opens the page that was open.
+  const start = (k: string) => ({ key: k, ...(placeFor(k) ?? { cursors: [""], index: 0, furthest: 0 }) });
+  const [state, setState] = useState(() => start(key));
+  if (state.key !== key) setState(start(key));
+  useEffect(() => {
+    rememberPlace(state.key, { cursors: state.cursors, index: state.index, furthest: state.furthest });
+  }, [state]);
   const index = state.key === key ? state.index : 0;
   const cursor = state.key === key ? state.cursors[index]! : "";
 

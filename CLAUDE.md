@@ -232,7 +232,9 @@ path reaching outside the importing project). Both apps are built on `client`; t
   the search page (`search/SearchPage.tsx`, `/app/search?search=…&in=repository|title|language`),
   never to Explore: every kind, or one kind paged on its own, with the same filters. Its box shares
   a `view-transition-name` with the search page's (and Explore's), so one glides into the other.
-  The wordmark inside the app goes to Explore.
+  The wordmark inside the app goes to Explore, afresh; the Explore nav item and the issue page's back
+  link return to Explore as it was left, filters and page (`explore/where.ts`: the address per tab, the
+  pager's place per filter set in memory).
   The issue page has a beginner checklist (`BeginnerCheck.tsx`: labelled, described, unassigned, no
   open linked pull request via the timeline, recent, short discussion; thresholds documented in
   `/docs/good-first-issues`, keep both in step) and report links (`ReportButton.tsx`). Settings →
