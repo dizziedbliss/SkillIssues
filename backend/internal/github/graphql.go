@@ -35,8 +35,8 @@ func (r rawRateLimit) parse() GraphQLRateLimit {
 
 // postGraphQL sends one GraphQL request and decodes the response body into
 // out, which must have `Errors []graphQLError` and `Data` fields the caller
-// inspects. HTTP-level failures become errors whose text the ingest worker
-// classifies ("rate limit exceeded", "HTTP 401", …), so keep those phrases.
+// inspects. A non-200 answer is an *HTTPError; classify it with
+// IsRateLimited, IsResourceLimit and IsNotFound, never by its text.
 func (c *Client) postGraphQL(ctx context.Context, token, query string, variables map[string]any, out any) error {
 	payload, err := json.Marshal(graphQLRequest{Query: query, Variables: variables})
 	if err != nil {
@@ -62,22 +62,14 @@ func (c *Client) postGraphQL(ctx context.Context, token, query string, variables
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusUnauthorized {
-		return fmt.Errorf("github: HTTP 401 Unauthorized (Bad credentials) - the token is invalid, expired, or revoked")
-	}
-	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
-		body, readErr := io.ReadAll(resp.Body)
-		if readErr != nil {
-			return fmt.Errorf("github: rate limit exceeded (HTTP %d), body unreadable: %w", resp.StatusCode, readErr)
-		}
-		return fmt.Errorf("github: rate limit exceeded (HTTP %d): %s", resp.StatusCode, string(body))
-	}
 	if resp.StatusCode != http.StatusOK {
-		body, readErr := io.ReadAll(resp.Body)
+		// The body names the problem; 64 KiB is plenty, and bounds what a
+		// misbehaving proxy can make us hold.
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 		if readErr != nil {
 			return fmt.Errorf("github: HTTP %d, body unreadable: %w", resp.StatusCode, readErr)
 		}
-		return fmt.Errorf("github: HTTP %d: %s", resp.StatusCode, string(body))
+		return newHTTPError(resp, string(body), time.Now())
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {

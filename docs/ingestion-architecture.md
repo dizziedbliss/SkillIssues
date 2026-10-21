@@ -21,7 +21,7 @@ this table is how you find out.
 | Cursor + issues committed in one transaction | **Built** | `CompleteOrRequeue` runs in the page's transaction |
 | Shared GitHub budget (`github_budget`, crawler/interactive lanes) | **Built** | one counter read across both lanes; the crawler lane leaves `ingest.interactive_reserve_percent` for interactive work (tracked-issue checks) |
 | `RESOURCE_LIMITS_EXCEEDED` recovery | **Built, differently** | no GraphQL alias batching: one repository per call, and the *page size* is halved down to 1 (§4 describes splitting alias batches) |
-| Secondary rate limits | **Built, simplified** | fixed one-minute lane pause; `Retry-After` is not read |
+| Secondary rate limits | **Built** | both lanes pause for `ingest.rate_limit_pause_seconds`, or as long as GitHub asks (`Retry-After`, or the primary limit's reset when none is left). A 403 that is not a rate limit (a permissions refusal) backs off like any other failure. Errors are typed (`github.IsRateLimited`, `IsResourceLimit`, `IsNotFound`), never matched on their text |
 | `NOT_FOUND` isolates the repository | **Built** | job `failed`, repository marked ineligible |
 | NUL-byte sanitisation before persistence | **Built** | `ingest.SanitizeText` |
 | Metrics distinguishing retries from failures | **Built** | `ingest_job_outcomes_total{outcome}` on ingestd's `/metrics` |
