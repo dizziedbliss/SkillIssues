@@ -18,6 +18,7 @@ import { ReportButton } from "./ReportButton";
 import { loadLinkedPulls } from "../lib/linkedPulls";
 import { external } from "../lib/links";
 import s from "./IssuePage.module.css";
+import { exploreURL } from "./explore/where";
 
 /**
  * One issue: what it is, where it lives, and what to do next (open it on
@@ -59,7 +60,7 @@ export function IssuePage() {
   if (notFound) {
     return (
       <section className={s.page}>
-        <Link to="/app" className={s.back}>{t("issue.back")}</Link>
+        <Link to={exploreURL()} className={s.back}>{t("issue.back")}</Link>
         <p className={s.note}>{t("issue.notFound")}</p>
       </section>
     );
@@ -67,7 +68,7 @@ export function IssuePage() {
   if (issue.error) {
     return (
       <section className={s.page}>
-        <Link to="/app" className={s.back}>{t("issue.back")}</Link>
+        <Link to={exploreURL()} className={s.back}>{t("issue.back")}</Link>
         <p className={s.error} role="alert">{issue.error.message}</p>
       </section>
     );
@@ -88,7 +89,7 @@ export function IssuePage() {
 
   return (
     <article className={s.page} data-ui="issue">
-      <Link to="/app" className={s.back}>{t("issue.back")}</Link>
+      <Link to={exploreURL()} className={s.back}>{t("issue.back")}</Link>
       <p className={s.repo}>
         <a href={it.repository_url} target="_blank" rel="noreferrer">{it.repository}</a>
       </p>

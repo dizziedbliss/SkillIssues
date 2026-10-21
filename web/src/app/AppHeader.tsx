@@ -6,6 +6,7 @@ import { useSession, useSignIn, useSignOut } from "./session";
 import { useSearchOverlay } from "./search/context";
 import { useNotifications } from "./notifications";
 import { platform } from "./platform";
+import { exploreURL } from "./explore/where";
 import { choiceName, useAppearance } from "./theme";
 import s from "./AppHeader.module.css";
 
@@ -30,7 +31,8 @@ export function AppHeader() {
           <Logo size="header" />
         </Link>
         <nav className={s.nav} aria-label={t("app.nav")} data-ui="nav">
-          <Link to="/app" className={exploring ? s.active : undefined} aria-current={exploring ? "page" : undefined}>
+          {/* Back to Explore as it was left; the wordmark starts it afresh. */}
+          <Link to={exploreURL()} className={exploring ? s.active : undefined} aria-current={exploring ? "page" : undefined}>
             {t("app.nav.explore")}
           </Link>
           <Link
