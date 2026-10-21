@@ -31,6 +31,11 @@ const bridge: DesktopBridge = {
   openExternal: (url) => invoke(channels.openExternal, url),
   githubGet: (url) => invoke(channels.githubGet, url),
   takeLink: () => invoke(channels.takeLink),
+  windowInfo: () => invoke(channels.windowInfo),
+  titleBar: (colors) => invoke(channels.titleBar, colors),
+  updateState: () => invoke(channels.updateState),
+  checkUpdates: () => invoke(channels.checkUpdates),
+  installUpdate: () => invoke(channels.installUpdate),
 };
 
 contextBridge.exposeInMainWorld("skillissues", bridge);

@@ -8,6 +8,7 @@ import {
   deepLinkPath,
   isAllowedApiCall,
   isAllowedGitHubRead,
+  isHexColor,
   isAllowedExternalURL,
   isGitHubRemote,
   isValidBranch,
@@ -175,4 +176,9 @@ test("the new app routes are allowed, and operational ones still aren't", () => 
   for (const [m, p] of [["GET", "/admin/reports"], ["POST", "/admin/reports/resolve"], ["DELETE", "/me"], ["POST", "/auth/github/device"], ["GET", "/metrics"]] as const) {
     assert.ok(!isAllowedApiCall(m, p), `${m} ${p}`);
   }
+});
+
+test("the title bar takes only a #rrggbb colour", () => {
+  assert.ok(isHexColor("#f2f2f2"));
+  for (const bad of ["f2f2f2", "#fff", "#f2f2f2ff", "red", "#gggggg", "#f2f2f2;x"]) assert.ok(!isHexColor(bad), bad);
 });

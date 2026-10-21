@@ -21,17 +21,21 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: '22'
+      # One npm workspace: install at the root, never inside desktop/.
       - name: Install Dependencies
-        run: |
-          cd desktop
-          npm ci
+        run: npm ci
+      # The app's version is the tag's: the updater compares it with
+      # latest*.yml to decide whether there's an update.
+      - name: Set the version from the tag
+        shell: bash
+        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version -w desktop
       - name: Package Windows Executable
         if: matrix.os == 'windows-latest'
         run: |
           cd desktop
           npm run dist:win
       - name: Package Linux AppImage
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-24.04'
         run: |
           cd desktop
           npm run dist:linux
@@ -49,6 +53,8 @@ jobs:
             desktop/dist/*.AppImage
             desktop/dist/*.dmg
             desktop/dist/*.zip
+            desktop/dist/*.blockmap
+            desktop/dist/latest*.yml
 
   create-release:
     name: Create GitHub Release
