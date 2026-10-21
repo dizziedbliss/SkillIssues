@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { platform } from "./platform";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { renderMarkdown } from "@skillissues/markdown";
@@ -70,6 +71,7 @@ export function IssuePage() {
   // closed since the last crawl says so here at once.
   const live = body.data && "live" in body.data ? body.data.live : null;
   const contributing = gitHubPage(it.contributing_url);
+  const WorkOnIt = platform().WorkOnIt ?? DesktopButton;
   const liveClosed = !!live?.closed;
   const closedAgo = live?.closedAt ? ago(live.closedAt, locale) : "";
   const number = new Intl.NumberFormat(locale);
@@ -104,7 +106,7 @@ export function IssuePage() {
 
       <div className={s.actions}>
         <a href={it.url} target="_blank" rel="noreferrer" className={s.primary} data-ui="button-primary">{t("issue.openGitHub")}</a>
-        <DesktopButton issue={it} className={s.secondary} />
+        <WorkOnIt issue={it} className={s.secondary} />
         <ClaimButton issueID={it.id} url={it.url} className={s.secondary} />
         <SaveButton issue={it} label />
         <span className={s.reportRow}>

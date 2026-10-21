@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
+import { SiteLink } from "../SiteLink";
 import { ApiError, type MyXP, type TrackedPull, type XPEvent, type XPSummary } from "@skillissues/client";
 import { useI18n, type MessageKey } from "../../i18n";
 import { ago } from "../../lib/time";
@@ -45,7 +45,7 @@ export function LevelCard({ summary, own = true }: { summary: XPSummary | undefi
         {own && streak.current > 0 && !streak.this_week && <span className={s.muted}> {t("xp.streakKeep")}</span>}
         {streak.best > 1 && <span className={s.muted}> {t("xp.streakBest", { weeks: streak.best })}</span>}
       </p>
-      {own && <Link to="/docs/xp" className={s.how}>{t("xp.how")}</Link>}
+      {own && <SiteLink to="/docs/xp" className={s.how}>{t("xp.how")}</SiteLink>}
     </section>
   );
 }

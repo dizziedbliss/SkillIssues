@@ -1,6 +1,7 @@
 import { ipcMain, shell, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
 import { channels, type Channel, type IssueRef, type Result } from "../shared/contract";
 import { proxy } from "./api";
+import { githubGet } from "./githubRead";
 import * as auth from "./auth";
 import { isAllowedExternalURL } from "./security";
 import * as workspace from "./workspace";
@@ -13,7 +14,11 @@ import * as workspace from "./workspace";
 
 type Handler = (...args: unknown[]) => unknown;
 
-export function registerIpc(window: () => BrowserWindow | null, isAppURL: (url: string) => boolean): Channel[] {
+export function registerIpc(
+  window: () => BrowserWindow | null,
+  isAppURL: (url: string) => boolean,
+  takeLink: () => string | null,
+): Channel[] {
   const registered: Channel[] = [];
 
   const handle = (channel: Channel, fn: Handler) => {
@@ -58,6 +63,11 @@ export function registerIpc(window: () => BrowserWindow | null, isAppURL: (url: 
   handle(channels.openEditor, (id) => workspace.openEditor(issueId(id)));
   handle(channels.commitAndPush, (id, message) => workspace.commitAndPush(issueId(id), String(message ?? "")));
   handle(channels.openPullRequest, (id) => workspace.openPullRequest(issueId(id)));
+  handle(channels.githubGet, (url) => {
+    if (typeof url !== "string") throw new Error("That GitHub request isn't allowed from the app.");
+    return githubGet(url);
+  });
+  handle(channels.takeLink, () => takeLink());
   handle(channels.openExternal, async (url) => {
     if (typeof url !== "string" || !isAllowedExternalURL(url)) throw new Error("That link can't be opened from the app.");
     await shell.openExternal(url);

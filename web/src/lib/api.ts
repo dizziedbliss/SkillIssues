@@ -9,4 +9,9 @@ const transport = fetchTransport(import.meta.env.VITE_API_URL ?? "/api");
 // Development only: a signed-in preview (lib/devPreview.ts). Dropped from production builds.
 const dev = import.meta.env.DEV ? await import("./devPreview") : null;
 
-export const api = new Client(dev?.previewOn() ? dev.previewTransport(transport) : transport);
+/** The API client. The desktop replaces it with one over its bridge (setApi), before anything renders. */
+export let api = new Client(dev?.previewOn() ? dev.previewTransport(transport) : transport);
+
+export function setApi(client: Client) {
+  api = client;
+}

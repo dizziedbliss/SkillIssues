@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { SiteLink } from "../SiteLink";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Theme } from "@skillissues/client";
@@ -87,7 +88,7 @@ export function Themes() {
         {tab === "shared" && <Shared />}
       </div>
       <p className={s.hint}>
-        <Link to="/docs/themes">{t("settings.themes.docs")}</Link>
+        <SiteLink to="/docs/themes">{t("settings.themes.docs")}</SiteLink>
       </p>
     </div>
   );

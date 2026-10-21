@@ -6,11 +6,12 @@
     <!--
       The page reaches nothing itself: every API and GitHub call goes through
       the main process (window.skillissues). connect-src allows only the dev
-      server's hot-reload socket.
+      server's hot-reload socket. Images may come from GitHub, as on the
+      site: avatars and the pictures in issue descriptions.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://avatars.githubusercontent.com; font-src 'self'; connect-src 'self' ws://localhost:*; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://avatars.githubusercontent.com https://*.githubusercontent.com https://github.com; font-src 'self'; connect-src 'self' ws://localhost:*; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'"
     />
     <title>SkillIssues</title>
     <link rel="icon" type="image/png" href="icon.png" />

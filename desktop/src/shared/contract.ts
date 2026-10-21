@@ -73,6 +73,14 @@ export interface Settings {
   workspaceRoot: string;
 }
 
+/** A public GitHub API answer, read by the main process with no credentials. */
+export interface GitHubReply {
+  status: number;
+  body: string;
+  /** Only the rate-limit headers the page reads. */
+  headers: Record<string, string>;
+}
+
 export const channels = {
   api: "api:request",
   authState: "auth:state",
@@ -93,6 +101,8 @@ export const channels = {
   commitAndPush: "workspace:commit-push",
   openPullRequest: "workspace:open-pr",
   openExternal: "shell:open-external",
+  githubGet: "github:get",
+  takeLink: "app:take-link",
 } as const;
 
 export type Channel = (typeof channels)[keyof typeof channels];
@@ -121,4 +131,11 @@ export interface DesktopBridge {
   commitAndPush(issueId: number, message: string): Promise<Result<Workspace>>;
   openPullRequest(issueId: number): Promise<Result<Workspace>>;
   openExternal(url: string): Promise<Result<null>>;
+  /** GETs an allowlisted public GitHub API URL, without credentials. */
+  githubGet(url: string): Promise<Result<GitHubReply>>;
+  /**
+   * The app page a skillissues:// link asked for (e.g. "/app/issues/12"),
+   * once, or null. The page asks on start and whenever the window is focused.
+   */
+  takeLink(): Promise<Result<string | null>>;
 }

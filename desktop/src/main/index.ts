@@ -3,7 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { channels } from "../shared/contract";
 import { registerIpc } from "./ipc";
-import { isAllowedExternalURL, webPreferences } from "./security";
+import { deepLinkPath, isAllowedExternalURL, webPreferences } from "./security";
 import { loadStore } from "./store";
 
 /*
@@ -15,6 +15,26 @@ import { loadStore } from "./store";
  */
 
 if (!app.requestSingleInstanceLock()) app.quit();
+
+// skillissues://issue/<id> opens that issue here (the site's "Work on it in
+// the desktop app"). The page collects it with takeLink on start and focus.
+app.setAsDefaultProtocolClient("skillissues");
+let pendingLink: string | null = null;
+function noteLink(raw: string | undefined) {
+  const p = raw ? deepLinkPath(raw) : null;
+  if (p) pendingLink = p;
+}
+function takeLink(): string | null {
+  const p = pendingLink;
+  pendingLink = null;
+  return p;
+}
+process.argv.forEach(noteLink);
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  noteLink(url);
+  win?.focus();
+});
 
 Menu.setApplicationMenu(null);
 
@@ -37,7 +57,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 620,
     show: false,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#0a0a0c", // Midnight, the app's default, so it opens dark
     title: "SkillIssues",
     icon: path.join(app.getAppPath(), "icon.png"),
     autoHideMenuBar: true,
@@ -64,7 +84,8 @@ function createWindow() {
   });
 }
 
-app.on("second-instance", () => {
+app.on("second-instance", (_event, argv) => {
+  argv.forEach(noteLink);
   if (!win) return;
   if (win.isMinimized()) win.restore();
   win.focus();
@@ -74,7 +95,7 @@ app.whenReady().then(() => {
   loadStore();
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
-  const registered = registerIpc(() => win, isAppURL);
+  const registered = registerIpc(() => win, isAppURL, takeLink);
   const missing = Object.values(channels).filter((c) => !registered.includes(c));
   if (missing.length) throw new Error(`IPC channels without a handler: ${missing.join(", ")}`);
   createWindow();

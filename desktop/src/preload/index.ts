@@ -29,6 +29,8 @@ const bridge: DesktopBridge = {
   commitAndPush: (issueId, message) => invoke(channels.commitAndPush, issueId, message),
   openPullRequest: (issueId) => invoke(channels.openPullRequest, issueId),
   openExternal: (url) => invoke(channels.openExternal, url),
+  githubGet: (url) => invoke(channels.githubGet, url),
+  takeLink: () => invoke(channels.takeLink),
 };
 
 contextBridge.exposeInMainWorld("skillissues", bridge);

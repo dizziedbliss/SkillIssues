@@ -299,9 +299,16 @@ top frame.
   cloned into the workspace folder, on `skillissues/<number>-<slug>`, with the original as `upstream`;
   every path is re-checked to be inside that folder after resolving links. VS Code opens through its
   `vscode://` link.
-- **The renderer** (`src/renderer/src`) is React on `@skillissues/client` over the IPC proxy. Its CSP
-  lets it reach no network itself. Until the designs arrive: sign-in, catalog, an issue panel from
-  fork to pull request, and settings (workspace folder, push connection, sign out, delete account).
+- **The renderer is the web app's screens** (`src/renderer/src`): it imports `web/src/app` as `@web`
+  and renders `AppShell` under a `HashRouter`, after swapping the API client (`setApi`, over the IPC
+  proxy) and the platform (`web/src/app/platform.ts`, `setPlatform`): sign-in is a device-flow dialog,
+  GitHub reads go through the main process (`githubGet`, `isAllowedGitHubRead`: an issue, its
+  timeline and pull request search, no credentials), site pages open in the browser (`SiteLink`), and
+  "Work on it here" (`WorkOnIt.tsx`: fork to pull request) and Settings → Desktop app are its own.
+  Anything that differs between web and desktop goes through the platform, never a fork of a screen.
+  Its CSP lets it reach no network; images may come from GitHub. `skillissues://issue/<id>` (the
+  site's button) opens that issue: the main process keeps the link and the page takes it (`takeLink`)
+  on start and focus.
 
 Runs **Electron 44**. Release builds: `.github/workflows/release.yml`.
 
