@@ -94,6 +94,10 @@ A learning path is five open issues for one kind of work: frontend, backend, doc
 - **Swap** replaces a step you haven't done with another issue of the same level, for example if someone else got to it first.
 - Finishing all five earns **200 XP**. You can have one path at a time, and **Give up this path** ends it.
 
+## Your public profile
+
+Your profile is private unless you turn on **Show my profile to anyone** in Settings. Then anyone can see your level, XP, badges, languages and merged pull requests at `/app/u/<your username>`, and you can be listed on the [leaderboard](/leaderboard) once it opens. Turn it off and the page goes, at once.
+
 ## The numbers can change
 
 These are the current values. They can be tuned as we learn what works. A change applies to XP earned after it, and levels are always worked out from your XP as it stands. Your XP history is kept as a list of what each pull request earned and why, so nothing is recalculated behind your back.

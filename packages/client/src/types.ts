@@ -188,6 +188,8 @@ export interface Profile {
   preferred_languages: string[];
   /** When the account was created here (RFC 3339). */
   joined_at: string;
+  /** Shown to anyone at /app/u/<username>, and eligible for the leaderboard. */
+  public_profile: boolean;
 }
 
 /** PUT /profile: the whole editable profile. */
@@ -197,6 +199,28 @@ export interface ProfileUpdate {
   target_level: Level;
   interests: string[];
   preferred_languages: string[];
+  /** Turns your public profile on or off; left out, it stays as it is. */
+  public_profile?: boolean;
+}
+
+/** Someone's public profile (they turned it on). */
+export interface PublicProfile {
+  username: string;
+  name: string;
+  avatar_url: string;
+  joined_at: string;
+  summary: XPSummary;
+  merged: { id: number; repository: string; number: number; title: string; url: string }[];
+  badge_keys: string[];
+}
+
+/** One leaderboard row. */
+export interface LeaderboardEntry {
+  rank: number;
+  username: string;
+  avatar_url: string;
+  xp: number;
+  level: XPLevel;
 }
 
 /**

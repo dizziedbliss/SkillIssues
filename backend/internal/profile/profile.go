@@ -21,11 +21,13 @@ type ProfileUpdate struct {
 	TargetLevel        string   `json:"target_level"`
 	Interests          []string `json:"interests"`
 	PreferredLanguages []string `json:"preferred_languages"`
+	// PublicProfile, when sent, turns the public profile on or off; left out,
+	// it stays as it is.
+	PublicProfile *bool `json:"public_profile,omitempty"`
 }
 
 // FullProfile represents the complete developer profile returned by GET /me.
-// XP, levels and badges are absent: they were computed from contributions,
-// which are deferred to the gamification redesign.
+// XP, levels and badges are GET /me/xp (internal/progress).
 type FullProfile struct {
 	ID                 int      `json:"id"`
 	Username           string   `json:"username"`
@@ -38,6 +40,8 @@ type FullProfile struct {
 	Interests          []string `json:"interests"`
 	PreferredLanguages []string `json:"preferred_languages"`
 	JoinedAt           string   `json:"joined_at"` // when the account was created here, RFC 3339
+	// PublicProfile: shown at /users/{login} and eligible for leaderboards.
+	PublicProfile bool `json:"public_profile"`
 }
 
 // Service manages developer profile operations.
@@ -65,7 +69,7 @@ func (s *Service) GetFullProfile(ctx context.Context, userID int) (*FullProfile,
 	err := s.db.QueryRow(ctx,
 		`SELECT u.id, COALESCE(u.username, ''), COALESCE(u.name, u.username, ''), COALESCE(u.avatar_url, ''),
 		        p.experience_level, p.target_level, COALESCE(p.bio, ''), p.demonstrated_skills,
-		        COALESCE(pref.interests, '{}'), COALESCE(pref.preferred_languages, '{}'), u.created_at
+		        COALESCE(pref.interests, '{}'), COALESCE(pref.preferred_languages, '{}'), u.created_at, u.public_profile
 		 FROM users u
 		 JOIN developer_profiles p ON p.user_id = u.id
 		 LEFT JOIN developer_preferences pref ON pref.user_id = u.id
@@ -75,7 +79,7 @@ func (s *Service) GetFullProfile(ctx context.Context, userID int) (*FullProfile,
 			return row.Scan(
 				&p.ID, &p.Username, &p.Name, &p.AvatarURL,
 				&p.ExperienceLevel, &p.TargetLevel, &p.Bio, &p.DemonstratedSkills,
-				&p.Interests, &p.PreferredLanguages, &joined,
+				&p.Interests, &p.PreferredLanguages, &joined, &p.PublicProfile,
 			)
 		},
 	)
@@ -176,6 +180,11 @@ func (s *Service) UpdateProfile(ctx context.Context, userID int, update ProfileU
 			   preferred_languages = EXCLUDED.preferred_languages`,
 			userID, interests, langs); err != nil {
 			return fmt.Errorf("update preferences: %w", err)
+		}
+		if update.PublicProfile != nil {
+			if _, err := tx.Exec(ctx, `UPDATE users SET public_profile = $2 WHERE id = $1`, userID, *update.PublicProfile); err != nil {
+				return fmt.Errorf("update public profile: %w", err)
+			}
 		}
 		return nil
 	})

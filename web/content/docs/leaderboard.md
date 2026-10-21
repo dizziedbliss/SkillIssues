@@ -15,7 +15,7 @@ The first version of SkillIssues stored your GitHub token on the server to check
 
 ## The leaderboard
 
-The leaderboard will rank people by XP, monthly and all-time, overall and by language. It will only ever list people who choose to show their profile publicly. Being on it is opt-in, and it's off until you turn it on.
+The leaderboard ranks people by XP, this month or all time, overall or for one language. It only ever lists people who chose to show their profile publicly: turn on **Show my profile to anyone** in Settings to be on it. It's built, and it opens once enough people are earning XP. Until then, [its page](/app/leaderboard) says so.
 
 ## Until then
 

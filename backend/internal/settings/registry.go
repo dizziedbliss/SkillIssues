@@ -368,6 +368,9 @@ const (
 	PRsRefreshMinSeconds         Key = "api.prs.refresh_min_seconds"
 	PRsPageSize                  Key = "api.prs.page_size"
 	ClaimsDays                   Key = "api.claims.days"
+	LeaderboardsEnabled          Key = "api.leaderboards.enabled"
+	LeaderboardsSize             Key = "api.leaderboards.size"
+	ProfilesPublicPulls          Key = "api.profiles.public_pulls"
 	ClaimsMaxActive              Key = "api.claims.max_active"
 	ClaimsRefreshSeconds         Key = "api.claims.refresh_seconds"
 	XPRecentLimit                Key = "api.xp.recent_limit"
@@ -409,6 +412,9 @@ var Registry = map[Key]Spec{
 	IngestPRsColdIntervalSeconds: intSpec(86400, 300, 2592000, "How often someone with no open pull request is read."),
 	IngestPRsHotWindowDays:       intSpec(7, 1, 90, "An open pull request updated this recently makes its author hot."),
 	IngestPRsRetryBaseSeconds:    intSpec(300, 30, 86400, "First wait after a failed read; doubles per attempt, up to ingest.prs.cold_interval_seconds."),
+	LeaderboardsEnabled:          boolSpec(false, "Serve GET /leaderboards. People who keep their profile private are never listed."),
+	LeaderboardsSize:             intSpec(50, 1, 500, "People one leaderboard lists."),
+	ProfilesPublicPulls:          intSpec(20, 0, 200, "Merged pull requests a public profile lists."),
 	ClaimsDays:                   intSpec(7, 1, 60, "Days a claim lasts without an open pull request of the claimer's that closes the issue."),
 	ClaimsMaxActive:              intSpec(2, 1, 20, "Claims one person may hold at once."),
 	ClaimsRefreshSeconds:         intSpec(30, 5, 3600, "How often go-api re-reads which issues are claimed, for lists."),

@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
+import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Level, Profile } from "@skillissues/client";
 import { api } from "../../lib/api";
@@ -22,6 +23,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
   const [interests, setInterests] = useState(profile.interests);
   const [findLang, setFindLang] = useState("");
   const [newInterest, setNewInterest] = useState("");
+  const [isPublic, setPublic] = useState(profile.public_profile);
 
   const options = useQuery({ queryKey: ["preferenceOptions"], queryFn: ({ signal }) => api.preferenceOptions({ signal }), staleTime: Infinity });
   const shownLangs = useMemo(() => {
@@ -32,7 +34,9 @@ export function ProfileForm({ profile }: { profile: Profile }) {
 
   const save = useMutation({
     mutationFn: () =>
-      api.updateProfile({ bio, experience_level: level, target_level: target, preferred_languages: langs, interests }),
+      api.updateProfile({
+        bio, experience_level: level, target_level: target, preferred_languages: langs, interests, public_profile: isPublic,
+      }),
     onSuccess: (p) => {
       queryClient.setQueryData(["me"], p);
       // The feed is ordered by your languages, and starts at your level.
@@ -131,6 +135,18 @@ export function ProfileForm({ profile }: { profile: Profile }) {
           onKeyDown={addInterest}
         />
         <span className={s.hint}>{t("settings.interests.help")}</span>
+      </fieldset>
+
+      <fieldset className={s.field}>
+        <legend className={s.label}>{t("settings.public")}</legend>
+        <label className={s.choice}>
+          <input type="checkbox" checked={isPublic} onChange={(e) => setPublic(e.target.checked)} />
+          {t("settings.public.on")}
+        </label>
+        <span className={s.hint}>
+          {t("settings.public.help")}{" "}
+          {profile.public_profile && <Link to={`/app/u/${profile.username}`}>{t("settings.public.view")}</Link>}
+        </span>
       </fieldset>
 
       <div className={s.saveRow}>

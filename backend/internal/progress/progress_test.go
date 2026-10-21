@@ -119,3 +119,81 @@ func TestProgressReadsWhatTheTrackerWrote(t *testing.T) {
 		t.Errorf("with no gap: %v", err)
 	}
 }
+
+func TestPublicProfilesAndLeaderboard(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	n := time.Now().UnixNano()
+	scan := func(dst any) func(pgx.Row) error { return func(r pgx.Row) error { return r.Scan(dst) } }
+	user := func(tag string, public bool) (int, string) {
+		login := fmt.Sprintf("lb-%s-%d", tag, n)
+		var id int
+		if err := pool.QueryRow(ctx, `INSERT INTO users (github_id, username, public_profile) VALUES ($1, $1, $2) RETURNING id`,
+			[]any{login, public}, scan(&id)); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := pool.Exec(context.Background(), `DELETE FROM users WHERE id = $1`, id); err != nil {
+				t.Errorf("cleanup: %v", err)
+			}
+		})
+		return id, login
+	}
+	alice, aliceLogin := user("alice", true)
+	bob, bobLogin := user("bob", true)
+	carol, carolLogin := user("carol", false)
+	// A key per row keeps the ledger's uniqueness without pull requests.
+	pay := func(id, amount int, lang string, at time.Time) {
+		if err := pool.Exec(ctx,
+			`INSERT INTO xp_events (user_id, source, key, amount, detail, earned_at) VALUES ($1, 'quest', $2, $3, jsonb_build_object('language', $4::text), $5)`,
+			id, fmt.Sprintf("t-%d-%d", id, at.UnixNano()), amount, lang, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now := time.Now().UTC()
+	lastYear := now.AddDate(-1, 0, 0)
+	pay(alice, 300, "Go", lastYear)
+	pay(alice, 100, "Go", now)
+	pay(bob, 250, "Rust", now)
+	pay(carol, 9999, "Go", now) // private: never listed
+
+	s := New(pool)
+	if _, err := s.PublicProfile(ctx, carolLogin, 100, 10, now); !errors.Is(err, ErrNotPublic) {
+		t.Errorf("a private profile: %v", err)
+	}
+	if _, err := s.PublicProfile(ctx, "no-such-person-"+aliceLogin, 100, 10, now); !errors.Is(err, ErrNotPublic) {
+		t.Errorf("no such person: %v", err)
+	}
+	p, err := s.PublicProfile(ctx, aliceLogin, 100, 10, now)
+	if err != nil || p.Summary.Total != 400 || p.Username != aliceLogin {
+		t.Fatalf("alice's profile = %+v, %v", p, err)
+	}
+
+	rank := func(since *time.Time, lang string) map[string]int {
+		t.Helper()
+		got, err := s.Leaderboard(ctx, since, lang, 100, 500)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]int{}
+		for _, e := range got {
+			out[e.Username] = e.Rank
+		}
+		if _, listed := out[carolLogin]; listed {
+			t.Errorf("a private profile is on the board")
+		}
+		return out
+	}
+	all := rank(nil, "")
+	if all[aliceLogin] == 0 || all[bobLogin] == 0 || all[aliceLogin] > all[bobLogin] {
+		t.Errorf("all time: alice %d, bob %d; want alice above bob", all[aliceLogin], all[bobLogin])
+	}
+	month := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	thisMonth := rank(&month, "")
+	if thisMonth[bobLogin] == 0 || thisMonth[aliceLogin] < thisMonth[bobLogin] {
+		t.Errorf("this month: alice %d, bob %d; want bob above alice", thisMonth[aliceLogin], thisMonth[bobLogin])
+	}
+	if goOnly := rank(nil, "Go"); goOnly[bobLogin] != 0 || goOnly[aliceLogin] == 0 {
+		t.Errorf("Go board = %v", goOnly)
+	}
+}

@@ -55,7 +55,7 @@ export function ContributionsPage() {
       </div>
 
       <h2 className={s.heading}>{t("xp.badges")}</h2>
-      <Badges data={xp.data} />
+      <Badges summary={xp.data?.summary} keys={xp.data?.badge_keys} />
     </div>
   );
 }

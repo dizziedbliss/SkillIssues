@@ -43,7 +43,11 @@ From you we keep:
 - the issues you save;
 - the themes you create, and which one is applied to your account;
 - notifications about saved issues that close, which the system records for you;
-- reports you make: what you reported (an issue, a repository or a shared theme), the reason you chose and any note you add.
+- reports you make: what you reported (an issue, a repository or a shared theme), the reason you chose and any note you add;
+- issues you claim ("I'm working on this") and your learning path;
+- whether your profile is public.
+
+While you have an account, we also read your public pull requests from GitHub, using SkillIssues' own GitHub credential (never yours), and keep the ones to repositories in our catalog: each one's title, link, state, dates, size, whether its checks passed, whether it was approved or had changes requested, and which catalog issues it closes. From them we keep the XP they earn, and your level, badges, streak, quests and learning path, which are worked out from it.
 
 To keep you signed in we keep:
 
@@ -62,6 +66,8 @@ The desktop app uses a GitHub token that stays on your computer. It never reache
 | --- | --- |
 | Sign you in and keep your session | Your consent, and providing the service you asked for |
 | Show the catalog ordered by your languages; keep your saved issues, preferences and themes; check that a saved issue is still open | Providing the service you asked for |
+| Read your public pull requests to award XP, levels, badges, quests and learning paths, and keep your claims | Providing the service you asked for |
+| Show your public profile and list you on the leaderboard, only if you turn it on | Your consent |
 | Rate limiting, logs and abuse prevention | Legitimate interests (keeping the service safe and available) |
 | Responding to your requests and reports | Legitimate interests, and legal obligations |
 | Review reports of issues, repositories and themes, and leave reported content out of lists until it's reviewed. Only the people who run SkillIssues see reports; they're never shown to the person or project you reported | Legitimate interests (keeping the catalog safe and useful) |
@@ -76,6 +82,10 @@ We don't sell your data, show ads, build advertising profiles or share your data
 - **OVH** hosts the server and database, in Sydney, Australia.
 
 These providers process data only to run the service for us. We may also disclose data if the law requires it.
+
+## Your public profile
+
+Your profile is private unless you turn on "Show my profile to anyone" in Settings. Then anyone can open a page with your username, name, avatar, when you joined, your level, XP, badges, languages and merged pull requests to catalog repositories, and you can be listed on the leaderboard when it opens. Turning it off removes the page and takes you off the leaderboard straight away. A claim shows other people that an issue is claimed, never who claimed it.
 
 ## Themes you share
 
@@ -93,7 +103,7 @@ Data is stored in a database on a server in Sydney, Australia. Because Vercel, C
 
 | Data | How long |
 | --- | --- |
-| Account, profile, preferences, saved issues, themes, notifications, reports | Until you delete your account |
+| Account, profile, preferences, saved issues, themes, notifications, reports, the pull requests we track, XP, claims, learning paths | Until you delete your account |
 | Sessions | 7 days by default, or until you sign out |
 | Access logs (include IP addresses) | Until newer logs replace them (they rotate by size), usually within a few days |
 | Rate-limit counters | Within the rate-limit window (an hour by default) |
@@ -114,7 +124,7 @@ We aim to reply within 30 days.
 
 ## Deleting your data
 
-Sign in, open [the app](/app) and choose Delete account: it happens straight away. If you can't sign in, email privacy@dizziedbliss.lol with your GitHub username and we will delete it; we may ask you to confirm the request from that GitHub account first, for example with a comment on GitHub. Please don't post a deletion request in a public issue, since that publishes your username and request. Deleting your account removes your profile, preferences, saved issues, themes, sessions, notifications and reports. You can also remove the sign-in app from your authorised applications in GitHub's settings.
+Sign in, open [the app](/app) and choose Delete account: it happens straight away. If you can't sign in, email privacy@dizziedbliss.lol with your GitHub username and we will delete it; we may ask you to confirm the request from that GitHub account first, for example with a comment on GitHub. Please don't post a deletion request in a public issue, since that publishes your username and request. Deleting your account removes your profile, preferences, saved issues, themes, sessions, notifications, reports, tracked pull requests, XP, claims and learning paths. You can also remove the sign-in app from your authorised applications in GitHub's settings.
 
 ## Security and breaches
 

@@ -36,6 +36,7 @@ let profile: Profile = {
   interests: [],
   preferred_languages: ["Python", "Go", "TypeScript"],
   joined_at: "2026-09-20T08:30:00Z",
+  public_profile: false,
 };
 
 // Kept in this browser, so a reload keeps what you saved in the preview.
@@ -54,7 +55,7 @@ const stored = (() => {
     return null;
   }
 })();
-if (stored?.profile) profile = stored.profile;
+if (stored?.profile) profile = { ...profile, ...stored.profile };
 const saved = new Map<number, Issue>((stored?.saved ?? []).map((i) => [i.id, i]));
 let notifications: Notification[] = stored?.notifications ?? [];
 /** Claims, kept for the page's life only. */
@@ -90,7 +91,8 @@ export function previewTransport(real: Transport): Transport {
     }
     if (path === "/profile" && method === "PUT") {
       // The real API checks bounds; the preview only stores.
-      profile = { ...profile, ...(req.body as ProfileUpdate) };
+      const update = req.body as ProfileUpdate;
+      profile = { ...profile, ...update, public_profile: update.public_profile ?? profile.public_profile };
       persist();
       return profile;
     }
@@ -203,6 +205,12 @@ export function previewTransport(real: Transport): Transport {
       const next = page.issues.find((i) => !used.has(i.id)) ?? null;
       learning = { ...learning, steps: learning.steps.map((st) => (st.position === pos ? { ...st, issue: next } : st)) };
       return { path: learning };
+    }
+    if (path === `/users/${PREVIEW_LOGIN}` && profile.public_profile) {
+      const x = sampleXP();
+      return { username: PREVIEW_LOGIN, name: profile.name, avatar_url: profile.avatar_url, joined_at: profile.joined_at,
+        summary: x.summary, badge_keys: x.badge_keys,
+        merged: x.recent.filter((e) => e.source === "merged" && e.pull_request).map((e) => e.pull_request!) };
     }
     if (path === "/me/xp") return sampleXP();
     if (path.startsWith("/me/pulls") && method === "GET") return { pull_requests: samplePulls() };

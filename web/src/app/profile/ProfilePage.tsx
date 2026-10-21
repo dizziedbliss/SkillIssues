@@ -87,15 +87,15 @@ export function ProfilePage() {
             </div>
           </div>
 
-          <LevelCard data={xp.data} />
-          <LanguageLevels data={xp.data} />
+          <LevelCard summary={xp.data?.summary} />
+          <LanguageLevels summary={xp.data?.summary} />
 
           <StatBoxes data={contributions.data} />
           <Graph data={contributions.data} />
           <ContribStatus query={contributions} login={user.username} />
 
           <h2 className={s.heading}>{t("xp.badges")}</h2>
-          <Badges data={xp.data} />
+          <Badges summary={xp.data?.summary} keys={xp.data?.badge_keys} />
 
           <h2 className={s.heading}>{t("xp.quests")}</h2>
           <p className={s.muted}>{t("xp.questsLede")}</p>

@@ -2,7 +2,7 @@ import type { Transport } from "./transport";
 import type {
   AccountDeleted, ActiveTheme, Facets, Issue, IssueBody, IssueFilters, IssuePage, MyXP, Notifications, Profile, ProfileUpdate,
   ReportTarget, RepositoryLookup, SavedChange, SearchCategory, Session, SharedThemes, SignInStart, Stats, Theme, ThemeCheck,
-  ThemeInput, TrackedPull, Claim, ClaimState, LearningPath, PathRole,
+  ThemeInput, TrackedPull, Claim, ClaimState, LearningPath, PathRole, PublicProfile, LeaderboardEntry,
 } from "./types";
 
 function query(params: Record<string, string | number | undefined>): string {
@@ -153,6 +153,16 @@ export class Client {
   async myClaims(o?: Opts): Promise<(Claim & { issue: Issue })[]> {
     const r = await this.get<{ claims: (Claim & { issue: Issue })[] }>("/me/claims", o);
     return r.claims.map((c) => ({ ...c, issue: withLists(c.issue) }));
+  }
+
+  /** Someone's public profile; 404 when there's none, or it isn't public. */
+  publicProfile(login: string, o?: Opts): Promise<PublicProfile> {
+    return this.get(`/users/${encodeURIComponent(login)}`, o);
+  }
+
+  /** The leaderboard: this month or all time, overall or one language. 404 while it isn't open. */
+  async leaderboard(f: { period?: "month" | "all"; language?: string }, o?: Opts): Promise<LeaderboardEntry[]> {
+    return (await this.get<{ entries: LeaderboardEntry[] }>(`/leaderboards${query({ period: f.period, language: f.language })}`, o)).entries;
   }
 
   /** The roles a learning path can be made of. */

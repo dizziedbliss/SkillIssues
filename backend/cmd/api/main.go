@@ -261,6 +261,10 @@ func buildRouter(
 	mux.Handle("DELETE /issues/{id}/claim", requireAuth(authSvc, http.HandlerFunc(h.releaseIssue)))
 	mux.Handle("GET /me/claims", requireAuth(authSvc, http.HandlerFunc(h.getMyClaims)))
 
+	// ----- Public profiles and the leaderboard -----
+	mux.HandleFunc("GET /users/{login}", h.getPublicProfile)
+	mux.HandleFunc("GET /leaderboards", h.getLeaderboard)
+
 	// ----- Learning paths -----
 	mux.HandleFunc("GET /paths/roles", h.getPathRoles)
 	mux.Handle("GET /me/path", requireAuth(authSvc, http.HandlerFunc(h.getMyPath)))
