@@ -1,7 +1,7 @@
 import type { Transport } from "./transport";
 import type {
   AccountDeleted, ActiveTheme, Facets, Issue, IssueBody, IssueFilters, IssuePage, MyXP, Notifications, Profile, ProfileUpdate,
-  ReportTarget, RepositoryLookup, SavedChange, SearchCategory, Session, SharedThemes, SignInStart, Stats, Theme, ThemeCheck,
+  ReportSummary, ReportTarget, RepositoryLookup, SavedChange, SearchCategory, Session, SharedThemes, SignInStart, Stats, Theme, ThemeCheck,
   ThemeInput, TrackedPull, Claim, ClaimState, LearningPath, PathRole, PublicProfile, LeaderboardEntry,
 } from "./types";
 
@@ -262,6 +262,16 @@ export class Client {
    */
   async report(target: ReportTarget, reason: string, note = ""): Promise<void> {
     await this.send({ method: "POST", path: "/reports", body: { type: target.type, id: String(target.id), reason, note } });
+  }
+
+  /** Moderators: every reported thing with open reports, most reported first. 404 for anyone else. */
+  async moderationReports(o?: Opts): Promise<ReportSummary[]> {
+    return (await this.get<{ reports: ReportSummary[] }>("/moderation/reports", o)).reports;
+  }
+
+  /** Moderators: uphold (act on it) or dismiss (bring it back) a reported thing's open reports. */
+  async resolveReports(target: { type: ReportSummary["type"]; id: string }, action: "uphold" | "dismiss"): Promise<void> {
+    await this.send({ method: "POST", path: "/moderation/reports/resolve", body: { type: target.type, id: target.id, action } });
   }
 
   /** Check a theme as a save would, storing nothing: refused with ApiError (422) and its problems. */

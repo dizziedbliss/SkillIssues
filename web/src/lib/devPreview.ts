@@ -24,6 +24,16 @@ export function previewOn(): boolean {
   }
 }
 
+const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+let moderation = [
+  { type: "issue", id: "4756199", label: "wimdeblauwe/error-handling-spring-boot-starter#98 Support springdoc-openapi", reporters: 3,
+    reasons: { "already-fixed": 2, "not-an-issue": 1 }, notes: ["There's a merged PR for this already (#101)."], first_reported: hoursAgo(30), last_reported: hoursAgo(2) },
+  { type: "repository", id: "12", label: "someone/issue-tracker-as-db", reporters: 2,
+    reasons: { spam: 2 }, notes: ["Every issue is a bot-generated log line."], first_reported: hoursAgo(80), last_reported: hoursAgo(20) },
+  { type: "theme", id: "7f0c2e7a-1b2c-4d5e-8f90-123456789abc", label: "Blinding Neon", reporters: 1,
+    reasons: { broken: 1 }, notes: [], first_reported: hoursAgo(5), last_reported: hoursAgo(5) },
+];
+
 let profile: Profile = {
   id: 1,
   username: PREVIEW_LOGIN,
@@ -37,6 +47,8 @@ let profile: Profile = {
   preferred_languages: ["Python", "Go", "TypeScript"],
   joined_at: "2026-09-20T08:30:00Z",
   public_profile: false,
+  // The preview account reviews reports, so the Reports page can be looked at.
+  moderator: true,
 };
 
 // Kept in this browser, so a reload keeps what you saved in the preview.
@@ -107,6 +119,12 @@ export function previewTransport(real: Transport): Transport {
       return th;
     }
     if (path === "/reports" && method === "POST") return { reported: true };
+    if (path === "/moderation/reports" && method === "GET") return { reports: moderation };
+    if (path === "/moderation/reports/resolve" && method === "POST") {
+      const b = req.body as { type: string; id: string };
+      moderation = moderation.filter((r) => !(r.type === b.type && r.id === b.id));
+      return { resolved: true };
+    }
     if (path.startsWith("/themes/public")) {
       // The live API has this once deployed; until then, the preview's own public themes.
       try {

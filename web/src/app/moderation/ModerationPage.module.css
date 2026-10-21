@@ -1,0 +1,146 @@
+/* Reports for moderators: one bordered block per reported thing, the decision at its foot. */
+
+.page {
+  width: min(100%, 52rem);
+  margin-inline: auto;
+}
+
+.title {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: clamp(2.25rem, 1.5rem + 2.4vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: var(--heading-tracking);
+}
+
+.lede {
+  max-width: 40rem;
+  margin-top: 0.75rem;
+  color: var(--colors-text-muted);
+}
+
+.muted {
+  color: var(--colors-text-muted);
+  font-size: 0.9375rem;
+}
+
+.error {
+  margin-top: 1rem;
+  color: var(--colors-danger);
+}
+
+.link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1rem 1.25rem 1.25rem;
+  border: var(--border-width) solid var(--rule);
+  border-radius: var(--radius-large);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.75rem;
+}
+
+.kind {
+  padding: 0.1em 0.5em;
+  border-radius: var(--radius-small);
+  background: var(--chip);
+  font-size: var(--label-size);
+}
+
+.label {
+  color: var(--colors-text);
+  font-family: var(--serif);
+  font-size: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+a.label {
+  text-decoration: underline;
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+}
+
+.reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  list-style: none;
+}
+
+.reason {
+  padding: 0.15em 0.6em;
+  border: 1px solid color-mix(in srgb, var(--colors-warning) 60%, transparent);
+  border-radius: var(--radius-small);
+  background: color-mix(in srgb, var(--colors-warning) 12%, var(--colors-surface));
+  font-size: var(--label-size);
+}
+
+.times {
+  color: var(--colors-text-muted);
+}
+
+.notes {
+  display: grid;
+  gap: 0.35rem;
+  padding-left: 0.9rem;
+  border-left: 2px solid var(--rule);
+  list-style: none;
+  color: var(--colors-text-muted);
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.uphold,
+.dismiss {
+  padding: 0.45em 1em;
+  border-radius: var(--radius-medium);
+  font: inherit;
+  font-size: var(--button-size);
+  cursor: pointer;
+}
+
+.uphold {
+  border: 0;
+  background: var(--colors-danger);
+  color: var(--colors-accent-text);
+}
+
+.dismiss {
+  border: var(--border-width) solid var(--rule);
+  background: none;
+  color: var(--colors-text);
+}
+
+.uphold:disabled,
+.dismiss:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
