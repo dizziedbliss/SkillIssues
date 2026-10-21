@@ -5,6 +5,7 @@ import { LOCALES, useI18n } from "../i18n";
 import { useSession, useSignIn, useSignOut } from "./session";
 import { useSearchOverlay } from "./search/context";
 import { useNotifications } from "./notifications";
+import { platform } from "./platform";
 import { choiceName, useAppearance } from "./theme";
 import s from "./AppHeader.module.css";
 
@@ -46,6 +47,15 @@ export function AppHeader() {
           >
             {t("app.nav.path")}
           </Link>
+          {platform().Workspaces && (
+            <Link
+              to="/app/work"
+              className={pathname.startsWith("/app/work") ? s.active : undefined}
+              aria-current={pathname.startsWith("/app/work") ? "page" : undefined}
+            >
+              {t("app.nav.work")}
+            </Link>
+          )}
           <button
             type="button"
             className={`${s.navButton} ${search.isOpen || pathname.startsWith("/app/search") ? s.active : ""}`}

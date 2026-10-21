@@ -37,6 +37,9 @@ export async function state(): Promise<AuthState> {
     } else if (reply.ok || reply.status === 401) {
       // The server no longer knows this session (expired, signed out everywhere).
       clearSecrets();
+    } else {
+      // Unreachable or failing: unknown, not signed out. Say so rather than guess.
+      throw new Error(`Couldn't check your sign-in: ${reply.error}`);
     }
   }
   const signedIn = Boolean(getSecrets().session && user);
@@ -84,8 +87,11 @@ export async function signInWait(): Promise<AuthState> {
 export async function pushWait(): Promise<AuthState> {
   const token = await wait("push");
   const login = await tokenOwner(token);
-  if (!user || login.toLowerCase() !== user.username.toLowerCase()) {
-    throw new Error(`That GitHub account is ${login}, but you're signed in as ${user?.username ?? "nobody"}. Connect the same account.`);
+  // Who's signed in is read lazily (state()); read it now if it hasn't been.
+  const current = (await state()).user;
+  if (!current) throw new Error("Sign in to SkillIssues first, then connect GitHub for pushing.");
+  if (login.toLowerCase() !== current.username.toLowerCase()) {
+    throw new Error(`That GitHub account is ${login}, but you're signed in to SkillIssues as ${current.username}. Connect the same account.`);
   }
   setSecrets({ push: token, pushLogin: login });
   return state();

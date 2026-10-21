@@ -9,6 +9,7 @@ import { useT, type MessageKey } from "../../i18n";
 import { choiceName, useAppearance, type Choice } from "../theme";
 import { ReportButton } from "../ReportButton";
 import s from "./Settings.module.css";
+import { useConfirm } from "../Confirm";
 
 /** A theme's colours for its swatch strip: background, surface, text, accent. */
 function swatches(toml: string): string[] {
@@ -144,6 +145,7 @@ function Yours() {
   const [name, setName] = useState("");
   const [from, setFrom] = useState("in-use");
   const mine = useQuery({ queryKey: ["themes"], queryFn: ({ signal }) => api.themes({ signal }) });
+  const [confirmDialog, confirm] = useConfirm();
   const remove = useMutation({
     mutationFn: (id: string) => api.deleteTheme(id),
     onSuccess: (_res, id) => {
@@ -199,7 +201,19 @@ function Yours() {
               <button type="button" className={s.quietButton} onClick={() => duplicate(th)} disabled={copy.isPending}>
                 {t("settings.themes.duplicate")}
               </button>
-              <button type="button" className={s.quietButton} onClick={() => remove.mutate(th.id)} disabled={remove.isPending}>
+              <button
+                type="button"
+                className={s.quietButton}
+                disabled={remove.isPending}
+                onClick={async () => {
+                  const yes = await confirm({
+                    title: t("settings.themes.delete.title", { name: th.name }),
+                    body: t(th.public ? "settings.themes.delete.bodyPublic" : "settings.themes.delete.body"),
+                    confirm: t("settings.themes.delete.confirm"),
+                  });
+                  if (yes) remove.mutate(th.id);
+                }}
+              >
                 {t("settings.themes.delete")}
               </button>
             </span>
@@ -207,6 +221,7 @@ function Yours() {
         ))}
       </ul>
       {(remove.error || copy.error) && <p className={s.error} role="alert">{(remove.error ?? copy.error)!.message}</p>}
+      {confirmDialog}
 
       <form className={s.inline} onSubmit={create}>
         <h3 className={s.subheading}>{t("settings.themes.new")}</h3>

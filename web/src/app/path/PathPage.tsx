@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import { useI18n, type MessageKey } from "../../i18n";
+import { useConfirm } from "../Confirm";
 import { SignInPrompt } from "../profile/parts";
 import { useSession } from "../session";
 import { useMyPath, usePathAction, usePathRoles } from "./data";
@@ -16,6 +17,7 @@ export function PathPage() {
   const path = useMyPath();
   const roles = usePathRoles();
   const act = usePathAction();
+  const [confirmDialog, confirm] = useConfirm();
 
   if (isPending) return null;
   if (!user) return <SignInPrompt />;
@@ -26,6 +28,7 @@ export function PathPage() {
 
   return (
     <div className={s.page}>
+      {confirmDialog}
       <h1 className={s.title}>{t("path.title")}</h1>
       <p className={s.lede}>{t("path.lede")}</p>
       {path.error && <p className={s.error} role="alert">{path.error.message}</p>}
@@ -56,7 +59,15 @@ export function PathPage() {
             <h2 id="steps-title" className={s.heading}>
               {t(`path.role.${p.role}` as MessageKey)}: {t("path.progress", { done, total: p.steps.length })}
             </h2>
-            <button type="button" className={s.link} onClick={() => act.mutate({ abandon: true })} disabled={act.isPending}>
+            <button
+              type="button"
+              className={s.link}
+              disabled={act.isPending}
+              onClick={async () => {
+                const yes = await confirm({ title: t("path.abandon.title"), body: t("path.abandon.body"), confirm: t("path.abandon") });
+                if (yes) act.mutate({ abandon: true });
+              }}
+            >
               {t("path.abandon")}
             </button>
           </div>

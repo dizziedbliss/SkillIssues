@@ -24,7 +24,7 @@ export function DeviceFlow({
   const [code, setCode] = useState<DeviceCode | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"yes" | "failed" | null>(null);
 
   async function begin() {
     setBusy(true);
@@ -41,15 +41,16 @@ export function DeviceFlow({
     }
   }
 
+  // The page's own clipboard is off (every permission is); the main process writes it.
   async function copy() {
     if (!code) return;
     try {
-      await navigator.clipboard.writeText(code.user_code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      await call(desktop.copyText(code.user_code));
+      setCopied("yes");
     } catch {
-      setCopied(false); // the code is on screen to type instead
+      setCopied("failed");
     }
+    setTimeout(() => setCopied(null), 2500);
   }
 
   return (
@@ -59,13 +60,17 @@ export function DeviceFlow({
           <p>{t("app.device.enter")}</p>
           <p className={s.code} aria-live="polite">{code.user_code}</p>
           <div className={s.row}>
-            <button type="button" className={s.link} onClick={copy}>{copied ? t("app.device.copied") : t("app.device.copy")}</button>
+            <button type="button" className={s.link} onClick={() => void copy()} data-state={copied ?? undefined}>
+              {copied === "yes" ? t("app.device.copied") : t("app.device.copy")}
+            </button>
             <button type="button" className={s.link} onClick={() => void desktop.openExternal(code.verification_uri)}>
               {t("app.device.reopen")}
             </button>
             <button type="button" className={s.link} onClick={() => void desktop.authCancel()}>{t("app.device.cancel")}</button>
           </div>
-          <p className={s.muted}>{t("app.device.waiting")}</p>
+          <p className={copied === "failed" ? s.error : s.muted} role="status">
+            {copied === "yes" ? t("app.device.copiedHint") : copied === "failed" ? t("app.device.copyFailed") : t("app.device.waiting")}
+          </p>
         </>
       ) : (
         <button type="button" className={s.button} onClick={() => void begin()} disabled={busy}>
