@@ -55,7 +55,7 @@ func (h *handlers) authGitHubDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.authSvc.UpsertUser(r.Context(), ghUser.GitHubID, ghUser.Username, ghUser.AvatarURL)
+	userID, err := h.authSvc.UpsertUser(r.Context(), ghUser.GitHubID, ghUser.Username, ghUser.Name, ghUser.AvatarURL)
 	if err != nil {
 		slog.Error("device sign-in: failed to upsert user", "error", err)
 		middleware.RespondError(w, http.StatusInternalServerError, "sign-in failed")
