@@ -41,6 +41,11 @@ export function IssueCard({ issue, index }: { issue: Issue; index?: number }) {
           {issue.repository}
         </Link>
       </p>
+      {issue.for_you && issue.for_you.length > 0 && (
+        <p className={s.why} data-ui="card-why">
+          {t("foryou.label")} {issue.for_you.map((r) => t(`foryou.reason.${r}`)).join(", ")}
+        </p>
+      )}
       <div className={s.row}>
         <ul className={s.chips} data-ui="chips">
           {issue.state === "CLOSED" && <li className={s.closed}>{t("issue.closedChip")}</li>}

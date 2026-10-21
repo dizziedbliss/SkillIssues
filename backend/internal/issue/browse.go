@@ -43,6 +43,16 @@ type Cursor struct {
 
 	// Shuffle: the repository's shuffle_key.
 	Key int
+
+	// For you: Key and ID are where the current chunk's walk began (ID 0 with
+	// Key -1 is the top of the order); Offset is how far into that chunk's
+	// order the page reached; Start is the shuffle_key the whole walk began
+	// at, and Wrapped says it has gone round past the end once; Seed fixes
+	// the draw, so every page of one walk agrees.
+	Seed    int64
+	Start   int
+	Offset  int
+	Wrapped bool
 }
 
 // ErrBadCursor is returned for a cursor this package did not produce, or one
@@ -59,6 +69,12 @@ func (c Cursor) Encode() string {
 		raw = fmt.Sprintf("n.%d.%d", c.Updated, c.ID)
 	case SortShuffle:
 		raw = fmt.Sprintf("s.%d.%d", c.Key, c.ID)
+	case SortForYou:
+		wrapped := 0
+		if c.Wrapped {
+			wrapped = 1
+		}
+		raw = fmt.Sprintf("y.%d.%d.%d.%d.%d.%d", c.Seed, c.Start, c.Key, c.ID, c.Offset, wrapped)
 	default:
 		score := ""
 		if c.Score != nil {
@@ -76,6 +92,9 @@ func DecodeCursor(token string) (Cursor, error) {
 		return Cursor{}, ErrBadCursor
 	}
 	parts := strings.Split(string(raw), ".")
+	if len(parts) == 7 && parts[0] == "y" {
+		return decodeForYou(parts[1:])
+	}
 	var c Cursor
 	switch {
 	case len(parts) == 3 && parts[0] == "n":
@@ -153,6 +172,8 @@ func (s *Service) browseIssues(ctx context.Context, f Filters, after *Cursor, pr
 		return nil, nil, fmt.Errorf("%w: the cursor is for the %s sort, not %s", ErrBadCursor, after.Sort, sort)
 	}
 	switch sort {
+	case SortForYou:
+		return nil, nil, fmt.Errorf("issue: the for-you sort is read through ForYouPage")
 	case SortShuffle:
 		return s.shuffleFeed(ctx, f, after)
 	case SortNewest:

@@ -44,12 +44,23 @@ export function Explore() {
 
   // Difficulty not chosen yet: your profile's level, or every level signed out.
   const { user, isPending: sessionPending } = useSession();
-  const profile = useQuery({ queryKey: ["me"], queryFn: ({ signal }) => api.me({ signal }), enabled: !!user && query.difficulty === null });
-  const difficulty: Difficulty[] | null =
-    query.difficulty ??
-    (sessionPending ? null : !user ? [] : profile.isPending ? null : profile.data ? [profile.data.experience_level] : []);
+  // Languages not chosen yet: your profile's preferred ones, or every language signed out.
+  const profile = useQuery({
+    queryKey: ["me"],
+    queryFn: ({ signal }) => api.me({ signal }),
+    enabled: !!user && (query.difficulty === null || !query.languageChosen),
+  });
+  function fromProfile<T>(pick: (p: NonNullable<typeof profile.data>) => T, none: T): T | null {
+    if (sessionPending) return null;
+    if (!user) return none;
+    if (profile.isPending) return null;
+    return profile.data ? pick(profile.data) : none;
+  }
+  const difficulty: Difficulty[] | null = query.difficulty ?? fromProfile((p) => [p.experience_level], []);
+  const language: string[] | null = query.languageChosen ? query.language : fromProfile((p) => p.preferred_languages ?? [], []);
 
-  const filters = difficulty && toFilters(query, difficulty);
+  const settled = difficulty && language ? { ...query, language } : null;
+  const filters = settled && toFilters(settled, difficulty!);
   const key = JSON.stringify([query.search, filters]);
   const catalog = useCatalog(key, query.search, filters);
 
@@ -135,14 +146,26 @@ export function Explore() {
         </p>
       )}
 
-      {filtersOpen && difficulty && (
+      {!query.languageChosen && language && language.length > 0 && (
+        <p className={s.scope} data-ui="your-languages">
+          {t("explore.yourLanguages")}{" "}
+          {language.map((l) => (
+            <span key={l} className={s.scopeChip}>{l}</span>
+          ))}
+          <button type="button" className={s.hintLink} onClick={() => update({ language: [], languageChosen: true })}>
+            {t("explore.allLanguages")}
+          </button>
+        </p>
+      )}
+
+      {filtersOpen && settled && (
         <div id="explore-filters">
           <FilterPanel
             key={key}
-            value={query}
-            difficulty={difficulty}
+            value={settled}
+            difficulty={difficulty!}
             onApply={(panel, levels) => {
-              update({ ...panel, difficulty: levels });
+              update({ ...panel, difficulty: levels, languageChosen: true });
               setFiltersOpen(false);
             }}
           />
@@ -175,7 +198,7 @@ export function Explore() {
             <button type="button" onClick={() => void catalog.refetch()}>{t("explore.retry")}</button>
           </p>
         )}
-        {!catalog.error && (catalog.isPending || !difficulty) && <p className={s.quiet}>{t("explore.loading")}</p>}
+        {!catalog.error && (catalog.isPending || !settled) && <p className={s.quiet}>{t("explore.loading")}</p>}
         {!catalog.error && catalog.isSuccess && issues.length === 0 && (
           <p className={s.quiet}>{query.search ? t("explore.emptySearch") : t("explore.empty")}</p>
         )}

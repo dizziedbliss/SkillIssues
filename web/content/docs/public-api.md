@@ -60,7 +60,7 @@ curl "$API/issues?cursor=&difficulty=beginner&language=Go&limit=10"
 |---|---|
 | `search` | A search term. See [Finding issues](/docs/finding-issues) for how search works. |
 | `category` | With `search`: `repository`, `title` or `language` returns that kind of match alone, paged on its own with `page`. |
-| `sort` | `shuffle`, `easiest` or `newest`. Browsing only; a search ignores it. See Sorting. |
+| `sort` | `foryou`, `easiest`, `newest` or `shuffle`. Browsing, and `easiest` or `newest` on a search (otherwise a search is in match order). See Sorting. |
 | `difficulty` | `BEGINNER`, `INTERMEDIATE`, `ADVANCED` or `UNCLASSIFIED`, in any case. `UNCLASSIFIED` means unranked. |
 | `language` | The repository's main language. |
 | `tech` | Any language GitHub reports for the repository. |
@@ -68,7 +68,7 @@ curl "$API/issues?cursor=&difficulty=beginner&language=Go&limit=10"
 | `labels` | The issue's labels, not case sensitive. |
 | `repo` | A repository as `owner/name`, not case sensitive. |
 | `unassigned` | `true` leaves out issues someone is assigned to on GitHub. An issue the catalog hasn't re-read since it started recording assignees counts as unassigned. |
-| `owner` | Everything from one user or organisation (the part of `owner/name` before the slash), not case sensitive. The shuffled feed still shows one issue per repository; sort by `easiest` or `newest` to see them all. |
+| `owner` | Everything from one user or organisation (the part of `owner/name` before the slash), not case sensitive. For you still shows one issue per repository; sort by `easiest` or `newest` to see them all. |
 | `comments_min` | The fewest comments, inclusive. A whole number, 0 or more. |
 | `comments_max` | The most comments, inclusive. `0` means no comments yet. |
 | `limit` | Issues per page. The default is 20 for browsing and 50 for a search. Anything over 100 is lowered to 100. |
@@ -81,7 +81,8 @@ curl "$API/issues?cursor=&difficulty=beginner&language=Go&limit=10"
 
 | Sort | Order |
 |---|---|
-| `shuffle` | Each repository's best open issue, with repositories in a random order that is redrawn daily and is the same for everyone in between. The default for cursor paging. |
+| `foryou` | The default for cursor paging. Each repository's best open issue, walked from a point seeded per caller per day, each chunk ordered by a weighted random draw on fit (signed in), how doable it looks and how much it needs someone. Issues carry `for_you`, the reasons, most telling first. Signed out, one draw a day for everyone. |
+| `shuffle` | Each repository's best open issue, with repositories in a random order that is redrawn daily and is the same for everyone in between. Kept for existing callers. |
 | `easiest` | By difficulty score ascending (unranked last), then most recently updated, then id. The default for page numbers. |
 | `newest` | Most recently opened first. |
 
@@ -89,7 +90,7 @@ curl "$API/issues?cursor=&difficulty=beginner&language=Go&limit=10"
 
 There are two modes. Which one you get depends on whether `cursor` is in the request.
 
-**Page numbers** (no `cursor`). The response is a JSON array of issues. Use `page` to move through it. Deep pages cost more. Past page 1, page numbers work with `sort=easiest` only, so `?page=2&sort=newest` and `?page=2&sort=shuffle` are `400`s. A search is always paged by `page`.
+**Page numbers** (no `cursor`). The response is a JSON array of issues. Use `page` to move through it. Deep pages cost more. Past page 1, page numbers work with `sort=easiest` only, so `?page=2&sort=newest`, `?page=2&sort=foryou` and `?page=2&sort=shuffle` are `400`s. A search is always paged by `page`.
 
 **Cursor paging** (with `cursor`). The response is an object:
 
@@ -108,7 +109,7 @@ A few rules for cursors:
 - Keep your filters (`difficulty`, `language`, `limit` and the rest) the same through one walk.
 - A cursor can't be combined with `search`. That's a `400`, and so is a cursor the server didn't issue.
 
-**A short page is not the end.** Only a `null` `next_cursor` means the end. The server may stop looking after a couple of seconds and return a short page, or even an empty one, together with a non-null `next_cursor`. This happens most with the shuffled feed when your filters match few repositories. Keep following `next_cursor` until it's `null`. If you want to give up sooner, set your own limit on how many empty pages in a row you'll read. The website reads up to five before it concludes that nothing matches.
+**A short page is not the end.** Only a `null` `next_cursor` means the end. The server may stop looking after a couple of seconds and return a short page, or even an empty one, together with a non-null `next_cursor`. This happens most with `foryou` and `shuffle` when your filters match few repositories. Keep following `next_cursor` until it's `null`. If you want to give up sooner, set your own limit on how many empty pages in a row you'll read. The website reads up to five before it concludes that nothing matches.
 
 ### An issue
 

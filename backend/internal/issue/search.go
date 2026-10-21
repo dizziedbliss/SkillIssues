@@ -55,6 +55,9 @@ type Issue struct {
 	RecommendationScore int      `json:"recommendation_score,omitempty"`
 	WhyRecommended      []string `json:"why_recommended,omitempty"`
 	MatchCategory       string   `json:"match_category,omitempty"`
+	// ForYou: why the For you feed put it here, most telling first (keys:
+	// language, tech, returning, history, level, interest, welcoming, waiting).
+	ForYou []string `json:"for_you,omitempty"`
 
 	// updated and created are updated_at and created_at as timestamps rather
 	// than text, for the browse cursors (browse.go): a cursor must name an
@@ -70,8 +73,8 @@ type Filters struct {
 	Limit  int
 	Page   int
 	// Sort orders a browse; "" is the caller's default (the handler picks
-	// shuffle for cursor paging, easiest for page numbers). A search orders
-	// by match category and ignores it.
+	// foryou for cursor paging, easiest for page numbers). A search orders
+	// by match category unless SearchSort is set.
 	Sort Sort
 
 	Difficulties []string // upper-cased, from Difficulties
@@ -136,6 +139,10 @@ type Service struct {
 	// running system. It is a narrow function rather than a config object so the
 	// dependency is explicit and trivial to stub in tests.
 	perCategoryCap func() int
+
+	// forYou keeps drawn For you chunks and how often issues were shown; nil
+	// draws every time and counts nothing (foryou.go).
+	forYou ForYouStore
 }
 
 // New creates a new issue Service. perCategoryCap may be nil, in which case a
