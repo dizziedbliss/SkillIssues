@@ -37,7 +37,7 @@ The default feed gives each repository one slot and redraws the order daily, so 
 
 ## Why does a page of results sometimes look short, or empty?
 
-When you browse the shuffled feed with filters that few repositories match, the catalog may stop looking after a couple of seconds and give you a short page along with a way to continue. That isn't the end of the results. The website keeps reading a few pages before it tells you nothing matches. If you use the API directly, see [Public API](/docs/public-api).
+When you browse For you with filters that few repositories match, the catalog may stop looking after a couple of seconds and give you a short page along with a way to continue. That isn't the end of the results. The website keeps reading a few pages before it tells you nothing matches. If you use the API directly, see [Public API](/docs/public-api).
 
 ## An issue I opened or closed isn't showing the change.
 

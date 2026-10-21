@@ -106,6 +106,13 @@
   color: var(--colors-text);
 }
 
+/* Why For you picked it: a quiet line under the repository. */
+.why {
+  margin-top: 0.2rem;
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+}
+
 /* Closed on GitHub: a grey chip, and the whole card quieter, so it reads as done at a glance. */
 .closed {
   padding: 0.15rem 0.45rem;

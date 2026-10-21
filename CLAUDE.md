@@ -734,13 +734,23 @@ Every key with its default and bounds: `docs/settings.md`.
   ingestd (`POST /bodies/{id}`, admin token) on the `interactive` lane. go-api holds no GitHub
   credential and never writes a body. Bodies are attacker-controlled; render them only through
   `packages/markdown`.
-- **The default feed is a fair shuffle**: `sort=shuffle` (the cursor-paging default) walks
-  repositories in `repositories.shuffle_key` order and shows each one's best open issue, so a
-  repository with thousands of issues gets the same one slot as one with three. The goal is the
-  whole backlog, not the biggest projects. ingestd redraws the order every
-  `ingest.catalog.shuffle_interval_seconds`. In between it's the same for everyone, so pages
-  cache. Don't add popularity weighting to it; a user who wants an order picks `easiest` or
-  `newest`.
+- **The default feed is For you, fair to the whole backlog** (`issue/foryou.go`, owner's decision
+  2026-10-21, replacing the plain shuffle): `sort=foryou` (the cursor-paging default) walks repositories
+  in `repositories.shuffle_key` order, each one's best open issue (one slot per repository, however
+  many issues it has), starting at a point seeded per person per UTC day (`forYouSeed`; person 0 is
+  everyone signed out, one draw a day, so pages cache), wrapping round the end once. The walk is read
+  in chunks of `api.foryou.pool_repos`; each chunk is ordered by a Gumbel-top-k draw (Plackett-Luce)
+  on Fit × Doable × Need (`forYouScore`, each part raised to its `api.foryou.weight_*_percent`,
+  noise scaled by `api.foryou.randomness_percent`). Fit is personal at every level (profile languages
+  and tech, level and target, interests, languages and repositories merged in before); Doable is what
+  predicts resolution (labelled, short discussion, recent, contributing guide, repository health);
+  Need is waiting time and few recent serves. A drawn chunk is kept in Redis (`cache.ForYou`,
+  `api.foryou.chunk_ttl_seconds`) and serves are counted there per day (`api.foryou.exposure_*`),
+  both failing open. The cursor carries the seed, start, chunk position and offset, so every page of a
+  walk agrees. Issues carry `for_you` reasons, shown on cards. Explore offers For you, Easiest and
+  Newest; `shuffle` stays in the API (learning paths pick from it). Signed in, Explore's languages
+  default to the profile's (absent `language` = the profile's, empty = all), like difficulty. Don't add
+  popularity weighting: stars never enter the score.
 - **Catalog filters share one builder** (`issue/filters.go`): any-of within a list, all-of across
   filters. Labels match case-insensitively through `catalog_lower_labels()`, tech through the
   generated `repositories.tech`. A filtered page whose matches are rare (`issue.isRare`, under
