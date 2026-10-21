@@ -1,4 +1,5 @@
 import { ApiError, type Issue } from "@skillissues/client";
+import { platform } from "../app/platform";
 
 /*
  * Whether a pull request already points at an issue, read in the browser from
@@ -22,9 +23,9 @@ interface TimelineEvent {
 
 export async function loadLinkedPulls(issue: Issue, signal?: AbortSignal): Promise<LinkedPulls> {
   const [owner, repo] = issue.repository.split("/");
-  const res = await fetch(
+  const res = await platform().githubFetch(
     `https://api.github.com/repos/${encodeURIComponent(owner ?? "")}/${encodeURIComponent(repo ?? "")}/issues/${issue.number}/timeline?per_page=100`,
-    { headers: { Accept: "application/vnd.github+json" }, signal, credentials: "omit" },
+    { signal },
   );
   if (!res.ok) throw new ApiError(res.status, `GitHub answered ${res.status} for this issue's timeline`);
   const events = (await res.json()) as TimelineEvent[];

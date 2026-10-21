@@ -58,7 +58,59 @@ const apiPaths: { method: string; pattern: RegExp }[] = [
   { method: "DELETE", pattern: /^\/themes\/[0-9a-f-]{36}$/ },
   { method: "GET", pattern: /^\/me\/theme$/ },
   { method: "PUT", pattern: /^\/me\/theme$/ },
+  { method: "GET", pattern: /^\/themes\/public$/ },
+  { method: "POST", pattern: /^\/themes\/validate$/ },
+  { method: "PUT", pattern: /^\/profile$/ },
+  { method: "GET", pattern: /^\/preferences\/options$/ },
+  { method: "GET", pattern: /^\/recommendations$/ },
+  { method: "POST", pattern: /^\/reports$/ },
+  { method: "GET", pattern: /^\/me\/(xp|pulls|claims|path)$/ },
+  { method: "POST", pattern: /^\/me\/pulls\/refresh$/ },
+  { method: "POST", pattern: /^\/me\/path$/ },
+  { method: "DELETE", pattern: /^\/me\/path$/ },
+  { method: "POST", pattern: /^\/me\/path\/steps\/\d+\/swap$/ },
+  { method: "GET", pattern: /^\/paths\/roles$/ },
+  { method: "GET", pattern: /^\/issues\/\d+\/claim$/ },
+  { method: "POST", pattern: /^\/issues\/\d+\/claim$/ },
+  { method: "DELETE", pattern: /^\/issues\/\d+\/claim$/ },
+  { method: "GET", pattern: /^\/users\/[A-Za-z0-9-]{1,39}$/ },
+  { method: "GET", pattern: /^\/leaderboards$/ },
+  { method: "POST", pattern: /^\/auth\/logout-all$/ },
 ];
+
+/**
+ * Public GitHub API reads the page may ask the main process for, made with no
+ * credentials: an issue, its timeline, and pull request search (the web app
+ * reads the same from the browser). Nothing else, and never a write.
+ */
+const githubReads: RegExp[] = [
+  /^\/repos\/[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100}\/issues\/\d{1,9}$/,
+  /^\/repos\/[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100}\/issues\/\d{1,9}\/timeline$/,
+  /^\/search\/issues$/,
+];
+
+export function isAllowedGitHubRead(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:" || url.hostname !== "api.github.com" || url.port || url.username || url.password || url.hash) {
+    return false;
+  }
+  if (url.pathname.split("/").some((seg) => seg === ".." || seg === ".")) return false;
+  return githubReads.some((p) => p.test(url.pathname));
+}
+
+/**
+ * The app page a skillissues:// link opens: skillissues://issue/<id> (the
+ * site's "Work on it in the desktop app"). Anything else is ignored.
+ */
+export function deepLinkPath(raw: string): string | null {
+  const m = /^skillissues:\/\/issue\/(\d{1,9})\/?(?:\?.*)?$/.exec(typeof raw === "string" ? raw.trim() : "");
+  return m && Number(m[1]) > 0 ? `/app/issues/${Number(m[1])}` : null;
+}
 
 export function isAllowedApiCall(method: string, rawPath: string): boolean {
   if (typeof rawPath !== "string" || !rawPath.startsWith("/") || rawPath.startsWith("//")) return false;
@@ -66,6 +118,11 @@ export function isAllowedApiCall(method: string, rawPath: string): boolean {
   const [pathname] = rawPath.split("?", 1);
   if (!pathname || pathname.split("/").some((seg) => seg === ".." || seg === ".")) return false;
   return apiPaths.some((p) => p.method === method && p.pattern.test(pathname));
+}
+
+/** A #rrggbb colour, the only form the title bar accepts. */
+export function isHexColor(v: string): boolean {
+  return /^#[0-9a-fA-F]{6}$/.test(v);
 }
 
 /** owner/name as GitHub allows it. */

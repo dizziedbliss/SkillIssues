@@ -1,4 +1,5 @@
 import { ApiError, type Issue } from "@skillissues/client";
+import { platform } from "../app/platform";
 import { api } from "./api";
 
 /*
@@ -24,9 +25,9 @@ export type BodyResult = { body: string; from: "github"; live: Live } | { body: 
 
 export async function loadIssueBody(issue: Issue, signal?: AbortSignal): Promise<BodyResult> {
   const [owner, repo] = issue.repository.split("/");
-  const res = await fetch(
+  const res = await platform().githubFetch(
     `https://api.github.com/repos/${encodeURIComponent(owner ?? "")}/${encodeURIComponent(repo ?? "")}/issues/${issue.number}`,
-    { headers: { Accept: "application/vnd.github+json" }, signal, credentials: "omit" },
+    { signal },
   );
   if (res.ok) {
     const data = (await res.json()) as {

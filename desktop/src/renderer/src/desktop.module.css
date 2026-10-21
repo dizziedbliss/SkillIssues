@@ -1,0 +1,137 @@
+/* The desktop app's own pieces, on the active theme's tokens like the rest of the app. */
+
+.dialog {
+  width: min(36rem, 100% - 2 * var(--gutter, 1rem));
+  max-height: calc(100% - 4rem);
+  padding: 0;
+  border: var(--border-width) solid var(--colors-accent);
+  border-radius: var(--radius-large);
+  background: var(--colors-surface);
+  box-shadow: var(--shadow-large);
+  color: var(--colors-text);
+}
+
+.dialog::backdrop {
+  background: color-mix(in srgb, var(--colors-background) 50%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.panel {
+  display: grid;
+  gap: 1rem;
+  padding: 1.4rem 1.5rem 1.5rem;
+}
+
+.title {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: 1.75rem;
+  line-height: 1.1;
+  letter-spacing: var(--heading-tracking);
+}
+
+.step {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  border-top: var(--border-width) var(--border-style) var(--rule);
+}
+
+.stepTitle {
+  font-size: 1.05rem;
+}
+
+.muted {
+  color: var(--colors-text-muted);
+  font-size: 0.9375rem;
+}
+
+.mono {
+  font-family: var(--typography-mono-font);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.error {
+  color: var(--colors-danger);
+  font-size: 0.9375rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+}
+
+.button {
+  justify-self: start;
+  padding: 0.5em 1em;
+  border: 0;
+  border-radius: var(--radius-medium);
+  background: var(--colors-accent);
+  color: var(--colors-accent-text);
+  font: inherit;
+  font-size: var(--button-size);
+  cursor: pointer;
+  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
+}
+
+.button:hover,
+.button:focus-visible {
+  background-color: var(--accent-hover);
+  color: var(--colors-accent);
+}
+
+.button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.link {
+  justify-self: start;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--colors-text);
+  font: inherit;
+  font-size: 0.9375rem;
+  text-decoration: underline;
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.input {
+  padding: 0.5em 0.7em;
+  border: var(--border-width) solid var(--rule);
+  border-radius: var(--radius-medium);
+  background: var(--colors-background);
+  color: var(--colors-text);
+  font: inherit;
+}
+
+.device {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.code {
+  font-family: var(--typography-mono-font);
+  font-size: 2rem;
+  letter-spacing: 0.15em;
+  color: var(--colors-accent);
+}
+
+.settings {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 40rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+}

@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { SiteLink } from "../app/SiteLink";
 import { Logo } from "./Logo";
 import { CodeIcon, GlobeIcon, ThemeIcon } from "./Icons";
 import { useT, type MessageKey } from "../i18n";
@@ -77,7 +77,7 @@ export function Footer() {
             <ul>
               {c.items.map((i) => (
                 <li key={i.label}>
-                  <Link to={i.to}>{t(i.label)}</Link>
+                  <SiteLink to={i.to}>{t(i.label)}</SiteLink>
                 </li>
               ))}
             </ul>

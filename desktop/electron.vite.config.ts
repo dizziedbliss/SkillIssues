@@ -12,6 +12,10 @@ export default defineConfig({
   renderer: {
     root: "src/renderer",
     plugins: [react()],
+    // The app's screens are the web app's own (web/src/app), imported as @web.
+    resolve: {
+      alias: { "@web": path.resolve(import.meta.dirname, "../web/src") },
+    },
     build: {
       rollupOptions: {
         input: "src/renderer/index.html",
