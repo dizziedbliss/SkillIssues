@@ -39,6 +39,13 @@ export function AppHeader() {
           >
             {t("app.nav.contribute")}
           </Link>
+          <Link
+            to="/app/path"
+            className={pathname.startsWith("/app/path") ? s.active : undefined}
+            aria-current={pathname.startsWith("/app/path") ? "page" : undefined}
+          >
+            {t("app.nav.path")}
+          </Link>
           <button
             type="button"
             className={`${s.navButton} ${search.isOpen || pathname.startsWith("/app/search") ? s.active : ""}`}

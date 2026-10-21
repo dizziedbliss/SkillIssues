@@ -257,6 +257,7 @@ export const en = {
   "search.page.none": "Nothing of this kind matches.",
   "app.nav.search": "Search",
   "app.nav.contribute": "Contributions",
+  "app.nav.path": "Learning path",
   "app.nav.unread": (p: { count: number }) => (p.count === 1 ? "1 unread notification" : `${p.count} unread notifications`),
   "app.menu.profile": "Profile",
   "app.menu.saved": "Saved issues",
