@@ -1,27 +1,36 @@
-/* The wordmark: Krona One, widest tracking, each half underlined in its own colour. */
+/* The mark and the wordmark: Krona One in the ink, the "i" of Skill red, one ink underline across. */
 
 .logo {
   --size: 1.5rem;
-  display: inline-block;
-  font-family: "Krona One", sans-serif;
-  font-size: var(--size);
-  font-weight: 400;
-  letter-spacing: 0.1em;
-  line-height: 1.2;
-  white-space: nowrap;
-  text-decoration: underline;
-  text-decoration-thickness: 0.06em;
-  text-underline-offset: 0.18em;
-}
-
-.skill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
   color: var(--ink, #000);
+  font-size: var(--size);
+  white-space: nowrap;
 }
 
-.issues {
+.mark {
+  width: 1.7em;
+  height: 1.7em;
+  flex: none;
+}
+
+.word {
+  font-family: "Krona One", sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  /* Drawn by this box, so it stays the ink under the red "i" too. */
+  text-decoration: underline;
+  text-decoration-thickness: 0.07em;
+  text-underline-offset: 0.2em;
+}
+
+.i {
   color: var(--signal, #ff0000);
 }
 
-.header { --size: clamp(1.1rem, 0.85rem + 0.6vw, 1.5rem); }
-.footer { --size: 1.5rem; }
+.header { --size: clamp(1.05rem, 0.8rem + 0.55vw, 1.4rem); }
+.footer { --size: 1.4rem; }
 .inline { --size: clamp(1.1rem, 0.8rem + 0.5vw, 1.35rem); vertical-align: baseline; }
