@@ -224,7 +224,7 @@ var ErrInvalidGitHubIdentity = errors.New("auth: GitHub identity has no numeric 
 // username is cleared first — the unique index on lower(username) would
 // otherwise reject the write — and is refreshed the next time its owner
 // signs in.
-func (s *Service) UpsertUser(ctx context.Context, githubID, username, avatarURL string) (int, error) {
+func (s *Service) UpsertUser(ctx context.Context, githubID, username, name, avatarURL string) (int, error) {
 	if githubID == "" || githubID == "0" {
 		return 0, ErrInvalidGitHubIdentity
 	}
@@ -242,13 +242,15 @@ func (s *Service) UpsertUser(ctx context.Context, githubID, username, avatarURL 
 			return fmt.Errorf("release username: %w", err)
 		}
 		if err := tx.QueryRow(ctx,
-			`INSERT INTO users (github_id, username, avatar_url)
-			 VALUES ($1, $2, NULLIF($3, ''))
+			`INSERT INTO users (github_id, username, avatar_url, name)
+			 VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''))
 			 ON CONFLICT (github_id) DO UPDATE
 			   SET username   = EXCLUDED.username,
-			       avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url)
+			       avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
+			       -- As GitHub has it now: cleared there, cleared here.
+			       name       = EXCLUDED.name
 			 RETURNING id`,
-			githubID, username, avatarURL,
+			githubID, username, avatarURL, name,
 		).Scan(&userID); err != nil {
 			return fmt.Errorf("upsert user: %w", err)
 		}

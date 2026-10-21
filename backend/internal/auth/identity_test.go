@@ -57,15 +57,15 @@ func TestUpsertUserNeverMatchesByUsername(t *testing.T) {
 		}
 	})
 
-	userA, err := svc.UpsertUser(ctx, idA, loginA, "")
+	userA, err := svc.UpsertUser(ctx, idA, loginA, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Alice renames; Bob takes her old login. Bob signs in.
-	if _, err := svc.UpsertUser(ctx, idA, loginA+"-renamed", ""); err != nil {
+	if _, err := svc.UpsertUser(ctx, idA, loginA+"-renamed", "", ""); err != nil {
 		t.Fatal(err)
 	}
-	userB, err := svc.UpsertUser(ctx, idB, loginA, "")
+	userB, err := svc.UpsertUser(ctx, idB, loginA, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,10 +78,10 @@ func TestUpsertUserNeverMatchesByUsername(t *testing.T) {
 
 	// A login collision with a *different* live row clears that row's
 	// username instead of failing or merging.
-	if _, err := svc.UpsertUser(ctx, idA, loginB, ""); err != nil {
+	if _, err := svc.UpsertUser(ctx, idA, loginB, "", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.UpsertUser(ctx, idB, loginB, ""); err != nil {
+	if _, err := svc.UpsertUser(ctx, idB, loginB, "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if gid, name := userRow(t, pool, userA); gid != idA || name != nil {
@@ -95,7 +95,7 @@ func TestUpsertUserNeverMatchesByUsername(t *testing.T) {
 func TestUpsertUserRejectsMissingIdentity(t *testing.T) {
 	svc, _ := testService(t)
 	for _, id := range []string{"", "0"} {
-		if _, err := svc.UpsertUser(context.Background(), id, "x", ""); !errors.Is(err, ErrInvalidGitHubIdentity) {
+		if _, err := svc.UpsertUser(context.Background(), id, "x", "", ""); !errors.Is(err, ErrInvalidGitHubIdentity) {
 			t.Errorf("github id %q: err = %v, want ErrInvalidGitHubIdentity", id, err)
 		}
 	}
@@ -162,4 +162,53 @@ func TestStateBindingDiffersPerState(t *testing.T) {
 	if StateBinding("a") == StateBinding("b") || StateBinding("a") != StateBinding("a") {
 		t.Fatal("StateBinding must be deterministic and distinct per state")
 	}
+}
+
+// The display name is GitHub's, kept as GitHub has it: stored at sign-in,
+// changed when it changes there, cleared when it's removed there.
+func TestUpsertUserKeepsTheGitHubName(t *testing.T) {
+	svc, pool := testService(t)
+	ctx := context.Background()
+	stamp := time.Now().UnixNano()
+	id, login := fmt.Sprintf("930%d", stamp), fmt.Sprintf("carol-%d", stamp)
+	t.Cleanup(func() {
+		if err := pool.Exec(context.Background(), `DELETE FROM users WHERE github_id = $1`, id); err != nil {
+			t.Errorf("cleanup: %v", err)
+		}
+	})
+	nameOf := func(userID int) *string {
+		t.Helper()
+		var name *string
+		if err := pool.QueryRow(ctx, `SELECT name FROM users WHERE id = $1`, []any{userID},
+			func(row pgx.Row) error { return row.Scan(&name) }); err != nil {
+			t.Fatal(err)
+		}
+		return name
+	}
+	for _, step := range []struct {
+		name string
+		want *string
+	}{
+		{"Carol Danvers", ptr("Carol Danvers")},
+		{"Carol D.", ptr("Carol D.")},
+		{"", nil},
+	} {
+		userID, err := svc.UpsertUser(ctx, id, login, step.name, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := nameOf(userID)
+		if (got == nil) != (step.want == nil) || (got != nil && *got != *step.want) {
+			t.Errorf("signed in with name %q: stored %v, want %v", step.name, deref(got), deref(step.want))
+		}
+	}
+}
+
+func ptr(s string) *string { return &s }
+
+func deref(s *string) string {
+	if s == nil {
+		return "<nil>"
+	}
+	return *s
 }

@@ -12,8 +12,8 @@ in VS Code. You commit, push and open the pull request from the app.
 
 Your GitHub token for pushing stays on this computer, encrypted by your system
 (or held in memory only, where it can't encrypt it). It is never sent to
-SkillIssues. Signing in to SkillIssues only reads your GitHub id, username and
-avatar.
+SkillIssues. Signing in to SkillIssues only reads your GitHub id, username,
+profile name and avatar.
 
 Terms of Service and Privacy Policy
 -----------------------------------

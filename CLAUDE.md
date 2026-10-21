@@ -667,7 +667,7 @@ Every key with its default and bounds: `docs/settings.md`.
 ### Credentials and identity
 - **The server holds zero user GitHub tokens.** Not encrypted, not hashed, not for a minute.
   Sign-in uses the **Login app**, a no-scope OAuth App: the server reads the numeric `id`,
-  login and avatar, then discards the token. Desktop sign-in is a device flow on the same app,
+  login, profile name and avatar, then discards the token. Desktop sign-in is a device flow on the same app,
   posted once to `POST /auth/github/device`, which asks GitHub (`POST
   /applications/{client_id}/token`) whether the Login app issued it. Fork, push and pull
   requests are the desktop client's job, with a token that stays on the user's machine.

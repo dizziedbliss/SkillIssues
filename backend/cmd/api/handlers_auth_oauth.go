@@ -113,7 +113,7 @@ func (h *handlers) authGitHubCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.authSvc.UpsertUser(r.Context(), ghUser.GitHubID, ghUser.Username, ghUser.AvatarURL)
+	userID, err := h.authSvc.UpsertUser(r.Context(), ghUser.GitHubID, ghUser.Username, ghUser.Name, ghUser.AvatarURL)
 	if err != nil {
 		slog.Error("failed to upsert user after oauth", "error", err)
 		fail("sign_in_failed")
