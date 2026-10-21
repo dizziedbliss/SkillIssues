@@ -20,6 +20,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/issue"
 	"github.com/dizziedbliss/skillissues/internal/notification"
 	"github.com/dizziedbliss/skillissues/internal/profile"
+	"github.com/dizziedbliss/skillissues/internal/progress"
 	"github.com/dizziedbliss/skillissues/internal/report"
 	"github.com/dizziedbliss/skillissues/internal/settings"
 	"github.com/dizziedbliss/skillissues/internal/theme"
@@ -40,6 +41,7 @@ type handlers struct {
 	notificationSvc *notification.Service
 	themeSvc        *theme.Service
 	reportSvc       *report.Service
+	progressSvc     *progress.Service
 	hidden          *hiddenStore
 
 	// trustedProxies are the CIDRs whose X-Forwarded-For is believed, for

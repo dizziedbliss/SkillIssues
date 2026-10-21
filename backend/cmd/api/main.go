@@ -29,6 +29,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/middleware"
 	"github.com/dizziedbliss/skillissues/internal/notification"
 	"github.com/dizziedbliss/skillissues/internal/profile"
+	"github.com/dizziedbliss/skillissues/internal/progress"
 	"github.com/dizziedbliss/skillissues/internal/report"
 	"github.com/dizziedbliss/skillissues/internal/settings"
 	"github.com/dizziedbliss/skillissues/internal/theme"
@@ -216,6 +217,7 @@ func buildRouter(
 		notificationSvc: notification.NewService(pool),
 		themeSvc:        theme.NewService(pool),
 		reportSvc:       reportSvc,
+		progressSvc:     progress.New(pool),
 		hidden:          hidden,
 	}
 
@@ -268,6 +270,11 @@ func buildRouter(
 
 	// ----- Recommendations -----
 	mux.Handle("GET /recommendations", requireAuth(authSvc, http.HandlerFunc(h.getRecommendations)))
+
+	// ----- Pull requests and XP -----
+	mux.Handle("GET /me/xp", requireAuth(authSvc, http.HandlerFunc(h.getMyXP)))
+	mux.Handle("GET /me/pulls", requireAuth(authSvc, http.HandlerFunc(h.getMyPulls)))
+	mux.Handle("POST /me/pulls/refresh", requireAuth(authSvc, http.HandlerFunc(h.refreshMyPulls)))
 
 	// ----- User profile -----
 	mux.Handle("GET /me", requireAuth(authSvc, http.HandlerFunc(h.getMe)))

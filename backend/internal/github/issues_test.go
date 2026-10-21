@@ -131,3 +131,59 @@ func TestIsGitHubPage(t *testing.T) {
 		}
 	}
 }
+
+// Several people's pull requests come back from one request, in order, and an
+// unknown login doesn't fail the others.
+func TestFetchUserPullRequests(t *testing.T) {
+	c, vars, query := fakeGraphQL(t, `{"data":{
+		"u0":{"databaseId":42,"pullRequests":{"pageInfo":{"hasNextPage":true,"endCursor":"c2"},"nodes":[
+			{"databaseId":7001,"number":12,"title":"Fix the docs","url":"https://github.com/o/r/pull/12","state":"MERGED",
+			 "createdAt":"2026-10-01T00:00:00Z","updatedAt":"2026-10-03T00:00:00Z","mergedAt":"2026-10-03T00:00:00Z","closedAt":"2026-10-03T00:00:00Z",
+			 "authorAssociation":"CONTRIBUTOR","additions":10,"deletions":2,
+			 "repository":{"databaseId":555,"nameWithOwner":"o/r","owner":{"__typename":"Organization"}},
+			 "approved":{"totalCount":1},"changes":{"totalCount":0},
+			 "commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]},
+			 "closingIssuesReferences":{"nodes":[{"number":3,"repository":{"databaseId":555,"nameWithOwner":"o/r"}}]}},
+			{"databaseId":7002,"number":1,"title":"Mine","url":"u","state":"OPEN","createdAt":"2026-10-01T00:00:00Z","updatedAt":"2026-10-02T00:00:00Z",
+			 "mergedAt":null,"closedAt":null,"authorAssociation":"OWNER","additions":1,"deletions":0,
+			 "repository":{"databaseId":556,"nameWithOwner":"me/x","owner":{"__typename":"User","databaseId":42}},
+			 "approved":{"totalCount":0},"changes":{"totalCount":0},"commits":{"nodes":[{"commit":{"statusCheckRollup":null}}]},
+			 "closingIssuesReferences":{"nodes":[]}},
+			{"databaseId":7003,"number":2,"title":"gone","url":"u","state":"OPEN","createdAt":"2026-10-01T00:00:00Z","updatedAt":"2026-10-01T00:00:00Z","repository":null}
+		]}},
+		"u1":null,
+		"rateLimit":{"limit":5000,"remaining":4990,"used":10,"resetAt":"2026-10-16T00:00:00Z","cost":3}},
+		"errors":[{"type":"NOT_FOUND","path":["u1"],"message":"Could not resolve to a User"}]}`)
+	after := "c1"
+	pages, rl, err := c.FetchUserPullRequests(context.Background(), "t", []UserPullsQuery{
+		{Login: "someone", First: 20, After: &after}, {Login: "renamed", First: 20},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if (*vars)["l0"] != "someone" || (*vars)["a0"] != "c1" || (*vars)["f1"] != float64(20) {
+		t.Errorf("variables = %v", *vars)
+	}
+	if _, ok := (*vars)["a1"]; ok {
+		t.Error("a first page sent a cursor")
+	}
+	if !strings.Contains(*query, "orderBy: {field: UPDATED_AT, direction: DESC}") {
+		t.Error("not ordered newest-updated first")
+	}
+	if rl.Cost != 3 || len(pages) != 2 || pages[1].Found {
+		t.Fatalf("rate limit %+v, pages %+v", rl, pages)
+	}
+	p := pages[0]
+	if !p.Found || p.DatabaseID != 42 || !p.HasNextPage || p.EndCursor != "c2" || len(p.Pulls) != 2 {
+		t.Fatalf("page = %+v", p)
+	}
+	m := p.Pulls[0]
+	if m.State != "MERGED" || m.MergedAt == nil || m.Checks == nil || *m.Checks != "SUCCESS" || m.Approvals != 1 ||
+		m.RepositoryID != 555 || m.OwnerID != nil || len(m.Closes) != 1 || m.Closes[0].Number != 3 {
+		t.Errorf("merged = %+v", m)
+	}
+	own := p.Pulls[1]
+	if own.Checks != nil || own.OwnerID == nil || *own.OwnerID != 42 || own.MergedAt != nil {
+		t.Errorf("own = %+v", own)
+	}
+}
