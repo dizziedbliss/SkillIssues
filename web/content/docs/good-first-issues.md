@@ -16,7 +16,7 @@ A good first issue is one you can understand, finish and get merged. A label hel
 - **Nobody is assigned, and no pull request is open for it.** Otherwise someone is already on it.
 - **It's recent, or the project is.** A maintainer who replied this month will probably review your pull request this month.
 - **The discussion is short, or settled.** You can read it in a few minutes and know what to do.
-- **The project has a contributing guide.** It tells you how to build it, test it and send a change.
+- **The project has a contributing guide.** It tells you how to build it, test it and send a change. When the repository has one, the issue page links it first under the repository's name.
 
 ## Warning signs
 

@@ -130,6 +130,7 @@ A few rules for cursors:
   "labels": ["good first issue", "bug"],
   "tech": ["Go", "Shell"],
   "assignees": 0,
+  "contributing_url": "https://github.com/owner/repo/blob/main/CONTRIBUTING.md",
   "comments": 3,
   "author": "octocat",
   "repository": "owner/repo",
@@ -153,6 +154,7 @@ A few rules for cursors:
 | `labels` | The issue's labels exactly as GitHub has them. |
 | `repository_id` | SkillIssues' own id for the repository, as a report names it. |
 | `assignees` | How many people are assigned on GitHub, or `null` if the catalog hasn't read it yet. |
+| `contributing_url` | The repository's contributing guide on GitHub (its own, or its owner's default), or `null` when it has none or the catalog hasn't read it yet. Always a `https://github.com/` page. |
 | `tech` | The repository's three largest languages, largest first, by GitHub's names. Empty when unknown. The `tech` filter takes the same names in any case. |
 | `match_category` | Search results only: `Repository`, `Title` or `Language`. |
 

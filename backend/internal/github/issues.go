@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -75,6 +76,10 @@ type RepositoryStats struct {
 	OpenIssueCount int
 	IsArchived     bool
 	PushedAt       *time.Time
+	// ContributingURL is the repository's contributing guide on GitHub, or
+	// nil when it has none (or GitHub gave something other than a github.com
+	// page, which is never stored).
+	ContributingURL *string
 }
 
 // IssuesQuery selects what one FetchRepositoryIssues call returns.
@@ -130,6 +135,7 @@ const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: St
         openIssues: issues(states: OPEN) @include(if: $withStats) { totalCount }
         isArchived @include(if: $withStats)
         pushedAt @include(if: $withStats)
+        contributingGuidelines @include(if: $withStats) { url }
         __typename
     }
     rateLimit { limit remaining used resetAt cost }
@@ -221,8 +227,11 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 				OpenIssues struct {
 					TotalCount int `json:"totalCount"`
 				} `json:"openIssues"`
-				IsArchived bool    `json:"isArchived"`
-				PushedAt   *string `json:"pushedAt"`
+				IsArchived   bool    `json:"isArchived"`
+				PushedAt     *string `json:"pushedAt"`
+				Contributing *struct {
+					URL string `json:"url"`
+				} `json:"contributingGuidelines"`
 			} `json:"repository"`
 			RateLimit rawRateLimit `json:"rateLimit"`
 		} `json:"data"`
@@ -291,6 +300,10 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 			OpenIssueCount: repo.OpenIssues.TotalCount,
 			IsArchived:     repo.IsArchived,
 		}
+		if repo.Contributing != nil && isGitHubPage(repo.Contributing.URL) {
+			u := repo.Contributing.URL
+			stats.ContributingURL = &u
+		}
 		if repo.PushedAt != nil {
 			// A repository with no pushes has a null pushedAt; that stays nil.
 			t, err := time.Parse(time.RFC3339, *repo.PushedAt)
@@ -311,4 +324,11 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 		ClosedHasNextPage: repo.Closed.PageInfo.HasNextPage,
 		ClosedEndCursor:   repo.Closed.PageInfo.EndCursor,
 	}, nil
+}
+
+// isGitHubPage reports whether u is an https page on github.com: the only
+// kind of link the apps are given to open.
+func isGitHubPage(u string) bool {
+	p, err := url.Parse(u)
+	return err == nil && p.Scheme == "https" && p.Host == "github.com" && p.User == nil
 }

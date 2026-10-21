@@ -182,6 +182,12 @@
   text-underline-offset: 0.2em;
 }
 
+/* The guide comes first and reads as the one to open before starting. */
+.more a.contributing {
+  font-weight: 600;
+  text-decoration-thickness: 2px;
+}
+
 .facts {
   display: grid;
   gap: 0.3rem;
