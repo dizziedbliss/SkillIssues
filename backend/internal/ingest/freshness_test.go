@@ -379,7 +379,8 @@ func TestFirstPageRefreshesRepositoryStats(t *testing.T) {
 	gh, vars := fakeCrawlAPI(t, `{"data":{"repository":{
 		"issues":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":""}},
 		"stargazerCount":315,"forkCount":12,"watchers":{"totalCount":7},"openIssues":{"totalCount":42},
-		"isArchived":true,"pushedAt":"2026-10-10T10:00:00Z"},`+fakeRateLimit+`}}`)
+		"isArchived":true,"pushedAt":"2026-10-10T10:00:00Z",
+		"contributingGuidelines":{"url":"https://github.com/o/n/blob/main/CONTRIBUTING.md"}},`+fakeRateLimit+`}}`)
 
 	passStarted := time.Date(2026, 10, 15, 6, 0, 0, 0, time.UTC)
 	runOneJob(t, pool, gh, repoID, nil, &passStarted)
@@ -390,11 +391,12 @@ func TestFirstPageRefreshesRepositoryStats(t *testing.T) {
 	var stars, forks, watchers, open int
 	var archived bool
 	var pushed, refreshed *time.Time
+	var contributing *string
 	if err := pool.QueryRow(ctx,
-		`SELECT stars, forks, watchers, open_issue_count, is_archived, pushed_at, metadata_refreshed_at FROM repositories WHERE id = $1`,
+		`SELECT stars, forks, watchers, open_issue_count, is_archived, pushed_at, metadata_refreshed_at, contributing_url FROM repositories WHERE id = $1`,
 		[]any{repoID},
 		func(row pgx.Row) error {
-			return row.Scan(&stars, &forks, &watchers, &open, &archived, &pushed, &refreshed)
+			return row.Scan(&stars, &forks, &watchers, &open, &archived, &pushed, &refreshed, &contributing)
 		},
 	); err != nil {
 		t.Fatal(err)
@@ -403,6 +405,9 @@ func TestFirstPageRefreshesRepositoryStats(t *testing.T) {
 		pushed == nil || !pushed.Equal(time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)) || refreshed == nil {
 		t.Errorf("stats = stars %d forks %d watchers %d open %d archived %v pushed %v refreshed %v",
 			stars, forks, watchers, open, archived, pushed, refreshed)
+	}
+	if contributing == nil || *contributing != "https://github.com/o/n/blob/main/CONTRIBUTING.md" {
+		t.Errorf("contributing_url = %v", contributing)
 	}
 }
 

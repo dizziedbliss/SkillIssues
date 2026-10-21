@@ -733,6 +733,8 @@ Every key with its default and bounds: `docs/settings.md`.
   that doesn't say keeps the stored value (`COALESCE`), and NULL (not read since) counts as
   unassigned. `?unassigned=true` (the web app's default) filters on it while walking the order
   indexes; it is deliberately left out of `hasFilters`, so it never triggers the rarity probe.
+  `repositories.contributing_url` (00056) is read the same way (`contributingGuidelines { url }` on a
+  pass's first page, only an https github.com page is kept) and linked first on the issue page.
 - **Reports are private and hide by count, never by query**: a signed-in person reports an issue, a
   repository or a public theme (`POST /reports`, `internal/report`, migration 00052; one open report
   per person per target, `api.reports.per_user_per_day`). Targets reported by
