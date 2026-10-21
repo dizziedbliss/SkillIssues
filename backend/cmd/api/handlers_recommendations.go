@@ -15,15 +15,18 @@ import (
 
 func (h *handlers) getRecommendations(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
-	limit := 3
+	cfg := h.live.Current()
+	maxLimit := cfg.Int(settings.RecommendationsMaxLimit)
+	defaultLimit := min(cfg.Int(settings.RecommendationsDefaultLimit), maxLimit)
+	limit := defaultLimit
 	if lStr := r.URL.Query().Get("limit"); lStr != "" {
 		if l, err := strconv.Atoi(lStr); err == nil && l > 0 {
-			limit = min(l, h.live.Current().Int(settings.RecommendationsMaxLimit))
+			limit = min(l, maxLimit)
 		}
 	}
 
-	// Redis Cache lookup for default limit
-	if limit == 3 && h.cache != nil {
+	// Only the default size is cached: it is what the app asks for.
+	if limit == defaultLimit && h.cache != nil {
 		if cached := h.cache.GetRecommendations(r.Context(), userID); cached != nil {
 			h.respondRecommendations(w, r, cached)
 			return
@@ -36,7 +39,6 @@ func (h *handlers) getRecommendations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cfg := h.live.Current()
 	base := issue.Filters{
 		RareLanguageBelow:   cfg.Int(settings.IssuesRareLanguageThreshold),
 		LanguageCountTTL:    cfg.Seconds(settings.IssuesLanguageCountTTLSeconds),
@@ -62,7 +64,7 @@ func (h *handlers) getRecommendations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if recTTL := h.live.Current().Seconds(settings.CacheRecommendationsTTLSecond); limit == 3 && recTTL > 0 && h.cache != nil {
+	if recTTL := cfg.Seconds(settings.CacheRecommendationsTTLSecond); limit == defaultLimit && recTTL > 0 && h.cache != nil {
 		h.cache.SetRecommendations(r.Context(), userID, data, recTTL)
 	}
 

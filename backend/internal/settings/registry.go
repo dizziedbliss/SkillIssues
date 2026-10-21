@@ -79,10 +79,12 @@ const (
 
 	// IssuesMaxLimit and IssuesMaxPage bound what a caller may ask of
 	// GET /issues; RecommendationsMaxLimit bounds GET /recommendations. A
-	// request over a cap is clamped, not refused.
-	IssuesMaxLimit          Key = "api.issues.max_limit"
-	IssuesMaxPage           Key = "api.issues.max_page"
-	RecommendationsMaxLimit Key = "api.recommendations.max_limit"
+	// request over a cap is clamped, not refused. RecommendationsDefaultLimit
+	// is the size without ?limit, the only one cached.
+	IssuesMaxLimit              Key = "api.issues.max_limit"
+	IssuesMaxPage               Key = "api.issues.max_page"
+	RecommendationsMaxLimit     Key = "api.recommendations.max_limit"
+	RecommendationsDefaultLimit Key = "api.recommendations.default_limit"
 	// RecommendationsCandidatePool is how many open issues GET
 	// /recommendations reads off the shuffled feed before scoring them.
 	RecommendationsCandidatePool Key = "api.recommendations.candidate_pool"
@@ -387,6 +389,7 @@ var Registry = map[Key]Spec{
 	IssuesMaxLimit:                intSpec(100, 1, 500, "Largest ?limit honoured by GET /issues; a larger request is clamped."),
 	IssuesMaxPage:                 intSpec(200, 1, 10000, "Deepest ?page honoured by GET /issues; a deeper request is clamped. Deep offsets are expensive."),
 	RecommendationsMaxLimit:       intSpec(20, 1, 100, "Largest ?limit honoured by GET /recommendations; a larger request is clamped."),
+	RecommendationsDefaultLimit:   intSpec(3, 1, 100, "Recommendations GET /recommendations returns without ?limit (never above api.recommendations.max_limit). Only this size is cached."),
 	ThemesMaxPerUser:              intSpec(20, 1, 200, "Most themes one account may keep."),
 	ThemesMaxBytes:                intSpec(65536, 1024, 524288, "Largest theme, TOML and stylesheet together, in bytes."),
 	RecommendationsCandidatePool:  intSpec(200, 10, 1000, "Open issues GET /recommendations reads off the shuffled feed, matching the caller's languages and level, before scoring them."),

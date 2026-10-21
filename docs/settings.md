@@ -53,6 +53,7 @@ readable through the endpoint above and copied into backups.
 | `api.issues.max_limit` | 100 | 1–500 | Largest `?limit` on `GET /issues`; larger is clamped |
 | `api.issues.max_page` | 200 | 1–10000 | Deepest `?page` on `GET /issues`; deeper is clamped |
 | `api.recommendations.max_limit` | 20 | 1–100 | Largest `?limit` on `GET /recommendations`; larger is clamped |
+| `api.recommendations.default_limit` | 3 | 1–100 | Recommendations returned without `?limit` (never above `max_limit`); only this size is cached |
 | `api.recommendations.candidate_pool` | 200 | 10–1000 | Open issues `GET /recommendations` reads off the shuffled feed (caller's languages and level) before scoring |
 | `api.themes.max_per_user` | 20 | 1–200 | Most themes one account may keep |
 | `api.themes.max_bytes` | 65536 | 1024–524288 | Largest theme (TOML + stylesheet) in bytes |
