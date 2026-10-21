@@ -142,9 +142,9 @@ Every line is one object:
 | Field | Meaning |
 |---|---|
 | `t` | When the hop happened (UTC) |
-| `from`, `to` | Nodes: `users`, `github`, `caddy`, `frontend`, `go-api`, `ingestd`, `flowd`, `postgres`, `redis`, `prometheus`, `grafana`, `postgres-exporter`, `redis-exporter`, `node-exporter`, `cadvisor` |
+| `from`, `to` | Nodes (`frontend` is the development stack's web container; in production the site is on Vercel and nothing is instrumented on it): `users`, `github`, `caddy`, `frontend`, `go-api`, `ingestd`, `flowd`, `postgres`, `redis`, `prometheus`, `grafana`, `postgres-exporter`, `redis-exporter`, `node-exporter`, `cadvisor` |
 | `kind` | `http`, `sql`, `redis`, `github`, `crawl`, `discovery` (one hop each); `density`, `ambient`, `viewers`, `heartbeat` (written by flowd) |
-| `label` | Route pattern (`GET /issues/{id}`), SQL verb and table, GitHub operation, or what a crawled page brought in (`owner/name +50`) |
+| `label` | Route pattern (`GET /issues/{id}`), SQL verb and table, GitHub operation, or what a crawled page brought in (`owner/name +50`; `archive <hour> +n` for a GH Archive hour) |
 | `payload` | Status and size, `error`, `miss`, or a crawled page's first issue title. Omitted when empty |
 | `ms` | Duration of the hop; for `density`, the window the count covers |
 | `n` | 1 for a hop; events in the window for `density`; bytes/s for `ambient`; open streams for `viewers` |
