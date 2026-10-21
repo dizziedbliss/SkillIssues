@@ -2,30 +2,25 @@
 title: Leaderboard
 slug: /leaderboard
 section: Community
-summary: Levels and a community leaderboard are coming soon, built from public GitHub data without storing your token.
+summary: XP and levels are here; the community leaderboard is built and opens later, for people who choose to be on it.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
-The leaderboard doesn't exist yet. This page explains what is planned and why it isn't here already.
+XP, levels, streaks and badges are live: see [How XP works](/docs/xp). The community leaderboard isn't open yet.
 
-## What happened to XP and levels
+## How XP came back
 
-The first version of SkillIssues awarded XP, levels and badges for merged pull requests. To check that a pull request was really yours, it stored your GitHub token on the server. We removed that: the server now holds no user GitHub tokens at all, and the XP system went with it. See [Security](/security).
+The first version of SkillIssues stored your GitHub token on the server to check your pull requests. We removed that: the server holds no user GitHub tokens at all. XP now comes from public GitHub data, read with SkillIssues' own credential, so nothing of yours is stored to make it work. See [Security](/security).
 
-## The plan
+## The leaderboard
 
-Levels and a community leaderboard for the people closing issues across open source, rebuilt without stored tokens:
-
-- A merged pull request counts the moment GitHub shows it, checked against public GitHub data.
-- The check happens on the server using public information, with no token from you.
-- The work that needs your own GitHub credentials stays in the [desktop app](/download), on your machine.
-
-We haven't set a date, and the details of levels and badges aren't decided. Nothing on this page is a promise about how points will be counted.
+The leaderboard ranks people by XP, this month or all time, overall or for one language. It only ever lists people who chose to show their profile publicly: turn on **Show my profile to anyone** in Settings to be on it. It's built, and it opens once enough people are earning XP. Until then, [its page](/app/leaderboard) says so.
 
 ## Until then
 
-Find an issue and fix it. A merged pull request is a public record on GitHub whether or not a leaderboard exists.
+Find an issue and fix it. Your XP counts from your first merge, whether or not a leaderboard is open.
 
 - [Getting started](/docs/getting-started)
 - [Finding issues](/docs/finding-issues)
+- [How XP works](/docs/xp)

@@ -238,8 +238,11 @@ path reaching outside the importing project). Both apps are built on `client`; t
   Transitions (`transition.ts`, `transition.css`; never under reduced motion). The profile
   (`profile/`: `/app/profile`, and `/app/contributions` for Contribute) counts the person's public
   pull requests from GitHub's search **in the browser**, with no token (`lib/github.ts`, cached per
-  browser, GitHub's rate limit shown as such), so the server still holds no user token; achievements
-  are milestones over the same numbers. `/app/saved` lists saved issues under their notifications, and
+  browser, GitHub's rate limit shown as such), so the server still holds no user token. Beside it,
+  SkillIssues XP comes from the server (`profile/xp.tsx`: level card, badges, per-language levels,
+  tracked pull requests with "Check now", latest XP, and a one-time reveal after the backfill,
+  remembered per browser). `/app/saved` lists saved issues under their notifications (closed issues
+  and paid merges), and
   Profile shows a red dot while any are unread. `lib/devPreview.ts` (development builds only,
   `?preview=signed-in`) answers the account endpoints locally, since GitHub sign-in returns to
   production. `settings/` is Settings: the profile form (`PUT /profile`, refused whole with the
@@ -735,6 +738,42 @@ Every key with its default and bounds: `docs/settings.md`.
   indexes; it is deliberately left out of `hasFilters`, so it never triggers the rarity probe.
   `repositories.contributing_url` (00056) is read the same way (`contributingGuidelines { url }` on a
   pass's first page, only an https github.com page is kept) and linked first on the issue page.
+- **XP is a ledger of verified merges, read with the server's credential** (plan:
+  `~/.claude/plans/xp-and-tracking.md`). ingestd reads each signed-up person's public pull requests
+  on the **interactive** lane (`internal/ingest/prs.go`: `user(login) { pullRequests(orderBy:
+  UPDATED_AT DESC) }`, several people per request), keeps only those to catalog repositories
+  (`pull_requests`, `pull_request_issues` via `closingIssuesReferences`), and pages a pass down to
+  `pr_sync.synced_through`; the first pass is the backfill. The watermark moves only when a pass
+  completes, and a login whose `databaseId` isn't the account's `github_id` stores nothing. When a
+  pass completes, `internal/xp.Plan` (pure, every number an `xp.*` setting) plans the awards over
+  everything stored and they are written to `xp_events` (append-only; unique per person, source and
+  pull request), so "first merge in a repository" and caps never depend on page order. Levels,
+  per-language levels, streaks (UTC ISO weeks) and badges are computed from the ledger on read
+  (`xp.Summarise`, `internal/progress`, `GET /me/xp`). A paid merge notifies through a trigger
+  (`pr_merged`). The rules are documented in `/docs/xp`: keep both in step.
+- **Quests and learning paths ride the same pass** (migration 00059): after paying merges, ingestd
+  pays the quests the ledger now completes (`xp.Quests`, only `merged` rows, key `quest:<key>`) and
+  marks `learning_path_steps` done from merged pull requests that close them, finishing and paying the
+  path (`path:<id>`). go-api starts, swaps and abandons paths (`internal/learnpath`, issues picked by
+  `issue.Service.Pick` off the shuffled feed: unassigned, unclaimed, one per repository).
+- **Repository health is read with the stats, flagged on read** (migration 00061): a pass's first page
+  also reads the last `ingest.health.sample` merged pull requests (`healthOf`: merges by people who
+  aren't OWNER/MEMBER/COLLABORATOR, and the median hours to merge; GitHub's first-timer associations
+  don't survive the merge, so they aren't used). `issue.Service` turns the stored numbers into
+  `repository_health.welcoming`/`slow` against `api.health.*` per request, so a threshold change
+  needs no re-crawl.
+- **Public profiles are opt-in; the leaderboard is off** (migration 00060): `users.public_profile`
+  (default false, set through `PUT /profile`) gates `GET /users/{login}` (a private or missing account
+  is the same 404) and every leaderboard row. `GET /leaderboards?period=month|all&language=` answers
+  404 until `api.leaderboards.enabled`. Both are `no-store`, so turning a profile off takes effect at
+  once. Web: `/app/u/:login`, `/app/leaderboard` (`app/people/`).
+- **Claims are SkillIssues-only and held in memory for lists** (`internal/claim`, migration 00058):
+  one active claim per issue, `api.claims.max_active` per person; active until released, or past
+  `api.claims.days` only while the claimer has an open tracked pull request that closes the issue
+  (the rule is one SQL predicate, `claim.active`). go-api re-reads the claimed set every
+  `api.claims.refresh_seconds` (`cmd/api/claims.go`; a claim made here applies at once) and
+  `issue.Service` marks `claimed` and, with `unassigned`, drops them after the cursor, like reports.
+  A person's own claim comes from `GET /issues/{id}/claim`, so issue pages stay cacheable.
 - **Reports are private and hide by count, never by query**: a signed-in person reports an issue, a
   repository or a public theme (`POST /reports`, `internal/report`, migration 00052; one open report
   per person per target, `api.reports.per_user_per_day`). Targets reported by
@@ -787,9 +826,6 @@ Every key with its default and bounds: `docs/settings.md`.
   branch on (`transition`, `reduce`, `[background] pattern`) as `data-*` attributes on its root.
 
 ### Not built
-- **Contributions, XP, levels and badges.** Removed with the no-user-tokens redesign
-  (migration 00027): the old design awarded XP from PRs verified with a stored user token.
-  The rebuild is client-side work with server-side verification from public GitHub data.
 - **Live issue state on demand.** The server answers no freshness check; ingestd's
   tracked-issue check keeps saved issues' state correct, and the archive reader everyone else's.
 

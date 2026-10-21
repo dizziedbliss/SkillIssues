@@ -92,6 +92,7 @@ func (w *Worker) processJob(ctx context.Context, job Job) (string, error) {
 		ClosedCursor:   job.ClosedCursor,
 		ClosedPageSize: snap.Int(settings.IngestClosedPageSize),
 		FetchStats:     job.PagesDone == 0,
+		HealthSample:   snap.Int(settings.IngestHealthSample),
 	}
 	page, err := w.fetchWithBatchLadder(ctx, token, owner, name, query)
 	if err != nil {

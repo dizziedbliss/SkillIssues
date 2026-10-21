@@ -65,16 +65,14 @@
 
 /* ---- numbers ---- */
 
-.stats,
-.achievements {
+.stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(0.75rem, 2.5vw, 2.25rem);
   margin: 0;
 }
 
-.stat,
-.achievement {
+.stat {
   display: flex;
   flex-direction: column-reverse;
   justify-content: flex-end;
@@ -83,17 +81,6 @@
   padding: 0.55rem 0.65rem;
   border: var(--border-width) solid var(--colors-accent);
   border-radius: var(--radius-large);
-}
-
-.achievement {
-  flex-direction: column;
-  border-color: var(--rule);
-  color: var(--colors-text-muted);
-}
-
-.done {
-  border-color: var(--colors-accent);
-  color: var(--colors-text);
 }
 
 .statValue {
@@ -105,15 +92,6 @@
 .statLabel {
   font-size: 0.75rem;
   line-height: 1.3;
-}
-
-.progress {
-  margin-top: auto;
-  font-size: 0.75rem;
-}
-
-.done .progress {
-  color: var(--colors-accent);
 }
 
 /* ---- the year ---- */

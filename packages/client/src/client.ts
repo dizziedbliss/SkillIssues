@@ -1,8 +1,8 @@
 import type { Transport } from "./transport";
 import type {
-  AccountDeleted, ActiveTheme, Facets, Issue, IssueBody, IssueFilters, IssuePage, Notifications, Profile, ProfileUpdate,
+  AccountDeleted, ActiveTheme, Facets, Issue, IssueBody, IssueFilters, IssuePage, MyXP, Notifications, Profile, ProfileUpdate,
   ReportTarget, RepositoryLookup, SavedChange, SearchCategory, Session, SharedThemes, SignInStart, Stats, Theme, ThemeCheck,
-  ThemeInput,
+  ThemeInput, TrackedPull, Claim, ClaimState, LearningPath, PathRole, PublicProfile, LeaderboardEntry,
 } from "./types";
 
 function query(params: Record<string, string | number | undefined>): string {
@@ -39,7 +39,14 @@ type Opts = { signal?: AbortSignal };
  * then (by the edge, or the API's own cache) has neither, which means none.
  */
 function withLists(i: Issue): Issue {
-  return { ...i, labels: i.labels ?? [], tech: i.tech ?? [], assignees: i.assignees ?? null, contributing_url: i.contributing_url ?? null };
+  return {
+    ...i, labels: i.labels ?? [], tech: i.tech ?? [], assignees: i.assignees ?? null,
+    contributing_url: i.contributing_url ?? null, claimed: i.claimed ?? false, repository_health: i.repository_health ?? null,
+  };
+}
+
+function withPath(p: LearningPath | null): LearningPath | null {
+  return p && { ...p, steps: p.steps.map((s) => ({ ...s, issue: s.issue && withLists(s.issue) })) };
 }
 
 /** One typed method per API endpoint. */
@@ -126,6 +133,78 @@ export class Client {
 
   async readAllNotifications(): Promise<void> {
     await this.send({ method: "POST", path: "/notifications/read-all", body: {} });
+  }
+
+  /** Whether an issue is claimed, and your claim on it. */
+  claimState(issueID: number, o?: Opts): Promise<ClaimState> {
+    return this.get(`/issues/${issueID}/claim`, o);
+  }
+
+  /** Claims an issue for you; refused when someone else holds it or you hold too many. */
+  claim(issueID: number): Promise<Claim> {
+    return this.send({ method: "POST", path: `/issues/${issueID}/claim`, body: {} }) as Promise<Claim>;
+  }
+
+  async releaseClaim(issueID: number): Promise<void> {
+    await this.send({ method: "DELETE", path: `/issues/${issueID}/claim` });
+  }
+
+  /** Your active claims, soonest to lapse first, with their issues. */
+  async myClaims(o?: Opts): Promise<(Claim & { issue: Issue })[]> {
+    const r = await this.get<{ claims: (Claim & { issue: Issue })[] }>("/me/claims", o);
+    return r.claims.map((c) => ({ ...c, issue: withLists(c.issue) }));
+  }
+
+  /** Someone's public profile; 404 when there's none, or it isn't public. */
+  publicProfile(login: string, o?: Opts): Promise<PublicProfile> {
+    return this.get(`/users/${encodeURIComponent(login)}`, o);
+  }
+
+  /** The leaderboard: this month or all time, overall or one language. 404 while it isn't open. */
+  async leaderboard(f: { period?: "month" | "all"; language?: string }, o?: Opts): Promise<LeaderboardEntry[]> {
+    return (await this.get<{ entries: LeaderboardEntry[] }>(`/leaderboards${query({ period: f.period, language: f.language })}`, o)).entries;
+  }
+
+  /** The roles a learning path can be made of. */
+  async pathRoles(o?: Opts): Promise<PathRole[]> {
+    return (await this.get<{ roles: PathRole[] }>("/paths/roles", o)).roles;
+  }
+
+  /** Your learning path in progress, or null. */
+  async myPath(o?: Opts): Promise<LearningPath | null> {
+    return withPath((await this.get<{ path: LearningPath | null }>("/me/path", o)).path);
+  }
+
+  /** Starts a learning path of a role. */
+  async startPath(role: string): Promise<LearningPath> {
+    return withPath(((await this.send({ method: "POST", path: "/me/path", body: { role } })) as { path: LearningPath }).path)!;
+  }
+
+  /** Swaps a step that isn't done for another issue. */
+  async swapPathStep(position: number): Promise<LearningPath> {
+    return withPath(((await this.send({ method: "POST", path: `/me/path/steps/${position}/swap`, body: {} })) as { path: LearningPath }).path)!;
+  }
+
+  async abandonPath(): Promise<void> {
+    await this.send({ method: "DELETE", path: "/me/path" });
+  }
+
+  /** Your level, streak, badges and latest XP, and where tracking stands. */
+  myXP(o?: Opts): Promise<MyXP> {
+    return this.get("/me/xp", o);
+  }
+
+  /** Your pull requests to catalog repositories, newest-updated first. */
+  async myPulls(state: "open" | "all" = "all", o?: Opts): Promise<TrackedPull[]> {
+    return (await this.get<{ pull_requests: TrackedPull[] }>(`/me/pulls${query({ state: state === "all" ? undefined : state })}`, o)).pull_requests;
+  }
+
+  /**
+   * Asks for your pull requests to be read again soon. Refused (429) within a
+   * few minutes of the last ask; resolves to when the next is allowed.
+   */
+  async refreshPulls(): Promise<string> {
+    return ((await this.send({ method: "POST", path: "/me/pulls/refresh", body: {} })) as { next_allowed_at: string }).next_allowed_at;
   }
 
   facets(o?: Opts): Promise<Facets> {

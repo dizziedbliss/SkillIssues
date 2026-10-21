@@ -9,6 +9,9 @@ import { IssuePage } from "./IssuePage";
 import { SavedPage } from "./SavedPage";
 import { ProfilePage } from "./profile/ProfilePage";
 import { ContributionsPage } from "./profile/ContributionsPage";
+import { PathPage } from "./path/PathPage";
+import { PublicProfilePage } from "./people/PublicProfilePage";
+import { LeaderboardPage } from "./people/LeaderboardPage";
 import { Settings } from "./settings/Settings";
 import { AppearanceProvider, useAppTheme } from "./theme";
 import { useRouteSettled, useTransitionNavigate } from "./transition";
@@ -106,6 +109,9 @@ export default function AppShell() {
               <Route path="profile" element={<ProfilePage />} />
               <Route path="contributions" element={<ContributionsPage />} />
               <Route path="saved" element={<SavedPage />} />
+              <Route path="path" element={<PathPage />} />
+              <Route path="u/:login" element={<PublicProfilePage />} />
+              <Route path="leaderboard" element={<LeaderboardPage />} />
               <Route path="settings/*" element={<Settings />} />
               <Route path="*" element={<AppNotFound />} />
             </Routes>

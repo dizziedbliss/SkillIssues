@@ -4,7 +4,6 @@ import { useI18n, useT } from "../../i18n";
 import { GitHubLimitError, loadContributions, type Contributions, type PullRequest } from "../../lib/github";
 import { ago } from "../../lib/time";
 import { useSignIn } from "../session";
-import { ACHIEVEMENTS } from "./achievements";
 import s from "./parts.module.css";
 
 /** The three numbers, as designed: Contributions, issues resolved, repositories worked on. */
@@ -94,28 +93,6 @@ export function Graph({ data, large = false }: { data: Contributions | undefined
       )}
       {data && !data.daysComplete && <p className={s.note}>{t("contrib.graph.partial")}</p>}
     </figure>
-  );
-}
-
-/** Milestones from the same numbers. */
-export function Achievements({ data }: { data: Contributions | undefined }) {
-  const t = useT();
-  return (
-    <ul className={s.achievements}>
-      {ACHIEVEMENTS.map((a) => {
-        const have = data ? a.have(data) : 0;
-        const done = have >= a.need;
-        return (
-          <li key={a.name} className={`${s.achievement} ${done ? s.done : ""}`} data-ui="achievement" data-ui-state={done ? "done" : "locked"}>
-            <span className={s.statValue}>{a.need}</span>
-            <span className={s.statLabel}>{t(a.name)}</span>
-            <span className={s.progress}>
-              {done ? t("achieve.done") : t("achieve.progress", { have: Math.min(have, a.need), need: a.need })}
-            </span>
-          </li>
-        );
-      })}
-    </ul>
   );
 }
 

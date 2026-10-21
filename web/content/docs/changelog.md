@@ -27,6 +27,11 @@ The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/
 - **Ready for translations.** Every word of the interface can now be translated. English is the only language so far.
 - **Docs search.** Press `/` on any docs page.
 - **Is this a good first issue?** Each issue page checks the issue as GitHub has it now: marked for beginners, described, unassigned, no open pull request, recently active, a short discussion. A new guide explains what to look for. See [Is this a good first issue?](/docs/good-first-issues).
+- **XP, levels, streaks and badges.** Merged pull requests to repositories in the catalog earn XP, more for closing harder and older issues. SkillIssues reads them from public GitHub data with its own credential, never yours, and past merges count at half XP. Your profile shows your level, a level per language, your weekly streak, badges, and every pull request earning XP. See [How XP works](/docs/xp).
+- **How a project treats contributions.** Cards say when a repository merges work from people outside the project, or is slow to merge, from its latest merged pull requests. See [Finding issues](/docs/finding-issues#reading-an-issue).
+- **Public profiles.** Turn on **Show my profile to anyone** in Settings, and anyone can see your level, badges and merges. It's off unless you turn it on. The leaderboard is built, and opens later for people who show their profile.
+- **Quests and learning paths.** Seven one-off quests that pay XP, and learning paths: five issues for the kind of work you want to get better at, from beginner to a step up. See [How XP works](/docs/xp#learning-paths).
+- **Claims.** Press **I'm working on this** on an issue, and other SkillIssues users see it's taken for a week, or while your pull request for it is open. See [Claims](/docs/good-first-issues#claims).
 - **Reporting.** Signed in, report an issue, a repository or a shared theme. Reports are private, and enough of them take it out of lists until it's reviewed. See [Reporting](/docs/reporting).
 - **Community themes.** Browse the themes people have shared, most used or newest, in **Settings → Themes → Community**.
 

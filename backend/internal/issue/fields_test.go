@@ -222,3 +222,91 @@ func TestSetStateByRepoAndNumberIgnoresStaleEvents(t *testing.T) {
 		t.Fatalf("late reopen: state %s, want CLOSED", state)
 	}
 }
+
+// A claimed issue leaves the catalog with the assigned ones and is marked
+// wherever it still shows: with assigned issues included, and on its own page.
+func TestClaimedIssues(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	repoID, lang := seedBrowseRepo(t, pool, "claimed")
+	seedBrowseIssues(t, pool, repoID, 4)
+	var claimedID int
+	if err := pool.QueryRow(ctx, `SELECT id FROM issues WHERE repository_id = $1 AND number = 1`, []any{repoID},
+		func(r pgx.Row) error { return r.Scan(&claimedID) }); err != nil {
+		t.Fatal(err)
+	}
+	svc := New(pool, nil)
+	svc.SetClaimed(func() map[int]bool { return map[int]bool{claimedID: true} })
+
+	unassigned := walkCatalog(t, svc, Filters{Languages: []string{lang}, Sort: SortEasiest, Unassigned: true, Limit: 2}, nil, nil)
+	if slices.Contains(unassigned, claimedID) || len(unassigned) != 3 {
+		t.Errorf("unassigned walk = %v, want the 3 unclaimed", unassigned)
+	}
+	page, _, err := svc.BrowseIssues(ctx, Filters{Languages: []string{lang}, Sort: SortEasiest, Limit: 10}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	marked := 0
+	for _, it := range page {
+		if it.Claimed != (it.ID == claimedID) {
+			t.Errorf("issue %d: claimed = %v", it.ID, it.Claimed)
+		}
+		if it.Claimed {
+			marked++
+		}
+	}
+	if marked != 1 {
+		t.Errorf("including assigned: %d claimed issues marked, want 1", marked)
+	}
+	it, err := svc.GetIssue(ctx, claimedID)
+	if err != nil || !it.Claimed {
+		t.Errorf("own page: claimed = %v, %v", it != nil && it.Claimed, err)
+	}
+}
+
+// A repository's health shows once enough merges were read, flagged against
+// the thresholds of the moment.
+func TestRepositoryHealthFlags(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	repoID, _ := seedBrowseRepo(t, pool, "health")
+	seedBrowseIssues(t, pool, repoID, 1)
+	var id int
+	if err := pool.QueryRow(ctx, `SELECT id FROM issues WHERE repository_id = $1 AND number = 1`, []any{repoID},
+		func(r pgx.Row) error { return r.Scan(&id) }); err != nil {
+		t.Fatal(err)
+	}
+	svc := New(pool, nil)
+	rules := HealthRules{MinSample: 5, WelcomingMin: 3, SlowHours: 1000}
+	svc.SetHealthRules(func() HealthRules { return rules })
+	get := func() *Health {
+		t.Helper()
+		it, err := svc.GetIssue(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return it.Health
+	}
+	if h := get(); h != nil {
+		t.Errorf("never read: health = %+v", h)
+	}
+	set := func(sampled, outside, median int) {
+		t.Helper()
+		if err := pool.Exec(ctx, `UPDATE repositories SET health_sampled = $2, health_outside = $3, health_median_merge_hours = $4 WHERE id = $1`,
+			repoID, sampled, outside, median); err != nil {
+			t.Fatal(err)
+		}
+	}
+	set(4, 4, 10)
+	if h := get(); h != nil {
+		t.Errorf("too few merges read: health = %+v", h)
+	}
+	set(20, 3, 1200)
+	if h := get(); h == nil || !h.Welcoming || !h.Slow || h.MedianMergeHours != 1200 {
+		t.Errorf("health = %+v, want welcoming and slow", h)
+	}
+	rules = HealthRules{MinSample: 5, WelcomingMin: 4, SlowHours: 2000}
+	if h := get(); h == nil || h.Welcoming || h.Slow {
+		t.Errorf("after raising the thresholds: health = %+v", h)
+	}
+}

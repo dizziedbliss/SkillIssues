@@ -1,0 +1,332 @@
+/* SkillIssues XP: a red-framed level card, badges in the profile's grid, and plain lists. */
+
+.muted {
+  color: var(--colors-text-muted);
+}
+
+.error {
+  color: var(--colors-danger);
+  font-size: 0.9375rem;
+}
+
+.link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--colors-text);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.link:disabled {
+  color: var(--colors-text-muted);
+  cursor: default;
+}
+
+/* ---- the level ---- */
+
+.card {
+  display: grid;
+  gap: 0.45rem;
+  min-height: 9rem;
+  padding: 0.9rem 1rem 1rem;
+  border: var(--border-width) solid var(--colors-accent);
+  border-radius: var(--radius-large);
+}
+
+.kicker {
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+}
+
+.level {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: clamp(2rem, 1.6rem + 1.4vw, 2.75rem);
+  line-height: 1;
+  letter-spacing: var(--heading-tracking);
+}
+
+.total {
+  font-size: 1.05rem;
+}
+
+.bar {
+  height: 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--colors-surface-raised);
+  overflow: hidden;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--colors-accent);
+  transition: width var(--slow) var(--ease);
+}
+
+.streak {
+  margin-top: 0.35rem;
+  font-size: 0.9375rem;
+}
+
+.how {
+  justify-self: start;
+  font-size: var(--label-size);
+  color: var(--colors-text);
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+}
+
+/* ---- badges: the profile's three-across boxes ---- */
+
+.badges {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(0.6rem, 2vw, 1.25rem);
+}
+
+.badge {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 4.25rem;
+  padding: 0.55rem 0.65rem;
+  border: var(--border-width) solid var(--rule);
+  border-radius: var(--radius-large);
+  color: var(--colors-text-muted);
+}
+
+.earned {
+  border-color: var(--colors-accent);
+  color: var(--colors-text);
+}
+
+.badgeName {
+  font-size: 0.875rem;
+  line-height: 1.25;
+}
+
+.badgeState {
+  margin-top: auto;
+  font-size: 0.75rem;
+}
+
+.earned .badgeState {
+  color: var(--colors-accent);
+}
+
+/* ---- by language ---- */
+
+.subheading {
+  margin-bottom: 0.5rem;
+  font-size: var(--label-size);
+  color: var(--colors-text-muted);
+}
+
+.languages {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.languages li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.9375rem;
+}
+
+/* ---- tracking ---- */
+
+.sync {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 1.1rem;
+  font-size: 0.9375rem;
+}
+
+.pulls,
+.recent {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.pull {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.15rem 1rem;
+  color: var(--colors-text);
+  text-decoration: none;
+}
+
+.pullTitle {
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 0.2em;
+  transition: text-decoration-color var(--fast) var(--ease);
+}
+
+.pull:hover .pullTitle,
+.pull:focus-visible .pullTitle {
+  text-decoration-color: var(--colors-accent);
+}
+
+.pullMeta {
+  grid-column: 1;
+  color: var(--colors-text-muted);
+  font-size: 0.8125rem;
+}
+
+.pullXP {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--colors-accent);
+  font-size: 0.875rem;
+  text-align: right;
+}
+
+/* Earning nothing is information, not an alarm. */
+.pullXP[data-none] {
+  max-width: 12rem;
+  color: var(--colors-text-muted);
+}
+
+.merged {
+  color: color-mix(in srgb, var(--colors-success) 55%, var(--colors-text));
+}
+
+.recent li {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: baseline;
+  font-size: 0.9375rem;
+}
+
+.recent a {
+  color: var(--colors-text);
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+}
+
+.plus {
+  color: var(--colors-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.minus {
+  color: var(--colors-danger);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- the reveal ---- */
+
+.reveal {
+  width: min(30rem, 100% - 2 * var(--gutter));
+  padding: 0;
+  border: var(--border-width) solid var(--colors-accent);
+  border-radius: var(--radius-large);
+  background: var(--colors-surface);
+  box-shadow: var(--shadow-large);
+  color: var(--colors-text);
+}
+
+.reveal::backdrop {
+  background: color-mix(in srgb, var(--colors-background) 50%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.revealPanel {
+  display: grid;
+  gap: 1rem;
+  padding: 1.4rem 1.5rem 1.5rem;
+}
+
+.revealTitle {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: 2rem;
+  line-height: 1.05;
+  letter-spacing: var(--heading-tracking);
+}
+
+.button {
+  justify-self: start;
+  padding: 0.55em 1em;
+  border: 0;
+  border-radius: var(--radius-medium);
+  background: var(--colors-accent);
+  color: var(--colors-accent-text);
+  font: inherit;
+  font-size: var(--button-size);
+  cursor: pointer;
+  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
+}
+
+.button:hover,
+.button:focus-visible {
+  background-color: var(--accent-hover);
+  color: var(--colors-accent);
+}
+
+@media (max-width: 540px) {
+  .badges {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* No room beside the title: what it earned goes under it. */
+  .pull {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pullXP {
+    grid-column: 1;
+    grid-row: auto;
+    text-align: left;
+  }
+
+  .pullXP[data-none] {
+    max-width: none;
+  }
+
+  .recent li {
+    grid-template-columns: 3.5rem minmax(0, 1fr);
+  }
+
+  .recent li > :last-child {
+    grid-column: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar span,
+  .pullTitle,
+  .button {
+    transition: none;
+  }
+}
+
+/* ---- quests: one per row, done ones framed in the accent ---- */
+
+.quests {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.quest {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.6rem 0.75rem;
+  border: var(--border-width) solid var(--rule);
+  border-radius: var(--radius-large);
+  font-size: 0.9375rem;
+}
+
+.quest .muted {
+  font-size: 0.8125rem;
+}
