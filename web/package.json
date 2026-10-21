@@ -19,7 +19,7 @@
     "@skillissues/markdown": "1.0.0",
     "@skillissues/theme": "1.0.0",
     "@tanstack/react-query": "5.104.1",
-    "markdown-it": "15.0.2",
+    "markdown-it": "15.0.3",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-router": "8.4.0"
@@ -30,6 +30,6 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
     "typescript": "7.0.2",
-    "vite": "8.2.2"
+    "vite": "8.2.4"
   }
 }
