@@ -6,7 +6,7 @@
   "type": "module",
   "main": "src/index.ts",
   "dependencies": {
-    "markdown-it": "15.0.2",
+    "markdown-it": "15.0.3",
     "dompurify": "3.4.16"
   }
 }
