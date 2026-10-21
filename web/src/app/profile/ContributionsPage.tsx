@@ -1,8 +1,7 @@
 import { useState } from "react";
-import type { PullRequest } from "../../lib/github";
 import { useT } from "../../i18n";
 import { useSession } from "../session";
-import { ContribStatus, Graph, PRList, SignInPrompt, StatBoxes } from "./parts";
+import { ContribStatus, Graph, PullRequests, SignInPrompt, StatBoxes } from "./parts";
 import { useContributions, useTrackedPulls, useXP } from "./data";
 import { Badges, RecentXP, SyncStatus, TrackedPulls } from "./xp";
 import s from "./ContributionsPage.module.css";
@@ -14,6 +13,7 @@ export function ContributionsPage() {
   const contributions = useContributions();
   const xp = useXP();
   const pulls = useTrackedPulls();
+  const [shown, setShown] = useState(STEP);
 
   if (isPending) return null;
   if (!user) return <SignInPrompt />;
@@ -43,16 +43,24 @@ export function ContributionsPage() {
       </div>
       <Graph data={contributions.data} large />
 
-      <div className={s.lists}>
-        <section aria-labelledby="prs-title" className={s.box}>
-          <h2 id="prs-title" className={s.boxTitle}>{t("profile.prs")}</h2>
-          <MoreList items={contributions.data?.recent} empty={t("profile.noPRs")} all={gitHubPulls(user.username, false)} />
-        </section>
-        <section aria-labelledby="resolved-title" className={s.box}>
-          <h2 id="resolved-title" className={s.boxTitle}>{t("profile.resolved")}</h2>
-          <MoreList items={contributions.data?.recentMerged} empty={t("profile.noResolved")} all={gitHubPulls(user.username, true)} />
-        </section>
-      </div>
+      <section aria-labelledby="prs-title" className={s.box}>
+        <h2 id="prs-title" className={s.boxTitle}>{t("profile.prs")}</h2>
+        <PullRequests
+          data={contributions.data}
+          limit={shown}
+          more={(count, total, filter) =>
+            total > count ? (
+              <button type="button" className={s.more} onClick={() => setShown((n) => n + STEP)}>
+                {t("search.viewMore")}
+              </button>
+            ) : total > 0 ? (
+              <a href={gitHubPulls(user.username, filter)} target="_blank" rel="noreferrer" className={s.more}>
+                {t("contrib.allOnGitHub")}
+              </a>
+            ) : null
+          }
+        />
+      </section>
 
       <h2 className={s.heading}>{t("xp.badges")}</h2>
       <Badges summary={xp.data?.summary} keys={xp.data?.badge_keys} />
@@ -61,30 +69,10 @@ export function ContributionsPage() {
 }
 
 /** Pull requests listed at first, and added with each View more. */
-const STEP = 4;
+const STEP = 6;
 
-/** Every one of a person's public pull requests on GitHub, merged or all. */
-function gitHubPulls(login: string, merged: boolean): string {
-  return `https://github.com/pulls?q=${encodeURIComponent(`is:pr author:${login}${merged ? " is:merged" : ""}`)}`;
-}
-
-/** A list that starts short: View more shows the next few, then GitHub has the rest. */
-function MoreList({ items, empty, all }: { items: PullRequest[] | undefined; empty: string; all: string }) {
-  const t = useT();
-  const [shown, setShown] = useState(STEP);
-  return (
-    <>
-      <PRList items={items} empty={empty} limit={shown} />
-      {items && items.length > shown && (
-        <button type="button" className={s.more} onClick={() => setShown((n) => n + STEP)}>
-          {t("search.viewMore")}
-        </button>
-      )}
-      {items && items.length > 0 && items.length <= shown && (
-        <a href={all} target="_blank" rel="noreferrer" className={s.more}>
-          {t("contrib.allOnGitHub")}
-        </a>
-      )}
-    </>
-  );
+/** Every one of a person's public pull requests on GitHub: all, merged or open. */
+function gitHubPulls(login: string, filter: "all" | "merged" | "open"): string {
+  const q = `is:pr author:${login}${filter === "merged" ? " is:merged" : filter === "open" ? " is:open" : ""}`;
+  return `https://github.com/pulls?q=${encodeURIComponent(q)}`;
 }

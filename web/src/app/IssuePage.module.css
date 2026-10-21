@@ -248,6 +248,54 @@
   background: none;
 }
 
+/*
+ * Code colours (highlightCode), from the theme's own tokens so every theme
+ * colours code in its palette: keywords in the accent, strings in the success
+ * green, numbers and literals in info, comments muted.
+ */
+.prose :global(.hljs-keyword),
+.prose :global(.hljs-selector-tag),
+.prose :global(.hljs-built_in),
+.prose :global(.hljs-meta .hljs-keyword) {
+  color: var(--colors-accent);
+}
+
+.prose :global(.hljs-string),
+.prose :global(.hljs-regexp),
+.prose :global(.hljs-addition),
+.prose :global(.hljs-attr) {
+  color: color-mix(in srgb, var(--colors-success) 70%, var(--colors-text));
+}
+
+.prose :global(.hljs-number),
+.prose :global(.hljs-literal),
+.prose :global(.hljs-symbol),
+.prose :global(.hljs-variable),
+.prose :global(.hljs-template-variable) {
+  color: color-mix(in srgb, var(--info) 75%, var(--colors-text));
+}
+
+.prose :global(.hljs-title),
+.prose :global(.hljs-section),
+.prose :global(.hljs-type),
+.prose :global(.hljs-name),
+.prose :global(.hljs-selector-class),
+.prose :global(.hljs-selector-id) {
+  color: var(--link);
+  font-weight: 600;
+}
+
+.prose :global(.hljs-comment),
+.prose :global(.hljs-quote),
+.prose :global(.hljs-meta) {
+  color: var(--colors-text-muted);
+  font-style: italic;
+}
+
+.prose :global(.hljs-deletion) {
+  color: var(--colors-danger);
+}
+
 .prose blockquote {
   padding-left: 1rem;
   border-left: 3px solid var(--colors-accent);
@@ -303,4 +351,22 @@
   .secondary {
     transition: none;
   }
+}
+
+/* Try again, after a description that didn't load: a link-like button in the error's line. */
+.retry {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--colors-text);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.retry:disabled {
+  cursor: progress;
+  opacity: 0.7;
 }

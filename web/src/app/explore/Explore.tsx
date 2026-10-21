@@ -13,6 +13,7 @@ import { Pager } from "./Pager";
 import { DIFFICULTIES, readQuery, toFilters, writeQuery, type CatalogQuery } from "./query";
 import { useCatalog } from "./useCatalog";
 import s from "./Explore.module.css";
+import { rememberExplore } from "./where";
 
 /**
  * Explore, as designed: the heading, the search bar (with clear, the filter
@@ -37,6 +38,9 @@ export function Explore() {
 
   // The search box follows the address (back, forward, the search overlay).
   useEffect(() => setDraft(query.search), [query.search]);
+  // Kept, so links back to Explore return to these filters (where.ts).
+  const search = params.toString();
+  useEffect(() => rememberExplore(search ? `?${search}` : ""), [search]);
 
   // Difficulty not chosen yet: your profile's level, or every level signed out.
   const { user, isPending: sessionPending } = useSession();

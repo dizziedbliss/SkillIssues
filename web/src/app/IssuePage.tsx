@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { platform } from "./platform";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { renderMarkdown } from "@skillissues/markdown";
+import { highlightCode, renderMarkdown } from "@skillissues/markdown";
 import { useI18n } from "../i18n";
 import { api } from "../lib/api";
 import { loadIssueBody } from "../lib/issueBody";
@@ -18,6 +18,7 @@ import { ReportButton } from "./ReportButton";
 import { loadLinkedPulls } from "../lib/linkedPulls";
 import { external } from "../lib/links";
 import s from "./IssuePage.module.css";
+import { exploreURL } from "./explore/where";
 
 /**
  * One issue: what it is, where it lives, and what to do next (open it on
@@ -46,12 +47,20 @@ export function IssuePage() {
   });
   const claim = useClaimState(valid ? id : 0);
   const html = useMemo(() => (body.data && "body" in body.data ? renderMarkdown(body.data.body) : ""), [body.data]);
+  const prose = useRef<HTMLDivElement>(null);
+  // Colours the code blocks once they're on the page. Only cosmetic: a failure
+  // leaves them plain, and is logged rather than shown.
+  useEffect(() => {
+    if (html && prose.current) {
+      highlightCode(prose.current).catch((err: unknown) => console.error("[issue] code highlighting failed:", err));
+    }
+  }, [html]);
 
   const notFound = !valid || (issue.error as { status?: number } | null)?.status === 404;
   if (notFound) {
     return (
       <section className={s.page}>
-        <Link to="/app" className={s.back}>{t("issue.back")}</Link>
+        <Link to={exploreURL()} className={s.back}>{t("issue.back")}</Link>
         <p className={s.note}>{t("issue.notFound")}</p>
       </section>
     );
@@ -59,7 +68,7 @@ export function IssuePage() {
   if (issue.error) {
     return (
       <section className={s.page}>
-        <Link to="/app" className={s.back}>{t("issue.back")}</Link>
+        <Link to={exploreURL()} className={s.back}>{t("issue.back")}</Link>
         <p className={s.error} role="alert">{issue.error.message}</p>
       </section>
     );
@@ -74,19 +83,20 @@ export function IssuePage() {
   const WorkOnIt = platform().WorkOnIt ?? DesktopButton;
   const liveClosed = !!live?.closed;
   const closedAgo = live?.closedAt ? ago(live.closedAt, locale) : "";
+  const closed = it.state === "CLOSED" || liveClosed;
   const number = new Intl.NumberFormat(locale);
   const dates = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric" });
 
   return (
     <article className={s.page} data-ui="issue">
-      <Link to="/app" className={s.back}>{t("issue.back")}</Link>
+      <Link to={exploreURL()} className={s.back}>{t("issue.back")}</Link>
       <p className={s.repo}>
         <a href={it.repository_url} target="_blank" rel="noreferrer">{it.repository}</a>
       </p>
       <h1 className={s.title}>
         {it.title} <span className={s.number}>#{it.number}</span>
       </h1>
-      {(it.state === "CLOSED" || liveClosed) && (
+      {closed && (
         <p className={s.closed} role="status">
           {liveClosed && it.state !== "CLOSED" ? t("issue.closedNow", { ago: closedAgo }) : t("issue.closed")}
         </p>
@@ -106,8 +116,9 @@ export function IssuePage() {
 
       <div className={s.actions}>
         <a href={it.url} target="_blank" rel="noreferrer" className={s.primary} data-ui="button-primary">{t("issue.openGitHub")}</a>
-        <WorkOnIt issue={it} className={s.secondary} />
-        <ClaimButton issueID={it.id} url={it.url} className={s.secondary} />
+        {/* Closed: nothing left to work on, so nothing offers to. */}
+        {!closed && <WorkOnIt issue={it} className={s.secondary} />}
+        {!closed && <ClaimButton issueID={it.id} url={it.url} className={s.secondary} />}
         <SaveButton issue={it} label />
         <span className={s.reportRow}>
           <ReportButton target={{ type: "issue", id: it.id }} label="report.issue" />
@@ -120,7 +131,10 @@ export function IssuePage() {
           {body.isPending && <p className={s.note}>{t("issue.bodyLoading")}</p>}
           {body.error && (
             <p className={s.error} role="alert">
-              {t("issue.bodyFailed", { reason: body.error.message })}
+              {t("issue.bodyFailed", { reason: body.error.message })}{" "}
+              <button type="button" className={s.retry} onClick={() => void body.refetch()} disabled={body.isFetching}>
+                {body.isFetching ? t("issue.bodyRetrying") : t("issue.bodyRetry")}
+              </button>
             </p>
           )}
           {body.data && "queued" in body.data && <p className={s.note}>{t("issue.bodyQueued")}</p>}
@@ -128,7 +142,7 @@ export function IssuePage() {
             <>
               {body.data.from === "cache" && <p className={s.note}>{t("issue.fromCache")}</p>}
               {html ? (
-                <div className={s.prose} dangerouslySetInnerHTML={{ __html: html }} />
+                <div ref={prose} className={s.prose} dangerouslySetInnerHTML={{ __html: html }} />
               ) : (
                 <p className={s.note}>{t("issue.bodyEmpty")}</p>
               )}

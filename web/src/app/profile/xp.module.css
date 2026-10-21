@@ -164,6 +164,7 @@
 }
 
 .pullTitle {
+  overflow-wrap: anywhere;
   text-decoration: underline;
   text-decoration-color: transparent;
   text-underline-offset: 0.2em;

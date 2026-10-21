@@ -3,7 +3,7 @@ import { useI18n } from "../../i18n";
 import { useSession } from "../session";
 import { useSaved } from "../saved";
 import { useMyClaims } from "../claims";
-import { ContribStatus, Graph, PRList, SignInPrompt, StatBoxes } from "./parts";
+import { ContribStatus, Graph, PullRequests, SignInPrompt, StatBoxes } from "./parts";
 import { useContributions, useProfile, useTrackedPulls, useXP } from "./data";
 import { BackfillReveal, Badges, LanguageLevels, LevelCard, Quests, SyncStatus, TrackedPulls } from "./xp";
 import { useMyPath } from "../path/data";
@@ -115,17 +115,13 @@ export function ProfilePage() {
           </div>
           <div className={s.box}>
             <h3 className={s.boxTitle}>{t("profile.prs")}</h3>
-            <PRList items={contributions.data?.recent} empty={t("profile.noPRs")} limit={SHOWN} />
-            {contributions.data && contributions.data.total > SHOWN && (
-              <Link to="/app/contributions" className={s.more}>{t("search.viewMore")}</Link>
-            )}
-          </div>
-          <div className={s.box}>
-            <h3 className={s.boxTitle}>{t("profile.resolved")}</h3>
-            <PRList items={contributions.data?.recentMerged} empty={t("profile.noResolved")} limit={SHOWN} />
-            {contributions.data && contributions.data.total > 0 && (
-              <Link to="/app/contributions" className={s.more}>{t("profile.allContributions")}</Link>
-            )}
+            <PullRequests
+              data={contributions.data}
+              limit={SHOWN}
+              more={(_count, total) =>
+                total > 0 && <Link to="/app/contributions" className={s.more}>{t("profile.allContributions")}</Link>
+              }
+            />
           </div>
           <div className={s.box} data-ui="path">
             <h3 className={s.boxTitle}>{t("path.mine")}</h3>

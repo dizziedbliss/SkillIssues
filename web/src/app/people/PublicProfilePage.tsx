@@ -47,7 +47,7 @@ export function PublicProfilePage() {
           <LevelCard summary={p.summary} own={false} />
           <LanguageLevels summary={p.summary} />
           <h2 className={s.heading}>{t("xp.badges")}</h2>
-          <Badges summary={p.summary} keys={p.badge_keys} />
+          <Badges summary={p.summary} keys={p.badge_keys} earnedOnly />
         </div>
         <section aria-labelledby="merged-title" className={s.box}>
           <h2 id="merged-title" className={s.boxTitle}>{t("public.merged")}</h2>

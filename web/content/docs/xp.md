@@ -91,12 +91,14 @@ Quests are one-off goals. Each pays **50 XP**, once, and only merges since you j
 A learning path is five open issues for one kind of work: frontend, backend, documentation, DevOps, data or mobile. You get three for beginners, then two a step up. They come from different projects, and nobody is assigned to or has claimed any of them. Start one from **Learning path** in your profile menu.
 
 - A step is done when a pull request of yours that closes its issue is merged.
-- **Swap** replaces a step you haven't done with another issue of the same level, for example if someone else got to it first.
-- Finishing all five earns **200 XP**. You can have one path at a time, and **Give up this path** ends it.
+- **Swap** replaces a step you haven't done with another issue of the same level, for example if someone else got to it first. An issue you swap away isn't offered again on that path, so each swap brings a new one, until no other issue fits.
+- Finishing all five earns **200 XP**. You can have one path at a time, and **Give up this path** ends it, after asking. XP your merged pull requests earned stays.
 
 ## Your public profile
 
-Your profile is private unless you turn on **Show my profile to anyone** in Settings. Then anyone can see your level, XP, badges, languages and merged pull requests at `/app/u/<your username>`, and you can be listed on the [leaderboard](/leaderboard) once it opens. Turn it off and the page goes, at once.
+Your profile is private unless you turn on **Show my profile to anyone** in Settings. Then anyone can see your level, XP, the badges you've earned (not the ones you haven't), languages and merged pull requests at `/app/u/<your username>`, and you can be listed on the [leaderboard](/leaderboard) once it opens. Turn it off and the page goes, at once.
+
+To find someone's profile, type their GitHub username in Search. It shows first, under **People**, if they've made it public.
 
 ## The numbers can change
 

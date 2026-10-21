@@ -50,7 +50,18 @@ const ALLOWED_TAGS = [
 const ALLOWED_ATTR = [
   "href", "src", "alt", "title", "width", "height", "align",
   "target", "rel", "colspan", "rowspan", "srcset", "media",
+  "class", // only a code block's language: see the hook below
 ];
+
+// A fenced block's language reaches the page as <code class="language-go">,
+// for highlightCode. Any other class, on any other element, is dropped: an
+// issue body must not borrow the app's own class names.
+const LANGUAGE_CLASS = /^language-[A-Za-z0-9_+#-]{1,30}$/;
+DOMPurify.addHook("uponSanitizeAttribute", (node, data) => {
+  if (data.attrName === "class" && !(node.nodeName === "CODE" && LANGUAGE_CLASS.test(data.attrValue))) {
+    data.keepAttr = false;
+  }
+});
 
 /**
  * Renders untrusted GitHub-flavoured Markdown to sanitised HTML safe for
@@ -65,4 +76,23 @@ export function renderMarkdown(source: string | null | undefined): string {
     ALLOWED_ATTR,
     ADD_ATTR: ["target", "rel"],
   });
+}
+
+/**
+ * Colours the code blocks inside an element already rendered by
+ * renderMarkdown. highlight.js reads each block's text (never its HTML) and
+ * writes back escaped spans, so it adds nothing the body could control. It's
+ * loaded only when there is a block to colour, as its own chunk.
+ */
+export async function highlightCode(root: HTMLElement): Promise<void> {
+  const blocks = root.querySelectorAll<HTMLElement>("pre > code");
+  if (blocks.length === 0) return;
+  const { default: hljs } = await import("./highlight");
+  for (const block of blocks) {
+    if (block.dataset.highlighted) continue;
+    const lang = /(?:^|\s)language-([A-Za-z0-9_+#-]+)/.exec(block.className)?.[1]?.toLowerCase();
+    if (lang && !hljs.getLanguage(lang)) continue; // a language we don't colour stays plain
+    if (!lang && (block.textContent?.length ?? 0) > 20_000) continue; // guessing is slow on huge logs
+    hljs.highlightElement(block);
+  }
 }
