@@ -130,7 +130,7 @@ A few rules for cursors:
   "labels": ["good first issue", "bug"],
   "tech": ["Go", "Shell"],
   "assignees": 0,
-  "contributing_url": "https://github.com/octo/tool/blob/main/CONTRIBUTING.md",
+  "contributing_url": "https://github.com/owner/repo/blob/main/CONTRIBUTING.md",
   "comments": 3,
   "author": "octocat",
   "repository": "owner/repo",
