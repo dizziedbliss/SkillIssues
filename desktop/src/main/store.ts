@@ -24,6 +24,8 @@ export interface Secrets {
 interface State {
   workspaceRoot: string | null;
   workspaces: Record<string, Workspace>;
+  /** The app version that last ran: a newer one means "just updated". */
+  lastVersion?: string;
 }
 
 const empty: Secrets = { session: null, push: null, pushLogin: null };
@@ -52,7 +54,7 @@ function writeAtomic(target: string, text: string) {
 export function loadStore(): void {
   try {
     const raw = JSON.parse(fs.readFileSync(file("state.json"), "utf8")) as Partial<State>;
-    state = { workspaceRoot: raw.workspaceRoot ?? null, workspaces: raw.workspaces ?? {} };
+    state = { workspaceRoot: raw.workspaceRoot ?? null, workspaces: raw.workspaces ?? {}, lastVersion: raw.lastVersion };
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("[store] state.json unreadable, starting fresh:", err);
   }
@@ -119,5 +121,14 @@ export function listWorkspaces(): Workspace[] {
 
 export function forgetWorkspace(issueId: number): void {
   delete state.workspaces[String(issueId)];
+  saveState();
+}
+
+export function lastVersion(): string | undefined {
+  return state.lastVersion;
+}
+
+export function setLastVersion(version: string): void {
+  state.lastVersion = version;
   saveState();
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -13,10 +13,11 @@ const UPDATE_POLL_MS = 5_000;
 /**
  * The window's title bar, drawn by the page like Discord's: slim, in the
  * theme's colours, back and forward on the left, the page in the middle, and
- * the update button on the right. The window's own buttons sit over its right
+ * the update on the right: "Update available" to look and choose, then the
+ * download's progress, then "Restart to update" (UpdateDialog). The window's own buttons sit over its right
  * end (Windows, Linux) or inset at its left (macOS); the bar leaves them room.
  */
-export function TitleBar() {
+export function TitleBar({ onUpdate }: { onUpdate: () => void }) {
   const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
@@ -28,8 +29,6 @@ export function TitleBar() {
     refetchInterval: (q) => (q.state.data?.status === "ready" || q.state.data?.status === "unsupported" ? 60_000 : UPDATE_POLL_MS),
   });
   const host = useAppRoot();
-  const [installing, setInstalling] = useState(false);
-  const [installError, setInstallError] = useState<string | null>(null);
 
   // The window buttons follow the theme's text colour.
   const sent = useRef("");
@@ -56,18 +55,6 @@ export function TitleBar() {
   const u = update.data;
   const mac = info.data?.platform === "darwin";
 
-  async function install() {
-    setInstalling(true);
-    setInstallError(null);
-    try {
-      await call(desktop.installUpdate());
-    } catch (e) {
-      setInstallError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setInstalling(false);
-    }
-  }
-
   if (!host) return null;
   return createPortal(
     <div ref={bar} className={`${s.bar} ${mac ? s.mac : ""}`} data-ui="title-bar">
@@ -83,20 +70,24 @@ export function TitleBar() {
       </div>
       <div className={s.title}>{page || "SkillIssues"}</div>
       <div className={s.right}>
-        {u?.status === "downloading" && (
-          <span className={s.progress} title={t("titlebar.downloading", { version: u.version ?? "" })}>
+        {u?.status === "available" && (
+          <button type="button" className={`${s.pill} ${s.update}`} onClick={onUpdate} title={t("titlebar.available", { version: u.version ?? "" })}>
             <Download />
-            {typeof u.percent === "number" && <span>{u.percent}%</span>}
-          </span>
-        )}
-        {u?.status === "ready" && (
-          <button type="button" className={`${s.icon} ${s.update}`} onClick={() => void install()} disabled={installing}
-            aria-label={u.manual ? t("titlebar.updateManual", { version: u.version ?? "" }) : t("titlebar.update", { version: u.version ?? "" })}
-            title={u.manual ? t("titlebar.updateManual", { version: u.version ?? "" }) : t("titlebar.update", { version: u.version ?? "" })}>
-            <Download />
+            <span>{t("titlebar.availableShort")}</span>
           </button>
         )}
-        {installError && <span className={s.error} role="alert" title={installError}>!</span>}
+        {u?.status === "downloading" && (
+          <button type="button" className={s.progress} onClick={onUpdate} title={t("titlebar.downloading", { version: u.version ?? "" })}>
+            <Download />
+            {typeof u.percent === "number" && <span>{u.percent}%</span>}
+          </button>
+        )}
+        {u?.status === "ready" && (
+          <button type="button" className={`${s.pill} ${s.update}`} onClick={onUpdate} title={t("titlebar.update", { version: u.version ?? "" })}>
+            <Download />
+            <span>{t("titlebar.restartShort")}</span>
+          </button>
+        )}
       </div>
     </div>,
     host,

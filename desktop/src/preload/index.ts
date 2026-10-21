@@ -39,7 +39,10 @@ const bridge: DesktopBridge = {
   titleBar: (colors) => invoke(channels.titleBar, colors),
   updateState: () => invoke(channels.updateState),
   checkUpdates: () => invoke(channels.checkUpdates),
+  downloadUpdate: () => invoke(channels.downloadUpdate),
   installUpdate: () => invoke(channels.installUpdate),
+  releaseNotes: (version) => invoke(channels.releaseNotes, version),
+  whatsNew: () => invoke(channels.whatsNew),
 };
 
 contextBridge.exposeInMainWorld("skillissues", bridge);
