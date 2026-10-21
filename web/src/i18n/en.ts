@@ -377,6 +377,7 @@ export const en = {
   "saved.explore": "Explore issues",
   "issue.closedChip": "Closed",
   "issue.assigned": "Assigned",
+  "issue.contributing": "Read the contributing guide first",
   "issue.assignedHelp": "Someone is assigned on GitHub: ask on the issue before you start.",
 
   // ---- the app: is this a good first issue? ----

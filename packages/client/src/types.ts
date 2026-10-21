@@ -27,6 +27,8 @@ export interface Issue {
   tech: string[];
   /** People assigned on GitHub; null when not read yet. */
   assignees: number | null;
+  /** The repository's contributing guide on GitHub; null when it has none or it isn't read yet. */
+  contributing_url: string | null;
   comments: number;
   author: string;
   repository: string;

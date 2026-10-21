@@ -336,9 +336,10 @@ func MarkIssuesClosedTx(ctx context.Context, tx pgx.Tx, repoID int, closed []git
 func UpdateRepositoryStatsTx(ctx context.Context, tx pgx.Tx, repoID int, st github.RepositoryStats) error {
 	_, err := tx.Exec(ctx,
 		`UPDATE repositories SET stars = $2, forks = $3, watchers = $4, open_issue_count = $5,
-		    is_archived = $6, pushed_at = coalesce($7, pushed_at), metadata_refreshed_at = now()
+		    is_archived = $6, pushed_at = coalesce($7, pushed_at), contributing_url = $8,
+		    metadata_refreshed_at = now()
 		 WHERE id = $1`,
-		repoID, st.Stars, st.Forks, st.Watchers, st.OpenIssueCount, st.IsArchived, st.PushedAt,
+		repoID, st.Stars, st.Forks, st.Watchers, st.OpenIssueCount, st.IsArchived, st.PushedAt, st.ContributingURL,
 	)
 	if err != nil {
 		return fmt.Errorf("ingest: update repository stats: %w", err)
