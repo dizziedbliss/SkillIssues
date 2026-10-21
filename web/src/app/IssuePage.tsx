@@ -66,6 +66,7 @@ export function IssuePage() {
   // GitHub's answer for the description is newer than the catalog: an issue
   // closed since the last crawl says so here at once.
   const live = body.data && "live" in body.data ? body.data.live : null;
+  const contributing = gitHubPage(it.contributing_url);
   const liveClosed = !!live?.closed;
   const closedAgo = live?.closedAt ? ago(live.closedAt, locale) : "";
   const number = new Intl.NumberFormat(locale);
@@ -148,6 +149,11 @@ export function IssuePage() {
             {it.created_at && <li>{t("issue.opened", { date: dates.format(new Date(it.created_at)) })}</li>}
           </ul>
           <ul className={s.more}>
+            {contributing && (
+              <li>
+                <a href={contributing} target="_blank" rel="noreferrer" className={s.contributing}>{t("issue.contributing")}</a>
+              </li>
+            )}
             <li>
               <Link to={scopeURL({ repo: it.repository })}>{t("issue.moreRepo", { repo: it.repository })}</Link>
             </li>
@@ -177,4 +183,15 @@ export function IssuePage() {
       </p>
     </article>
   );
+}
+
+/** u when it is an https page on github.com (the server checks too), else null. */
+function gitHubPage(u: string | null): string | null {
+  if (!u) return null;
+  try {
+    const p = new URL(u);
+    return p.protocol === "https:" && p.hostname === "github.com" && !p.username ? u : null;
+  } catch {
+    return null; // not a URL: no link
+  }
 }
