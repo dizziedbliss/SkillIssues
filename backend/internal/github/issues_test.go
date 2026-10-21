@@ -112,3 +112,22 @@ func TestFetchIssueStatesFailsOnOtherErrors(t *testing.T) {
 		t.Fatal("want error for a non-NOT_FOUND GraphQL error")
 	}
 }
+
+// Only an https page on github.com is kept as a contributing guide: it becomes
+// a link the apps open.
+func TestIsGitHubPage(t *testing.T) {
+	for u, want := range map[string]bool{
+		"https://github.com/o/n/blob/main/CONTRIBUTING.md":       true,
+		"https://github.com/o/.github/blob/main/CONTRIBUTING.md": true,
+		"http://github.com/o/n/blob/main/CONTRIBUTING.md":        false,
+		"https://gist.github.com/x":                              false,
+		"https://github.com.evil.example/o/n":                    false,
+		"https://user@github.com/o/n":                            false,
+		"javascript:alert(1)":                                    false,
+		"":                                                       false,
+	} {
+		if got := isGitHubPage(u); got != want {
+			t.Errorf("isGitHubPage(%q) = %v, want %v", u, got, want)
+		}
+	}
+}

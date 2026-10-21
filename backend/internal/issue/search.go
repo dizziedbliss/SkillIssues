@@ -23,23 +23,26 @@ type Issue struct {
 	CreatedAt string `json:"created_at"`
 	// DifficultyScore is nil for UNCLASSIFIED issues (D6) — never defaulted
 	// to a number that would imply BEGINNER or any other difficulty.
-	DifficultyScore       *int     `json:"difficulty_score"`
-	Difficulty            string   `json:"difficulty"`
-	RequiredSkills        []string `json:"required_skills"`
-	Technologies          []string `json:"technologies"`
-	LearningTags          []string `json:"learning_tags"`
-	Labels                []string `json:"labels"`    // the issue's GitHub labels, as GitHub has them
-	Tech                  []string `json:"tech"`      // the repository's three largest languages, by GitHub's names
-	Assignees             *int     `json:"assignees"` // people assigned on GitHub; null when not read yet
-	Comments              int      `json:"comments"`
-	Author                string   `json:"author"`
-	Repository            string   `json:"repository"`
-	RepositoryID          int      `json:"repository_id"`
-	RepositoryURL         string   `json:"repository_url"`
-	RepositoryDescription string   `json:"repository_description"`
-	Language              string   `json:"language"`
-	Stars                 int      `json:"stars"`
-	License               string   `json:"license"`
+	DifficultyScore *int     `json:"difficulty_score"`
+	Difficulty      string   `json:"difficulty"`
+	RequiredSkills  []string `json:"required_skills"`
+	Technologies    []string `json:"technologies"`
+	LearningTags    []string `json:"learning_tags"`
+	Labels          []string `json:"labels"`    // the issue's GitHub labels, as GitHub has them
+	Tech            []string `json:"tech"`      // the repository's three largest languages, by GitHub's names
+	Assignees       *int     `json:"assignees"` // people assigned on GitHub; null when not read yet
+	// ContributingURL is the repository's contributing guide on GitHub; null
+	// when it has none or the crawl hasn't read it yet.
+	ContributingURL       *string `json:"contributing_url"`
+	Comments              int     `json:"comments"`
+	Author                string  `json:"author"`
+	Repository            string  `json:"repository"`
+	RepositoryID          int     `json:"repository_id"`
+	RepositoryURL         string  `json:"repository_url"`
+	RepositoryDescription string  `json:"repository_description"`
+	Language              string  `json:"language"`
+	Stars                 int     `json:"stars"`
+	License               string  `json:"license"`
 
 	// Enriched fields added by recommendation scoring or search ranking
 	RecommendationScore int      `json:"recommendation_score,omitempty"`
@@ -171,7 +174,8 @@ const baseIssueSelect = `
 	       i.comments, COALESCE(i.author, split_part(r.full_name, '/', 1)),
 	       r.full_name, r.url, COALESCE(r.description, ''),
 	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, ''),
-	       i.updated_at, COALESCE(i.created_at::text, ''), i.created_at, i.repository_id, i.assignees
+	       i.updated_at, COALESCE(i.created_at::text, ''), i.created_at, i.repository_id, i.assignees,
+	       r.contributing_url
 	FROM issues i
 	JOIN repositories r ON r.id = i.repository_id
 `
@@ -189,6 +193,7 @@ func scanIssue(rows pgx.Rows) (Issue, error) {
 		&it.Repository, &it.RepositoryURL, &it.RepositoryDescription,
 		&it.Language, &it.Stars, &it.License,
 		&it.updated, &it.CreatedAt, &created, &it.RepositoryID, &it.Assignees,
+		&it.ContributingURL,
 	)
 	if created != nil {
 		it.created = *created
@@ -298,7 +303,8 @@ const savedIssueSelect = `
 	       ` + repoTechSelect + `,
 	       i.comments, COALESCE(i.author, split_part(r.full_name, '/', 1)),
 	       r.full_name, r.url, COALESCE(r.description, ''),
-	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, ''), i.repository_id, i.assignees
+	       COALESCE(r.language, ''), r.stars, COALESCE(r.license, ''), i.repository_id, i.assignees,
+	       r.contributing_url
 	FROM issues i
 	JOIN repositories r ON r.id = i.repository_id
 `
@@ -314,6 +320,7 @@ func scanSavedIssue(rows pgx.Rows) (Issue, error) {
 		&it.Comments, &it.Author,
 		&it.Repository, &it.RepositoryURL, &it.RepositoryDescription,
 		&it.Language, &it.Stars, &it.License, &it.RepositoryID, &it.Assignees,
+		&it.ContributingURL,
 	)
 	return it, err
 }

@@ -39,7 +39,7 @@ type Opts = { signal?: AbortSignal };
  * then (by the edge, or the API's own cache) has neither, which means none.
  */
 function withLists(i: Issue): Issue {
-  return { ...i, labels: i.labels ?? [], tech: i.tech ?? [], assignees: i.assignees ?? null };
+  return { ...i, labels: i.labels ?? [], tech: i.tech ?? [], assignees: i.assignees ?? null, contributing_url: i.contributing_url ?? null };
 }
 
 /** One typed method per API endpoint. */
