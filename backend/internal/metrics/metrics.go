@@ -71,6 +71,11 @@ var (
 		Help: "Failed re-reads of which reported targets are hidden. Until one succeeds, the last read stands.",
 	})
 
+	WebhookErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "webhook_errors_total",
+		Help: "GitHub webhook deliveries that were verified but not applied, by stage (parse, timestamp, write). A failed write answers 500 and forgets the delivery, so GitHub's redelivery can apply it.",
+	}, []string{"stage"})
+
 	CacheSkipped = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "cache_skipped_total",
 		Help: "Redis calls not attempted because Redis failed recently, by operation. The API fails open on each without waiting; one call per api.cache.redis_retry_seconds probes for recovery.",
@@ -79,7 +84,7 @@ var (
 
 // RegisterAPI registers the families go-api produces.
 func RegisterAPI() {
-	Registry.MustRegister(HTTPRequests, HTTPDuration, HTTPResponseBytes, BudgetErrors, CacheErrors, CacheSkipped, ReportsHiddenRefreshErrors)
+	Registry.MustRegister(HTTPRequests, HTTPDuration, HTTPResponseBytes, BudgetErrors, CacheErrors, CacheSkipped, ReportsHiddenRefreshErrors, WebhookErrors)
 }
 
 // ---------------------------------------------------------------------------

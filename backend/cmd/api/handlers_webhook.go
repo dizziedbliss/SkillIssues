@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/dizziedbliss/skillissues/internal/auth"
 	"github.com/dizziedbliss/skillissues/internal/db"
+	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -75,16 +77,27 @@ func (h *handlers) webhookGitHub(w http.ResponseWriter, r *http.Request) {
 				FullName string `json:"full_name"`
 			} `json:"repository"`
 		}
+		// A payload GitHub signed but we can't read won't read better on
+		// redelivery: it is counted and accepted.
 		if err := json.Unmarshal(body, &payload); err != nil {
+			metrics.WebhookErrors.WithLabelValues("parse").Inc()
 			slog.Warn("webhook: failed to parse issues event", "delivery_id", delivery, "error", err)
 		} else if payload.Action == "closed" || payload.Action == "reopened" {
 			updatedAt, err := time.Parse(time.RFC3339, payload.Issue.UpdatedAt)
 			if err != nil {
+				metrics.WebhookErrors.WithLabelValues("timestamp").Inc()
 				slog.Warn("webhook: failed to parse issue updated_at", "delivery_id", delivery, "error", err)
 			} else {
 				state := strings.ToUpper(payload.Issue.State)
 				if err := h.issueSvc.SetStateByRepoAndNumber(r.Context(), payload.Repository.FullName, payload.Issue.Number, state, updatedAt); err != nil {
-					slog.Warn("webhook: failed to persist issue state", "delivery_id", delivery, "repository", payload.Repository.FullName, "number", payload.Issue.Number, "error", err)
+					metrics.WebhookErrors.WithLabelValues("write").Inc()
+					slog.Error("webhook: failed to persist issue state", "delivery_id", delivery, "repository", payload.Repository.FullName, "number", payload.Issue.Number, "error", err)
+					// Forget the delivery so a redelivery isn't skipped as seen.
+					if derr := h.db.Exec(context.WithoutCancel(r.Context()), `DELETE FROM webhook_events WHERE delivery_id = $1`, delivery); derr != nil {
+						slog.Error("webhook: failed to forget the unapplied delivery; a redelivery will be skipped", "delivery_id", delivery, "error", derr)
+					}
+					middleware.RespondError(w, http.StatusInternalServerError, "failed to apply the event")
+					return
 				}
 			}
 		}
