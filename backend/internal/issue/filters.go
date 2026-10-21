@@ -120,7 +120,10 @@ func (f Filters) onlyLanguages() bool {
 func (f Filters) issueConds(arg func(any) string) string {
 	var b strings.Builder
 	if len(f.Difficulties) > 0 {
-		b.WriteString(" AND i.difficulty = ANY(" + arg(f.Difficulties) + "::text[])")
+		// The score alone: stating the difficulty too made the planner
+		// multiply two estimates for one fact (BEGINNER: 994 rows expected,
+		// 188,970 there), and read every match through the wrong index (25s
+		// for BEGINNER in Go, 2.9s stated once).
 		b.WriteString(difficultyScoreCond(f.Difficulties, arg))
 	}
 	if len(f.Labels) > 0 {
@@ -145,11 +148,13 @@ func (f Filters) issueConds(arg func(any) string) string {
 // UNCLASSIFIED has none (NULL). TestDifficultyScoresMatchClassifier pins it.
 var difficultyScores = map[string]int{"BEGINNER": 2, "INTERMEDIATE": 5, "ADVANCED": 8}
 
-// difficultyScoreCond restates a difficulty filter on difficulty_score, which
+// difficultyScoreCond is a difficulty filter stated on difficulty_score, which
 // leads the catalog's order indexes: every index range then starts at the
 // wanted difficulties instead of reading past the others, the per-repository
-// lookups of the shuffled feed above all. The difficulty condition stays, so
-// this only narrows how rows are found, never which.
+// lookups of the shuffled feed above all. It is the whole filter: each
+// difficulty has exactly one score and UNCLASSIFIED none (production, open
+// issues: BEGINNER 2, INTERMEDIATE 5, ADVANCED 8, UNCLASSIFIED NULL, no other
+// pair), which TestDifficultyScoresMatchClassifier pins on the classifier.
 func difficultyScoreCond(difficulties []string, arg func(any) string) string {
 	var scores []int
 	unclassified := false
