@@ -1,0 +1,86 @@
+/* The logo and the live count in one slot: they cross-fade, the count centred where the logo was. */
+
+.slot {
+  display: inline-grid;
+  align-items: center;
+}
+
+.logo,
+.live {
+  grid-area: 1 / 1;
+  transition: opacity var(--slow, 0.5s) var(--ease, ease), transform var(--slow, 0.5s) var(--ease, ease);
+}
+
+.logo {
+  justify-self: start;
+}
+
+.live {
+  justify-self: center;
+  display: grid;
+  gap: 0.2rem;
+  opacity: 0;
+  transform: translateY(0.25rem);
+  pointer-events: none;
+}
+
+.slot[data-live="on"] .logo {
+  opacity: 0;
+  transform: translateY(-0.25rem);
+}
+
+.slot[data-live="on"] .live {
+  opacity: 1;
+  transform: none;
+}
+
+.counts {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--mono, "JetBrains Mono", monospace);
+  font-size: 0.9rem;
+  line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.closedCount {
+  color: var(--closed, var(--colors-success, #1a7f37));
+}
+
+.openCount {
+  color: var(--signal, #ff0000);
+}
+
+.track {
+  position: relative;
+  width: 4.5rem;
+  height: 0.55rem;
+  background: var(--signal, #ff0000);
+}
+
+.closed {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--closed, var(--colors-success, #1a7f37));
+  transition: width 9.5s linear;
+}
+
+.captions {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--quiet, var(--colors-text-muted, #666));
+  font-family: var(--mono, "JetBrains Mono", monospace);
+  font-size: 0.625rem;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo,
+  .live,
+  .closed {
+    transition: none;
+  }
+}
