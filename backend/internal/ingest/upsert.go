@@ -67,7 +67,7 @@ func writeIssueTx(ctx context.Context, tx pgx.Tx, repoID int, issue github.Graph
 	args := []any{
 		issue.DatabaseID, repoID, issue.Number, SanitizeText(issue.Title), issue.URL, issue.State,
 		difficultyScore, difficulty, skills, tech, tags,
-		labels, issue.CommentsCount, createdAt, updatedAt, author,
+		labels, issue.CommentsCount, createdAt, updatedAt, author, issue.Assignees,
 	}
 
 	if mode == updateIfNewer {
@@ -77,7 +77,8 @@ func writeIssueTx(ctx context.Context, tx pgx.Tx, repoID int, issue github.Graph
 			`UPDATE issues SET
 				github_id = $1, title = $4, url = $5, state = $6,
 				difficulty_score = $7, difficulty = $8, required_skills = $9, technologies = $10, learning_tags = $11,
-				labels = $12, comments = $13, updated_at = $14, last_synced_at = now(), author = $15
+				labels = $12, comments = $13, updated_at = $14, last_synced_at = now(), author = $15,
+				assignees = COALESCE($16, assignees)
 			 WHERE repository_id = $2 AND number = $3 AND updated_at < $14`,
 			append(append([]any{}, args[:13]...), args[14:]...)...)
 		return tag.RowsAffected() > 0, err
@@ -91,9 +92,9 @@ func writeIssueTx(ctx context.Context, tx pgx.Tx, repoID int, issue github.Graph
 		`INSERT INTO issues (
 			github_id, repository_id, number, title, url, state,
 			difficulty_score, difficulty, required_skills, technologies, learning_tags,
-			labels, comments, created_at, updated_at, author
+			labels, comments, created_at, updated_at, author, assignees
 		 )
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
 		 ON CONFLICT (repository_id, number) DO UPDATE SET
 			github_id                    = EXCLUDED.github_id,
 			title                        = EXCLUDED.title,
@@ -108,7 +109,9 @@ func writeIssueTx(ctx context.Context, tx pgx.Tx, repoID int, issue github.Graph
 			comments                     = EXCLUDED.comments,
 			updated_at                   = EXCLUDED.updated_at,
 			last_synced_at               = now(),
-			author                       = EXCLUDED.author`+newer,
+			author                       = EXCLUDED.author,
+			-- A source that didn't say keeps what was known.
+			assignees                    = COALESCE(EXCLUDED.assignees, issues.assignees)`+newer,
 		args...)
 	return tag.RowsAffected() > 0, err
 }

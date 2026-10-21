@@ -288,6 +288,9 @@ type archiveIssuePayload struct {
 		Labels []struct {
 			Name string `json:"name"`
 		} `json:"labels"`
+		// Assignees is the issue's assignees; absent (nil) in events that
+		// don't carry them.
+		Assignees *[]json.RawMessage `json:"assignees"`
 		// Body is null for an issue opened without one.
 		Body *string `json:"body"`
 		// Present only when the "issue" is a pull request, which GitHub's
@@ -369,6 +372,10 @@ func readArchiveHour(r io.Reader) (map[archiveIssueKey]archiveIssue, int, error)
 		}
 		for _, l := range it.Labels {
 			node.Labels = append(node.Labels, l.Name)
+		}
+		if it.Assignees != nil {
+			n := len(*it.Assignees)
+			node.Assignees = &n
 		}
 		ai := archiveIssue{repoID: ev.Repo.ID, repoName: ev.Repo.Name, node: node}
 		if it.Body != nil {

@@ -4,7 +4,7 @@ slug: /docs/public-api
 section: Guides
 summary: The read-only endpoints anyone can call: issues, facets, stats, repository lookup and public themes.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 SkillIssues has a public, read-only HTTP API. It is the same API the website uses. You don't need a key or an account for the endpoints on this page.
@@ -67,6 +67,7 @@ curl "$API/issues?cursor=&difficulty=beginner&language=Go&limit=10"
 | `topics` | The repository's GitHub topics. |
 | `labels` | The issue's labels, not case sensitive. |
 | `repo` | A repository as `owner/name`, not case sensitive. |
+| `unassigned` | `true` leaves out issues someone is assigned to on GitHub. An issue the catalog hasn't re-read since it started recording assignees counts as unassigned. |
 | `owner` | Everything from one user or organisation (the part of `owner/name` before the slash), not case sensitive. The shuffled feed still shows one issue per repository; sort by `easiest` or `newest` to see them all. |
 | `comments_min` | The fewest comments, inclusive. A whole number, 0 or more. |
 | `comments_max` | The most comments, inclusive. `0` means no comments yet. |
@@ -128,9 +129,11 @@ A few rules for cursors:
   "learning_tags": ["good first issue", "bug"],
   "labels": ["good first issue", "bug"],
   "tech": ["Go", "Shell"],
+  "assignees": 0,
   "comments": 3,
   "author": "octocat",
   "repository": "owner/repo",
+  "repository_id": 4321,
   "repository_url": "https://github.com/owner/repo",
   "repository_description": "A small tool.",
   "language": "Go",
@@ -148,6 +151,8 @@ A few rules for cursors:
 | `updated_at` | GitHub's own last-updated time, not when we fetched it. |
 | `created_at` | When the issue was opened on GitHub. Empty when unknown. |
 | `labels` | The issue's labels exactly as GitHub has them. |
+| `repository_id` | SkillIssues' own id for the repository, as a report names it. |
+| `assignees` | How many people are assigned on GitHub, or `null` if the catalog hasn't read it yet. |
 | `tech` | The repository's three largest languages, largest first, by GitHub's names. Empty when unknown. The `tech` filter takes the same names in any case. |
 | `match_category` | Search results only: `Repository`, `Title` or `Language`. |
 
@@ -271,6 +276,26 @@ curl "$API/themes/00000000-0000-4000-8000-000000000000"
 
 The response isn't cached, because the author can change the theme at any time. Treat `toml` and `css` as untrusted input and validate them before you use them. See [Themes](/docs/themes) for the rules. A theme id that isn't a valid UUID, or doesn't exist, is a `404`.
 
+## GET /api/themes/public
+
+The community listing: public themes, one page at a time. No sign-in needed.
+
+| Parameter | Meaning |
+|---|---|
+| `sort` | `popular` (the default: most used first) or `newest`. |
+| `search` | Only themes whose name contains this. |
+| `page` | A page number, starting at 1. |
+
+```json
+{ "themes": [{ "id": "…", "name": "Midnight Red", "toml": "…", "css": "", "public": true, "author": "octocat", "mine": false, "created_at": "…", "updated_at": "…", "uses": 12 }], "page": 1, "more": true }
+```
+
+`uses` is how many accounts have the theme applied. `more` says there may be another page. Themes several people have reported are left out until they're reviewed.
+
+## POST /api/themes/validate
+
+Checks a theme as saving would, without storing it. No sign-in needed. See [Themes](/docs/themes).
+
 ## Not covered here
 
-Everything that needs an account (saved issues, your profile, your themes, recommendations) is outside this page. Those routes are for the SkillIssues apps. Routes under `/api/admin` and `/api/metrics` aren't reachable from the internet.
+Everything that needs an account (saved issues, your profile, your themes, recommendations, reporting) is outside this page. Those routes are for the SkillIssues apps. Routes under `/api/admin` and `/api/metrics` aren't reachable from the internet.

@@ -13,6 +13,11 @@ import { api } from "./api";
 export interface Live {
   closed: boolean;
   closedAt: string | null;
+  /** People GitHub shows as assigned. */
+  assignees: number;
+  labels: string[];
+  comments: number;
+  updatedAt: string;
 }
 
 export type BodyResult = { body: string; from: "github"; live: Live } | { body: string; from: "cache" } | { queued: string };
@@ -24,8 +29,27 @@ export async function loadIssueBody(issue: Issue, signal?: AbortSignal): Promise
     { headers: { Accept: "application/vnd.github+json" }, signal, credentials: "omit" },
   );
   if (res.ok) {
-    const data = (await res.json()) as { body?: string | null; state?: string; closed_at?: string | null };
-    return { body: data.body ?? "", from: "github", live: { closed: data.state === "closed", closedAt: data.closed_at ?? null } };
+    const data = (await res.json()) as {
+      body?: string | null;
+      state?: string;
+      closed_at?: string | null;
+      assignees?: unknown[];
+      labels?: ({ name?: string } | string)[];
+      comments?: number;
+      updated_at?: string;
+    };
+    return {
+      body: data.body ?? "",
+      from: "github",
+      live: {
+        closed: data.state === "closed",
+        closedAt: data.closed_at ?? null,
+        assignees: data.assignees?.length ?? 0,
+        labels: (data.labels ?? []).map((l) => (typeof l === "string" ? l : (l.name ?? ""))).filter(Boolean),
+        comments: data.comments ?? issue.comments,
+        updatedAt: data.updated_at ?? issue.updated_at,
+      },
+    };
   }
   // 403 or 429 with no requests left is GitHub's rate limit: fall back to
   // our cache. Anything else (gone, moved, GitHub down) is the answer.

@@ -523,6 +523,13 @@ func parseIssueFilters(q url.Values, cfg *settings.Snapshot) (issue.Filters, err
 	if f.CommentsMin != nil && f.CommentsMax != nil && *f.CommentsMin > *f.CommentsMax {
 		return f, fmt.Errorf("comments_min is more than comments_max")
 	}
+	switch q.Get("unassigned") {
+	case "", "false":
+	case "true":
+		f.Unassigned = true
+	default:
+		return f, fmt.Errorf("unassigned must be true or false")
+	}
 	if f.Sort, err = issue.ParseSort(q.Get("sort")); err != nil {
 		return f, err
 	}
@@ -555,7 +562,7 @@ func issueCacheKey(f issue.Filters, cursorMode bool, cursor string) string {
 		"sort=" + string(f.Sort), "q=" + f.Search, "cat=" + f.Category,
 		"d=" + list(f.Difficulties), "lang=" + list(f.Languages), "labels=" + list(f.Labels),
 		"topics=" + list(f.Topics), "tech=" + list(f.Tech),
-		"repo=" + list(f.Repos), "owner=" + list(f.Owners),
+		"repo=" + list(f.Repos), "owner=" + list(f.Owners), "unassigned=" + strconv.FormatBool(f.Unassigned),
 		"cmin=" + bound(f.CommentsMin), "cmax=" + bound(f.CommentsMax),
 		"limit=" + strconv.Itoa(f.Limit), "page=" + strconv.Itoa(f.Page),
 		"cursor_mode=" + strconv.FormatBool(cursorMode), "cursor=" + cursor,

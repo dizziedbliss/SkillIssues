@@ -95,6 +95,9 @@ func (f Filters) hasFilters() bool {
 	return len(f.Difficulties) > 0 || len(f.Languages) > 0 || len(f.Labels) > 0 ||
 		len(f.Topics) > 0 || len(f.Tech) > 0 || len(f.Repos) > 0 || len(f.Owners) > 0 ||
 		f.CommentsMin != nil || f.CommentsMax != nil
+	// Unassigned is left out on purpose: nearly every issue passes it, so it
+	// never makes a page rare, and counting for it would cost every default
+	// page a probe. It is applied while walking the order indexes.
 }
 
 // onlyLanguages reports whether the languages filter is the only filter, the
@@ -123,6 +126,10 @@ func (f Filters) issueConds(arg func(any) string) string {
 	}
 	if f.CommentsMax != nil {
 		b.WriteString(" AND i.comments <= " + arg(*f.CommentsMax))
+	}
+	if f.Unassigned {
+		// NULL (not read yet) counts as unassigned: unknown is not a negative.
+		b.WriteString(" AND COALESCE(i.assignees, 0) = 0")
 	}
 	return b.String()
 }

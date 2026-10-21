@@ -114,3 +114,58 @@ func TestBrowseIssuesRepoAndOwnerFilters(t *testing.T) {
 		}
 	}
 }
+
+// Hidden issues and repositories leave the lists, and the cursor still
+// walks past a page that loses every issue to hiding.
+func TestBrowseLeavesHiddenOut(t *testing.T) {
+	pool := testPool(t)
+	repoID, lang := seedBrowseRepo(t, pool, "hidden")
+	seedBrowseIssues(t, pool, repoID, 6)
+	svc := New(pool, nil)
+	all := walkCatalog(t, svc, Filters{Languages: []string{lang}, Sort: SortEasiest, Limit: 2, RareLanguageBelow: 1000}, nil, nil)
+	if len(all) != 6 {
+		t.Fatalf("walked %d issues, want 6", len(all))
+	}
+
+	// The first page's two issues are hidden: the walk carries on to the rest.
+	svc.SetHidden(func() Hidden { return Hidden{Issues: map[int]bool{all[0]: true, all[1]: true}} })
+	if got := walkCatalog(t, svc, Filters{Languages: []string{lang}, Sort: SortEasiest, Limit: 2, RareLanguageBelow: 1000}, nil, nil); !slices.Equal(got, all[2:]) {
+		t.Errorf("with two hidden, walked %v, want %v", got, all[2:])
+	}
+
+	// A hidden repository takes all of its issues out.
+	svc.SetHidden(func() Hidden { return Hidden{Repositories: map[int]bool{repoID: true}} })
+	if got := walkCatalog(t, svc, Filters{Languages: []string{lang}, Sort: SortEasiest, Limit: 2, RareLanguageBelow: 1000}, nil, nil); len(got) != 0 {
+		t.Errorf("with the repository hidden, walked %v, want none", got)
+	}
+}
+
+// ?unassigned leaves out issues someone is assigned to, keeps the ones never
+// read (NULL is unknown, not assigned), and still walks every page.
+func TestBrowseUnassigned(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	repoID, lang := seedBrowseRepo(t, pool, "assigned")
+	seedBrowseIssues(t, pool, repoID, 6)
+	if err := pool.Exec(ctx, `UPDATE issues SET assignees = CASE number WHEN 1 THEN 1 WHEN 2 THEN 0 ELSE NULL END WHERE repository_id = $1`, repoID); err != nil {
+		t.Fatal(err)
+	}
+	svc := New(pool, nil)
+	for _, sort := range []Sort{SortEasiest, SortNewest, SortShuffle} {
+		for _, rareBelow := range rareThresholds {
+			got := walkCatalog(t, svc, Filters{Languages: []string{lang}, Sort: sort, Unassigned: true, Limit: 2, RareLanguageBelow: rareBelow}, nil, nil)
+			for _, id := range got {
+				it, err := svc.GetIssue(ctx, id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if it.Assignees != nil && *it.Assignees > 0 {
+					t.Errorf("%s, rare below %d: listed assigned issue #%d", sort, rareBelow, it.Number)
+				}
+			}
+			if sort == SortEasiest && len(got) != 5 {
+				t.Errorf("rare below %d: walked %d issues, want the 5 not assigned", rareBelow, len(got))
+			}
+		}
+	}
+}
