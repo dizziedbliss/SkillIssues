@@ -841,11 +841,7 @@ Every key with its default and bounds: `docs/settings.md`.
 ## Branching and commits
 
 Branch naming: `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, `refactor/<topic>`,
-`chore/<topic>`.
-
-> Note: a branch named `refactor` already exists, which blocks `refactor/<topic>` — git
-> cannot have both a ref and a directory of refs at the same path. Use `chore/<topic>` for
-> refactor work until that branch is gone.
+`chore/<topic>`, `refactor/<topic>`.
 
 Commit style: [Conventional Commits](https://www.conventionalcommits.org/) —
 `feat(search): …`, `fix(electron): …`, `perf(ingestd): …`.
