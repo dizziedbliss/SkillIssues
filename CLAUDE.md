@@ -230,7 +230,11 @@ path reaching outside the importing project). Both apps are built on `client`; t
   the search page (`search/SearchPage.tsx`, `/app/search?search=…&in=repository|title|language`),
   never to Explore: every kind, or one kind paged on its own, with the same filters. Its box shares
   a `view-transition-name` with the search page's (and Explore's), so one glides into the other.
-  The wordmark inside the app goes to Explore. Page changes inside the app run the theme's `[motion] transition` through View
+  The wordmark inside the app goes to Explore.
+  The issue page has a beginner checklist (`BeginnerCheck.tsx`: labelled, described, unassigned, no
+  open linked pull request via the timeline, recent, short discussion; thresholds documented in
+  `/docs/good-first-issues`, keep both in step) and report links (`ReportButton.tsx`). Settings →
+  Themes has a Community tab over `GET /themes/public`. Page changes inside the app run the theme's `[motion] transition` through View
   Transitions (`transition.ts`, `transition.css`; never under reduced motion). The profile
   (`profile/`: `/app/profile`, and `/app/contributions` for Contribute) counts the person's public
   pull requests from GitHub's search **in the browser**, with no token (`lib/github.ts`, cached per
@@ -724,6 +728,22 @@ Every key with its default and bounds: `docs/settings.md`.
   a non-null `next_cursor` is not the end**; only a null cursor is. go-api's connections run with `DB_WORK_MEM_MB` (32 in prod)
   so label bitmaps stay exact: a lossy one re-checked ~550k rows and took 8s. The dropdown values are `catalog_facets`, recomputed by
   ingestd every `ingest.catalog.facets_refresh_seconds`; never count them per request.
+- **Assignees are recorded, not inferred**: `issues.assignees` (00053) is GitHub's assignee count from
+  the crawl (`assignees { totalCount }`) and from GH Archive events that carry assignees; a source
+  that doesn't say keeps the stored value (`COALESCE`), and NULL (not read since) counts as
+  unassigned. `?unassigned=true` (the web app's default) filters on it while walking the order
+  indexes; it is deliberately left out of `hasFilters`, so it never triggers the rarity probe.
+- **Reports are private and hide by count, never by query**: a signed-in person reports an issue, a
+  repository or a public theme (`POST /reports`, `internal/report`, migration 00052; one open report
+  per person per target, `api.reports.per_user_per_day`). Targets reported by
+  `api.reports.hide_after` different people, or upheld, are read into memory every
+  `api.reports.hidden_refresh_seconds` (`cmd/api/hidden.go`; a failed read keeps the last and counts
+  `reports_hidden_refresh_errors_total`) and dropped from browse, search and recommendations at
+  `issue.Service`'s exported methods, after the cursor is taken, so a page that loses every issue
+  still continues. Never filter them inside the catalog SQL: it would change the index plans. The
+  community theme listing (`GET /themes/public`) leaves hidden themes out. Review is
+  `GET/POST /admin/reports[/resolve]`: upheld, a repository goes into `excluded_repositories`, a
+  theme becomes private, an issue stays hidden; dismissed, it comes back.
 - **Live counts are kept, never counted per request**: `GET /stats` (open, closed since tracking
   began, arrived/closed today, indexed issues and repositories, signed-up developers, recent
   activity) reads `catalog_stats`. Statement-level triggers on `issues` (migration 00043) append one

@@ -181,3 +181,42 @@ func TestCheckReportsEverything(t *testing.T) {
 		t.Errorf("Check = %v, want a TOML and a CSS problem", err)
 	}
 }
+
+// The community listing: public themes only, most used first, searchable,
+// without the ones reports have hidden.
+func TestListPublic(t *testing.T) {
+	pool := storePool(t)
+	ctx := context.Background()
+	svc := NewService(pool)
+	lim := Limits{MaxPerUser: 5, MaxBytes: 4096}
+	author, fan := testUser(t, pool), testUser(t, pool)
+	word := fmt.Sprintf("zq%d", time.Now().UnixNano())
+	mk := func(name string, public bool) Theme {
+		th, err := svc.Create(ctx, author, Input{TOML: fmt.Sprintf("[meta]\nname = %q\n", name+" "+word), Public: public}, lim)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return th
+	}
+	quiet, loved, _ := mk("Quiet", true), mk("Loved", true), mk("Hidden away", false)
+	if err := svc.SetActive(ctx, fan, loved.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.ListPublic(ctx, 0, "popular", word, 10, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].ID != loved.ID || got[0].Uses != 1 || got[1].ID != quiet.ID {
+		t.Errorf("popular = %+v, want Loved (1 use) then Quiet, and no private theme", got)
+	}
+	got, err = svc.ListPublic(ctx, 0, "popular", word, 10, 0, map[string]bool{loved.ID: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID != quiet.ID {
+		t.Errorf("with Loved hidden = %+v, want Quiet alone", got)
+	}
+	if got, err := svc.ListPublic(ctx, 0, "newest", "50%_"+word, 10, 0, nil); err != nil || len(got) != 0 {
+		t.Errorf("a search's %% and _ are literal: %+v, %v", got, err)
+	}
+}

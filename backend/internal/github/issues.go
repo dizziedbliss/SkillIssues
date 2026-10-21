@@ -34,6 +34,8 @@ type GraphQLIssueNode struct {
 	AuthorLogin   string    `json:"author_login"`
 	CommentsCount int       `json:"comments_count"`
 	Labels        []string  `json:"labels"`
+	// Assignees is how many people are assigned; nil when the source didn't say.
+	Assignees *int `json:"assignees,omitempty"`
 }
 
 // RepositoryIssuesPage is one page of a repository's open issues and, when
@@ -112,6 +114,7 @@ const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: St
                 updatedAt
                 author { login }
                 comments { totalCount }
+                assignees { totalCount }
                 labels(first: 20) { nodes { name } }
             }
             pageInfo { hasNextPage endCursor }
@@ -191,6 +194,9 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 						Comments struct {
 							TotalCount int `json:"totalCount"`
 						} `json:"comments"`
+						Assignees struct {
+							TotalCount int `json:"totalCount"`
+						} `json:"assignees"`
 						Labels struct {
 							Nodes []struct {
 								Name string `json:"name"`
@@ -259,6 +265,7 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 			AuthorLogin:   author,
 			CommentsCount: n.Comments.TotalCount,
 			Labels:        labelNames,
+			Assignees:     &n.Assignees.TotalCount,
 		})
 	}
 

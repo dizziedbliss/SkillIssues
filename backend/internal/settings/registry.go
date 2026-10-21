@@ -119,6 +119,15 @@ const (
 	ProfileMaxLanguages Key = "api.profile.max_languages"
 	ProfileMaxInterests Key = "api.profile.max_interests"
 
+	// ReportsHideAfter is how many people reporting one target take it out of
+	// lists until reviewed; ReportsPerUserPerDay caps one person's reports;
+	// ReportsHiddenRefreshSeconds is how often go-api re-reads what is hidden.
+	ReportsHideAfter            Key = "api.reports.hide_after"
+	ReportsPerUserPerDay        Key = "api.reports.per_user_per_day"
+	ReportsHiddenRefreshSeconds Key = "api.reports.hidden_refresh_seconds"
+	// ThemesPublicPageSize is a page of the community theme listing.
+	ThemesPublicPageSize Key = "api.themes.public_page_size"
+
 	// BodiesFallbackMissesPerHour caps how many issue bodies one caller may
 	// have fetched from GitHub per hour through GET /issues/{id}/body. Cache
 	// hits are free; a miss spends the server's interactive budget.
@@ -387,6 +396,10 @@ var Registry = map[Key]Spec{
 	ProfileBioMaxChars:            intSpec(280, 0, 2000, "The longest bio a profile may hold, in characters."),
 	ProfileMaxLanguages:           intSpec(12, 1, 100, "The most preferred languages a profile may list."),
 	ProfileMaxInterests:           intSpec(12, 1, 100, "The most interests a profile may list."),
+	ReportsHideAfter:              intSpec(3, 1, 100, "Different people reporting the same issue, repository or theme before it leaves lists until reviewed."),
+	ReportsPerUserPerDay:          intSpec(20, 1, 1000, "Reports one person may make in 24 hours."),
+	ReportsHiddenRefreshSeconds:   intSpec(60, 5, 3600, "How often go-api re-reads which reported targets are hidden."),
+	ThemesPublicPageSize:          intSpec(24, 1, 100, "Public themes per page of the community listing."),
 	IssuesShuffleWalkMaxRepos:     intSpec(3000, 0, 1000000, "Repositories one page of the shuffled feed walks before reading the rest of the page from the matching issues. 0 walks without a bound."),
 	IssuesRareLanguageThreshold:   intSpec(20000, 0, 1000000, "A language with fewer open issues than this is read repository-first and sorted when browsing, instead of walking the catalog index. 0 always walks the index."),
 	IssuesQueryTimeoutMs:          intSpec(10000, 100, 25000, "Deadline for the queries behind one GET /issues or GET /issues/{id}. A query that misses it is cancelled and the caller gets 503."),

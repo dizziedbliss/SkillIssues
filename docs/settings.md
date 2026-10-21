@@ -32,6 +32,10 @@ readable through the endpoint above and copied into backups.
 | `api.profile.bio_max_chars` | 280 | 0–2000 | The longest bio a profile may hold, in characters |
 | `api.profile.max_languages` | 12 | 1–100 | The most preferred languages a profile may list |
 | `api.profile.max_interests` | 12 | 1–100 | The most interests a profile may list |
+| `api.reports.hide_after` | 3 | 1–100 | Different people reporting the same issue, repository or theme before it leaves lists until reviewed |
+| `api.reports.per_user_per_day` | 20 | 1–1000 | Reports one person may make in 24 hours |
+| `api.reports.hidden_refresh_seconds` | 60 | 5–3600 | How often go-api re-reads which reported targets are hidden |
+| `api.themes.public_page_size` | 24 | 1–100 | Public themes per page of the community listing |
 | `api.notifications.page_size` | 50 | 1–200 | Notifications returned by `GET /notifications` |
 | `api.session.ttl_hours` | 168 | 1–8760 | Session lifetime; applies to newly issued sessions |
 | `api.session.prune_interval_seconds` | 3600 | 60–86400 | How often expired sessions and abandoned OAuth handshakes are deleted |

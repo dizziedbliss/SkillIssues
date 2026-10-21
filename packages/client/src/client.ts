@@ -1,7 +1,8 @@
 import type { Transport } from "./transport";
 import type {
   AccountDeleted, ActiveTheme, Facets, Issue, IssueBody, IssueFilters, IssuePage, Notifications, Profile, ProfileUpdate,
-  RepositoryLookup, SavedChange, SearchCategory, Session, SignInStart, Stats, Theme, ThemeCheck, ThemeInput,
+  ReportTarget, RepositoryLookup, SavedChange, SearchCategory, Session, SharedThemes, SignInStart, Stats, Theme, ThemeCheck,
+  ThemeInput,
 } from "./types";
 
 function query(params: Record<string, string | number | undefined>): string {
@@ -24,6 +25,7 @@ function filterParams(f: IssueFilters): Record<string, string | number | undefin
     tech: list(f.tech),
     repo: list(f.repo),
     owner: list(f.owner),
+    unassigned: f.unassigned ? "true" : undefined,
     comments_min: f.comments_min,
     comments_max: f.comments_max,
     limit: f.limit,
@@ -37,7 +39,7 @@ type Opts = { signal?: AbortSignal };
  * then (by the edge, or the API's own cache) has neither, which means none.
  */
 function withLists(i: Issue): Issue {
-  return { ...i, labels: i.labels ?? [], tech: i.tech ?? [] };
+  return { ...i, labels: i.labels ?? [], tech: i.tech ?? [], assignees: i.assignees ?? null };
 }
 
 /** One typed method per API endpoint. */
@@ -167,6 +169,19 @@ export class Client {
   /** Apply a built-in theme as it is (packages/theme's PRESETS). */
   setActivePreset(preset: string): Promise<ActiveTheme> {
     return this.send({ method: "PUT", path: "/me/theme", body: { preset } }) as Promise<ActiveTheme>;
+  }
+
+  /** The community listing: public themes, most used or newest first, optionally by name. */
+  publicThemes(opts: { sort?: "popular" | "newest"; search?: string; page?: number } = {}, o?: Opts): Promise<SharedThemes> {
+    return this.get(`/themes/public${query({ sort: opts.sort, search: opts.search, page: opts.page })}`, o);
+  }
+
+  /**
+   * Reports an issue, a repository or a public theme. Refused with ApiError:
+   * 409 already reported by you, 404 nothing there, 429 past the day's limit.
+   */
+  async report(target: ReportTarget, reason: string, note = ""): Promise<void> {
+    await this.send({ method: "POST", path: "/reports", body: { type: target.type, id: String(target.id), reason, note } });
   }
 
   /** Check a theme as a save would, storing nothing: refused with ApiError (422) and its problems. */

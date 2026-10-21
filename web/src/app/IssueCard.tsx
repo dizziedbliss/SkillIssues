@@ -43,6 +43,7 @@ export function IssueCard({ issue, index }: { issue: Issue; index?: number }) {
       <div className={s.row}>
         <ul className={s.chips} data-ui="chips">
           {issue.state === "CLOSED" && <li className={s.closed}>{t("issue.closedChip")}</li>}
+          {(issue.assignees ?? 0) > 0 && <li className={s.closed} title={t("issue.assignedHelp")}>{t("issue.assigned")}</li>}
           {updated && (
             <li className={s.chip} title={t("issue.updated", { ago: updated })}>
               {updated}

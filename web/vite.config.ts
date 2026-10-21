@@ -4,6 +4,9 @@ import path from "node:path";
 
 export default defineConfig({
   plugins: [react()],
+  // The API client is workspace source with no dependencies: serve it as
+  // source rather than a pre-bundled copy, which went stale after edits.
+  optimizeDeps: { exclude: ["@skillissues/client"] },
   server: {
     // The @skillissues/* packages are workspace symlinks; Vite checks
     // fs.allow against their real path under packages/, outside web/.

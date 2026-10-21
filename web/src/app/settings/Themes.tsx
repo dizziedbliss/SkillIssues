@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Theme } from "@skillissues/client";
 import { expandPreset, expandTheme, parseTheme, presets, PRESETS, type PresetName } from "@skillissues/theme";
 import { api } from "../../lib/api";
 import { useT, type MessageKey } from "../../i18n";
 import { choiceName, useAppearance, type Choice } from "../theme";
+import { ReportButton } from "../ReportButton";
 import s from "./Settings.module.css";
 
 /** A theme's colours for its swatch strip: background, surface, text, accent. */
@@ -34,6 +35,7 @@ function Swatches({ colors }: { colors: string[] }) {
 
 const TABS: { key: string; label: MessageKey }[] = [
   { key: "built-in", label: "settings.themes.tab.builtIn" },
+  { key: "community", label: "settings.themes.tab.community" },
   { key: "yours", label: "settings.themes.tab.yours" },
   { key: "shared", label: "settings.themes.tab.shared" },
 ];
@@ -80,6 +82,7 @@ export function Themes() {
       </div>
       <div role="tabpanel">
         {tab === "built-in" && <BuiltIns />}
+        {tab === "community" && <Community />}
         {tab === "yours" && <Yours />}
         {tab === "shared" && <Shared />}
       </div>
@@ -278,8 +281,96 @@ function Shared() {
             >
               {t("settings.themes.duplicate")}
             </button>
+            {!theme.data.mine && <ReportButton target={{ type: "theme", id: theme.data.id }} label="report.theme" className={s.quietButton} />}
           </span>
         </div>
+      )}
+      {copy.error && <p className={s.error} role="alert">{copy.error.message}</p>}
+    </>
+  );
+}
+
+/** Public themes people have shared: most used or newest, by name, with use, duplicate and report. */
+function Community() {
+  const t = useT();
+  const appearance = useAppearance();
+  const copy = useCreateCopy();
+  const [sort, setSort] = useState<"popular" | "newest">("popular");
+  const [draft, setDraft] = useState("");
+  const [search, setSearch] = useState("");
+  const list = useInfiniteQuery({
+    queryKey: ["publicThemes", sort, search],
+    queryFn: ({ pageParam, signal }) => api.publicThemes({ sort, search, page: pageParam }, { signal }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.more ? last.page + 1 : undefined),
+  });
+  const themes = list.data?.pages.flatMap((p) => p.themes) ?? [];
+
+  return (
+    <>
+      <p className={s.hint}>{t("settings.themes.communityHelp")}</p>
+      <form
+        className={s.inline}
+        onSubmit={(e) => {
+          e.preventDefault();
+          setSearch(draft.trim());
+        }}
+      >
+        <label className={s.field}>
+          <span className={s.label}>{t("settings.themes.searchName")}</span>
+          <input className={s.input} type="search" value={draft} onChange={(e) => setDraft(e.target.value)} />
+        </label>
+        <label className={s.field}>
+          <span className={s.label}>{t("settings.themes.sortBy")}</span>
+          <select className={s.input} value={sort} onChange={(e) => setSort(e.target.value as "popular" | "newest")}>
+            <option value="popular">{t("settings.themes.popular")}</option>
+            <option value="newest">{t("settings.themes.newest")}</option>
+          </select>
+        </label>
+        <button type="submit" className={s.button}>{t("settings.themes.find")}</button>
+      </form>
+      {list.error && <p className={s.error} role="alert">{list.error.message}</p>}
+      {list.isSuccess && themes.length === 0 && <p className={s.hint}>{t("settings.themes.noneShared")}</p>}
+      <ul className={s.themeList}>
+        {themes.map((th) => (
+          <li key={th.id} className={s.themeRow}>
+            <span className={s.themeName}>
+              <Swatches colors={swatches(th.toml)} />
+              <span>
+                {th.name}{" "}
+                <span className={s.hint}>
+                  {t("settings.themes.by", { author: th.author })}, {t("settings.themes.uses", { count: th.uses })}
+                </span>
+              </span>
+            </span>
+            <span className={s.rowActions}>
+              {"id" in appearance.current && appearance.current.id === th.id ? (
+                <span className={s.ok}>{t("settings.themes.using")}</span>
+              ) : (
+                <button type="button" className={s.quietButton} onClick={() => appearance.choose({ id: th.id, name: th.name, toml: th.toml, css: th.css })}>
+                  {t("settings.themes.use")}
+                </button>
+              )}
+              <button
+                type="button"
+                className={s.quietButton}
+                disabled={copy.isPending}
+                onClick={() => {
+                  const r = expandTheme(th.toml, t("settings.themes.copyOf", { name: th.name }));
+                  if (r.ok) copy.mutate({ toml: r.value, css: th.css });
+                }}
+              >
+                {t("settings.themes.duplicate")}
+              </button>
+              {!th.mine && <ReportButton target={{ type: "theme", id: th.id }} label="report.theme" className={s.quietButton} />}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {list.hasNextPage && (
+        <button type="button" className={s.button} onClick={() => void list.fetchNextPage()} disabled={list.isFetchingNextPage}>
+          {t("settings.themes.more")}
+        </button>
       )}
       {copy.error && <p className={s.error} role="alert">{copy.error.message}</p>}
     </>

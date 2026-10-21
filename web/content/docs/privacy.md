@@ -3,7 +3,7 @@ title: Privacy policy
 slug: /privacy
 section: Legal & Trust
 summary: What SkillIssues collects, why, and what it doesn't collect.
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 ## Who is responsible
@@ -13,6 +13,8 @@ SkillIssues is run by @dizziedbliss on GitHub, an individual based in Bengaluru,
 ## If you only browse
 
 You don't need an account to browse. We don't ask for your name or email, we don't set cookies for browsing, and we don't use third-party analytics or advertising.
+
+Your browser keeps a few of your choices in its own storage: light or dark, your language, your theme and the themes you used recently, and for half an hour a copy of the public pull request numbers your profile shows. They stay on your device and never reach us; clearing your browser's site data removes them.
 
 To deliver pages and to stop one address using up the service, our infrastructure sees your IP address:
 
@@ -40,7 +42,8 @@ From you we keep:
 - the profile and preferences you set, such as your bio, experience level, target level, interests and preferred languages;
 - the issues you save;
 - the themes you create, and which one is applied to your account;
-- notifications about saved issues that close, which the system records for you.
+- notifications about saved issues that close, which the system records for you;
+- reports you make: what you reported (an issue, a repository or a shared theme), the reason you chose and any note you add.
 
 To keep you signed in we keep:
 
@@ -61,6 +64,7 @@ The desktop app uses a GitHub token that stays on your computer. It never reache
 | Show the catalog ordered by your languages; keep your saved issues, preferences and themes; check that a saved issue is still open | Providing the service you asked for |
 | Rate limiting, logs and abuse prevention | Legitimate interests (keeping the service safe and available) |
 | Responding to your requests and reports | Legitimate interests, and legal obligations |
+| Review reports of issues, repositories and themes, and leave reported content out of lists until it's reviewed. Only the people who run SkillIssues see reports; they're never shown to the person or project you reported | Legitimate interests (keeping the catalog safe and useful) |
 
 We don't sell your data, show ads, build advertising profiles or share your data with third parties for their own use.
 
@@ -89,7 +93,7 @@ Data is stored in a database on a server in Sydney, Australia. Because Vercel, C
 
 | Data | How long |
 | --- | --- |
-| Account, profile, preferences, saved issues, themes, notifications | Until you delete your account |
+| Account, profile, preferences, saved issues, themes, notifications, reports | Until you delete your account |
 | Sessions | 7 days by default, or until you sign out |
 | Access logs (include IP addresses) | Until newer logs replace them (they rotate by size), usually within a few days |
 | Rate-limit counters | Within the rate-limit window (an hour by default) |
@@ -110,7 +114,7 @@ We aim to reply within 30 days.
 
 ## Deleting your data
 
-Sign in, open [the app](/app) and choose Delete account: it happens straight away. If you can't sign in, email privacy@dizziedbliss.lol with your GitHub username and we will delete it; we may ask you to confirm the request from that GitHub account first, for example with a comment on GitHub. Please don't post a deletion request in a public issue, since that publishes your username and request. Deleting your account removes your profile, preferences, saved issues, themes, sessions and notifications. You can also remove the sign-in app from your authorised applications in GitHub's settings.
+Sign in, open [the app](/app) and choose Delete account: it happens straight away. If you can't sign in, email privacy@dizziedbliss.lol with your GitHub username and we will delete it; we may ask you to confirm the request from that GitHub account first, for example with a comment on GitHub. Please don't post a deletion request in a public issue, since that publishes your username and request. Deleting your account removes your profile, preferences, saved issues, themes, sessions, notifications and reports. You can also remove the sign-in app from your authorised applications in GitHub's settings.
 
 ## Security and breaches
 
