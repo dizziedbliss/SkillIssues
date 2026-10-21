@@ -4,8 +4,11 @@ import path from "node:path";
 import type { IssueRef, Settings, Workspace } from "../shared/contract";
 import { git } from "./git";
 import { fork, openPullRequest as createPullRequest } from "./github";
-import { branchFor, cleanCommitMessage, githubRemote, isGitHubRemote, isValidBranch, isWithin, parseRepository } from "./security";
-import { getSecrets, getWorkspace, putWorkspace, setWorkspaceRoot, workspaceRoot } from "./store";
+import type { CommitInput } from "../shared/contract";
+import {
+  branchFor, commitMessage, githubRemote, isGitHubRemote, isValidBranch, isWithin, parseRepository, pullRequestText, vscodeFolderLink,
+} from "./security";
+import { forgetWorkspace, getSecrets, getWorkspace, listWorkspaces, putWorkspace, setWorkspaceRoot, workspaceRoot } from "./store";
 
 /*
  * An issue's workspace: the person's fork of its repository, cloned into the
@@ -67,14 +70,50 @@ export async function chooseRoot(win: BrowserWindow | null): Promise<Settings> {
   return settings();
 }
 
+/** The default branch the work started from: stored, or origin's HEAD for older workspaces. */
+async function baseOf(ws: Workspace, dir: string): Promise<string> {
+  if (ws.base && isValidBranch(ws.base)) return ws.base;
+  const head = await git(dir, ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"]).catch(() => "");
+  const base = head.replace(/^origin\//, "");
+  if (!isValidBranch(base)) throw new Error("Can't tell which branch this work started from. Start work on the issue again.");
+  return base;
+}
+
+async function count(dir: string, range: string): Promise<number> {
+  const n = Number(await git(dir, ["rev-list", "--count", range]));
+  if (!Number.isInteger(n) || n < 0) throw new Error("git gave an unreadable commit count.");
+  return n;
+}
+
+/** Where a workspace's git stands: uncommitted changes, commits, and commits not pushed yet. */
+async function withGit(ws: Workspace): Promise<Workspace> {
+  let dir: string;
+  try {
+    dir = checkedPath(ws);
+  } catch (err) {
+    return { ...ws, changes: [], commits: 0, unpushed: 0, problem: err instanceof Error ? err.message : String(err) };
+  }
+  const base = await baseOf(ws, dir);
+  const commits = await count(dir, `origin/${base}..HEAD`);
+  const pushed = await git(dir, ["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${ws.branch}`]).catch(() => "");
+  const unpushed = pushed ? await count(dir, `origin/${ws.branch}..HEAD`) : commits;
+  return { ...ws, path: dir, base, changes: await changes(dir), commits, unpushed, problem: null };
+}
+
 export async function get(issueId: number): Promise<Workspace | null> {
   const ws = getWorkspace(issueId);
-  if (!ws) return null;
-  try {
-    return { ...ws, changes: await changes(checkedPath(ws)) };
-  } catch {
-    return { ...ws, changes: [] };
-  }
+  return ws ? withGit(ws) : null;
+}
+
+/** Every workspace, most recently started first. */
+export async function list(): Promise<Workspace[]> {
+  const all = await Promise.all(listWorkspaces().map(withGit));
+  return all.sort((a, b) => (b.startedAt ?? "").localeCompare(a.startedAt ?? "") || b.issueId - a.issueId);
+}
+
+export function forget(issueId: number): void {
+  known(issueId);
+  forgetWorkspace(issueId);
 }
 
 /** Forks the issue's repository, clones the fork, adds upstream, and switches to the issue's branch. */
@@ -130,11 +169,16 @@ export async function start(issue: IssueRef): Promise<Workspace> {
     fork: forked.fullName,
     path: real,
     branch,
-    changes: await changes(real),
+    base: isValidBranch(forked.defaultBranch) ? forked.defaultBranch : undefined,
+    startedAt: previous?.startedAt ?? new Date().toISOString(),
+    changes: [],
+    commits: 0,
+    unpushed: 0,
+    problem: null,
     pullRequestUrl: previous?.pullRequestUrl ?? null,
   };
-  putWorkspace({ ...ws, changes: [] });
-  return ws;
+  putWorkspace(ws);
+  return withGit(ws);
 }
 
 export async function openFolder(issueId: number): Promise<void> {
@@ -144,39 +188,62 @@ export async function openFolder(issueId: number): Promise<void> {
 
 /** Opens the folder in VS Code through its own link scheme: no binary to find, no shell. */
 export async function openEditor(issueId: number): Promise<void> {
-  const dir = checkedPath(known(issueId));
-  const href = `vscode://file/${dir.split(path.sep).map(encodeURIComponent).join("/").replace(/^\/?/, "/")}`;
-  await shell.openExternal(href);
+  await shell.openExternal(vscodeFolderLink(checkedPath(known(issueId))));
 }
 
-/** Commits everything changed (when anything is) and pushes the branch to the fork. */
-export async function commitAndPush(issueId: number, rawMessage: string): Promise<Workspace> {
-  const ws = known(issueId);
+/** Checks the workspace is still the fork, on its branch, before git writes anything. */
+async function checkedForWrite(ws: Workspace): Promise<string> {
   const dir = checkedPath(ws);
-  const message = cleanCommitMessage(rawMessage);
-  if (!message) throw new Error("Write a commit message (up to 500 characters).");
   if (!isValidBranch(ws.branch)) throw new Error("This workspace's branch name isn't valid.");
   const origin = await git(dir, ["remote", "get-url", "origin"]);
   if (!isGitHubRemote(origin) || origin !== githubRemote(ws.fork)) {
-    throw new Error("Push stopped: origin isn't your fork on GitHub any more.");
+    throw new Error("Stopped: origin isn't your fork on GitHub any more.");
   }
   const current = await git(dir, ["branch", "--show-current"]);
   if (current !== ws.branch) throw new Error(`Switch back to ${ws.branch} first (you're on ${current || "a detached HEAD"}).`);
-  if ((await changes(dir)).length > 0) {
-    await git(dir, ["add", "--all"]);
-    await git(dir, ["commit", "--quiet", "-m", message]);
-  }
-  await git(dir, ["push", "--quiet", "--set-upstream", "origin", ws.branch], pushToken());
-  return { ...ws, path: dir, changes: await changes(dir) };
+  return dir;
 }
 
-export async function openPullRequest(issueId: number): Promise<Workspace> {
+/** Commits every change, with the title and description given. */
+export async function commit(issueId: number, input: CommitInput): Promise<Workspace> {
   const ws = known(issueId);
+  const message = commitMessage(input?.title, input?.body ?? "");
+  if (!message) throw new Error("Give the commit a one-line title (up to 200 characters); the description is optional.");
+  const dir = await checkedForWrite(ws);
+  if ((await changes(dir)).length === 0) throw new Error("There's nothing to commit: change some files first.");
+  await git(dir, ["add", "--all"]);
+  // Each -m is a paragraph: the title, then the description after a blank line.
+  const [title, ...rest] = message.split("\n\n");
+  const body = rest.join("\n\n");
+  await git(dir, ["commit", "--quiet", "-m", title!, ...(body ? ["-m", body] : [])]);
+  return withGit(ws);
+}
+
+/** Pushes the branch to the fork: only commits, never uncommitted changes. */
+export async function push(issueId: number): Promise<Workspace> {
+  const ws = known(issueId);
+  const dir = await checkedForWrite(ws);
+  const state = await withGit(ws);
+  if (state.changes.length > 0) throw new Error("You have changes that aren't committed. Commit them first, then push.");
+  if (state.unpushed === 0) {
+    throw new Error(state.commits === 0 ? "There's nothing to push yet: commit your changes first." : "Everything is already pushed.");
+  }
+  await git(dir, ["push", "--quiet", "--set-upstream", "origin", ws.branch], pushToken());
+  return withGit(ws);
+}
+
+/** Opens the pull request, as the person wrote it, once their commits are on the fork. */
+export async function openPullRequest(issueId: number, input: unknown): Promise<Workspace> {
+  const ws = known(issueId);
+  const text = pullRequestText(input, ws.issueNumber);
+  if (!text) throw new Error("Give the pull request a one-line title (up to 256 characters).");
+  const state = await withGit(ws);
+  if (state.problem) throw new Error(state.problem);
+  if (state.commits === 0) throw new Error("There are no commits on this branch yet: commit and push your fix first.");
+  if (state.unpushed > 0) throw new Error("Push your commits first, so the pull request has them.");
   const forkOwner = parseRepository(ws.fork)!.owner;
-  const body = `Closes #${ws.issueNumber}.\n\nOpened with SkillIssues.`;
-  const url = await createPullRequest(pushToken(), ws.repository, forkOwner, ws.branch, ws.title, body);
-  const next = { ...ws, pullRequestUrl: url };
-  putWorkspace({ ...next, changes: [] });
+  const url = await createPullRequest(pushToken(), ws.repository, forkOwner, ws.branch, text.title, text.body);
+  putWorkspace({ ...ws, pullRequestUrl: url });
   await shell.openExternal(url);
-  return { ...next, changes: await changes(checkedPath(ws)).catch(() => []) };
+  return { ...state, pullRequestUrl: url };
 }

@@ -1,0 +1,77 @@
+/* The confirmation dialog: the question, what it means, and the two answers. */
+
+.dialog {
+  width: min(28rem, 100% - 2 * var(--gutter));
+  padding: 1.4rem 1.5rem 1.5rem;
+  border: var(--border-width) solid var(--colors-accent);
+  border-radius: var(--radius-large);
+  background: var(--colors-surface);
+  box-shadow: var(--shadow-large);
+  color: var(--colors-text);
+}
+
+.dialog::backdrop {
+  background: color-mix(in srgb, var(--colors-background) 50%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.title {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: 1.6rem;
+  line-height: 1.1;
+  letter-spacing: var(--heading-tracking);
+}
+
+.body {
+  margin-top: 0.75rem;
+  color: var(--colors-text-muted);
+  font-size: 0.9375rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.4rem;
+}
+
+.cancel,
+.confirm {
+  padding: 0.5em 1em;
+  border-radius: var(--radius-medium);
+  font: inherit;
+  font-size: var(--button-size);
+  cursor: pointer;
+  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
+}
+
+.cancel {
+  border: var(--border-width) solid var(--rule);
+  background: none;
+  color: var(--colors-text);
+}
+
+.confirm {
+  border: 0;
+  background: var(--colors-danger);
+  color: var(--colors-accent-text);
+}
+
+.cancel:hover,
+.cancel:focus-visible {
+  background: var(--chip);
+}
+
+.confirm:hover,
+.confirm:focus-visible {
+  background: color-mix(in srgb, var(--colors-danger) 80%, var(--colors-text));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cancel,
+  .confirm {
+    transition: none;
+  }
+}

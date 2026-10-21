@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   branchFor,
-  cleanCommitMessage,
+  commitMessage,
+  isClipboardText,
+  pullRequestText,
+  vscodeFolderLink,
   gitEnv,
   githubRemote,
   deepLinkPath,
@@ -109,11 +112,39 @@ test("paths stay inside the workspace folder", () => {
   assert.ok(!isWithin("C:\\Users\\a\\SkillIssues", "C:\\Users\\a\\Other", "win32"));
 });
 
-test("commit messages", () => {
-  assert.equal(cleanCommitMessage("  Fix it \r\n"), "Fix it");
-  assert.equal(cleanCommitMessage("   "), null);
-  assert.equal(cleanCommitMessage("a\0b"), null);
-  assert.equal(cleanCommitMessage("x".repeat(501)), null);
+test("a commit message is a one-line title and an optional description", () => {
+  assert.equal(commitMessage("  Fix it ", ""), "Fix it");
+  assert.equal(commitMessage("Fix it", " Why:\r\nbecause \n"), "Fix it\n\nWhy:\nbecause");
+  assert.equal(commitMessage("   ", "body"), null);
+  assert.equal(commitMessage("two\nlines", ""), null);
+  assert.equal(commitMessage("a\0b", ""), null);
+  assert.equal(commitMessage("x".repeat(201), ""), null);
+  assert.equal(commitMessage("ok", "x".repeat(5001)), null);
+  assert.equal(commitMessage("ok", 3), null);
+});
+
+test("a pull request says it closes the issue only when asked", () => {
+  assert.deepEqual(pullRequestText({ title: " Fix ", body: "", closesIssue: false }, 12), { title: "Fix", body: "" });
+  assert.deepEqual(pullRequestText({ title: "Fix", body: "Notes", closesIssue: true }, 12), { title: "Fix", body: "Notes\n\nCloses #12" });
+  assert.deepEqual(pullRequestText({ title: "Fix", body: "", closesIssue: true }, 12), { title: "Fix", body: "Closes #12" });
+  assert.equal(pullRequestText({ title: "", body: "", closesIssue: false }, 12), null);
+  assert.equal(pullRequestText({ title: "a\nb", body: "", closesIssue: false }, 12), null);
+  assert.equal(pullRequestText({ title: "Fix", body: "", closesIssue: "yes" }, 12), null);
+  assert.equal(pullRequestText(null, 12), null);
+});
+
+test("VS Code's folder link keeps a Windows drive as it is and encodes the rest", () => {
+  assert.equal(vscodeFolderLink("C:\\Users\\Max Power\\SkillIssues\\a__b", "win32"), "vscode://file/C:/Users/Max%20Power/SkillIssues/a__b");
+  assert.equal(vscodeFolderLink("/home/max/Skill Issues/a__b", "linux"), "vscode://file/home/max/Skill%20Issues/a__b");
+  assert.equal(vscodeFolderLink("/Users/max/#x", "darwin"), "vscode://file/Users/max/%23x");
+});
+
+test("only a short printable line reaches the clipboard", () => {
+  assert.ok(isClipboardText("ABCD-1234"));
+  assert.ok(!isClipboardText(""));
+  assert.ok(!isClipboardText("a\nb"));
+  assert.ok(!isClipboardText("x".repeat(101)));
+  assert.ok(!isClipboardText(42));
 });
 
 test("the push token reaches git through the environment only, for github.com only", () => {

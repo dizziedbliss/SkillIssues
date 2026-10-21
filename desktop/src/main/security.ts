@@ -188,12 +188,53 @@ export function isWithin(root: string, candidate: string, platform: NodeJS.Platf
   return c === r || c.startsWith(r.endsWith(p.sep) ? r : r + p.sep);
 }
 
-/** A commit message: one to 500 characters, no NUL. */
-export function cleanCommitMessage(message: string): string | null {
-  if (typeof message !== "string") return null;
-  const m = message.replace(/\r\n/g, "\n").trim();
-  if (!m || m.length > 500 || m.includes("\0")) return null;
-  return m;
+/**
+ * A commit message from its parts: a title of one line, 1 to 200 characters,
+ * and an optional description up to 5,000, joined by a blank line as git
+ * expects. No NUL anywhere. Null when either part is out of bounds.
+ */
+export function commitMessage(title: unknown, body: unknown): string | null {
+  if (typeof title !== "string" || typeof body !== "string") return null;
+  const t = title.trim();
+  const b = body.replace(/\r\n/g, "\n").trim();
+  if (!t || t.length > 200 || /[\r\n\0]/.test(t)) return null;
+  if (b.length > 5000 || b.includes("\0")) return null;
+  return b ? `${t}\n\n${b}` : t;
+}
+
+/**
+ * A pull request's title and body as the person wrote them. "Closes #n" is
+ * added only when they ask for it. Null when out of GitHub's bounds.
+ */
+export function pullRequestText(
+  input: unknown,
+  issueNumber: number,
+): { title: string; body: string } | null {
+  const i = (input ?? {}) as { title?: unknown; body?: unknown; closesIssue?: unknown };
+  if (typeof i.title !== "string" || typeof i.body !== "string" || typeof i.closesIssue !== "boolean") return null;
+  const title = i.title.trim();
+  let body = i.body.replace(/\r\n/g, "\n").trim();
+  if (!title || title.length > 256 || /[\r\n\0]/.test(title)) return null;
+  if (body.length > 20000 || body.includes("\0")) return null;
+  if (i.closesIssue) body = body ? `${body}\n\nCloses #${issueNumber}` : `Closes #${issueNumber}`;
+  return { title, body };
+}
+
+/**
+ * VS Code's link for a folder: vscode://file/<path>, each segment encoded,
+ * except a Windows drive's colon, which VS Code must see as it is ("C%3A"
+ * is a folder that doesn't exist).
+ */
+export function vscodeFolderLink(dir: string, platform: NodeJS.Platform = process.platform): string {
+  const p = platform === "win32" ? path.win32 : path.posix;
+  const segments = p.resolve(dir).split(p.sep).filter((seg, i) => seg !== "" || i === 0);
+  const encoded = segments.map((seg, i) => (i === 0 && /^[A-Za-z]:$/.test(seg) ? seg : encodeURIComponent(seg))).join("/");
+  return `vscode://file/${encoded.replace(/^\/+/, "")}`;
+}
+
+/** Text the page may put on the clipboard: short, one line, printable (a sign-in code). */
+export function isClipboardText(v: unknown): v is string {
+  return typeof v === "string" && v.length > 0 && v.length <= 100 && !/[\0-\x1f\x7f]/.test(v);
 }
 
 /**

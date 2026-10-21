@@ -26,6 +26,8 @@ export interface Platform {
   WorkOnIt?: ComponentType<{ issue: Issue; className?: string }>;
   /** The Desktop app view in Settings. */
   DesktopSettings?: ComponentType;
+  /** Working on (/app/work): the issues started in the desktop app. Its nav item shows only when set. */
+  Workspaces?: ComponentType;
 }
 
 let current: Platform = {
