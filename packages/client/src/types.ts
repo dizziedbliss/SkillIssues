@@ -25,6 +25,8 @@ export interface Issue {
   labels: string[];
   /** The repository's three largest languages by GitHub's names, largest first. */
   tech: string[];
+  /** People assigned on GitHub; null when not read yet. */
+  assignees: number | null;
   comments: number;
   author: string;
   repository: string;
@@ -57,6 +59,8 @@ export interface IssueFilters {
   /** owner/name */
   repo?: string[];
   owner?: string[];
+  /** Only issues nobody is assigned to on GitHub (one never read counts as unassigned). */
+  unassigned?: boolean;
   comments_min?: number;
   comments_max?: number;
   limit?: number;

@@ -25,6 +25,7 @@ function filterParams(f: IssueFilters): Record<string, string | number | undefin
     tech: list(f.tech),
     repo: list(f.repo),
     owner: list(f.owner),
+    unassigned: f.unassigned ? "true" : undefined,
     comments_min: f.comments_min,
     comments_max: f.comments_max,
     limit: f.limit,
@@ -38,7 +39,7 @@ type Opts = { signal?: AbortSignal };
  * then (by the edge, or the API's own cache) has neither, which means none.
  */
 function withLists(i: Issue): Issue {
-  return { ...i, labels: i.labels ?? [], tech: i.tech ?? [] };
+  return { ...i, labels: i.labels ?? [], tech: i.tech ?? [], assignees: i.assignees ?? null };
 }
 
 /** One typed method per API endpoint. */

@@ -67,6 +67,7 @@ curl "$API/issues?cursor=&difficulty=beginner&language=Go&limit=10"
 | `topics` | The repository's GitHub topics. |
 | `labels` | The issue's labels, not case sensitive. |
 | `repo` | A repository as `owner/name`, not case sensitive. |
+| `unassigned` | `true` leaves out issues someone is assigned to on GitHub. An issue the catalog hasn't re-read since it started recording assignees counts as unassigned. |
 | `owner` | Everything from one user or organisation (the part of `owner/name` before the slash), not case sensitive. The shuffled feed still shows one issue per repository; sort by `easiest` or `newest` to see them all. |
 | `comments_min` | The fewest comments, inclusive. A whole number, 0 or more. |
 | `comments_max` | The most comments, inclusive. `0` means no comments yet. |
@@ -128,6 +129,7 @@ A few rules for cursors:
   "learning_tags": ["good first issue", "bug"],
   "labels": ["good first issue", "bug"],
   "tech": ["Go", "Shell"],
+  "assignees": 0,
   "comments": 3,
   "author": "octocat",
   "repository": "owner/repo",
@@ -150,6 +152,7 @@ A few rules for cursors:
 | `created_at` | When the issue was opened on GitHub. Empty when unknown. |
 | `labels` | The issue's labels exactly as GitHub has them. |
 | `repository_id` | SkillIssues' own id for the repository, as a report names it. |
+| `assignees` | How many people are assigned on GitHub, or `null` if the catalog hasn't read it yet. |
 | `tech` | The repository's three largest languages, largest first, by GitHub's names. Empty when unknown. The `tech` filter takes the same names in any case. |
 | `match_category` | Search results only: `Repository`, `Title` or `Language`. |
 

@@ -728,6 +728,11 @@ Every key with its default and bounds: `docs/settings.md`.
   a non-null `next_cursor` is not the end**; only a null cursor is. go-api's connections run with `DB_WORK_MEM_MB` (32 in prod)
   so label bitmaps stay exact: a lossy one re-checked ~550k rows and took 8s. The dropdown values are `catalog_facets`, recomputed by
   ingestd every `ingest.catalog.facets_refresh_seconds`; never count them per request.
+- **Assignees are recorded, not inferred**: `issues.assignees` (00053) is GitHub's assignee count from
+  the crawl (`assignees { totalCount }`) and from GH Archive events that carry assignees; a source
+  that doesn't say keeps the stored value (`COALESCE`), and NULL (not read since) counts as
+  unassigned. `?unassigned=true` (the web app's default) filters on it while walking the order
+  indexes; it is deliberately left out of `hasFilters`, so it never triggers the rarity probe.
 - **Reports are private and hide by count, never by query**: a signed-in person reports an issue, a
   repository or a public theme (`POST /reports`, `internal/report`, migration 00052; one open report
   per person per target, `api.reports.per_user_per_day`). Targets reported by

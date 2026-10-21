@@ -204,6 +204,16 @@
   font-size: var(--label-size);
 }
 
+/* Assigned issues are left out unless asked for. */
+.assigned {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 1.25rem;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
 /* ---- Clear and Apply ---- */
 
 .actions {

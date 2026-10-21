@@ -77,6 +77,10 @@ export function FilterPanel({
           />
         </Field>
       </div>
+      <label className={s.assigned}>
+        <input type="checkbox" checked={draft.includeAssigned} onChange={(e) => setDraft({ ...draft, includeAssigned: e.target.checked })} />
+        {t("filters.includeAssigned")}
+      </label>
       <div className={s.actions}>
         <button
           type="button"

@@ -37,7 +37,7 @@ const TOKEN_MAP: [string, MessageKey][] = [
 const sample: Issue = {
   id: 0, github_id: 0, number: 42, title: "Handle empty config files", url: "#", state: "OPEN",
   updated_at: new Date(Date.now() - 4 * 86400_000).toISOString(), created_at: "", difficulty_score: 2, difficulty: "BEGINNER",
-  required_skills: [], technologies: [], learning_tags: [], labels: ["good first issue", "docs"], tech: ["Go", "Shell"],
+  required_skills: [], technologies: [], learning_tags: [], labels: ["good first issue", "docs"], tech: ["Go", "Shell"], assignees: 0,
   comments: 3, author: "octocat", repository: "owner/repo", repository_id: 0, repository_url: "#", repository_description: "", language: "Go",
   stars: 512, license: "MIT",
 };
