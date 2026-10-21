@@ -5,6 +5,10 @@ Each release's notes are the section under its version. The release workflow
 refuses to build a tag that has none; the app shows the same notes when an
 update is available, and once after it installs.
 
+## 1.2.2
+
+**The installer shows the wordmark alone.** The mark stays the app's icon, nothing more.
+
 ## 1.2.1
 
 **When your fork is deleted on GitHub,** the app now says so, and **Fork again** makes a new one and points your folder at it. Your commits stay, ready to push.

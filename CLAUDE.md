@@ -200,7 +200,8 @@ path reaching outside the importing project). Both apps are built on `client`; t
   self-hosted through `@fontsource` (Instrument Serif headings and nav, JetBrains Mono everything
   else, Krona One for the wordmark: SkillIssues in the ink, the "i" of Skill red, one ink underline across,
   `Logo.tsx`). The owner's mark (a ring, a rough dashed ring, a red "!") is the favicon and the app
-  icons only, never beside the wordmark (`public/favicon.svg`, its black white in a dark browser theme;
+  icons only (the desktop's window and installer icon included), never beside the wordmark, in the web app,
+  the desktop app or the installer (`public/favicon.svg`, its black white in a dark browser theme;
   PNGs rendered from it). In the site and app headers the logo swaps with the live count every few
   seconds (`LogoLive.tsx`: closed against open, `GET /stats`; never under reduced motion).
 - **`pages/`** — the written pages; every claim must describe what the code does. The docs are Markdown in
@@ -346,8 +347,9 @@ top frame.
   GitHub release.
 - **The Windows installer is assisted** (`build.nsis`): a welcome page (`build/installer.nsh`), the
   license and terms (`build/license.txt`), per-user or per-machine, and the folder. It's dark, like the
-  app (`MUI_BGCOLOR`/`MUI_TEXTCOLOR` in `installer.nsh`), with the mark, wordmark and tagline on the
-  welcome and finish pages' sidebar and a header strip (`build/*.bmp`, 24-bit as NSIS needs them). CI builds it on
+  app (`MUI_BGCOLOR`/`MUI_TEXTCOLOR` in `installer.nsh`), with the wordmark and tagline on the
+  welcome and finish pages' sidebar and the wordmark alone in a header strip (`build/*.bmp`, 24-bit as NSIS needs them;
+  no mark in them: the mark is the app icon and favicon only, like everywhere else). CI builds it on
   every desktop change (`desktop-installer`). Builds are unsigned, which is why Windows SmartScreen
   warns; `release.yml` signs once `WIN_CSC_LINK`/`WIN_CSC_KEY_PASSWORD` secrets exist.
 
