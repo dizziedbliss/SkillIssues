@@ -59,4 +59,18 @@ func TestScoreCandidates(t *testing.T) {
 	}
 }
 
+// Stars must not move an issue: two otherwise identical candidates keep
+// their feed order however many stars either repository has.
+func TestStarsDoNotRank(t *testing.T) {
+	u := &profile.FullProfile{TargetLevel: "BEGINNER", PreferredLanguages: []string{"Go"}}
+	same := func(id, stars int) issue.Issue {
+		return issue.Issue{ID: id, Language: "Go", DifficultyScore: intPtr(2), Stars: stars}
+	}
+	got := ScoreCandidates(u, []issue.Issue{same(1, 30), same(2, 250000)}, 10)
+	if got[0].ID != 1 || got[0].RecommendationScore != got[1].RecommendationScore {
+		t.Fatalf("stars changed the ranking: %d (%d) before %d (%d)",
+			got[0].ID, got[0].RecommendationScore, got[1].ID, got[1].RecommendationScore)
+	}
+}
+
 func intPtr(n int) *int { return &n }
