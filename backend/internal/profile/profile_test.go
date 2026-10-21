@@ -100,3 +100,37 @@ func TestUpdateProfile(t *testing.T) {
 		t.Errorf("a refused update changed the profile: %+v, %v", p, err)
 	}
 }
+
+// Only an operator makes an account a moderator, in the database; the flag
+// is false until then, and an unknown account isn't one.
+func TestModerator(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	login := fmt.Sprintf("mod-test-%d", time.Now().UnixNano())
+	var id int
+	if err := pool.QueryRow(ctx, `INSERT INTO users (github_id, username) VALUES ($1, $1) RETURNING id`,
+		[]any{login}, func(row pgx.Row) error { return row.Scan(&id) }); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := pool.Exec(context.Background(), `DELETE FROM users WHERE id = $1`, id); err != nil {
+			t.Errorf("cleanup: %v", err)
+		}
+	})
+	svc := New(pool)
+	if mod, err := svc.IsModerator(ctx, id); err != nil || mod {
+		t.Fatalf("a new account: moderator %v, %v", mod, err)
+	}
+	if err := pool.Exec(ctx, `UPDATE users SET moderator = true WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+	if mod, err := svc.IsModerator(ctx, id); err != nil || !mod {
+		t.Errorf("after the operator's update: moderator %v, %v", mod, err)
+	}
+	if p, err := svc.GetFullProfile(ctx, id); err != nil || !p.Moderator {
+		t.Errorf("GET /me: moderator %v, %v", p != nil && p.Moderator, err)
+	}
+	if mod, err := svc.IsModerator(ctx, -1); err != nil || mod {
+		t.Errorf("an unknown account: moderator %v, %v", mod, err)
+	}
+}

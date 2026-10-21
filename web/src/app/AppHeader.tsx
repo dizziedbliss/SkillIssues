@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../lib/api";
 import { LogoLive } from "../landing/LogoLive";
 import { LOCALES, useI18n } from "../i18n";
 import { useSession, useSignIn, useSignOut } from "./session";
@@ -123,6 +125,8 @@ function ProfileMenu() {
 
   const inAccount = /^\/app\/(settings|profile|saved)/.test(pathname);
   const unread = useNotifications().data?.unread_count ?? 0;
+  // Moderators get Reports in the menu; the server decides who is one.
+  const me = useQuery({ queryKey: ["me"], queryFn: ({ signal }) => api.me({ signal }), staleTime: 5 * 60_000 });
 
   return (
     <div ref={root} className={s.menuRoot}>
@@ -156,6 +160,11 @@ function ProfileMenu() {
             <li>
               <Link to="/app/contributions" className={s.item}>{t("app.menu.contributions")}</Link>
             </li>
+            {me.data?.moderator && (
+              <li>
+                <Link to="/app/moderation" className={s.item}>{t("mod.title")}</Link>
+              </li>
+            )}
             <li>
               <Link to="/app/path" className={s.item}>{t("path.mine")}</Link>
             </li>
