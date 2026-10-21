@@ -211,3 +211,31 @@ func (s *Service) RequestCheck(ctx context.Context, userID int, minGap time.Dura
 	}
 	return requested.Add(minGap), nil
 }
+
+// MergedHistory is where a person has had pull requests merged, for the For
+// you feed's Fit: merges per repository language (lower case) and the
+// repositories merged in.
+func (s *Service) MergedHistory(ctx context.Context, userID int) (map[string]int, map[int]bool, error) {
+	langs := map[string]int{}
+	repos := map[int]bool{}
+	err := s.db.QueryRows(ctx,
+		`SELECT p.repository_id, lower(COALESCE(r.language, ''))
+		 FROM pull_requests p JOIN repositories r ON r.id = p.repository_id
+		 WHERE p.user_id = $1 AND p.merged_at IS NOT NULL`,
+		[]any{userID}, func(rows pgx.Rows) error {
+			var repo int
+			var lang string
+			if err := rows.Scan(&repo, &lang); err != nil {
+				return err
+			}
+			repos[repo] = true
+			if lang != "" {
+				langs[lang]++
+			}
+			return nil
+		})
+	if err != nil {
+		return nil, nil, fmt.Errorf("progress: read merge history: %w", err)
+	}
+	return langs, repos, nil
+}

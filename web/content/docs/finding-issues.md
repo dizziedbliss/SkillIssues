@@ -13,13 +13,22 @@ The catalog lists open issues from every repository SkillIssues tracks. You can 
 
 | Sort | What you get |
 |---|---|
-| Shuffle | The default. Every repository gets one slot, showing its best open issue. The order of repositories is redrawn once a day and is the same for everyone in between. |
+| For you | The default. Issues that suit you, look likely to get merged and have waited, one per repository, drawn differently for each person. |
 | Easiest | Rated issues first, easiest to hardest, then the most recently updated. Unranked issues come last. |
 | Newest | The most recently opened issues first. |
 
-The shuffled feed is meant to spread attention across the whole backlog rather than the biggest projects. A repository with ten thousand open issues gets the same single slot as one with three. Because it surfaces each repository's best issue, you see variety instead of one project's whole queue. If you want a specific order, pick easiest or newest.
+**For you** is how SkillIssues tries to get the whole backlog done, not just the most popular corners of it. It works in three steps:
 
-If you're signed in, your preferred languages come first.
+1. **Candidates.** It walks the catalog's repositories in a random order, taking each one's best open issue that passes your filters, so a project with ten thousand issues gets the same one slot as one with three. Each person's walk starts somewhere different, and it starts somewhere new each day.
+2. **A score for each issue: Fit × Doable × Need.**
+   - **Fit** (signed in): the repository's language is one of yours, or it uses one; the difficulty is your level or the one you're aiming for; it touches your interests; you've merged in that language, or in that repository, before.
+   - **Doable:** it has a difficulty label, the discussion is short, it's been active recently, the repository has a contributing guide, and it merges outsiders' pull requests without long waits.
+   - **Need:** it has been waiting a while, and few people have been shown it lately.
+3. **A weighted draw.** Each page is drawn at random, weighted by score: a better match is more likely to come first, but two people don't get the same list, so nobody piles onto the same issue. The draw is fixed for the day, so going back a page shows what you saw.
+
+Each card says why it's there, in a line under the repository ("Why: your language, merges outsiders' pull requests"). Signed out, Fit doesn't apply and everyone shares one draw a day.
+
+If you're signed in, Explore starts with your profile's languages and level as filters, shown under the search box. **Show every language** removes the languages; the difficulty buttons change the level. With Easiest, your preferred languages also come first.
 
 Choose the sort under **filter**, beside the search box.
 
@@ -80,11 +89,11 @@ A few details:
 
 ## When a page looks short or empty
 
-When you browse the shuffled feed, and especially when you combine filters that few repositories match, the catalog may stop looking after a couple of seconds and give you a short page, or even an empty one, along with a way to carry on from where it stopped. This doesn't mean you've reached the end. Only a response with no way to continue means the end. The website keeps reading a few more pages to fill each page before it tells you nothing matches.
+When you browse For you, and especially when you combine filters that few repositories match, the catalog may stop looking after a couple of seconds and give you a short page, or even an empty one, along with a way to carry on from where it stopped. This doesn't mean you've reached the end. Only a response with no way to continue means the end. The website keeps reading a few more pages to fill each page before it tells you nothing matches.
 
 ## Pages
 
-The numbers under the list are the pages you've already seen, so you can go back to any of them, plus the next one when there is one. The shuffled feed has no fixed page 7 to jump to, so the numbers grow as you go. If you're using the API directly, see [Public API](/docs/public-api) for what to do.
+The numbers under the list are the pages you've already seen, so you can go back to any of them, plus the next one when there is one. For you has no fixed page 7 to jump to, so the numbers grow as you go. If you're using the API directly, see [Public API](/docs/public-api) for what to do.
 
 ## Reading an issue
 

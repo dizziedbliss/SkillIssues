@@ -4,7 +4,7 @@ slug: /how-it-works
 section: Resources
 summary: Where the issues come from, how they stay current, and how they are ordered and rated.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 SkillIssues gathers open issues from active GitHub projects in one place and keeps them current, so you can find one you can solve.
@@ -34,9 +34,9 @@ A closed issue is removed after about a week, unless someone saved it.
 
 ## How issues are ordered
 
-By default the catalog is shuffled. Every repository gets one slot, showing its easiest open issue, and the order of repositories is redrawn each day. A project with ten thousand issues gets the same single slot as one with three. The goal is the whole backlog, not the biggest projects. In between redraws the order is the same for everyone.
+By default you see **For you**. Every repository gets one slot, showing its best open issue for your filters, so a project with ten thousand issues gets the same single slot as one with three. Each issue is scored on how well it fits you, how likely it is to get merged, and how long it has waited with few people looking, and each page is a weighted random draw on that score: good matches come first more often, but different people see different issues. The goal is the whole backlog, not the biggest projects.
 
-You can sort by easiest or newest instead, and filter by labels, languages, the technologies a repository uses, its topics, difficulty and how much discussion an issue has. If you're signed in, your preferred languages come first. See [Finding issues](/docs/finding-issues).
+You can sort by easiest or newest instead, and filter by labels, languages, the technologies a repository uses, its topics, difficulty and how much discussion an issue has. Signed in, Explore starts with your profile's languages and level. See [Finding issues](/docs/finding-issues).
 
 ## How difficulty is rated
 

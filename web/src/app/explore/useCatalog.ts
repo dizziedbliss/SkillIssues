@@ -55,8 +55,8 @@ export function useCatalog(key: string, search: string, filters: IssueFilters | 
     queryKey: search ? ["search", search, filters, index] : ["browse", filters, cursor],
     queryFn: async ({ signal }): Promise<Page> => {
       if (!search) return browsePage(filters!, cursor, signal);
-      // A search keeps its match order unless a sort was chosen; the shuffle isn't one.
-      const sort = filters!.sort === "shuffle" ? undefined : filters!.sort;
+      // A search keeps its match order unless Easiest or Newest was chosen.
+      const sort = filters!.sort === "easiest" || filters!.sort === "newest" ? filters!.sort : undefined;
       const issues = await api.search(search, { ...filters, sort, limit: PAGE_SIZE, page: index + 1 }, { signal });
       return { issues, more: issues.length === PAGE_SIZE, next: null };
     },

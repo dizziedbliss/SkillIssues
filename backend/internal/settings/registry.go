@@ -89,6 +89,19 @@ const (
 	// /recommendations reads off the shuffled feed before scoring them.
 	RecommendationsCandidatePool Key = "api.recommendations.candidate_pool"
 
+	// The For you feed (issue/foryou.go): repositories walked per chunk, the
+	// draw's randomness, the weights of Fit, Doable and Need, how long and how
+	// heavily being shown counts against an issue, and how long a drawn chunk
+	// is kept.
+	ForYouPoolRepos         Key = "api.foryou.pool_repos"
+	ForYouRandomnessPercent Key = "api.foryou.randomness_percent"
+	ForYouWeightFitPercent  Key = "api.foryou.weight_fit_percent"
+	ForYouWeightDoable      Key = "api.foryou.weight_doable_percent"
+	ForYouWeightNeed        Key = "api.foryou.weight_need_percent"
+	ForYouExposureDays      Key = "api.foryou.exposure_days"
+	ForYouExposureHalf      Key = "api.foryou.exposure_half"
+	ForYouChunkTTLSeconds   Key = "api.foryou.chunk_ttl_seconds"
+
 	// ThemesMaxPerUser and ThemesMaxBytes bound what an account stores as
 	// themes (internal/theme).
 	ThemesMaxPerUser Key = "api.themes.max_per_user"
@@ -488,6 +501,14 @@ var Registry = map[Key]Spec{
 	ThemesMaxPerUser:              intSpec(20, 1, 200, "Most themes one account may keep."),
 	ThemesMaxBytes:                intSpec(65536, 1024, 524288, "Largest theme, TOML and stylesheet together, in bytes."),
 	RecommendationsCandidatePool:  intSpec(200, 10, 1000, "Open issues GET /recommendations reads off the shuffled feed, matching the caller's languages and level, before scoring them."),
+	ForYouPoolRepos:               intSpec(150, 20, 1000, "Repositories the For you feed walks per chunk; each chunk is ordered by one draw."),
+	ForYouRandomnessPercent:       intSpec(60, 0, 300, "How random For you's draw is: 100 samples in proportion to score, 0 is a plain ranking, more spreads attention further."),
+	ForYouWeightFitPercent:        intSpec(100, 0, 300, "Weight (exponent, percent) of Fit in the For you score: languages, level, interests, past merges."),
+	ForYouWeightDoable:            intSpec(100, 0, 300, "Weight (exponent, percent) of Doable in the For you score: labelled, short discussion, recent, welcoming repository."),
+	ForYouWeightNeed:              intSpec(100, 0, 300, "Weight (exponent, percent) of Need in the For you score: how long it has waited, how few were shown it."),
+	ForYouExposureDays:            intSpec(7, 1, 30, "Days of serves the For you feed counts against an issue."),
+	ForYouExposureHalf:            intSpec(20, 0, 100000, "Serves in that window at which an issue's Need halves. 0 ignores serves."),
+	ForYouChunkTTLSeconds:         intSpec(1800, 0, 86400, "How long a drawn For you chunk is kept in Redis, so paging doesn't redraw it. 0 draws every time."),
 	IssuesLanguageCountTTLSeconds: intSpec(600, 0, 86400, "How long a language's counted open issues are reused when deciding how to browse it. 0 counts on every request."),
 	IssuesRareProbeMs:             intSpec(500, 0, 10000, "How long counting a combination of filters may take when deciding how to browse it; one that takes longer is read in index order. 0 does not bound it."),
 	IssuesShuffleWalkBudgetMs:     intSpec(2000, 0, 9000, "How long one page of the shuffled feed may look for matches before it is returned short, with a cursor to continue from. 0 does not bound it."),
