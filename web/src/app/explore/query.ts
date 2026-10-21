@@ -18,6 +18,8 @@ export interface Panel {
   comments_min?: number;
   comments_max?: number;
   sort: Sort;
+  /** Show issues someone is assigned to as well (?assigned=include); left out by default. */
+  includeAssigned: boolean;
 }
 
 export interface CatalogQuery extends Panel {
@@ -58,6 +60,7 @@ export function readQuery(p: URLSearchParams): CatalogQuery {
     comments_min: count(p, "comments_min"),
     comments_max: count(p, "comments_max"),
     sort: sort && SORTS.includes(sort) ? sort : "shuffle",
+    includeAssigned: p.get("assigned") === "include",
   };
 }
 
@@ -71,10 +74,11 @@ export function writeQuery(q: CatalogQuery): URLSearchParams {
   if (q.comments_min !== undefined) p.set("comments_min", String(q.comments_min));
   if (q.comments_max !== undefined) p.set("comments_max", String(q.comments_max));
   if (q.sort !== "shuffle") p.set("sort", q.sort);
+  if (q.includeAssigned) p.set("assigned", "include");
   return p;
 }
 
-export const emptyPanel: Panel = { labels: [], tech: [], topics: [], language: [], sort: "shuffle" };
+export const emptyPanel: Panel = { labels: [], tech: [], topics: [], language: [], sort: "shuffle", includeAssigned: false };
 
 /** The API's filters for a query whose difficulty has been settled. */
 export function toFilters(q: CatalogQuery, difficulty: Difficulty[]): IssueFilters {
@@ -89,6 +93,7 @@ export function toFilters(q: CatalogQuery, difficulty: Difficulty[]): IssueFilte
     language: q.language,
     comments_min: q.comments_min,
     comments_max: q.comments_max,
+    unassigned: !q.includeAssigned,
   };
 }
 

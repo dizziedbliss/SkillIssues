@@ -21,7 +21,7 @@ A good first issue is one you can understand, finish and get merged. A label hel
 ## Warning signs
 
 - **No description, or one line.** Ask on the issue what's wanted before you write code.
-- **Someone is assigned.** Ask them, politely, whether they're still working on it. If there's no answer after a week, ask a maintainer whether you can take it.
+- **Someone is assigned.** Explore leaves these out unless you ask for them, and the checklist checks again on GitHub when you open an issue. Ask them, politely, whether they're still working on it. If there's no answer after a week, ask a maintainer whether you can take it.
 - **A pull request already points at it.** Read it. If it's open and active, pick another issue. If it was abandoned months ago, ask whether you can finish it.
 - **Nothing has happened for six months.** The maintainers may have moved on, or the issue may no longer matter. Check the repository's recent commits and merged pull requests before you start.
 - **A long, heated discussion.** People don't agree on what the fix should be. That's not a beginner's problem to solve.

@@ -229,6 +229,7 @@ export const en = {
   "filters.comments.some": "6–20",
   "filters.comments.many": "More than 20",
   "filters.clear": "Clear",
+  "filters.includeAssigned": "Include issues someone is assigned to",
   "filters.apply": "Apply",
   "sort.shuffle": "Shuffle",
   "sort.easiest": "Easiest",
@@ -375,6 +376,8 @@ export const en = {
   "saved.empty": "Nothing saved yet. Press the bookmark on any issue to keep it here.",
   "saved.explore": "Explore issues",
   "issue.closedChip": "Closed",
+  "issue.assigned": "Assigned",
+  "issue.assignedHelp": "Someone is assigned on GitHub: ask on the issue before you start.",
 
   // ---- the app: is this a good first issue? ----
   "check.title": "Good place to start?",
@@ -548,7 +551,7 @@ export const en = {
   "settings.everywhere.pending": "Signing out",
   "settings.delete": "Delete account",
   "settings.delete.body":
-    "This deletes your profile, preferences, saved issues, themes, notifications and every session, straight away. It can’t be undone.",
+    "This deletes your profile, preferences, saved issues, themes, notifications, reports and every session, straight away. It can’t be undone.",
   "settings.delete.confirm": "Delete my account",
   "settings.delete.pending": "Deleting",
   "settings.delete.keep": "Keep it",
