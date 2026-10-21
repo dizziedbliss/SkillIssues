@@ -226,11 +226,12 @@ func derefOr[T any](p *T, fallback T) T {
 	return *p
 }
 
-func isResourceLimitError(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "RESOURCE_LIMITS_EXCEEDED") ||
-		strings.Contains(msg, "timeout") ||
-		strings.Contains(msg, "Timeout")
+func isResourceLimitError(err error) bool { return github.IsResourceLimit(err) }
+
+// rateLimitPause is how long a rate limit pauses both lanes: the configured
+// ingest.rate_limit_pause_seconds, or longer when GitHub asked for longer.
+func rateLimitPause(snap *settings.Snapshot, retryAfter time.Duration) time.Duration {
+	return max(snap.Seconds(settings.IngestRateLimitPauseSeconds), retryAfter)
 }
 
 // handleFetchError classifies a fetch failure: NOT_FOUND isolates the
@@ -241,7 +242,7 @@ func (w *Worker) handleFetchError(ctx context.Context, job Job, err error) (stri
 	msg := err.Error()
 	snap := w.live()
 
-	if strings.Contains(msg, "Could not resolve to a Repository") || strings.Contains(msg, "NOT_FOUND") {
+	if github.IsNotFound(err) {
 		slog.Info("repository not found on GitHub, marking unavailable", "repo", job.FullName)
 		if err := MarkUnavailable(ctx, w.pool, job, "not_found"); err != nil {
 			return "persist_error", fmt.Errorf("mark %q unavailable: %w", job.FullName, err)
@@ -249,8 +250,8 @@ func (w *Worker) handleFetchError(ctx context.Context, job Job, err error) (stri
 		return "not_found", nil
 	}
 
-	if strings.Contains(msg, "rate limit exceeded") || strings.Contains(msg, "HTTP 403") || strings.Contains(msg, "HTTP 429") {
-		until := time.Now().Add(snap.Seconds(settings.IngestRateLimitPauseSeconds))
+	if limited, retryAfter := github.IsRateLimited(err); limited {
+		until := time.Now().Add(rateLimitPause(snap, retryAfter))
 		if err := MarkSecondaryLimit(ctx, w.pool, LaneCrawler, installationIdentity, until); err != nil {
 			metrics.BudgetErrors.WithLabelValues("write", string(LaneCrawler)).Inc()
 			slog.Warn("failed to record secondary rate limit pause", "error", err)

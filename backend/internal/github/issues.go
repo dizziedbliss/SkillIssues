@@ -267,17 +267,28 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 		return nil, err
 	}
 	if len(rawResponse.Errors) > 0 {
-		return nil, fmt.Errorf("github graphql: %s", rawResponse.Errors[0].Message)
+		return nil, newGraphQLError(rawResponse.Errors[0])
 	}
 	if rawResponse.Data.Repository == nil {
-		return nil, fmt.Errorf("github: repository not found")
+		return nil, ErrRepositoryNotFound
 	}
 	repo := rawResponse.Data.Repository
 
 	var issues []GraphQLIssueNode
 	for _, n := range repo.Issues.Nodes {
-		createdAt, _ := time.Parse(time.RFC3339, n.CreatedAt)
-		updatedAt, _ := time.Parse(time.RFC3339, n.UpdatedAt)
+		// updatedAt is the issue's own clock (CLAUDE.md: never import time),
+		// so an issue without a readable one fails the page rather than
+		// being stored at a made-up time. createdAt may be absent (unknown).
+		updatedAt, err := time.Parse(time.RFC3339, n.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("github: parse updatedAt of issue #%d: %w", n.Number, err)
+		}
+		var createdAt time.Time
+		if n.CreatedAt != "" {
+			if createdAt, err = time.Parse(time.RFC3339, n.CreatedAt); err != nil {
+				return nil, fmt.Errorf("github: parse createdAt of issue #%d: %w", n.Number, err)
+			}
+		}
 		author := ""
 		if n.Author != nil {
 			author = n.Author.Login
