@@ -75,6 +75,10 @@ export interface Workspace {
   unpushed: number;
   /** Why the folder couldn't be read (moved, deleted), or null. */
   problem: string | null;
+  /** The fork is gone from GitHub (deleted there): nothing to push to until it's forked again. */
+  forkMissing?: boolean;
+  /** The pull request as GitHub has it now; missing when it couldn't be asked. */
+  pullRequestState?: "open" | "closed" | "merged";
   /** The pull request opened from this workspace, once there is one. */
   pullRequestUrl: string | null;
 }
@@ -160,6 +164,7 @@ export const channels = {
   push: "workspace:push",
   openPullRequest: "workspace:open-pr",
   forgetWorkspace: "workspace:forget",
+  refork: "workspace:refork",
   copyText: "clipboard:write",
   openExternal: "shell:open-external",
   githubGet: "github:get",
@@ -207,6 +212,8 @@ export interface DesktopBridge {
   openPullRequest(issueId: number, input: PullRequestInput): Promise<Result<Workspace>>;
   /** Takes the workspace off the list; the folder stays where it is. */
   forgetWorkspace(issueId: number): Promise<Result<null>>;
+  /** Forks the repository again after the fork was deleted on GitHub, and points the folder at it. */
+  refork(issueId: number): Promise<Result<Workspace>>;
   /** Puts short text (a sign-in code) on the clipboard. */
   copyText(text: string): Promise<Result<null>>;
   openExternal(url: string): Promise<Result<null>>;

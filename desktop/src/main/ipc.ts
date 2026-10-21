@@ -71,6 +71,7 @@ export function registerIpc(
   handle(channels.push, (id) => workspace.push(issueId(id)));
   handle(channels.openPullRequest, (id, input) => workspace.openPullRequest(issueId(id), input));
   handle(channels.forgetWorkspace, (id) => workspace.forget(issueId(id)));
+  handle(channels.refork, (id) => workspace.refork(issueId(id)));
   // The page's own clipboard is off with every other permission; a code goes through here.
   handle(channels.copyText, (text) => {
     if (!isClipboardText(text)) throw new Error("That can't be copied.");
