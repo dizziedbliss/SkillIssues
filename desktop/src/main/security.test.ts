@@ -5,7 +5,10 @@ import {
   cleanCommitMessage,
   gitEnv,
   githubRemote,
+  deepLinkPath,
   isAllowedApiCall,
+  isAllowedGitHubRead,
+  isHexColor,
   isAllowedExternalURL,
   isGitHubRemote,
   isValidBranch,
@@ -131,4 +134,51 @@ test("tokens are redacted from anything shown", () => {
   const out = redact(`fatal: ${token} and AUTHORIZATION: basic ${basic}`, token);
   assert.ok(!out.includes(token) && !out.includes(basic));
   assert.equal(redact("nothing", null), "nothing");
+});
+
+test("the page may read only an issue, its timeline and pull request search from GitHub", () => {
+  for (const ok of [
+    "https://api.github.com/repos/octo/tool/issues/12",
+    "https://api.github.com/repos/octo/my.tool_x/issues/12/timeline?per_page=100",
+    "https://api.github.com/search/issues?q=type%3Apr+author%3Aocto&per_page=20",
+  ]) {
+    assert.ok(isAllowedGitHubRead(ok), ok);
+  }
+  for (const bad of [
+    "http://api.github.com/repos/octo/tool/issues/12",
+    "https://api.github.com.evil.example/repos/octo/tool/issues/12",
+    "https://user:pass@api.github.com/repos/octo/tool/issues/12",
+    "https://api.github.com/repos/octo/tool/issues/12/comments",
+    "https://api.github.com/user",
+    "https://api.github.com/repos/octo/tool/issues/12#x",
+    "https://api.github.com:8443/search/issues",
+    "https://github.com/octo/tool/issues/12",
+    "https://api.github.com/repos/octo/../user/issues/1",
+    "not a url",
+  ]) {
+    assert.ok(!isAllowedGitHubRead(bad), bad);
+  }
+});
+
+test("a skillissues:// link opens only an issue page", () => {
+  assert.equal(deepLinkPath("skillissues://issue/42"), "/app/issues/42");
+  assert.equal(deepLinkPath("skillissues://issue/42?repo=a%2Fb&number=7"), "/app/issues/42");
+  for (const bad of ["skillissues://issue/0", "skillissues://issue/abc", "skillissues://settings", "https://issue/42", "skillissues://issue/42/../../x", ""]) {
+    assert.equal(deepLinkPath(bad), null, bad);
+  }
+});
+
+test("the new app routes are allowed, and operational ones still aren't", () => {
+  for (const [m, p] of [["GET", "/me/xp"], ["POST", "/me/pulls/refresh"], ["POST", "/issues/9/claim"], ["DELETE", "/issues/9/claim"],
+    ["POST", "/me/path/steps/2/swap"], ["GET", "/users/octo"], ["PUT", "/profile"], ["POST", "/reports"], ["POST", "/auth/logout-all"]] as const) {
+    assert.ok(isAllowedApiCall(m, p), `${m} ${p}`);
+  }
+  for (const [m, p] of [["GET", "/admin/reports"], ["POST", "/admin/reports/resolve"], ["DELETE", "/me"], ["POST", "/auth/github/device"], ["GET", "/metrics"]] as const) {
+    assert.ok(!isAllowedApiCall(m, p), `${m} ${p}`);
+  }
+});
+
+test("the title bar takes only a #rrggbb colour", () => {
+  assert.ok(isHexColor("#f2f2f2"));
+  for (const bad of ["f2f2f2", "#fff", "#f2f2f2ff", "red", "#gggggg", "#f2f2f2;x"]) assert.ok(!isHexColor(bad), bad);
 });

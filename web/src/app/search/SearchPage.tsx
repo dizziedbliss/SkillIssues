@@ -151,7 +151,9 @@ export function SearchPage() {
               busy={results.isFetching}
               onGo={(i) => {
                 update({}, { page: String(i + 1) });
+                // The page scrolls, or (in the desktop app) the app's own root does.
                 window.scrollTo({ top: 0 });
+                document.querySelector("[data-app]")?.scrollTo({ top: 0 });
               }}
             />
           )}

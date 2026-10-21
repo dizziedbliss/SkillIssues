@@ -73,6 +73,35 @@ export interface Settings {
   workspaceRoot: string;
 }
 
+/** Where the app's own updates stand (main/updater.ts). */
+export interface UpdateState {
+  status: "idle" | "checking" | "current" | "downloading" | "ready" | "error" | "unsupported";
+  version?: string;
+  percent?: number;
+  /** macOS: installing means downloading it from the release page. */
+  manual?: boolean;
+  reason?: string;
+}
+
+/** The title bar's look, from the theme in use. */
+export interface TitleBarColors {
+  /** The window buttons' colour, #rrggbb. */
+  symbol: string;
+  /**
+   * Whether the theme is dark: the OS then draws the window's edge, its
+   * shadow and its corners dark too, instead of a light border around a dark app.
+   */
+  dark: boolean;
+}
+
+/** A public GitHub API answer, read by the main process with no credentials. */
+export interface GitHubReply {
+  status: number;
+  body: string;
+  /** Only the rate-limit headers the page reads. */
+  headers: Record<string, string>;
+}
+
 export const channels = {
   api: "api:request",
   authState: "auth:state",
@@ -93,6 +122,13 @@ export const channels = {
   commitAndPush: "workspace:commit-push",
   openPullRequest: "workspace:open-pr",
   openExternal: "shell:open-external",
+  githubGet: "github:get",
+  takeLink: "app:take-link",
+  windowInfo: "window:info",
+  titleBar: "window:title-bar",
+  updateState: "update:state",
+  checkUpdates: "update:check",
+  installUpdate: "update:install",
 } as const;
 
 export type Channel = (typeof channels)[keyof typeof channels];
@@ -121,4 +157,19 @@ export interface DesktopBridge {
   commitAndPush(issueId: number, message: string): Promise<Result<Workspace>>;
   openPullRequest(issueId: number): Promise<Result<Workspace>>;
   openExternal(url: string): Promise<Result<null>>;
+  /** GETs an allowlisted public GitHub API URL, without credentials. */
+  githubGet(url: string): Promise<Result<GitHubReply>>;
+  /**
+   * The app page a skillissues:// link asked for (e.g. "/app/issues/12"),
+   * once, or null. The page asks on start and whenever the window is focused.
+   */
+  takeLink(): Promise<Result<string | null>>;
+  /** Which OS draws the window buttons, and where (for the title bar's padding). */
+  windowInfo(): Promise<Result<{ platform: string }>>;
+  /** Matches the window buttons to the theme. */
+  titleBar(colors: TitleBarColors): Promise<Result<null>>;
+  updateState(): Promise<Result<UpdateState>>;
+  checkUpdates(): Promise<Result<UpdateState>>;
+  /** Restarts into a downloaded update (macOS: opens the release page). */
+  installUpdate(): Promise<Result<null>>;
 }

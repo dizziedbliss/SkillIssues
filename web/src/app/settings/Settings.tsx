@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from "react";
-import { Link, Navigate, NavLink, Route, Routes } from "react-router";
+import { platform } from "../platform";
+import { SiteLink } from "../SiteLink";
+import { Navigate, NavLink, Route, Routes } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { useT, type MessageKey } from "../../i18n";
@@ -52,7 +54,7 @@ export function Settings() {
           <Route path="profile" element={needsAccount(<ProfileView />)} />
           <Route path="themes" element={needsAccount(<View title="settings.themes"><Themes /></View>)} />
           <Route path="themes/:id" element={needsAccount(<ThemeEditorPage />)} />
-          <Route path="desktop" element={<View title="settings.desktop"><Desktop /></View>} />
+          <Route path="desktop" element={<View title="settings.desktop"><DesktopView /></View>} />
           <Route path="account" element={needsAccount(<View title="settings.account"><Account username={user?.username ?? ""} avatar={user?.avatar_url ?? ""} /></View>)} />
           <Route path="support" element={<View title="settings.support"><Support /></View>} />
           <Route path="*" element={<Navigate to="/app/settings" replace />} />
@@ -84,13 +86,18 @@ function ProfileView() {
   );
 }
 
+function DesktopView() {
+  const Own = platform().DesktopSettings;
+  return Own ? <Own /> : <Desktop />;
+}
+
 function Desktop() {
   const t = useT();
   return (
     <>
       <p className={s.body}>{t("settings.desktop.body")}</p>
       <p>
-        <Link to="/download" className={s.button}>{t("settings.desktop.get")}</Link>
+        <SiteLink to="/download" className={s.button}>{t("settings.desktop.get")}</SiteLink>
       </p>
     </>
   );
@@ -100,13 +107,13 @@ function Support() {
   const t = useT();
   return (
     <ul className={s.links}>
-      <li><Link to="/docs">{t("settings.support.docs")}</Link></li>
-      <li><Link to="/faq">{t("settings.support.faq")}</Link></li>
-      <li><Link to="/contact">{t("settings.support.contact")}</Link></li>
-      <li><Link to="/docs/report-a-bug">{t("settings.support.bug")}</Link></li>
-      <li><Link to="/privacy">{t("settings.support.privacy")}</Link></li>
-      <li><Link to="/terms">{t("settings.support.terms")}</Link></li>
-      <li><Link to="/security">{t("settings.support.security")}</Link></li>
+      <li><SiteLink to="/docs">{t("settings.support.docs")}</SiteLink></li>
+      <li><SiteLink to="/faq">{t("settings.support.faq")}</SiteLink></li>
+      <li><SiteLink to="/contact">{t("settings.support.contact")}</SiteLink></li>
+      <li><SiteLink to="/docs/report-a-bug">{t("settings.support.bug")}</SiteLink></li>
+      <li><SiteLink to="/privacy">{t("settings.support.privacy")}</SiteLink></li>
+      <li><SiteLink to="/terms">{t("settings.support.terms")}</SiteLink></li>
+      <li><SiteLink to="/security">{t("settings.support.security")}</SiteLink></li>
     </ul>
   );
 }
@@ -120,7 +127,7 @@ function Account({ username, avatar }: { username: string; avatar: string }) {
   const [deleted, setDeleted] = useState<string | null>(null);
 
   const remove = useMutation({
-    mutationFn: () => api.deleteAccount(),
+    mutationFn: () => (platform().deleteAccount ?? (() => api.deleteAccount()))(),
     onSuccess: (res) => {
       setConfirming(false);
       setDeleted(res.authorized_apps_url);

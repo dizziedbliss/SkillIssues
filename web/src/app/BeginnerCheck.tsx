@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { SiteLink } from "./SiteLink";
 import type { Issue } from "@skillissues/client";
 import { useI18n, type MessageKey } from "../i18n";
 import type { Live } from "../lib/issueBody";
@@ -100,7 +100,7 @@ export function BeginnerCheck({
           </li>
         ))}
       </ul>
-      <Link to="/docs/good-first-issues" className={s.guide}>{t("check.guide")}</Link>
+      <SiteLink to="/docs/good-first-issues" className={s.guide}>{t("check.guide")}</SiteLink>
     </section>
   );
 }

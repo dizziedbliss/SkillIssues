@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
+import { SiteLink } from "./SiteLink";
 import type { Issue } from "@skillissues/client";
 import { useT } from "../i18n";
 import s from "./DesktopButton.module.css";
@@ -41,7 +41,7 @@ export function DesktopButton({ issue, className }: { issue: Issue; className?: 
       {fallback && (
         <span className={s.fallback} role="status">
           <span>{t("desktop.notOpened")}</span>
-          <Link to="/download">{t("desktop.download")}</Link>
+          <SiteLink to="/download">{t("desktop.download")}</SiteLink>
           <a href={issue.url} target="_blank" rel="noreferrer">{t("desktop.github")}</a>
           <button type="button" className={s.dismiss} onClick={() => setFallback(false)} aria-label={t("auth.dismiss")}>
             x
