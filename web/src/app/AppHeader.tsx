@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
-import { Logo } from "../landing/Logo";
+import { LogoLive } from "../landing/LogoLive";
 import { LOCALES, useI18n } from "../i18n";
 import { useSession, useSignIn, useSignOut } from "./session";
 import { useSearchOverlay } from "./search/context";
@@ -28,7 +28,7 @@ export function AppHeader() {
       <div className={s.bar}>
         {/* Inside the app the wordmark is home: Explore. */}
         <Link to="/app" className={s.home} aria-label={t("app.home")}>
-          <Logo size="header" />
+          <LogoLive size="header" />
         </Link>
         <nav className={s.nav} aria-label={t("app.nav")} data-ui="nav">
           {/* Back to Explore as it was left; the wordmark starts it afresh. */}

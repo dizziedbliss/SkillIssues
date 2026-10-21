@@ -198,7 +198,11 @@ path reaching outside the importing project). Both apps are built on `client`; t
   hover colour, links draw their underline, live counts glide between polls; all of it stops under reduced
   motion. Fonts are
   self-hosted through `@fontsource` (Instrument Serif headings and nav, JetBrains Mono everything
-  else, Krona One for the wordmark at 9% tracking over its 24:8 JetBrains Mono line).
+  else, Krona One for the wordmark: "Skill" in the ink, "Issues" in the signal red, underlined, 0.1em
+  tracking, `Logo.tsx`). The favicon is the owner's stacked mark (`public/favicon.svg`; its black turns
+  white in a dark browser theme), with PNG fallbacks. In the site and app headers the logo swaps with
+  the live count every few seconds (`LogoLive.tsx`: closed against open, `GET /stats`; never under
+  reduced motion).
 - **`pages/`** — the written pages; every claim must describe what the code does. The docs are Markdown in
   `web/content/docs/` (frontmatter `slug`, `title`, `section`, `summary`), read and rendered at build
   time by `docs.ts` (markdown-it, raw HTML off: first-party text, so not through `packages/markdown`,

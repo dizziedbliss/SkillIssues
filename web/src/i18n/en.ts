@@ -26,7 +26,6 @@ export const en = {
   "site.nav.docs": "Docs",
   "site.nav.live": "SkillIssues Live",
   "site.nav.contribute": "Contribute",
-  "logo.line": "You Have the Skills. We Have the Issues.",
 
   "footer.col.skillissues": "SkillIssues",
   "footer.col.guides": "Guides",
@@ -129,6 +128,8 @@ export const en = {
   "live.loading": "Live count of closed and open issues, loading.",
   "live.closed": "issues closed",
   "live.open": "open issues and counting",
+  "live.closedShort": "closed",
+  "live.openShort": "still open",
 
   // ---- written pages ----
   "page.draft": "Draft: this page is being reviewed and may change before it is final.",

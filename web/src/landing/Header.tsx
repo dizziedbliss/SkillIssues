@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { Logo } from "./Logo";
+import { LogoLive } from "./LogoLive";
 import { external } from "../lib/links";
 import { useT, type MessageKey } from "../i18n";
 import s from "./Header.module.css";
@@ -19,7 +19,7 @@ export function Header() {
   return (
     <header className={s.header}>
       <Link to="/" className={s.home} aria-label={t("site.home")}>
-        <Logo size="header" />
+        <LogoLive size="header" />
       </Link>
       <button
         type="button"
