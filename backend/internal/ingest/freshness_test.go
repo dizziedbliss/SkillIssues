@@ -380,7 +380,11 @@ func TestFirstPageRefreshesRepositoryStats(t *testing.T) {
 		"issues":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":""}},
 		"stargazerCount":315,"forkCount":12,"watchers":{"totalCount":7},"openIssues":{"totalCount":42},
 		"isArchived":true,"pushedAt":"2026-10-10T10:00:00Z",
-		"contributingGuidelines":{"url":"https://github.com/o/n/blob/main/CONTRIBUTING.md"}},`+fakeRateLimit+`}}`)
+		"contributingGuidelines":{"url":"https://github.com/o/n/blob/main/CONTRIBUTING.md"},
+		"mergedPulls":{"nodes":[
+			{"authorAssociation":"CONTRIBUTOR","createdAt":"2026-10-01T00:00:00Z","mergedAt":"2026-10-01T10:00:00Z"},
+			{"authorAssociation":"OWNER","createdAt":"2026-10-01T00:00:00Z","mergedAt":"2026-10-01T02:00:00Z"},
+			{"authorAssociation":"NONE","createdAt":"2026-10-01T00:00:00Z","mergedAt":"2026-10-03T00:00:00Z"}]}},`+fakeRateLimit+`}}`)
 
 	passStarted := time.Date(2026, 10, 15, 6, 0, 0, 0, time.UTC)
 	runOneJob(t, pool, gh, repoID, nil, &passStarted)
@@ -408,6 +412,14 @@ func TestFirstPageRefreshesRepositoryStats(t *testing.T) {
 	}
 	if contributing == nil || *contributing != "https://github.com/o/n/blob/main/CONTRIBUTING.md" {
 		t.Errorf("contributing_url = %v", contributing)
+	}
+	var sampled, outside, median *int
+	if err := pool.QueryRow(ctx, `SELECT health_sampled, health_outside, health_median_merge_hours FROM repositories WHERE id = $1`,
+		[]any{repoID}, func(row pgx.Row) error { return row.Scan(&sampled, &outside, &median) }); err != nil {
+		t.Fatal(err)
+	}
+	if sampled == nil || *sampled != 3 || outside == nil || *outside != 2 || median == nil || *median != 10 {
+		t.Errorf("health = %v %v %v, want 3 sampled, 2 outside, 10h median", sampled, outside, median)
 	}
 }
 

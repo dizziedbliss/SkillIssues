@@ -37,6 +37,7 @@ Every issue page has a **Good place to start?** box. It reads the issue as GitHu
 | Marked as a place to start | A label such as "good first issue", "beginner", "easy", "starter", "first-timers-only", "newcomer" or "low-hanging fruit", or a Beginner rating. |
 | A real description | At least 150 characters, not counting an issue template's hidden comments. |
 | Nobody assigned | GitHub shows no assignee. |
+| Not claimed | Nobody on SkillIssues has pressed **I'm working on this** on it. |
 | No open pull request | No open pull request references the issue on its timeline. |
 | Active recently | Updated in the last 180 days. |
 | A short discussion | 10 comments or fewer. |
@@ -45,12 +46,20 @@ The box says "Looks like a good place to start" only when every point is fine. A
 
 ## When you've picked one
 
-1. **Say you're working on it.** A comment such as "I'd like to work on this. I plan to change X in Y." lets the maintainers stop you early if your plan is wrong.
+1. **Say you're working on it.** A comment such as "I'd like to work on this. I plan to change X in Y." lets the maintainers stop you early if your plan is wrong. Then press **I'm working on this** on the issue page, so other SkillIssues users see it's taken (see [Claims](#claims)).
 2. **Read the contributing guide**, and build and test the project before you change anything.
 3. **Keep the change small.** Fix the issue, and nothing else. A small pull request is reviewed sooner.
 4. **Link the issue** in your pull request ("Fixes #42"), so it closes when your change is merged.
 
 See [Getting started](/docs/getting-started) for the whole route from the catalog to your first pull request.
+
+## Claims
+
+**I'm working on this** on an issue page claims the issue for you on SkillIssues. Other people see it marked **Claimed**, and Explore leaves it out unless they include assigned and claimed issues.
+
+- A claim lasts 7 days. While you have an open pull request that closes the issue, it lasts until that pull request is merged or closed.
+- You can hold 2 claims at a time. **Release** gives one up; your claims are listed on your profile.
+- A claim lives on SkillIssues only. GitHub and the maintainers don't see it, so comment on the issue as well.
 
 ## If an issue shouldn't be here
 

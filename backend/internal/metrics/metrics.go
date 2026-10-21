@@ -76,6 +76,11 @@ var (
 		Help: "GitHub webhook deliveries that were verified but not applied, by stage (parse, timestamp, write). A failed write answers 500 and forgets the delivery, so GitHub's redelivery can apply it.",
 	}, []string{"stage"})
 
+	ClaimsRefreshErrors = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "claims_refresh_errors_total",
+		Help: "Failed re-reads of which issues are claimed. Until one succeeds, the last read stands.",
+	})
+
 	CacheSkipped = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "cache_skipped_total",
 		Help: "Redis calls not attempted because Redis failed recently, by operation. The API fails open on each without waiting; one call per api.cache.redis_retry_seconds probes for recovery.",
@@ -84,7 +89,7 @@ var (
 
 // RegisterAPI registers the families go-api produces.
 func RegisterAPI() {
-	Registry.MustRegister(HTTPRequests, HTTPDuration, HTTPResponseBytes, BudgetErrors, CacheErrors, CacheSkipped, ReportsHiddenRefreshErrors, WebhookErrors)
+	Registry.MustRegister(HTTPRequests, HTTPDuration, HTTPResponseBytes, BudgetErrors, CacheErrors, CacheSkipped, ReportsHiddenRefreshErrors, WebhookErrors, ClaimsRefreshErrors)
 }
 
 // ---------------------------------------------------------------------------
@@ -244,6 +249,16 @@ var (
 		Help: "Repositories seen in the archive but not stored, looked up on GitHub, by outcome: new, updated, renamed, ineligible, excluded, conflict, not_found.",
 	}, []string{"outcome"})
 
+	PRSyncReads = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "pr_sync_reads_total",
+		Help: "People whose pull requests were read, by outcome: page (more to read), complete (a pass finished), other_account (the login is someone else's now), failed.",
+	}, []string{"outcome"})
+
+	XPEventsWritten = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "xp_events_written_total",
+		Help: "XP ledger rows written, by source (merged, backfill, opened, opened_reversed, quest, path).",
+	}, []string{"source"})
+
 	BodyFetches = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "body_fetches_total",
 		Help: "Issue bodies ingestd was asked to fetch for the body fallback, by outcome: fetched, budget, no-credential, gone, not-stored.",
@@ -312,6 +327,6 @@ func RegisterIngest() {
 		DiscoveryWindowOutcomes, DiscoveryRepositories, DiscoveryWindowsTruncated, DiscoveryWindows,
 		DiscoveryLastSweepCompleted, RepositoryIdentityConflicts,
 		ArchiveHourOutcomes, ArchiveIssueEvents, ArchiveHours, ArchiveLagSeconds, ArchiveFallback, ArchiveCandidates,
-		BodyFetches,
+		BodyFetches, PRSyncReads, XPEventsWritten,
 	)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -80,6 +81,20 @@ type RepositoryStats struct {
 	// nil when it has none (or GitHub gave something other than a github.com
 	// page, which is never stored).
 	ContributingURL *string
+	// Health is how the repository's latest merges went, when asked for.
+	Health *RepositoryHealth
+}
+
+// RepositoryHealth summarises a repository's latest merged pull requests.
+type RepositoryHealth struct {
+	// Sampled is how many merged pull requests were read (up to the sample).
+	Sampled int
+	// Outside is how many were by people outside the project: not its
+	// owner, a member of its organisation or a collaborator.
+	Outside int
+	// MedianMergeHours is the median time from opening to merging; nil with
+	// nothing sampled.
+	MedianMergeHours *int
 }
 
 // IssuesQuery selects what one FetchRepositoryIssues call returns.
@@ -104,9 +119,12 @@ type IssuesQuery struct {
 	// one totalCount, so it does not raise the request's point cost; asked
 	// once per pass, on its first page.
 	FetchStats bool
+	// HealthSample, with FetchStats, also reads the latest this-many merged
+	// pull requests for RepositoryStats.Health; 0 skips it.
+	HealthSample int
 }
 
-const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: String!, $after: String, $since: DateTime, $first: Int!, $withOpen: Boolean!, $withClosed: Boolean!, $closedAfter: String, $closedFirst: Int!, $withStats: Boolean!) {
+const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: String!, $after: String, $since: DateTime, $first: Int!, $withOpen: Boolean!, $withClosed: Boolean!, $closedAfter: String, $closedFirst: Int!, $withStats: Boolean!, $withHealth: Boolean!, $healthLast: Int!) {
     repository(owner: $owner, name: $name) {
         issues(first: $first, after: $after, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}, filterBy: {since: $since}) @include(if: $withOpen) {
             nodes {
@@ -136,6 +154,9 @@ const repositoryIssuesQuery = `query RepositoryIssues($owner: String!, $name: St
         isArchived @include(if: $withStats)
         pushedAt @include(if: $withStats)
         contributingGuidelines @include(if: $withStats) { url }
+        mergedPulls: pullRequests(states: MERGED, last: $healthLast) @include(if: $withHealth) {
+            nodes { authorAssociation createdAt mergedAt }
+        }
         __typename
     }
     rateLimit { limit remaining used resetAt cost }
@@ -167,6 +188,8 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 		"withClosed":  fetchClosed,
 		"closedFirst": clampPageSize(q.ClosedPageSize),
 		"withStats":   q.FetchStats,
+		"withHealth":  q.FetchStats && q.HealthSample > 0,
+		"healthLast":  clampPageSize(max(q.HealthSample, 1)),
 	}
 	if q.OpenCursor != nil && *q.OpenCursor != "" {
 		variables["after"] = *q.OpenCursor
@@ -232,6 +255,9 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 				Contributing *struct {
 					URL string `json:"url"`
 				} `json:"contributingGuidelines"`
+				MergedPulls *struct {
+					Nodes []mergedPullNode `json:"nodes"`
+				} `json:"mergedPulls"`
 			} `json:"repository"`
 			RateLimit rawRateLimit `json:"rateLimit"`
 		} `json:"data"`
@@ -304,6 +330,13 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 			u := repo.Contributing.URL
 			stats.ContributingURL = &u
 		}
+		if q.HealthSample > 0 && repo.MergedPulls != nil {
+			h, err := healthOf(repo.MergedPulls.Nodes)
+			if err != nil {
+				return nil, err
+			}
+			stats.Health = &h
+		}
 		if repo.PushedAt != nil {
 			// A repository with no pushes has a null pushedAt; that stays nil.
 			t, err := time.Parse(time.RFC3339, *repo.PushedAt)
@@ -331,4 +364,42 @@ func (c *Client) FetchRepositoryIssues(ctx context.Context, token, owner, name s
 func isGitHubPage(u string) bool {
 	p, err := url.Parse(u)
 	return err == nil && p.Scheme == "https" && p.Host == "github.com" && p.User == nil
+}
+
+type mergedPullNode struct {
+	AuthorAssociation string `json:"authorAssociation"`
+	CreatedAt         string `json:"createdAt"`
+	MergedAt          string `json:"mergedAt"`
+}
+
+// healthOf summarises merged pull requests: how many came from outside the
+// project, and the median hours each took to merge.
+func healthOf(nodes []mergedPullNode) (RepositoryHealth, error) {
+	h := RepositoryHealth{Sampled: len(nodes)}
+	hours := make([]int, 0, len(nodes))
+	for _, n := range nodes {
+		switch n.AuthorAssociation {
+		case "OWNER", "MEMBER", "COLLABORATOR":
+		default:
+			h.Outside++
+		}
+		created, err := time.Parse(time.RFC3339, n.CreatedAt)
+		if err != nil {
+			return h, fmt.Errorf("github: parse merged pull createdAt: %w", err)
+		}
+		merged, err := time.Parse(time.RFC3339, n.MergedAt)
+		if err != nil {
+			return h, fmt.Errorf("github: parse merged pull mergedAt: %w", err)
+		}
+		hours = append(hours, int(merged.Sub(created).Hours()))
+	}
+	if len(hours) > 0 {
+		slices.Sort(hours)
+		m := hours[len(hours)/2]
+		if len(hours)%2 == 0 {
+			m = (hours[len(hours)/2-1] + hours[len(hours)/2]) / 2
+		}
+		h.MedianMergeHours = &m
+	}
+	return h, nil
 }

@@ -29,6 +29,10 @@ export interface Issue {
   assignees: number | null;
   /** The repository's contributing guide on GitHub; null when it has none or it isn't read yet. */
   contributing_url: string | null;
+  /** Someone on SkillIssues said they're working on it. */
+  claimed: boolean;
+  /** How the repository's latest merges went; null until enough were read. */
+  repository_health: RepositoryHealth | null;
   comments: number;
   author: string;
   repository: string;
@@ -186,6 +190,8 @@ export interface Profile {
   preferred_languages: string[];
   /** When the account was created here (RFC 3339). */
   joined_at: string;
+  /** Shown to anyone at /app/u/<username>, and eligible for the leaderboard. */
+  public_profile: boolean;
 }
 
 /** PUT /profile: the whole editable profile. */
@@ -195,15 +201,198 @@ export interface ProfileUpdate {
   target_level: Level;
   interests: string[];
   preferred_languages: string[];
+  /** Turns your public profile on or off; left out, it stays as it is. */
+  public_profile?: boolean;
 }
 
-/** One notification: today only an issue you saved being closed on GitHub. */
-export interface Notification {
+/** Someone's public profile (they turned it on). */
+export interface PublicProfile {
+  username: string;
+  name: string;
+  avatar_url: string;
+  joined_at: string;
+  summary: XPSummary;
+  merged: { id: number; repository: string; number: number; title: string; url: string }[];
+  badge_keys: string[];
+}
+
+/** One leaderboard row. */
+export interface LeaderboardEntry {
+  rank: number;
+  username: string;
+  avatar_url: string;
+  xp: number;
+  level: XPLevel;
+}
+
+/**
+ * One notification: an issue you saved closed on GitHub (issue), or a pull
+ * request of yours merged and paid (pull_request).
+ */
+export type Notification = {
   id: number;
-  kind: "issue_closed";
   created_at: string;
   read_at: string | null;
-  issue: { id: number; repository: string; number: number; title: string; url: string; state: "OPEN" | "CLOSED" };
+} & (
+  | { kind: "issue_closed"; issue: { id: number; repository: string; number: number; title: string; url: string; state: "OPEN" | "CLOSED" } }
+  | { kind: "pr_merged"; pull_request: { id: number; repository: string; number: number; title: string; url: string; xp: number } }
+);
+
+/** Where an XP total stands: level L runs from start up to next. */
+export interface XPLevel {
+  level: number;
+  start: number;
+  next: number;
+}
+
+/** How an XP amount was reached, as the ledger stores it. */
+export interface XPDetail {
+  base?: number;
+  difficulty?: Difficulty;
+  issue_id?: number;
+  first_in_repo?: number;
+  backlog?: number;
+  ci?: number;
+  approval?: number;
+  clean_merge?: number;
+  /** Backfill: the share paid for a merge from before signing up. */
+  percent?: number;
+  /** Taken off by the daily cap per repository. */
+  capped?: number;
+  repository_id?: number;
+  language?: string;
+  docs?: boolean;
+}
+
+export type XPSource = "merged" | "backfill" | "opened" | "opened_reversed" | "quest" | "path";
+
+/** One ledger row. */
+export interface XPEvent {
+  source: XPSource;
+  key?: string;
+  amount: number;
+  detail: XPDetail;
+  earned_at: string;
+  pull_request?: { id: number; repository: string; number: number; title: string; url: string };
+}
+
+/** Level, streak, badges and languages, from the ledger. */
+export interface XPSummary {
+  total: number;
+  level: XPLevel;
+  merges: number;
+  languages: { language: string; xp: number; level: XPLevel }[];
+  /** UTC weeks in a row with a merge. */
+  streak: { current: number; best: number; this_week: boolean };
+  badges: { key: string; earned_at: string }[];
+}
+
+/** Where tracking of your pull requests stands. */
+export interface PRSync {
+  /** False until the tracker has enrolled you, within minutes of signing up. */
+  tracked: boolean;
+  synced_through: string | null;
+  /** The first read of your history hasn't finished. */
+  backfilling: boolean;
+  last_checked_at: string | null;
+  next_check_at: string | null;
+  requested_at: string | null;
+  last_error: string | null;
+}
+
+/** GET /me/xp. */
+export interface MyXP {
+  summary: XPSummary;
+  recent: XPEvent[];
+  sync: PRSync;
+  /** Every badge, in display order: those not in summary.badges are still to earn. */
+  badge_keys: string[];
+  /** Every quest, in display order, with how far you are. */
+  quests: QuestProgress[];
+}
+
+/** One quest: done once have reaches need. */
+export interface QuestProgress {
+  key: string;
+  have: number;
+  need: number;
+  done_at: string | null;
+}
+
+/** A kind of work a learning path is made of. */
+export interface PathRole {
+  key: string;
+  tech?: string[];
+  labels?: string[];
+}
+
+/** One issue of a learning path. */
+export interface PathStep {
+  position: number;
+  difficulty: Difficulty;
+  done_at: string | null;
+  /** Null once the catalog dropped the issue. */
+  issue: Issue | null;
+}
+
+/** Your learning path in progress. */
+export interface LearningPath {
+  id: number;
+  role: string;
+  started_at: string;
+  steps: PathStep[];
+}
+
+/** A repository's latest merged pull requests, summarised. */
+export interface RepositoryHealth {
+  /** Merged pull requests read. */
+  sampled: number;
+  /** Of those, by people outside the project. */
+  outside: number;
+  median_merge_hours: number;
+  /** Enough of those merges came from outside the project. */
+  welcoming: boolean;
+  /** Its median merge takes a long time. */
+  slow: boolean;
+}
+
+/** Your claim on an issue. */
+export interface Claim {
+  issue_id: number;
+  claimed_at: string;
+  expires_at: string;
+  /** Past expires_at but kept: you have an open pull request that closes it. */
+  extended: boolean;
+}
+
+/** GET /issues/{id}/claim. */
+export interface ClaimState {
+  claimed: boolean;
+  /** Yours, when the claim is yours. */
+  yours: Claim | null;
+}
+
+/** A pull request of yours to a catalog repository, and what it earned. */
+export interface TrackedPull {
+  id: number;
+  repository: string;
+  number: number;
+  title: string;
+  url: string;
+  state: "OPEN" | "CLOSED" | "MERGED";
+  created_at: string;
+  updated_at: string;
+  merged_at: string | null;
+  closed_at: string | null;
+  /** The last commit's checks; null when the repository runs none. */
+  checks: string | null;
+  approvals: number;
+  changes_requested: number;
+  /** Why it earns nothing; null when it can. */
+  no_xp_reason: "own_repository" | "organisation_member" | null;
+  /** Catalog issues it says it closes. */
+  issues: number[];
+  xp: number;
 }
 
 /** GET /notifications. */

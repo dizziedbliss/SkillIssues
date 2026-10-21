@@ -2,8 +2,11 @@ import { Link } from "react-router";
 import { useI18n } from "../../i18n";
 import { useSession } from "../session";
 import { useSaved } from "../saved";
-import { Achievements, ContribStatus, Graph, PRList, SignInPrompt, StatBoxes } from "./parts";
-import { useContributions, useProfile } from "./data";
+import { useMyClaims } from "../claims";
+import { ContribStatus, Graph, PRList, SignInPrompt, StatBoxes } from "./parts";
+import { useContributions, useProfile, useTrackedPulls, useXP } from "./data";
+import { BackfillReveal, Badges, LanguageLevels, LevelCard, Quests, SyncStatus, TrackedPulls } from "./xp";
+import { useMyPath } from "../path/data";
 import s from "./ProfilePage.module.css";
 
 /** The greeting for the reader's time of day. */
@@ -28,7 +31,11 @@ export function ProfilePage() {
   const { user, isPending } = useSession();
   const profile = useProfile();
   const contributions = useContributions();
+  const xp = useXP();
+  const pulls = useTrackedPulls();
   const saved = useSaved();
+  const claims = useMyClaims();
+  const path = useMyPath();
 
   if (isPending) return null;
   if (!user) return <SignInPrompt />;
@@ -43,6 +50,8 @@ export function ProfilePage() {
     <div className={s.page}>
       <h1 className={s.hello}>{t(greeting(), { name })}</h1>
       {profile.error && <p className={s.error} role="alert">{profile.error.message}</p>}
+      {xp.error && <p className={s.error} role="alert">{xp.error.message}</p>}
+      <BackfillReveal data={xp.data} login={user.username} />
 
       <div className={s.columns}>
         <section className={s.left} aria-label={name}>
@@ -78,17 +87,33 @@ export function ProfilePage() {
             </div>
           </div>
 
+          <LevelCard summary={xp.data?.summary} />
+          <LanguageLevels summary={xp.data?.summary} />
+
           <StatBoxes data={contributions.data} />
           <Graph data={contributions.data} />
           <ContribStatus query={contributions} login={user.username} />
 
-          <h2 className={s.heading}>{t("achieve.title")}</h2>
-          <Achievements data={contributions.data} />
+          <h2 className={s.heading}>{t("xp.badges")}</h2>
+          <Badges summary={xp.data?.summary} keys={xp.data?.badge_keys} />
+
+          <h2 className={s.heading}>{t("xp.quests")}</h2>
+          <p className={s.muted}>{t("xp.questsLede")}</p>
+          <Quests data={xp.data} />
         </section>
 
         <section className={s.right} aria-labelledby="activity-title">
           <h2 id="activity-title" className={s.heading}>{t("profile.activity")}</h2>
           <div className={s.box} data-ui="activity">
+            <h3 className={s.boxTitle}>{t("xp.pulls.title")}</h3>
+            <SyncStatus data={xp.data} />
+            {pulls.error && <p className={s.error} role="alert">{pulls.error.message}</p>}
+            <TrackedPulls items={pulls.data} limit={SHOWN} />
+            {pulls.data && pulls.data.length > SHOWN && (
+              <Link to="/app/contributions" className={s.more}>{t("search.viewMore")}</Link>
+            )}
+          </div>
+          <div className={s.box}>
             <h3 className={s.boxTitle}>{t("profile.prs")}</h3>
             <PRList items={contributions.data?.recent} empty={t("profile.noPRs")} limit={SHOWN} />
             {contributions.data && contributions.data.total > SHOWN && (
@@ -100,6 +125,38 @@ export function ProfilePage() {
             <PRList items={contributions.data?.recentMerged} empty={t("profile.noResolved")} limit={SHOWN} />
             {contributions.data && contributions.data.total > 0 && (
               <Link to="/app/contributions" className={s.more}>{t("profile.allContributions")}</Link>
+            )}
+          </div>
+          <div className={s.box} data-ui="path">
+            <h3 className={s.boxTitle}>{t("path.mine")}</h3>
+            {path.error && <p className={s.error} role="alert">{path.error.message}</p>}
+            {path.data === null && <Link to="/app/path" className={s.more}>{t("path.start")}</Link>}
+            {path.data && (
+              <Link to="/app/path" className={s.more}>
+                {t("path.continue", { done: path.data.steps.filter((st) => st.done_at).length, total: path.data.steps.length })}
+              </Link>
+            )}
+          </div>
+          <div className={s.box} data-ui="claims">
+            <h3 className={s.boxTitle}>{t("claim.mine")}</h3>
+            {claims.error && <p className={s.error} role="alert">{claims.error.message}</p>}
+            {claims.data && claims.data.length === 0 && <p className={s.muted}>{t("claim.mineEmpty")}</p>}
+            {claims.data && claims.data.length > 0 && (
+              <ul className={s.savedList}>
+                {claims.data.map((c) => (
+                  <li key={c.issue_id}>
+                    <Link to={`/app/issues/${c.issue_id}`}>
+                      {c.issue.title} <span className={s.muted}>#{c.issue.number}</span>
+                    </Link>
+                    <span className={s.muted}>
+                      {c.issue.repository},{" "}
+                      {c.extended
+                        ? t("claim.whilePR")
+                        : t("claim.until", { date: new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(new Date(c.expires_at)) })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
           <div className={s.box}>

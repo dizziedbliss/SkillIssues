@@ -337,9 +337,15 @@ func UpdateRepositoryStatsTx(ctx context.Context, tx pgx.Tx, repoID int, st gith
 	_, err := tx.Exec(ctx,
 		`UPDATE repositories SET stars = $2, forks = $3, watchers = $4, open_issue_count = $5,
 		    is_archived = $6, pushed_at = coalesce($7, pushed_at), contributing_url = $8,
+		    health_sampled = CASE WHEN $9 THEN $10 ELSE health_sampled END,
+		    health_outside = CASE WHEN $9 THEN $11 ELSE health_outside END,
+		    health_median_merge_hours = CASE WHEN $9 THEN $12 ELSE health_median_merge_hours END,
 		    metadata_refreshed_at = now()
 		 WHERE id = $1`,
 		repoID, st.Stars, st.Forks, st.Watchers, st.OpenIssueCount, st.IsArchived, st.PushedAt, st.ContributingURL,
+		st.Health != nil, healthField(st.Health, func(h *github.RepositoryHealth) any { return h.Sampled }),
+		healthField(st.Health, func(h *github.RepositoryHealth) any { return h.Outside }),
+		healthField(st.Health, func(h *github.RepositoryHealth) any { return h.MedianMergeHours }),
 	)
 	if err != nil {
 		return fmt.Errorf("ingest: update repository stats: %w", err)
@@ -505,4 +511,13 @@ func ReclaimExpiredLeases(ctx context.Context, pool *db.Pool) (int, error) {
 		return 0, fmt.Errorf("ingest: reclaim expired leases: %w", err)
 	}
 	return int(tag.RowsAffected()), nil
+}
+
+// healthField is one health value to write, or nil when health wasn't read
+// (the CASE then keeps what is stored).
+func healthField(h *github.RepositoryHealth, f func(*github.RepositoryHealth) any) any {
+	if h == nil {
+		return nil
+	}
+	return f(h)
 }

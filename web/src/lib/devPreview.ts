@@ -1,4 +1,4 @@
-import type { Issue, Notification, Profile, ProfileUpdate, Theme, ThemeInput, Transport } from "@skillissues/client";
+import type { Claim, Issue, LearningPath, MyXP, Notification, Profile, ProfileUpdate, Theme, ThemeInput, TrackedPull, Transport } from "@skillissues/client";
 
 /*
  * Development only (import.meta.env.DEV; the production build drops this
@@ -36,6 +36,7 @@ let profile: Profile = {
   interests: [],
   preferred_languages: ["Python", "Go", "TypeScript"],
   joined_at: "2026-09-20T08:30:00Z",
+  public_profile: false,
 };
 
 // Kept in this browser, so a reload keeps what you saved in the preview.
@@ -54,9 +55,13 @@ const stored = (() => {
     return null;
   }
 })();
-if (stored?.profile) profile = stored.profile;
+if (stored?.profile) profile = { ...profile, ...stored.profile };
 const saved = new Map<number, Issue>((stored?.saved ?? []).map((i) => [i.id, i]));
 let notifications: Notification[] = stored?.notifications ?? [];
+/** Claims, kept for the page's life only. */
+const claims = new Map<number, Claim>();
+/** The learning path, kept for the page's life only. */
+let learning: LearningPath | null = null;
 let themes: Theme[] = stored?.themes ?? [];
 let active: string | null = stored?.active ?? null;
 let activePreset: string | null = stored?.activePreset ?? null;
@@ -86,7 +91,8 @@ export function previewTransport(real: Transport): Transport {
     }
     if (path === "/profile" && method === "PUT") {
       // The real API checks bounds; the preview only stores.
-      profile = { ...profile, ...(req.body as ProfileUpdate) };
+      const update = req.body as ProfileUpdate;
+      profile = { ...profile, ...update, public_profile: update.public_profile ?? profile.public_profile };
       persist();
       return profile;
     }
@@ -141,8 +147,12 @@ export function previewTransport(real: Transport): Transport {
       saved.set(id, issue);
       // A sample update, so Saved shows how a closed issue is reported.
       if (notifications.length === 0) {
-        notifications = [{ id: 1, kind: "issue_closed", created_at: new Date().toISOString(), read_at: null,
-          issue: { id, repository: issue.repository, number: issue.number, title: issue.title, url: issue.url, state: "CLOSED" } }];
+        notifications = [
+          { id: 1, kind: "issue_closed", created_at: new Date().toISOString(), read_at: null,
+            issue: { id, repository: issue.repository, number: issue.number, title: issue.title, url: issue.url, state: "CLOSED" } },
+          { id: 2, kind: "pr_merged", created_at: new Date().toISOString(), read_at: null,
+            pull_request: { id: 1, repository: "spf13/cobra", number: 412, title: "Fix the flag parser on Windows", url: "https://github.com/spf13/cobra/pull/412", xp: 125 } },
+        ];
       }
       persist();
       return { saved: true, issue_id: id };
@@ -153,6 +163,58 @@ export function previewTransport(real: Transport): Transport {
       persist();
       return { saved: false, issue_id: id };
     }
+    if (path === "/me/claims") {
+      return { claims: await Promise.all([...claims.entries()].map(async ([id, c]) => ({ ...c, issue: await real({ method: "GET", path: `/issues/${id}` }) }))) };
+    }
+    if (/^\/issues\/\d+\/claim$/.test(path)) {
+      const id = Number(path.split("/")[2]);
+      if (method === "POST") {
+        const c = { issue_id: id, claimed_at: new Date().toISOString(), expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString(), extended: false };
+        claims.set(id, c);
+        return c;
+      }
+      if (method === "DELETE") {
+        claims.delete(id);
+        return undefined;
+      }
+      return { claimed: claims.has(id), yours: claims.get(id) ?? null };
+    }
+    if (path === "/paths/roles") {
+      return { roles: ["frontend", "backend", "docs", "devops", "data", "mobile"].map((key) => ({ key })) };
+    }
+    if (path === "/me/path" && method === "GET") return { path: learning };
+    if (path === "/me/path" && method === "DELETE") {
+      learning = null;
+      return undefined;
+    }
+    if (path === "/me/path" && method === "POST") {
+      const page = (await real({ method: "GET", path: "/issues?limit=10&cursor=&unassigned=true" })) as { issues: Issue[] };
+      learning = {
+        id: 1, role: (req.body as { role: string }).role, started_at: new Date().toISOString(),
+        steps: page.issues.slice(0, 5).map((issue, i) => ({
+          position: i + 1, difficulty: i < 3 ? "BEGINNER" : "INTERMEDIATE",
+          done_at: i === 0 ? new Date().toISOString() : null, issue,
+        })),
+      };
+      return { path: learning };
+    }
+    if (path.startsWith("/me/path/steps/") && learning) {
+      const pos = Number(path.split("/")[4]);
+      const page = (await real({ method: "GET", path: "/issues?limit=20&cursor=&unassigned=true" })) as { issues: Issue[] };
+      const used = new Set(learning.steps.map((st) => st.issue?.id));
+      const next = page.issues.find((i) => !used.has(i.id)) ?? null;
+      learning = { ...learning, steps: learning.steps.map((st) => (st.position === pos ? { ...st, issue: next } : st)) };
+      return { path: learning };
+    }
+    if (path === `/users/${PREVIEW_LOGIN}` && profile.public_profile) {
+      const x = sampleXP();
+      return { username: PREVIEW_LOGIN, name: profile.name, avatar_url: profile.avatar_url, joined_at: profile.joined_at,
+        summary: x.summary, badge_keys: x.badge_keys,
+        merged: x.recent.filter((e) => e.source === "merged" && e.pull_request).map((e) => e.pull_request!) };
+    }
+    if (path === "/me/xp") return sampleXP();
+    if (path.startsWith("/me/pulls") && method === "GET") return { pull_requests: samplePulls() };
+    if (path === "/me/pulls/refresh") return { next_allowed_at: new Date(Date.now() + 5 * 60_000).toISOString() };
     if (path === "/notifications") {
       return { notifications, unread_count: notifications.filter((n) => !n.read_at).length };
     }
@@ -174,4 +236,69 @@ export function previewTransport(real: Transport): Transport {
     }
     return real(req);
   };
+}
+
+/** What a few weeks of merges look like, so the profile's XP can be reviewed. */
+function sampleXP(): MyXP {
+  const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+  const pr = (id: number, title: string, repository: string) => ({ id, title, repository, number: id, url: `https://github.com/${repository}/pull/${id}` });
+  return {
+    summary: {
+      total: 1240,
+      level: { level: 5, start: 1000, next: 1500 },
+      merges: 9,
+      languages: [
+        { language: "Go", xp: 720, level: { level: 4, start: 600, next: 1000 } },
+        { language: "TypeScript", xp: 400, level: { level: 3, start: 300, next: 600 } },
+        { language: "Rust", xp: 120, level: { level: 2, start: 100, next: 300 } },
+      ],
+      streak: { current: 3, best: 5, this_week: false },
+      badges: [
+        { key: "first_merge", earned_at: day(200) },
+        { key: "merges_5", earned_at: day(60) },
+        { key: "repos_3", earned_at: day(40) },
+        { key: "languages_3", earned_at: day(30) },
+        { key: "docs_fix", earned_at: day(25) },
+        { key: "backlog_hero", earned_at: day(12) },
+        { key: "streak_4", earned_at: day(30) },
+        { key: "level_5", earned_at: day(9) },
+      ],
+    },
+    recent: [
+      { source: "merged", amount: 125, detail: { base: 75, backlog: 50, difficulty: "BEGINNER", language: "Go" }, earned_at: day(9), pull_request: pr(412, "Fix the flag parser on Windows", "spf13/cobra") },
+      { source: "opened", amount: 5, detail: { issue_id: 1 }, earned_at: day(11), pull_request: pr(412, "Fix the flag parser on Windows", "spf13/cobra") },
+      { source: "merged", amount: 170, detail: { base: 140, first_in_repo: 15, ci: 15 }, earned_at: day(16), pull_request: pr(88, "Document the retry options", "axios/axios") },
+      { source: "opened_reversed", amount: -5, detail: {}, earned_at: day(20), pull_request: pr(77, "Try a faster tokenizer", "rust-lang/regex") },
+      { source: "backfill", amount: 32, detail: { base: 50, first_in_repo: 15, percent: 50 }, earned_at: day(200), pull_request: pr(5, "Typo in the README", "golang/go") },
+    ],
+    sync: { tracked: true, synced_through: day(0), backfilling: false, last_checked_at: day(0.01), next_check_at: day(-0.01), requested_at: null, last_error: null },
+    quests: [
+      { key: "first_merge_here", have: 1, need: 1, done_at: day(200) },
+      { key: "claimed_and_done", have: 0, need: 1, done_at: null },
+      { key: "docs_fix", have: 1, need: 1, done_at: day(25) },
+      { key: "two_languages", have: 2, need: 2, done_at: day(30) },
+      { key: "three_repos", have: 3, need: 3, done_at: day(40) },
+      { key: "three_in_a_month", have: 2, need: 3, done_at: null },
+      { key: "backlog_dive", have: 1, need: 1, done_at: day(12) },
+    ],
+    badge_keys: ["first_merge", "merges_5", "merges_10", "merges_25", "merges_50", "merges_100", "repos_3", "repos_10", "languages_3",
+      "languages_5", "docs_fix", "backlog_hero", "advanced_fix", "streak_4", "streak_12", "level_5", "level_10", "level_20"],
+  };
+}
+
+function samplePulls(): TrackedPull[] {
+  const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+  const base: Pick<TrackedPull, "checks" | "approvals" | "changes_requested" | "no_xp_reason" | "issues" | "closed_at" | "merged_at"> = {
+    checks: "SUCCESS", approvals: 0, changes_requested: 0, no_xp_reason: null, issues: [], closed_at: null, merged_at: null,
+  };
+  return [
+    { ...base, id: 3, repository: "vitejs/vite", number: 20311, title: "Keep the overlay open on a failed reload", url: "https://github.com/vitejs/vite/pull/20311",
+      state: "OPEN", created_at: day(2), updated_at: day(0.2), approvals: 1, issues: [7], xp: 5 },
+    { ...base, id: 1, repository: "spf13/cobra", number: 412, title: "Fix the flag parser on Windows", url: "https://github.com/spf13/cobra/pull/412",
+      state: "MERGED", created_at: day(11), updated_at: day(9), merged_at: day(9), closed_at: day(9), issues: [1], xp: 130 },
+    { ...base, id: 2, repository: "axios/axios", number: 88, title: "Document the retry options", url: "https://github.com/axios/axios/pull/88",
+      state: "MERGED", created_at: day(18), updated_at: day(16), merged_at: day(16), closed_at: day(16), approvals: 1, xp: 170 },
+    { ...base, id: 4, repository: "you/dotfiles", number: 3, title: "Tidy the shell aliases", url: "https://github.com/you/dotfiles/pull/3",
+      state: "MERGED", created_at: day(30), updated_at: day(30), merged_at: day(30), closed_at: day(30), checks: null, no_xp_reason: "own_repository", xp: 0 },
+  ];
 }

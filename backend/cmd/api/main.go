@@ -20,15 +20,18 @@ import (
 
 	"github.com/dizziedbliss/skillissues/internal/auth"
 	"github.com/dizziedbliss/skillissues/internal/cache"
+	"github.com/dizziedbliss/skillissues/internal/claim"
 	"github.com/dizziedbliss/skillissues/internal/config"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/flow"
 	"github.com/dizziedbliss/skillissues/internal/httpx"
 	"github.com/dizziedbliss/skillissues/internal/issue"
+	"github.com/dizziedbliss/skillissues/internal/learnpath"
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/middleware"
 	"github.com/dizziedbliss/skillissues/internal/notification"
 	"github.com/dizziedbliss/skillissues/internal/profile"
+	"github.com/dizziedbliss/skillissues/internal/progress"
 	"github.com/dizziedbliss/skillissues/internal/report"
 	"github.com/dizziedbliss/skillissues/internal/settings"
 	"github.com/dizziedbliss/skillissues/internal/theme"
@@ -142,9 +145,21 @@ func main() {
 	hidden := &hiddenStore{}
 	issueSvc.SetHidden(hidden.issues)
 	go refreshHiddenLoop(ctx, reportSvc, live.Current, hidden)
+	claimSvc := claim.New(pool)
+	claimed := &claimedStore{}
+	issueSvc.SetClaimed(claimed.get)
+	issueSvc.SetHealthRules(func() issue.HealthRules {
+		cfg := live.Current()
+		return issue.HealthRules{
+			MinSample:    cfg.Int(settings.HealthMinSample),
+			WelcomingMin: cfg.Int(settings.HealthWelcomingMin),
+			SlowHours:    cfg.Int(settings.HealthSlowHours),
+		}
+	})
+	go refreshClaimedLoop(ctx, claimSvc, live.Current, claimed)
 
 	// 6. Build the HTTP router and register all routes
-	mux, err := buildRouter(cfg, live, pool, cacheClient, authSvc, ghOAuth, outbound, profileSvc, issueSvc, reportSvc, hidden)
+	mux, err := buildRouter(cfg, live, pool, cacheClient, authSvc, ghOAuth, outbound, profileSvc, issueSvc, reportSvc, hidden, claimSvc, claimed)
 	if err != nil {
 		slog.Error("failed to build router", "error", err)
 		os.Exit(1)
@@ -197,6 +212,8 @@ func buildRouter(
 	issueSvc *issue.Service,
 	reportSvc *report.Service,
 	hidden *hiddenStore,
+	claimSvc *claim.Service,
+	claimed *claimedStore,
 ) (http.Handler, error) {
 	mux := http.NewServeMux()        // public routes — full middleware chain
 	adminMux := http.NewServeMux()   // /admin — own auth, no CORS/rate-limit
@@ -216,6 +233,10 @@ func buildRouter(
 		notificationSvc: notification.NewService(pool),
 		themeSvc:        theme.NewService(pool),
 		reportSvc:       reportSvc,
+		progressSvc:     progress.New(pool),
+		claimSvc:        claimSvc,
+		claimed:         claimed,
+		pathSvc:         learnpath.New(pool, issueSvc),
 		hidden:          hidden,
 	}
 
@@ -241,6 +262,23 @@ func buildRouter(
 	mux.HandleFunc("GET /repositories/lookup", h.lookupRepository)
 	mux.HandleFunc("GET /issues/{id}", h.getIssue) // no auth required
 	mux.Handle("GET /issues/{id}/body", optionalAuth(authSvc, http.HandlerFunc(h.getIssueBody)))
+
+	// ----- Claims -----
+	mux.Handle("GET /issues/{id}/claim", optionalAuth(authSvc, http.HandlerFunc(h.getIssueClaim)))
+	mux.Handle("POST /issues/{id}/claim", requireAuth(authSvc, http.HandlerFunc(h.claimIssue)))
+	mux.Handle("DELETE /issues/{id}/claim", requireAuth(authSvc, http.HandlerFunc(h.releaseIssue)))
+	mux.Handle("GET /me/claims", requireAuth(authSvc, http.HandlerFunc(h.getMyClaims)))
+
+	// ----- Public profiles and the leaderboard -----
+	mux.HandleFunc("GET /users/{login}", h.getPublicProfile)
+	mux.HandleFunc("GET /leaderboards", h.getLeaderboard)
+
+	// ----- Learning paths -----
+	mux.HandleFunc("GET /paths/roles", h.getPathRoles)
+	mux.Handle("GET /me/path", requireAuth(authSvc, http.HandlerFunc(h.getMyPath)))
+	mux.Handle("POST /me/path", requireAuth(authSvc, http.HandlerFunc(h.startPath)))
+	mux.Handle("DELETE /me/path", requireAuth(authSvc, http.HandlerFunc(h.abandonPath)))
+	mux.Handle("POST /me/path/steps/{position}/swap", requireAuth(authSvc, http.HandlerFunc(h.swapPathStep)))
 
 	// ----- Saved issues -----
 	mux.Handle("GET /saved", requireAuth(authSvc, http.HandlerFunc(h.getSaved)))
@@ -268,6 +306,11 @@ func buildRouter(
 
 	// ----- Recommendations -----
 	mux.Handle("GET /recommendations", requireAuth(authSvc, http.HandlerFunc(h.getRecommendations)))
+
+	// ----- Pull requests and XP -----
+	mux.Handle("GET /me/xp", requireAuth(authSvc, http.HandlerFunc(h.getMyXP)))
+	mux.Handle("GET /me/pulls", requireAuth(authSvc, http.HandlerFunc(h.getMyPulls)))
+	mux.Handle("POST /me/pulls/refresh", requireAuth(authSvc, http.HandlerFunc(h.refreshMyPulls)))
 
 	// ----- User profile -----
 	mux.Handle("GET /me", requireAuth(authSvc, http.HandlerFunc(h.getMe)))

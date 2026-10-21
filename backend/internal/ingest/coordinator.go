@@ -15,6 +15,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/metrics"
 	"github.com/dizziedbliss/skillissues/internal/settings"
 	"github.com/dizziedbliss/skillissues/internal/worker"
+	"github.com/dizziedbliss/skillissues/internal/xp"
 	"github.com/google/uuid"
 )
 
@@ -174,6 +175,7 @@ func (c *Coordinator) cycle() {
 	c.reclaimLeases(snap)
 	c.refreshMetrics(snap)
 	c.checkTrackedIssues(snap)
+	c.syncPullRequests(snap)
 	c.pruneClosedIssues(snap)
 	c.pruneExcludedIssues(snap)
 	c.pruneIssueBodies(snap)
@@ -510,6 +512,94 @@ func (c *Coordinator) checkTrackedIssues(snap *settings.Snapshot) {
 	}
 	metrics.IngestIssuesClosed.WithLabelValues("tracked").Add(float64(closed))
 	slog.Info("checked tracked issues", "checked", len(due), "closed", closed)
+}
+
+// syncPullRequests reads the pull requests of people who are due, a few per
+// GraphQL request, and pays the XP of completed passes (prs.go). It is user
+// work, on the interactive lane, and it runs while crawling is paused by the
+// disk guard: it writes few rows.
+func (c *Coordinator) syncPullRequests(snap *settings.Snapshot) {
+	if !snap.Bool(settings.IngestPRsEnabled) {
+		return
+	}
+	if n, err := EnsurePRSync(c.ctx, c.pool); err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("prs_enroll").Inc()
+		slog.Warn("failed to add people to pull request tracking", "error", err)
+	} else if n > 0 {
+		slog.Info("added people to pull request tracking", "count", n)
+	}
+	due, err := DuePRSync(c.ctx, c.pool, snap.Int(settings.IngestPRsUsersPerCycle))
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("prs_select").Inc()
+		slog.Warn("failed to select people due a pull request read", "error", err)
+		return
+	}
+	if len(due) == 0 {
+		return
+	}
+	userCtx := flow.UserLinked(c.ctx)
+	token := c.worker.token()
+	if token == "" {
+		metrics.IngestCycleErrors.WithLabelValues("prs_no_token").Inc()
+		slog.Warn("pull requests due a read, but no github token is configured", "due", len(due))
+		return
+	}
+	rules, iv := xp.RulesFrom(snap), PRIntervalsFrom(snap)
+	per, pageSize := snap.Int(settings.IngestPRsUsersPerQuery), snap.Int(settings.IngestPRsPageSize)
+	for start := 0; start < len(due); start += per {
+		batch := due[start:min(start+per, len(due))]
+		proceed, err := CanProceed(c.ctx, c.pool, LaneInteractive, installationIdentity,
+			snap.Int(settings.IngestRateLimitFloor), snap.Int(settings.IngestInteractiveReservePercent))
+		if err != nil {
+			metrics.BudgetErrors.WithLabelValues("read", string(LaneInteractive)).Inc()
+			slog.Warn("budget check failed, reading pull requests anyway", "error", err)
+		} else if !proceed {
+			return
+		}
+		qs := make([]github.UserPullsQuery, len(batch))
+		for i, st := range batch {
+			qs[i] = github.UserPullsQuery{Login: st.Login, First: pageSize, After: st.PassCursor}
+		}
+		pages, rl, err := c.worker.github.FetchUserPullRequests(userCtx, token, qs)
+		now := time.Now()
+		if err != nil {
+			metrics.IngestCycleErrors.WithLabelValues("prs_fetch").Inc()
+			slog.Warn("failed to read pull requests", "people", len(batch), "error", err)
+			for _, st := range batch {
+				metrics.PRSyncReads.WithLabelValues("failed").Inc()
+				if ferr := FailPRSync(c.ctx, c.pool, st, iv, now, err); ferr != nil {
+					metrics.IngestCycleErrors.WithLabelValues("prs_apply").Inc()
+					slog.Warn("failed to record a failed pull request read", "error", ferr)
+				}
+			}
+			continue
+		}
+		if err := UpdateBudget(c.ctx, c.pool, LaneInteractive, installationIdentity, rl); err != nil {
+			metrics.BudgetErrors.WithLabelValues("write", string(LaneInteractive)).Inc()
+			slog.Warn("failed to persist budget", "error", err)
+		}
+		for i, st := range batch {
+			out, err := ApplyPullsPage(userCtx, c.pool, st, pages[i], rules, iv, now)
+			switch {
+			case err != nil:
+				metrics.IngestCycleErrors.WithLabelValues("prs_apply").Inc()
+				metrics.PRSyncReads.WithLabelValues("failed").Inc()
+				slog.Warn("failed to store pull requests", "error", err)
+				if ferr := FailPRSync(c.ctx, c.pool, st, iv, now, err); ferr != nil {
+					slog.Warn("failed to record a failed pull request read", "error", ferr)
+				}
+			case out.OtherAccount:
+				metrics.PRSyncReads.WithLabelValues("other_account").Inc()
+			case out.Complete:
+				metrics.PRSyncReads.WithLabelValues("complete").Inc()
+				for source, n := range out.Awards {
+					metrics.XPEventsWritten.WithLabelValues(source).Add(float64(n))
+				}
+			default:
+				metrics.PRSyncReads.WithLabelValues("page").Inc()
+			}
+		}
+	}
 }
 
 // pruneClosedIssues deletes issues closed longer ago than

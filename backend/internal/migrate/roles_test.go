@@ -222,9 +222,22 @@ func TestIngestRoleCanDoItsJobAndNothingMore(t *testing.T) {
 		mustDo(t, tx, `SELECT value FROM settings`)
 		mustDo(t, tx, `SELECT full_name FROM excluded_repositories`)
 		mustDo(t, tx, `INSERT INTO import_skipped (full_name, reason) VALUES ('x/y', 'r')`)
+		// Pull request tracking: whom to read, and the ledger.
+		mustDo(t, tx, `SELECT id, github_id, username, created_at FROM users`)
+		mustDo(t, tx, `INSERT INTO pr_sync (user_id) VALUES (910002)`)
+		mustDo(t, tx, `UPDATE pr_sync SET next_check_at = now() WHERE user_id = 910002`)
+		mustDo(t, tx, `INSERT INTO pull_requests (github_id, user_id, repository_id, number, title, url, state, created_at, updated_at, merged_at, author_association)
+			VALUES (910002, 910002, 910002, 1, 't', 'u', 'MERGED', now(), now(), now(), 'CONTRIBUTOR')`)
+		mustDo(t, tx, `INSERT INTO pull_request_issues (pull_request_id, issue_id) SELECT p.id, i.id FROM pull_requests p, issues i WHERE p.github_id = 910002 AND i.repository_id = 910002 AND i.number = 2`)
+		// A merge's XP fires the notification trigger as this role.
+		mustDo(t, tx, `INSERT INTO xp_events (user_id, source, pull_request_id, amount, earned_at) SELECT 910002, 'merged', id, 75, now() FROM pull_requests WHERE github_id = 910002`)
 
 		// What it must not be able to do.
-		mustFail(t, tx, `SELECT 1 FROM users`)
+		mustFail(t, tx, `SELECT name FROM users`)
+		mustFail(t, tx, `SELECT * FROM users`)
+		mustFail(t, tx, `UPDATE users SET username = 'x'`)
+		mustFail(t, tx, `UPDATE xp_events SET amount = 0`)
+		mustFail(t, tx, `DELETE FROM xp_events`)
 		mustFail(t, tx, `SELECT 1 FROM auth_sessions`)
 		mustFail(t, tx, `UPDATE settings SET value = value`)
 		mustFail(t, tx, `DELETE FROM repositories`)
