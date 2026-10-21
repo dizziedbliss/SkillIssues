@@ -29,3 +29,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # A Postgres major version can't read the previous one's data files:
+      # it needs a dump and restore (or pg_upgrade) on the host, planned by
+      # hand, never a digest bump.
+      - dependency-name: postgres
+        update-types: [ version-update:semver-major ]
