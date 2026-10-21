@@ -345,7 +345,9 @@ top frame.
   version. `release.yml` refuses a tag without one (`scripts/release-notes.sh`) and puts it on the
   GitHub release.
 - **The Windows installer is assisted** (`build.nsis`): a welcome page (`build/installer.nsh`), the
-  license and terms (`build/license.txt`), per-user or per-machine, and the folder. CI builds it on
+  license and terms (`build/license.txt`), per-user or per-machine, and the folder. It's dark, like the
+  app (`MUI_BGCOLOR`/`MUI_TEXTCOLOR` in `installer.nsh`), with the mark, wordmark and tagline on the
+  welcome and finish pages' sidebar and a header strip (`build/*.bmp`, 24-bit as NSIS needs them). CI builds it on
   every desktop change (`desktop-installer`). Builds are unsigned, which is why Windows SmartScreen
   warns; `release.yml` signs once `WIN_CSC_LINK`/`WIN_CSC_KEY_PASSWORD` secrets exist.
 
