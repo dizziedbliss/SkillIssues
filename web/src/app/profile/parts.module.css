@@ -222,9 +222,62 @@
   font-size: var(--label-size);
 }
 
-.merged {
-  /* Green, darkened toward the ink so it reads as text. */
+/* A pull request's state, as a small chip: merged green, open the accent, closed quiet. */
+.prState {
+  display: inline-block;
+  padding: 0 0.45em;
+  border-radius: var(--radius-small);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.prState[data-state="merged"] {
+  background: color-mix(in srgb, var(--colors-success) 22%, var(--colors-surface));
   color: color-mix(in srgb, var(--colors-success) 55%, var(--colors-text));
+}
+
+.prState[data-state="open"] {
+  background: var(--chip);
+  color: var(--colors-text);
+}
+
+.prState[data-state="closed"] {
+  border: 1px solid color-mix(in srgb, var(--colors-text-muted) 45%, transparent);
+  color: var(--colors-text-muted);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.filter {
+  padding: 0.2em 0.7em;
+  border: var(--border-width) solid var(--rule);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--colors-text);
+  font: inherit;
+  font-size: var(--label-size);
+  cursor: pointer;
+  transition: background-color var(--slow) var(--ease);
+}
+
+.filter:hover,
+.filter:focus-visible {
+  background: var(--chip);
+}
+
+.filter[aria-pressed="true"] {
+  border-color: var(--colors-accent);
+  background: var(--colors-accent);
+  color: var(--colors-accent-text);
+}
+
+.count {
+  opacity: 0.75;
 }
 
 @media (max-width: 480px) {
@@ -236,7 +289,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .button,
-  .pr {
+  .pr,
+  .filter {
     transition: none;
   }
 }

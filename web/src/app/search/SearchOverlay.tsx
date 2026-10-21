@@ -6,6 +6,7 @@ import { api } from "../../lib/api";
 import { useT } from "../../i18n";
 import { withTransition } from "../transition";
 import { CATEGORIES, searchURL } from "./categories";
+import { PersonResult } from "./PersonResult";
 import s from "./SearchOverlay.module.css";
 
 /** Results read while typing, across the kinds; each kind shows a few and "View more". */
@@ -128,6 +129,7 @@ export function SearchOverlay({ onClose }: { onClose: () => void }) {
           {results.isSuccess && term.length >= 2 && results.data.length === 0 && (
             <p className={s.note}>{t("explore.emptySearch")}</p>
           )}
+          {term.length >= 2 && <PersonResult term={term} onOpen={(to) => leave(to)} />}
           <div className={s.groups}>
             {groups.map((g) => (
               <section key={g.key} className={s.group} aria-label={t(g.label)}>

@@ -1,4 +1,4 @@
-import { useId, useMemo } from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 import { useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { useI18n, useT } from "../../i18n";
 import { GitHubLimitError, loadContributions, type Contributions, type PullRequest } from "../../lib/github";
@@ -103,22 +103,76 @@ export function PRList({ items, empty, limit }: { items: PullRequest[] | undefin
   if (items.length === 0) return <p className={s.note}>{empty}</p>;
   return (
     <ul className={s.prs}>
-      {items.slice(0, limit).map((pr) => (
-        <li key={pr.url}>
-          <a href={pr.url} target="_blank" rel="noreferrer" className={s.pr}>
-            <span className={s.prTitle}>
-              {pr.title} <span className={s.muted}>#{pr.number}</span>
-            </span>
-            <span className={s.prMeta}>
-              {pr.repository}, {ago(pr.created_at, locale)},{" "}
-              <span className={pr.merged ? s.merged : undefined}>
-                {pr.merged ? t("contrib.merged") : pr.state === "open" ? t("contrib.open") : t("contrib.closed")}
+      {items.slice(0, limit).map((pr) => {
+        const state = pr.merged ? "merged" : pr.state;
+        return (
+          <li key={pr.url}>
+            <a href={pr.url} target="_blank" rel="noreferrer" className={s.pr} data-ui="pull-request" data-ui-state={state}>
+              <span className={s.prTitle}>
+                {pr.title} <span className={s.muted}>#{pr.number}</span>
               </span>
-            </span>
-          </a>
-        </li>
-      ))}
+              <span className={s.prMeta}>
+                <span className={s.prState} data-state={state}>{t(`contrib.${state}`)}</span> {pr.repository}, {ago(pr.created_at, locale)}
+              </span>
+            </a>
+          </li>
+        );
+      })}
     </ul>
+  );
+}
+
+type PullFilter = "all" | "merged" | "open";
+
+/** Every pull request read, newest first: the latest ones and the latest merged, once each. */
+function allPulls(data: Contributions): PullRequest[] {
+  const byURL = new Map<string, PullRequest>();
+  for (const pr of [...data.recent, ...data.recentMerged]) byURL.set(pr.url, pr);
+  return [...byURL.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+/**
+ * Your pull requests as one list: a merged one is an issue resolved, so it's
+ * marked merged in place rather than listed twice. All, Merged or Open narrows it.
+ */
+export function PullRequests({
+  data,
+  limit,
+  more,
+}: {
+  data: Contributions | undefined;
+  limit: number;
+  /** What follows the list when there's more than it shows. */
+  more: (shown: number, total: number, filter: PullFilter) => ReactNode;
+}) {
+  const { t, locale } = useI18n();
+  const [filter, setFilter] = useState<PullFilter>("all");
+  const items = useMemo(() => (data ? allPulls(data) : undefined), [data]);
+  const shown = items?.filter((pr) => (filter === "merged" ? pr.merged : filter === "open" ? pr.state === "open" : true));
+  const n = (v: number) => new Intl.NumberFormat(locale).format(v);
+  const counts: Record<PullFilter, number | null> = {
+    all: data ? data.total : null,
+    merged: data ? data.merged : null,
+    open: items ? items.filter((pr) => pr.state === "open").length : null,
+  };
+  return (
+    <>
+      <div className={s.filters} role="group" aria-label={t("contrib.filter")}>
+        {(["all", "merged", "open"] as const).map((f) => (
+          <button key={f} type="button" className={s.filter} aria-pressed={filter === f} onClick={() => setFilter(f)} data-state={f}>
+            {t(`contrib.filter.${f}`)}
+            {counts[f] !== null && <span className={s.count}> {n(counts[f]!)}</span>}
+          </button>
+        ))}
+      </div>
+      {filter === "merged" && <p className={s.note}>{t("contrib.filter.mergedHelp")}</p>}
+      <PRList
+        items={shown}
+        empty={filter === "merged" ? t("profile.noResolved") : filter === "open" ? t("contrib.noOpen") : t("profile.noPRs")}
+        limit={limit}
+      />
+      {shown && more(Math.min(limit, shown.length), shown.length, filter)}
+    </>
   );
 }
 

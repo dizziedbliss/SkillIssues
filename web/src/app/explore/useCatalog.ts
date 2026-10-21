@@ -39,8 +39,9 @@ async function browsePage(filters: IssueFilters, cursor: string, signal: AbortSi
  * and filters) starts again from page one.
  */
 export function useCatalog(key: string, search: string, filters: IssueFilters | null) {
-  const [state, setState] = useState({ key, cursors: [""], index: 0 });
-  if (state.key !== key) setState({ key, cursors: [""], index: 0 });
+  // furthest: the deepest page reached, so the pager keeps offering it.
+  const [state, setState] = useState({ key, cursors: [""], index: 0, furthest: 0 });
+  if (state.key !== key) setState({ key, cursors: [""], index: 0, furthest: 0 });
   const index = state.key === key ? state.index : 0;
   const cursor = state.key === key ? state.cursors[index]! : "";
 
@@ -48,7 +49,9 @@ export function useCatalog(key: string, search: string, filters: IssueFilters | 
     queryKey: search ? ["search", search, filters, index] : ["browse", filters, cursor],
     queryFn: async ({ signal }): Promise<Page> => {
       if (!search) return browsePage(filters!, cursor, signal);
-      const issues = await api.search(search, { ...filters, sort: undefined, limit: PAGE_SIZE, page: index + 1 }, { signal });
+      // A search keeps its match order unless a sort was chosen; the shuffle isn't one.
+      const sort = filters!.sort === "shuffle" ? undefined : filters!.sort;
+      const issues = await api.search(search, { ...filters, sort, limit: PAGE_SIZE, page: index + 1 }, { signal });
       return { issues, more: issues.length === PAGE_SIZE, next: null };
     },
     enabled: filters !== null,
@@ -70,8 +73,8 @@ export function useCatalog(key: string, search: string, filters: IssueFilters | 
     ...query,
     index,
     /** Pages that can be opened: those seen, and the next one. */
-    pages: search ? index + (data?.more ? 2 : 1) : seen,
+    pages: search ? Math.max(state.key === key ? state.furthest : 0, index) + (data?.more ? 2 : 1) : seen,
     hasNext: !!data?.more && !query.isPlaceholderData,
-    go: (i: number) => setState((s) => (s.key === key ? { ...s, index: i } : s)),
+    go: (i: number) => setState((s) => (s.key === key ? { ...s, index: i, furthest: Math.max(s.furthest, i) } : s)),
   };
 }

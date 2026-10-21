@@ -51,14 +51,25 @@ export function LevelCard({ summary, own = true }: { summary: XPSummary | undefi
 }
 
 /** Every badge in the server's display order, earned or still to earn. */
-export function Badges({ summary, keys }: { summary: XPSummary | undefined; keys: string[] | undefined }) {
+export function Badges({
+  summary,
+  keys,
+  earnedOnly = false,
+}: {
+  summary: XPSummary | undefined;
+  keys: string[] | undefined;
+  /** Someone else's profile: only what they've earned, never what they haven't. */
+  earnedOnly?: boolean;
+}) {
   const { t, locale } = useI18n();
   if (!summary || !keys) return null;
   const earned = new Map(summary.badges.map((b) => [b.key, b.earned_at]));
   const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" });
+  const shown = earnedOnly ? keys.filter((k) => earned.has(k)) : keys;
+  if (shown.length === 0) return <p className={s.muted}>{t("xp.badgesNone")}</p>;
   return (
     <ul className={s.badges}>
-      {keys.map((key) => {
+      {shown.map((key) => {
         const at = earned.get(key);
         const name = `badge.${key}` as MessageKey;
         return (

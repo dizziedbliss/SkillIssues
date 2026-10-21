@@ -138,6 +138,10 @@ func (h *handlers) listIssues(w http.ResponseWriter, r *http.Request) {
 			after = &c
 		}
 	}
+	// A search keeps its match order unless the caller named one to sort by.
+	if f.Search != "" && (f.Sort == issue.SortEasiest || f.Sort == issue.SortNewest) {
+		f.SearchSort = f.Sort
+	}
 	// Cursor paging defaults to the shuffled feed; paging by number keeps the
 	// easiest order it always had. Shuffle and newest page only by cursor.
 	if f.Sort == "" {

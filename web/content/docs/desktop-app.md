@@ -15,8 +15,12 @@ The desktop app is the whole SkillIssues app (Explore, search, issue pages, your
 
 - It forks the project and clones your fork to a workspace folder you choose.
 - It creates a branch for your change.
-- It opens the project in your editor.
-- It pushes your branch to your fork when you're ready.
+- It opens the project in VS Code, or shows you the folder.
+- **Commit:** once you've changed files, you give the commit a one-line title and, if you like, a description.
+- **Push:** sends your commits to your fork. It only pushes commits, so changes you haven't committed stay on your computer.
+- **Pull request:** once your commits are on your fork, you write the pull request's title and description. Tick **Close #number when it's merged** if your change fixes the issue: GitHub then closes the issue on merge, and SkillIssues links the two, which is how a learning path step counts as done. Then **Head over to your pull request** opens it on GitHub, where maintainers review it.
+
+**Working on**, in the app's menu, lists every issue you've started here and what's next for each: changes to commit, ready to push, ready for a pull request, or a pull request open.
 
 The website can't do any of this, on purpose. See the next section.
 
@@ -30,11 +34,13 @@ For the website, sign-in only reads who you are (your GitHub id, username and av
 
 ## Where to get it
 
-Builds are published on the [GitHub releases page](https://github.com/dizziedbliss/SkillIssues/releases). Download the file for your system from the newest release.
+The download above is the newest version for your system. Every version is also on the [GitHub releases page](https://github.com/dizziedbliss/SkillIssues/releases).
 
-## The app is being rebuilt
+## Updates
 
-The desktop app is being rebuilt alongside the website. Builds are published as they are released, and what each build can do is described in its release notes. If something on this page doesn't match the build you have, trust the release notes and tell us through [Report a bug](/docs/report-a-bug).
+On Windows and Linux, from version 1.1.0 on, the app checks for a new version when it starts and every few hours, downloads it in the background, and installs it when you close the app. A button in the title bar restarts into it straight away. The macOS build isn't signed yet, so it can't update itself: the button opens this page instead. The first time you open it on a Mac, right-click it and choose **Open**.
+
+What each version changed is in its release notes. If something on this page doesn't match the version you have, tell us through [Report a bug](/docs/report-a-bug).
 
 ## Without the desktop app
 

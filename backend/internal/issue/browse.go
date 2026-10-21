@@ -5,11 +5,13 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/sync/errgroup"
 )
 
 // catalogOrder is the order the catalog is browsed in: easiest first,
@@ -310,26 +312,29 @@ func (s *Service) browseSegment(ctx context.Context, f Filters, bucket int, lang
 
 // newestPage reads open issues by created_at, newest first, as one index
 // range after the cursor. An issue whose opening time is unknown is not in it.
+//
+// A difficulty filter is read one difficulty at a time and merged: walking
+// every open issue by created_at to find the few rated ones among them took
+// 10s for BEGINNER alone (recent issues are mostly unrated), while each
+// difficulty's own range is one index read (issues_open_rated_newest_idx,
+// 00063; unrated ones are most of the newest index anyway).
 func (s *Service) newestPage(ctx context.Context, f Filters, after *Cursor) ([]Issue, *Cursor, error) {
 	limit := pageLimit(f.Limit)
 	rare, err := s.isRare(ctx, f, nil)
 	if err != nil {
 		return nil, nil, err
 	}
-	order := newestOrder
-	if rare {
-		order = sortedNewestOrder
+	var page []Issue
+	if !rare && len(f.Difficulties) > 0 {
+		page, err = s.newestByDifficulty(ctx, f, after, limit)
+	} else {
+		order := newestOrder
+		if rare {
+			order = sortedNewestOrder
+		}
+		sql, args := newestQuery(f, after, order, limit)
+		page, err = s.queryIssues(ctx, sql, args)
 	}
-
-	var q browseQuery
-	q.sb.WriteString(baseIssueSelect)
-	q.sb.WriteString(" WHERE i.state = 'OPEN' AND i.created_at IS NOT NULL")
-	q.sb.WriteString(f.conds(q.arg))
-	if after != nil {
-		q.sb.WriteString(" AND (i.created_at, i.id) < (" + q.arg(time.UnixMicro(after.Updated)) + ", " + q.arg(after.ID) + ")")
-	}
-	q.sb.WriteString(" ORDER BY " + order + " LIMIT " + q.arg(limit))
-	page, err := s.queryIssues(ctx, q.sb.String(), q.args)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -338,6 +343,61 @@ func (s *Service) newestPage(ctx context.Context, f Filters, after *Cursor) ([]I
 	}
 	lastIssue := page[len(page)-1]
 	return page, &Cursor{Sort: SortNewest, Updated: lastIssue.created.UnixMicro(), ID: lastIssue.ID}, nil
+}
+
+// newestQuery is one Newest read: the filters, after the cursor, in order.
+func newestQuery(f Filters, after *Cursor, order string, limit int, extra ...string) (string, []any) {
+	var q browseQuery
+	q.sb.WriteString(baseIssueSelect)
+	q.sb.WriteString(" WHERE i.state = 'OPEN' AND i.created_at IS NOT NULL")
+	for _, cond := range extra {
+		q.sb.WriteString(cond)
+	}
+	q.sb.WriteString(f.conds(q.arg))
+	if after != nil {
+		q.sb.WriteString(" AND (i.created_at, i.id) < (" + q.arg(time.UnixMicro(after.Updated)) + ", " + q.arg(after.ID) + ")")
+	}
+	q.sb.WriteString(" ORDER BY " + order + " LIMIT " + q.arg(limit))
+	return q.sb.String(), q.args
+}
+
+// newestByDifficulty reads each wanted difficulty's newest issues on its own,
+// concurrently, and keeps the newest limit of them all.
+func (s *Service) newestByDifficulty(ctx context.Context, f Filters, after *Cursor, limit int) ([]Issue, error) {
+	parts := make([][]Issue, len(f.Difficulties))
+	g, gctx := errgroup.WithContext(ctx)
+	for i, d := range f.Difficulties {
+		one := f
+		one.Difficulties = []string{d}
+		// A plain equality on the score, so the planner sees the rated index's range.
+		cond := " AND i.difficulty_score IS NULL"
+		if score, ok := difficultyScores[d]; ok {
+			cond = fmt.Sprintf(" AND i.difficulty_score = %d", score)
+		}
+		g.Go(func() error {
+			sql, args := newestQuery(one, after, newestOrder, limit, cond)
+			got, err := s.queryIssues(gctx, sql, args)
+			parts[i] = got
+			return err
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	var all []Issue
+	for _, p := range parts {
+		all = append(all, p...)
+	}
+	sort.Slice(all, func(a, b int) bool {
+		if !all[a].created.Equal(all[b].created) {
+			return all[a].created.After(all[b].created)
+		}
+		return all[a].ID > all[b].ID
+	})
+	if len(all) > limit {
+		all = all[:limit]
+	}
+	return all, nil
 }
 
 // queryIssues runs a catalog query selecting baseIssueSelect's columns.

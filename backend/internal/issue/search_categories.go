@@ -124,17 +124,26 @@ func (s *Service) searchOneCategory(ctx context.Context, f Filters, limit, offse
 
 // searchCategories runs the category queries and returns one page of the
 // interleaved result.
+//
+// The categories are interleaved rank by rank, each issue once, at the first
+// rank any category reaches it (a higher category wins a tie). Every page is a
+// slice of that one list however deep it is read: page 1 and page 30 agree.
+// Each category reads api.search.per_category_cap times the number of
+// categories at least, and as deep as the page asked for needs, up to
+// api.search.sample_size; a sorted search reads that far at once and sorts it.
 func (s *Service) searchCategories(ctx context.Context, f Filters, limit, offset int) ([]Issue, error) {
 	if f.Category != "" {
 		return s.searchOneCategory(ctx, f, limit, offset)
 	}
 	perCategory := s.categoryCap()
-	// Fetch more than the cap so that, once issues a higher category already
-	// took are removed, a category can still fill its share.
-	fetch := perCategory * len(matchCategories)
-	sample := f.SearchSample
-	if sample < fetch {
-		sample = fetch
+	sample := max(f.SearchSample, perCategory*len(matchCategories))
+	// Twice as deep as the page needs: a category can lose at most as many
+	// issues to the others as it contributes, so reading twice as deep means
+	// a category read only that far never runs out before the page does, and
+	// the page is the same as a deeper read would give.
+	fetch := min(max(perCategory*len(matchCategories), 2*(offset+limit)), sample)
+	if f.SearchSort != "" {
+		fetch = sample
 	}
 	term := strings.TrimSpace(f.Search)
 	substr := utf8.RuneCountInString(term) >= minSubstringRunes
@@ -156,31 +165,11 @@ func (s *Service) searchCategories(ctx context.Context, f Filters, limit, offset
 		return nil, err
 	}
 
-	// Each issue in its first category only, each category capped.
-	seen := make(map[int]bool)
-	ranked := make([][]int, len(matchCategories))
-	for c, ids := range found {
-		for _, id := range ids {
-			if len(ranked[c]) == perCategory {
-				break
-			}
-			if !seen[id] {
-				seen[id] = true
-				ranked[c] = append(ranked[c], id)
-			}
-		}
-	}
-
-	type hit struct {
-		id       int
-		category string
-	}
-	var order []hit
-	for rank := 0; rank < perCategory; rank++ {
-		for c := range matchCategories {
-			if rank < len(ranked[c]) {
-				order = append(order, hit{ranked[c][rank], matchCategories[c]})
-			}
+	order := interleave(found)
+	if f.SearchSort != "" {
+		var err error
+		if order, err = s.sortMatches(ctx, order, f.SearchSort); err != nil {
+			return nil, err
 		}
 	}
 	if offset >= len(order) {
@@ -195,6 +184,64 @@ func (s *Service) searchCategories(ctx context.Context, f Filters, limit, offset
 		category[h.id] = h.category
 	}
 	return s.loadMatches(ctx, ids, func(id int) string { return category[id] })
+}
+
+// searchHit is one issue of a search and the category it's shown under.
+type searchHit struct {
+	id       int
+	category string
+}
+
+// interleave takes rank 1 of every category (in precedence order), then rank
+// 2, and so on, skipping an issue already taken. A category whose next issue
+// was taken moves on to its following one, so it keeps its share.
+func interleave(found [][]int) []searchHit {
+	seen := make(map[int]bool)
+	next := make([]int, len(found))
+	var out []searchHit
+	for more := true; more; {
+		more = false
+		for c, ids := range found {
+			for next[c] < len(ids) && seen[ids[next[c]]] {
+				next[c]++
+			}
+			if next[c] < len(ids) {
+				id := ids[next[c]]
+				seen[id] = true
+				out = append(out, searchHit{id, matchCategories[c]})
+				next[c]++
+				more = true
+			}
+		}
+	}
+	return out
+}
+
+// sortMatches puts a search's matches in the easiest or newest order, each
+// keeping its category.
+func (s *Service) sortMatches(ctx context.Context, hits []searchHit, by Sort) ([]searchHit, error) {
+	if len(hits) == 0 {
+		return hits, nil
+	}
+	ids := make([]int, len(hits))
+	category := make(map[int]string, len(hits))
+	for i, h := range hits {
+		ids[i] = h.id
+		category[h.id] = h.category
+	}
+	order := "i.difficulty_score ASC NULLS LAST, i.updated_at DESC, i.id DESC"
+	if by == SortNewest {
+		order = "i.created_at DESC NULLS LAST, i.id DESC"
+	}
+	sorted, err := s.matchIDs(ctx, `SELECT i.id FROM issues i WHERE i.id = ANY($1) ORDER BY `+order, []any{ids})
+	if err != nil {
+		return nil, fmt.Errorf("issue: sort search matches: %w", err)
+	}
+	out := make([]searchHit, len(sorted))
+	for i, id := range sorted {
+		out[i] = searchHit{id, category[id]}
+	}
+	return out, nil
 }
 
 // loadMatches loads the issues by id, in that order, each marked with its
