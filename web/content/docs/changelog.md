@@ -15,6 +15,18 @@ The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/
 
 ## October 2026
 
+### Owner feedback, 21 October
+
+- **Working on, in the desktop app.** Every issue you've started in the app, and what's next for each. Commit (a title and an optional description), push (commits only) and open the pull request (you write it, and choose whether it closes the issue) are separate steps, each offered once there's something to do.
+- **Asked before it's done.** Giving up a learning path, releasing a claim and deleting a theme ask first.
+- **Learning path swaps** never offer an issue you've swapped away on that path again.
+- **One list of your pull requests**, merged ones marked merged, with All, Merged and Open.
+- **Search finds people** by their GitHub username, if their profile is public, and pages further on Explore. Newest and Easiest sort a search.
+- **Issue pages** show images GitHub hosts as attachments, colour code blocks in your theme's colours, offer Try again when the description didn't load, and offer nothing to work on once an issue is closed.
+- **Closed, assigned and claimed issues** are coloured in lists.
+- **The download page** offers the newest version for your system, the others, and older versions.
+- **Smaller desktop app**, and copying the sign-in code works.
+
 ### The app, from its designs
 
 - **Explore.** The catalog as designed: search, a filter panel where every filter explains itself, difficulty buttons that start from your profile's level, and pages you can go back through. Click a card anywhere to open its issue, or its repository's name to see that repository's issues.

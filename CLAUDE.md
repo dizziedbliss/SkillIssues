@@ -185,7 +185,9 @@ path reaching outside the importing project). Both apps are built on `client`; t
   both sides), the presets, and `compileTheme`/`applyTheme`, which re-validates a theme and applies
   it through constructed stylesheets scoped to the app's root. `npm test` runs the checks.
 - **`packages/markdown`** — sanitised Markdown rendering (`markdown-it` + DOMPurify). Issue bodies
-  are attacker-controlled; never hand-roll rendering in either client.
+  are attacker-controlled; never hand-roll rendering in either client. The only `class` that survives
+  is `language-…` on `<code>` (a DOMPurify hook); `highlightCode` colours those blocks afterwards with
+  highlight.js (its own lazily loaded chunk, a fixed set of languages), reading their text, never HTML.
 
 ### Web (`web/src/`)
 - **`landing/`** — the landing page, the owner's design. Its look is **locked**
@@ -234,7 +236,12 @@ path reaching outside the importing project). Both apps are built on `client`; t
   The issue page has a beginner checklist (`BeginnerCheck.tsx`: labelled, described, unassigned, no
   open linked pull request via the timeline, recent, short discussion; thresholds documented in
   `/docs/good-first-issues`, keep both in step) and report links (`ReportButton.tsx`). Settings →
-  Themes has a Community tab over `GET /themes/public`. Page changes inside the app run the theme's `[motion] transition` through View
+  Themes has a Community tab over `GET /themes/public`. Anything that can't simply be undone (giving up
+  a path, releasing a claim, deleting a theme or a workspace) asks first through `useConfirm`
+  (`Confirm.tsx`). Search also finds people: a term shaped like a GitHub username asks for that public
+  profile (`search/PersonResult.tsx`). The download page (`/download`) adds the newest release for the
+  visitor's system, the others and older versions, read from GitHub's releases API in the browser
+  (`pages/Downloads.tsx`); its prerendered HTML is the releases link alone. Page changes inside the app run the theme's `[motion] transition` through View
   Transitions (`transition.ts`, `transition.css`; never under reduced motion). The profile
   (`profile/`: `/app/profile`, and `/app/contributions` for Contribute) counts the person's public
   pull requests from GitHub's search **in the browser**, with no token (`lib/github.ts`, cached per
@@ -693,8 +700,12 @@ Every key with its default and bounds: `docs/settings.md`.
     language first).
 
   Authors are not searched. Each category is its own indexed query, run concurrently
-  (`issue/search_categories.go`). An issue appears once, in its first category. Each category is
-  capped at `api.search.per_category_cap`, and the categories are interleaved rank by rank. Never
+  (`issue/search_categories.go`). The categories are interleaved rank by rank (`interleave`), each
+  issue once, at the first rank any category reaches it, so every page is a slice of one list
+  however deep it is read. Each category reads at least `api.search.per_category_cap` × 3 and twice
+  as deep as the page asked for, up to `api.search.sample_size` — twice, because a category can lose
+  at most as many issues as it contributes, which keeps a shallow read a prefix of a deep one. A
+  named `sort=easiest|newest` sorts the whole read (`sortMatches`); none keeps match order. Never
   fold them back into one query that ORs the matches across the join: no index serves it, and on
   the full catalog it ran past the query timeout. `?category=repository|title|language` returns
   one category alone, paged on its own up to `api.search.sample_size` (the web app's "view more").
@@ -709,7 +720,10 @@ Every key with its default and bounds: `docs/settings.md`.
   ranges, never a UNION, which Postgres sorts in full. `?page` > 1 is the OFFSET query.
   A language with fewer than `api.issues.rare_language_threshold` open issues is sorted instead,
   because the planner cannot tell a rare language from a common one. Browse queries use
-  `pgx.QueryExecModeExec` so they are never run from a cached generic plan.
+  `pgx.QueryExecModeExec` so they are never run from a cached generic plan. Newest with a difficulty
+  filter reads each difficulty's range on its own and merges them (`newestByDifficulty`; rated ones
+  through `issues_open_rated_newest_idx`, 00063): walking every open issue by `created_at` to find the
+  few rated ones ran past the timeout.
 - **Issue bodies are the client's to fetch; the server is the fallback.** Clients read bodies
   from GitHub (`ApiClient.loadIssueBody`) and call `GET /issues/{id}/body` only when GitHub
   refuses them for their own rate limit. That route serves `issue_bodies` (a bounded cache,
@@ -768,7 +782,9 @@ Every key with its default and bounds: `docs/settings.md`.
   pays the quests the ledger now completes (`xp.Quests`, only `merged` rows, key `quest:<key>`) and
   marks `learning_path_steps` done from merged pull requests that close them, finishing and paying the
   path (`path:<id>`). go-api starts, swaps and abandons paths (`internal/learnpath`, issues picked by
-  `issue.Service.Pick` off the shuffled feed: unassigned, unclaimed, one per repository).
+  `issue.Service.Pick` off the shuffled feed from a random point, wrapping once: unassigned,
+  unclaimed, one per repository). An issue swapped out is kept in `learning_path_skips` (00062) and
+  never offered again on that path.
 - **Repository health is read with the stats, flagged on read** (migration 00061): a pass's first page
   also reads the last `ingest.health.sample` merged pull requests (`healthOf`: merges by people who
   aren't OWNER/MEMBER/COLLABORATOR, and the median hours to merge; GitHub's first-timer associations

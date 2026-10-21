@@ -106,10 +106,30 @@
   color: var(--colors-text);
 }
 
+/* Closed on GitHub: a grey chip, and the whole card quieter, so it reads as done at a glance. */
 .closed {
   padding: 0.15rem 0.45rem;
-  border: 1px solid var(--colors-success);
   border-radius: var(--radius-small);
+  background: color-mix(in srgb, var(--colors-text-muted) 30%, var(--colors-surface));
+  color: var(--colors-text);
+  font-size: 0.9375rem;
+}
+
+.card[data-ui-state="closed"] {
+  background: color-mix(in srgb, var(--colors-text-muted) 6%, transparent);
+}
+
+.card[data-ui-state="closed"] .title {
+  color: var(--colors-text-muted);
+}
+
+/* Someone is on it, on GitHub (assigned) or here (claimed): the warning colour. */
+.taken {
+  padding: 0.15rem 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--colors-warning) 60%, transparent);
+  border-radius: var(--radius-small);
+  background: color-mix(in srgb, var(--colors-warning) 14%, var(--colors-surface));
+  color: var(--colors-text);
   font-size: 0.9375rem;
 }
 

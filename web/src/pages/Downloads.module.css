@@ -1,0 +1,91 @@
+/* The download page's live part, on the locked site tokens: one red button for your system, the rest as links. */
+
+.downloads {
+  margin-block: 1.5rem 2.5rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  border: 1px solid var(--signal);
+}
+
+.heading {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 1.75rem;
+  letter-spacing: var(--h-track);
+}
+
+.version {
+  margin-top: 0.5rem;
+}
+
+.button {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.7em 1.1em 0.65em;
+  background: var(--signal);
+  color: var(--ink);
+  font-family: var(--mono);
+  line-height: 1.2;
+  text-decoration: none;
+  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
+}
+
+.button:hover {
+  background-color: var(--ink);
+  color: var(--signal);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.size {
+  opacity: 0.75;
+}
+
+.systems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin-top: 1rem;
+  list-style: none;
+  padding: 0;
+}
+
+.systems a,
+.older a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--signal);
+  text-underline-offset: 0.2em;
+}
+
+.note {
+  margin-top: 0.75rem;
+  color: var(--quiet);
+  font-size: var(--label-size);
+}
+
+.older {
+  margin-top: 1rem;
+}
+
+.older summary {
+  cursor: pointer;
+}
+
+.older ul {
+  margin-top: 0.5rem;
+  padding-left: 1.2rem;
+}
+
+.olderLink + .olderLink::before {
+  content: ", ";
+  color: var(--quiet);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+}

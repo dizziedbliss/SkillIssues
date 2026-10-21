@@ -68,8 +68,10 @@ Search looks in three places:
 
 A few details:
 
-- In a mixed list, an issue appears once, in the first kind it matches. On its own, a kind lists every issue it matches.
-- Each kind is limited in size, and mixed lists interleave them, so a common word can't fill the page with one kind of result.
+- In a mixed list the kinds take turns, one result each, so a common word can't fill the page with one kind of result. An issue appears once, under the first kind to reach it. On its own, a kind lists every issue it matches.
+- A mixed list goes as deep as you page, up to 2,000 results per kind.
+- On Explore, choosing **Newest** or **Easiest** sorts the search's results that way. Otherwise they stay in match order.
+- Type a GitHub username to find a person: if they've made their profile public, it shows first, under **People**.
 - For repositories and languages, a single repository contributes only a few issues, so a large project can't fill the list.
 - Terms under three characters only match titles and languages.
 - Characters like `%` and `_` are searched literally.

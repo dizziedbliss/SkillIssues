@@ -217,6 +217,39 @@ func TestNewestSort(t *testing.T) {
 	}
 }
 
+// Newest narrowed to difficulties reads each one's range and merges them:
+// the same order, page after page, as one walk by created_at would give.
+func TestNewestByDifficulty(t *testing.T) {
+	f := newFilterFixture(t)
+	repo := f.repo(t, 1, "Go")
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	at := func(h int) time.Time { return t0.Add(time.Duration(h) * time.Hour) }
+	b1 := f.issue(t, repo, 1, "BEGINNER", 2, 0, at(1))
+	u2 := f.issue(t, repo, 2, "UNCLASSIFIED", nil, 0, at(2))
+	a3 := f.issue(t, repo, 3, "ADVANCED", 8, 0, at(3))
+	b4 := f.issue(t, repo, 4, "BEGINNER", 2, 0, at(4))
+	u5 := f.issue(t, repo, 5, "UNCLASSIFIED", nil, 0, at(5))
+	b6 := f.issue(t, repo, 6, "BEGINNER", 2, 0, at(6))
+	a7 := f.issue(t, repo, 7, "ADVANCED", 8, 0, at(7))
+
+	for name, tc := range map[string]struct {
+		difficulties []string
+		want         []int
+	}{
+		"one":               {[]string{"BEGINNER"}, []int{b6, b4, b1}},
+		"two rated":         {[]string{"BEGINNER", "ADVANCED"}, []int{a7, b6, b4, a3, b1}},
+		"rated and unrated": {[]string{"UNCLASSIFIED", "BEGINNER"}, []int{b6, u5, b4, u2, b1}},
+		"every difficulty":  {[]string{"BEGINNER", "INTERMEDIATE", "ADVANCED", "UNCLASSIFIED"}, []int{a7, b6, u5, b4, a3, u2, b1}},
+		"none of that kind": {[]string{"INTERMEDIATE"}, nil},
+	} {
+		for _, limit := range []int{1, 2, 10} {
+			if got := f.walk(t, Filters{Sort: SortNewest, Limit: limit, Difficulties: tc.difficulties}); !slices.Equal(got, tc.want) {
+				t.Errorf("%s, limit %d: %v, want %v", name, limit, got, tc.want)
+			}
+		}
+	}
+}
+
 // Every filter narrows the catalog; values within one filter are alternatives.
 func TestFilters(t *testing.T) {
 	f := newFilterFixture(t)
