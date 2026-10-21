@@ -146,7 +146,7 @@ export class Client {
   }
 
   async releaseClaim(issueID: number): Promise<void> {
-    await this.send({ method: "DELETE", path: `/issues/${issueID}/claim` });
+    await this.send({ method: "DELETE", path: `/issues/${issueID}/claim`, body: {} });
   }
 
   /** Your active claims, soonest to lapse first, with their issues. */
@@ -186,7 +186,8 @@ export class Client {
   }
 
   async abandonPath(): Promise<void> {
-    await this.send({ method: "DELETE", path: "/me/path" });
+    // An empty JSON body: the API refuses a cookie-authenticated mutation without JSON.
+    await this.send({ method: "DELETE", path: "/me/path", body: {} });
   }
 
   /** Your level, streak, badges and latest XP, and where tracking stands. */
