@@ -368,6 +368,10 @@ const (
 	PRsRefreshMinSeconds         Key = "api.prs.refresh_min_seconds"
 	PRsPageSize                  Key = "api.prs.page_size"
 	ClaimsDays                   Key = "api.claims.days"
+	IngestHealthSample           Key = "ingest.health.sample"
+	HealthMinSample              Key = "api.health.min_sample"
+	HealthWelcomingMin           Key = "api.health.welcoming_min"
+	HealthSlowHours              Key = "api.health.slow_hours"
 	LeaderboardsEnabled          Key = "api.leaderboards.enabled"
 	LeaderboardsSize             Key = "api.leaderboards.size"
 	ProfilesPublicPulls          Key = "api.profiles.public_pulls"
@@ -415,6 +419,10 @@ var Registry = map[Key]Spec{
 	LeaderboardsEnabled:          boolSpec(false, "Serve GET /leaderboards. People who keep their profile private are never listed."),
 	LeaderboardsSize:             intSpec(50, 1, 500, "People one leaderboard lists."),
 	ProfilesPublicPulls:          intSpec(20, 0, 200, "Merged pull requests a public profile lists."),
+	IngestHealthSample:           intSpec(20, 0, 100, "Latest merged pull requests read per repository for its health; 0 stops reading them."),
+	HealthMinSample:              intSpec(5, 1, 100, "Merged pull requests a repository needs before its health is shown."),
+	HealthWelcomingMin:           intSpec(3, 1, 100, "Merges from outside contributors, among those read, that mark a repository as merging outside contributions."),
+	HealthSlowHours:              intSpec(1440, 24, 87600, "Median hours to merge from which a repository is marked slow to merge."),
 	ClaimsDays:                   intSpec(7, 1, 60, "Days a claim lasts without an open pull request of the claimer's that closes the issue."),
 	ClaimsMaxActive:              intSpec(2, 1, 20, "Claims one person may hold at once."),
 	ClaimsRefreshSeconds:         intSpec(30, 5, 3600, "How often go-api re-reads which issues are claimed, for lists."),

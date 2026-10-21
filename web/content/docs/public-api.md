@@ -131,6 +131,8 @@ A few rules for cursors:
   "tech": ["Go", "Shell"],
   "assignees": 0,
   "contributing_url": "https://github.com/owner/repo/blob/main/CONTRIBUTING.md",
+  "claimed": false,
+  "repository_health": { "sampled": 20, "outside": 7, "median_merge_hours": 41, "welcoming": true, "slow": false },
   "comments": 3,
   "author": "octocat",
   "repository": "owner/repo",
@@ -155,6 +157,8 @@ A few rules for cursors:
 | `repository_id` | SkillIssues' own id for the repository, as a report names it. |
 | `assignees` | How many people are assigned on GitHub, or `null` if the catalog hasn't read it yet. |
 | `contributing_url` | The repository's contributing guide on GitHub (its own, or its owner's default), or `null` when it has none or the catalog hasn't read it yet. Always a `https://github.com/` page. |
+| `claimed` | `true` when someone on SkillIssues claimed it. Who claimed it is never shown. |
+| `repository_health` | The repository's last merged pull requests: `sampled` (how many were read), `outside` (how many came from people outside the project), `median_merge_hours`, and the flags `welcoming` and `slow`. `null` until enough were read. |
 | `tech` | The repository's three largest languages, largest first, by GitHub's names. Empty when unknown. The `tech` filter takes the same names in any case. |
 | `match_category` | Search results only: `Repository`, `Title` or `Language`. |
 

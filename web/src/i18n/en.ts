@@ -515,6 +515,12 @@ export const en = {
   "issue.assigned": "Assigned",
   "issue.contributing": "Read the contributing guide first",
   "issue.claimed": "Claimed",
+  "health.welcoming": "Merges outside contributions",
+  "health.welcomingHelp": (p: { outside: number; sampled: number }) => `${p.outside} of its last ${p.sampled} merged pull requests came from people outside the project.`,
+  "health.slow": "Slow to merge",
+  "health.slowHelp": (p: { days: number }) => `Its pull requests usually take about ${p.days} days to be merged.`,
+  "health.facts": (p: { outside: number; sampled: number; days: number }) =>
+    `${p.outside} of its last ${p.sampled} merges came from outside the project; a merge usually takes ${p.days === 1 ? "about a day" : `about ${p.days} days`}`,
   "issue.claimedHelp": "Someone on SkillIssues said they're working on it.",
   "claim.claim": "I’m working on this",
   "claim.signIn": "Sign in to claim it",

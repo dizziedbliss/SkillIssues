@@ -263,3 +263,50 @@ func TestClaimedIssues(t *testing.T) {
 		t.Errorf("own page: claimed = %v, %v", it != nil && it.Claimed, err)
 	}
 }
+
+// A repository's health shows once enough merges were read, flagged against
+// the thresholds of the moment.
+func TestRepositoryHealthFlags(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	repoID, _ := seedBrowseRepo(t, pool, "health")
+	seedBrowseIssues(t, pool, repoID, 1)
+	var id int
+	if err := pool.QueryRow(ctx, `SELECT id FROM issues WHERE repository_id = $1 AND number = 1`, []any{repoID},
+		func(r pgx.Row) error { return r.Scan(&id) }); err != nil {
+		t.Fatal(err)
+	}
+	svc := New(pool, nil)
+	rules := HealthRules{MinSample: 5, WelcomingMin: 3, SlowHours: 1000}
+	svc.SetHealthRules(func() HealthRules { return rules })
+	get := func() *Health {
+		t.Helper()
+		it, err := svc.GetIssue(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return it.Health
+	}
+	if h := get(); h != nil {
+		t.Errorf("never read: health = %+v", h)
+	}
+	set := func(sampled, outside, median int) {
+		t.Helper()
+		if err := pool.Exec(ctx, `UPDATE repositories SET health_sampled = $2, health_outside = $3, health_median_merge_hours = $4 WHERE id = $1`,
+			repoID, sampled, outside, median); err != nil {
+			t.Fatal(err)
+		}
+	}
+	set(4, 4, 10)
+	if h := get(); h != nil {
+		t.Errorf("too few merges read: health = %+v", h)
+	}
+	set(20, 3, 1200)
+	if h := get(); h == nil || !h.Welcoming || !h.Slow || h.MedianMergeHours != 1200 {
+		t.Errorf("health = %+v, want welcoming and slow", h)
+	}
+	rules = HealthRules{MinSample: 5, WelcomingMin: 4, SlowHours: 2000}
+	if h := get(); h == nil || h.Welcoming || h.Slow {
+		t.Errorf("after raising the thresholds: health = %+v", h)
+	}
+}
