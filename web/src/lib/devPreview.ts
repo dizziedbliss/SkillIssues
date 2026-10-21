@@ -1,4 +1,4 @@
-import type { Issue, MyXP, Notification, Profile, ProfileUpdate, Theme, ThemeInput, TrackedPull, Transport } from "@skillissues/client";
+import type { Claim, Issue, MyXP, Notification, Profile, ProfileUpdate, Theme, ThemeInput, TrackedPull, Transport } from "@skillissues/client";
 
 /*
  * Development only (import.meta.env.DEV; the production build drops this
@@ -57,6 +57,8 @@ const stored = (() => {
 if (stored?.profile) profile = stored.profile;
 const saved = new Map<number, Issue>((stored?.saved ?? []).map((i) => [i.id, i]));
 let notifications: Notification[] = stored?.notifications ?? [];
+/** Claims, kept for the page's life only. */
+const claims = new Map<number, Claim>();
 let themes: Theme[] = stored?.themes ?? [];
 let active: string | null = stored?.active ?? null;
 let activePreset: string | null = stored?.activePreset ?? null;
@@ -156,6 +158,22 @@ export function previewTransport(real: Transport): Transport {
       saved.delete(id);
       persist();
       return { saved: false, issue_id: id };
+    }
+    if (path === "/me/claims") {
+      return { claims: await Promise.all([...claims.entries()].map(async ([id, c]) => ({ ...c, issue: await real({ method: "GET", path: `/issues/${id}` }) }))) };
+    }
+    if (/^\/issues\/\d+\/claim$/.test(path)) {
+      const id = Number(path.split("/")[2]);
+      if (method === "POST") {
+        const c = { issue_id: id, claimed_at: new Date().toISOString(), expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString(), extended: false };
+        claims.set(id, c);
+        return c;
+      }
+      if (method === "DELETE") {
+        claims.delete(id);
+        return undefined;
+      }
+      return { claimed: claims.has(id), yours: claims.get(id) ?? null };
     }
     if (path === "/me/xp") return sampleXP();
     if (path.startsWith("/me/pulls") && method === "GET") return { pull_requests: samplePulls() };

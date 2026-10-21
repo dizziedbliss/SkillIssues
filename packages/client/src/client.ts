@@ -2,7 +2,7 @@ import type { Transport } from "./transport";
 import type {
   AccountDeleted, ActiveTheme, Facets, Issue, IssueBody, IssueFilters, IssuePage, MyXP, Notifications, Profile, ProfileUpdate,
   ReportTarget, RepositoryLookup, SavedChange, SearchCategory, Session, SharedThemes, SignInStart, Stats, Theme, ThemeCheck,
-  ThemeInput, TrackedPull,
+  ThemeInput, TrackedPull, Claim, ClaimState,
 } from "./types";
 
 function query(params: Record<string, string | number | undefined>): string {
@@ -39,7 +39,10 @@ type Opts = { signal?: AbortSignal };
  * then (by the edge, or the API's own cache) has neither, which means none.
  */
 function withLists(i: Issue): Issue {
-  return { ...i, labels: i.labels ?? [], tech: i.tech ?? [], assignees: i.assignees ?? null, contributing_url: i.contributing_url ?? null };
+  return {
+    ...i, labels: i.labels ?? [], tech: i.tech ?? [], assignees: i.assignees ?? null,
+    contributing_url: i.contributing_url ?? null, claimed: i.claimed ?? false,
+  };
 }
 
 /** One typed method per API endpoint. */
@@ -126,6 +129,26 @@ export class Client {
 
   async readAllNotifications(): Promise<void> {
     await this.send({ method: "POST", path: "/notifications/read-all", body: {} });
+  }
+
+  /** Whether an issue is claimed, and your claim on it. */
+  claimState(issueID: number, o?: Opts): Promise<ClaimState> {
+    return this.get(`/issues/${issueID}/claim`, o);
+  }
+
+  /** Claims an issue for you; refused when someone else holds it or you hold too many. */
+  claim(issueID: number): Promise<Claim> {
+    return this.send({ method: "POST", path: `/issues/${issueID}/claim`, body: {} }) as Promise<Claim>;
+  }
+
+  async releaseClaim(issueID: number): Promise<void> {
+    await this.send({ method: "DELETE", path: `/issues/${issueID}/claim` });
+  }
+
+  /** Your active claims, soonest to lapse first, with their issues. */
+  async myClaims(o?: Opts): Promise<(Claim & { issue: Issue })[]> {
+    const r = await this.get<{ claims: (Claim & { issue: Issue })[] }>("/me/claims", o);
+    return r.claims.map((c) => ({ ...c, issue: withLists(c.issue) }));
   }
 
   /** Your level, streak, badges and latest XP, and where tracking stands. */

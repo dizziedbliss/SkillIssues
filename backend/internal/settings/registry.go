@@ -367,6 +367,9 @@ const (
 	IngestPRsRetryBaseSeconds    Key = "ingest.prs.retry_base_seconds"
 	PRsRefreshMinSeconds         Key = "api.prs.refresh_min_seconds"
 	PRsPageSize                  Key = "api.prs.page_size"
+	ClaimsDays                   Key = "api.claims.days"
+	ClaimsMaxActive              Key = "api.claims.max_active"
+	ClaimsRefreshSeconds         Key = "api.claims.refresh_seconds"
 	XPRecentLimit                Key = "api.xp.recent_limit"
 	XPBaseBeginner               Key = "xp.base_beginner"
 	XPBaseIntermediate           Key = "xp.base_intermediate"
@@ -401,6 +404,9 @@ var Registry = map[Key]Spec{
 	IngestPRsColdIntervalSeconds: intSpec(86400, 300, 2592000, "How often someone with no open pull request is read."),
 	IngestPRsHotWindowDays:       intSpec(7, 1, 90, "An open pull request updated this recently makes its author hot."),
 	IngestPRsRetryBaseSeconds:    intSpec(300, 30, 86400, "First wait after a failed read; doubles per attempt, up to ingest.prs.cold_interval_seconds."),
+	ClaimsDays:                   intSpec(7, 1, 60, "Days a claim lasts without an open pull request of the claimer's that closes the issue."),
+	ClaimsMaxActive:              intSpec(2, 1, 20, "Claims one person may hold at once."),
+	ClaimsRefreshSeconds:         intSpec(30, 5, 3600, "How often go-api re-reads which issues are claimed, for lists."),
 	PRsPageSize:                  intSpec(50, 1, 500, "Tracked pull requests GET /me/pulls returns."),
 	XPRecentLimit:                intSpec(20, 1, 200, "Latest XP events GET /me/xp returns."),
 	PRsRefreshMinSeconds:         intSpec(300, 0, 86400, "Shortest gap between two \"check my pull requests now\" requests from one person."),

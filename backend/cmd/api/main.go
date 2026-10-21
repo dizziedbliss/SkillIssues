@@ -20,6 +20,7 @@ import (
 
 	"github.com/dizziedbliss/skillissues/internal/auth"
 	"github.com/dizziedbliss/skillissues/internal/cache"
+	"github.com/dizziedbliss/skillissues/internal/claim"
 	"github.com/dizziedbliss/skillissues/internal/config"
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/flow"
@@ -143,9 +144,13 @@ func main() {
 	hidden := &hiddenStore{}
 	issueSvc.SetHidden(hidden.issues)
 	go refreshHiddenLoop(ctx, reportSvc, live.Current, hidden)
+	claimSvc := claim.New(pool)
+	claimed := &claimedStore{}
+	issueSvc.SetClaimed(claimed.get)
+	go refreshClaimedLoop(ctx, claimSvc, live.Current, claimed)
 
 	// 6. Build the HTTP router and register all routes
-	mux, err := buildRouter(cfg, live, pool, cacheClient, authSvc, ghOAuth, outbound, profileSvc, issueSvc, reportSvc, hidden)
+	mux, err := buildRouter(cfg, live, pool, cacheClient, authSvc, ghOAuth, outbound, profileSvc, issueSvc, reportSvc, hidden, claimSvc, claimed)
 	if err != nil {
 		slog.Error("failed to build router", "error", err)
 		os.Exit(1)
@@ -198,6 +203,8 @@ func buildRouter(
 	issueSvc *issue.Service,
 	reportSvc *report.Service,
 	hidden *hiddenStore,
+	claimSvc *claim.Service,
+	claimed *claimedStore,
 ) (http.Handler, error) {
 	mux := http.NewServeMux()        // public routes — full middleware chain
 	adminMux := http.NewServeMux()   // /admin — own auth, no CORS/rate-limit
@@ -218,6 +225,8 @@ func buildRouter(
 		themeSvc:        theme.NewService(pool),
 		reportSvc:       reportSvc,
 		progressSvc:     progress.New(pool),
+		claimSvc:        claimSvc,
+		claimed:         claimed,
 		hidden:          hidden,
 	}
 
@@ -243,6 +252,12 @@ func buildRouter(
 	mux.HandleFunc("GET /repositories/lookup", h.lookupRepository)
 	mux.HandleFunc("GET /issues/{id}", h.getIssue) // no auth required
 	mux.Handle("GET /issues/{id}/body", optionalAuth(authSvc, http.HandlerFunc(h.getIssueBody)))
+
+	// ----- Claims -----
+	mux.Handle("GET /issues/{id}/claim", optionalAuth(authSvc, http.HandlerFunc(h.getIssueClaim)))
+	mux.Handle("POST /issues/{id}/claim", requireAuth(authSvc, http.HandlerFunc(h.claimIssue)))
+	mux.Handle("DELETE /issues/{id}/claim", requireAuth(authSvc, http.HandlerFunc(h.releaseIssue)))
+	mux.Handle("GET /me/claims", requireAuth(authSvc, http.HandlerFunc(h.getMyClaims)))
 
 	// ----- Saved issues -----
 	mux.Handle("GET /saved", requireAuth(authSvc, http.HandlerFunc(h.getSaved)))

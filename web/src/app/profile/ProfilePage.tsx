@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import { useI18n } from "../../i18n";
 import { useSession } from "../session";
 import { useSaved } from "../saved";
+import { useMyClaims } from "../claims";
 import { ContribStatus, Graph, PRList, SignInPrompt, StatBoxes } from "./parts";
 import { useContributions, useProfile, useTrackedPulls, useXP } from "./data";
 import { BackfillReveal, Badges, LanguageLevels, LevelCard, SyncStatus, TrackedPulls } from "./xp";
@@ -32,6 +33,7 @@ export function ProfilePage() {
   const xp = useXP();
   const pulls = useTrackedPulls();
   const saved = useSaved();
+  const claims = useMyClaims();
 
   if (isPending) return null;
   if (!user) return <SignInPrompt />;
@@ -117,6 +119,28 @@ export function ProfilePage() {
             <PRList items={contributions.data?.recentMerged} empty={t("profile.noResolved")} limit={SHOWN} />
             {contributions.data && contributions.data.total > 0 && (
               <Link to="/app/contributions" className={s.more}>{t("profile.allContributions")}</Link>
+            )}
+          </div>
+          <div className={s.box} data-ui="claims">
+            <h3 className={s.boxTitle}>{t("claim.mine")}</h3>
+            {claims.error && <p className={s.error} role="alert">{claims.error.message}</p>}
+            {claims.data && claims.data.length === 0 && <p className={s.muted}>{t("claim.mineEmpty")}</p>}
+            {claims.data && claims.data.length > 0 && (
+              <ul className={s.savedList}>
+                {claims.data.map((c) => (
+                  <li key={c.issue_id}>
+                    <Link to={`/app/issues/${c.issue_id}`}>
+                      {c.issue.title} <span className={s.muted}>#{c.issue.number}</span>
+                    </Link>
+                    <span className={s.muted}>
+                      {c.issue.repository},{" "}
+                      {c.extended
+                        ? t("claim.whilePR")
+                        : t("claim.until", { date: new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(new Date(c.expires_at)) })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
           <div className={s.box}>
