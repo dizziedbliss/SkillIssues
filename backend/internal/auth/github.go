@@ -43,8 +43,8 @@ type GitHubConfig struct {
 
 // GitHubUser holds the data GitHub returns for the signed-in user.
 type GitHubUser struct {
-	GitHubID  string // numeric database ID, stored as TEXT in users
-	Username  string
+	GitHubID string // numeric database ID, stored as TEXT in users
+	Username string
 	// Name is the display name on the GitHub profile; empty when unset.
 	Name      string
 	AvatarURL string
