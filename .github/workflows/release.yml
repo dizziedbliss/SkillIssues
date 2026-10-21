@@ -9,8 +9,19 @@ permissions:
   contents: read
 
 jobs:
+  # Every release has notes: the tag's section of desktop/release-notes.md.
+  # Checked before anything builds, so a tag without them fails in seconds.
+  notes:
+    name: Release notes
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Find this version's notes
+        run: scripts/release-notes.sh "${GITHUB_REF_NAME#v}" > /dev/null
+
   build-desktop:
     name: Build Desktop App
+    needs: notes
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -29,9 +40,17 @@ jobs:
       - name: Set the version from the tag
         shell: bash
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version -w desktop
+      # Signed when a code-signing certificate is configured (secrets
+      # WIN_CSC_LINK, a base64 .pfx, and WIN_CSC_KEY_PASSWORD); unsigned until
+      # then, which is why Windows warns about the download.
       - name: Package Windows Executable
         if: matrix.os == 'windows-latest'
+        shell: bash
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: |
+          if [ -z "$WIN_CSC_LINK" ]; then unset WIN_CSC_LINK WIN_CSC_KEY_PASSWORD; fi
           cd desktop
           npm run dist:win
       - name: Package Linux AppImage
@@ -68,23 +87,15 @@ jobs:
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           path: release-assets
+      - name: Write the release notes
+        run: |
+          scripts/release-notes.sh "${GITHUB_REF_NAME#v}" > release-notes.md
+          printf '\n---\n\n**Download** the file for your system below: `SkillIssues-Setup-*.exe` for Windows, `*.dmg` for macOS (Apple silicon), `*.AppImage` for Linux. Or get the newest from https://skillissues.dizziedbliss.lol/download.\n' >> release-notes.md
       - name: Create GitHub Release with Assets
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           name: SkillIssues ${{ github.ref_name }}
-          body: |
-            ## SkillIssues ${{ github.ref_name }} Release
-
-            **SkillIssues** — the intelligent developer issue matching and desktop contribution engine.
-
-            ### Highlights
-            - **Desktop App Suite**: Native workspace creation, automated branch handling, live Git progress tracker, and VS Code 1-click launcher.
-            - **Web-to-Desktop Deep Linking**: Browse issues on the web and immediately start solving them inside the desktop client via `skillissues://`.
-            - **Continuously Growing Catalog**: Real open-source issues from eligible repositories, crawled continuously, with difficulty ratings and author metadata.
-            - **Sandboxed Git Operations**: Workspace isolation and subprocess safeguards around every fork/clone/branch/push.
-
-            ### Download Desktop Client
-            Download the installer for your operating system below!
+          body_path: release-notes.md
           draft: false
           prerelease: false
           files: release-assets/**/*

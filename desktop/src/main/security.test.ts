@@ -4,6 +4,8 @@ import {
   branchFor,
   commitMessage,
   isClipboardText,
+  isNewerVersion,
+  isVersion,
   pullRequestText,
   vscodeFolderLink,
   gitEnv,
@@ -212,4 +214,16 @@ test("the new app routes are allowed, and operational ones still aren't", () => 
 test("the title bar takes only a #rrggbb colour", () => {
   assert.ok(isHexColor("#f2f2f2"));
   for (const bad of ["f2f2f2", "#fff", "#f2f2f2ff", "red", "#gggggg", "#f2f2f2;x"]) assert.ok(!isHexColor(bad), bad);
+});
+
+test("release versions are x.y.z, compared part by part", () => {
+  assert.ok(isVersion("1.2.0"));
+  assert.ok(!isVersion("v1.2.0"));
+  assert.ok(!isVersion("1.2"));
+  assert.ok(!isVersion("1.2.0-beta"));
+  assert.ok(!isVersion("../1.2.0"));
+  assert.ok(isNewerVersion("1.10.0", "1.9.9"));
+  assert.ok(isNewerVersion("2.0.0", "1.99.99"));
+  assert.ok(!isNewerVersion("1.2.0", "1.2.0"));
+  assert.ok(!isNewerVersion("1.1.9", "1.2.0"));
 });

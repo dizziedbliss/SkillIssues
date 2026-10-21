@@ -67,7 +67,18 @@
       }
     ],
     "nsis": {
-      "artifactName": "${productName}-Setup-${version}.${ext}"
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "license": "build/license.txt",
+      "include": "build/installer.nsh",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SkillIssues",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
     }
   },
   "dependencies": {
