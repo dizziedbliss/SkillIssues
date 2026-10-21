@@ -244,6 +244,16 @@ var (
 		Help: "Repositories seen in the archive but not stored, looked up on GitHub, by outcome: new, updated, renamed, ineligible, excluded, conflict, not_found.",
 	}, []string{"outcome"})
 
+	PRSyncReads = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "pr_sync_reads_total",
+		Help: "People whose pull requests were read, by outcome: page (more to read), complete (a pass finished), other_account (the login is someone else's now), failed.",
+	}, []string{"outcome"})
+
+	XPEventsWritten = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "xp_events_written_total",
+		Help: "XP ledger rows written, by source (merged, backfill, opened, opened_reversed, quest, path).",
+	}, []string{"source"})
+
 	BodyFetches = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "body_fetches_total",
 		Help: "Issue bodies ingestd was asked to fetch for the body fallback, by outcome: fetched, budget, no-credential, gone, not-stored.",
@@ -312,6 +322,6 @@ func RegisterIngest() {
 		DiscoveryWindowOutcomes, DiscoveryRepositories, DiscoveryWindowsTruncated, DiscoveryWindows,
 		DiscoveryLastSweepCompleted, RepositoryIdentityConflicts,
 		ArchiveHourOutcomes, ArchiveIssueEvents, ArchiveHours, ArchiveLagSeconds, ArchiveFallback, ArchiveCandidates,
-		BodyFetches,
+		BodyFetches, PRSyncReads, XPEventsWritten,
 	)
 }

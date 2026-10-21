@@ -354,10 +354,75 @@ func boolSpec(def bool, desc string) Spec {
 	return Spec{Kind: KindBool, Default: def, Description: desc}
 }
 
+// Pull request tracking and XP (internal/ingest/prs.go, internal/xp).
+const (
+	IngestPRsEnabled             Key = "ingest.prs.enabled"
+	IngestPRsUsersPerCycle       Key = "ingest.prs.users_per_cycle"
+	IngestPRsUsersPerQuery       Key = "ingest.prs.users_per_query"
+	IngestPRsPageSize            Key = "ingest.prs.page_size"
+	IngestPRsHotIntervalSeconds  Key = "ingest.prs.hot_interval_seconds"
+	IngestPRsWarmIntervalSeconds Key = "ingest.prs.warm_interval_seconds"
+	IngestPRsColdIntervalSeconds Key = "ingest.prs.cold_interval_seconds"
+	IngestPRsHotWindowDays       Key = "ingest.prs.hot_window_days"
+	IngestPRsRetryBaseSeconds    Key = "ingest.prs.retry_base_seconds"
+	PRsRefreshMinSeconds         Key = "api.prs.refresh_min_seconds"
+	PRsPageSize                  Key = "api.prs.page_size"
+	XPRecentLimit                Key = "api.xp.recent_limit"
+	XPBaseBeginner               Key = "xp.base_beginner"
+	XPBaseIntermediate           Key = "xp.base_intermediate"
+	XPBaseAdvanced               Key = "xp.base_advanced"
+	XPBaseUnclassified           Key = "xp.base_unclassified"
+	XPBaseUnlinked               Key = "xp.base_unlinked"
+	XPFirstMergeRepoBonus        Key = "xp.first_merge_repo_bonus"
+	XPBacklogBonus               Key = "xp.backlog_bonus"
+	XPBacklogDays                Key = "xp.backlog_days"
+	XPCIBonus                    Key = "xp.ci_bonus"
+	XPApprovalBonus              Key = "xp.approval_bonus"
+	XPApprovalBonusNoCI          Key = "xp.approval_bonus_no_ci"
+	XPCleanMergeBonus            Key = "xp.clean_merge_bonus"
+	XPCleanMergeBonusNoCI        Key = "xp.clean_merge_bonus_no_ci"
+	XPBackfillPercent            Key = "xp.backfill_percent"
+	XPRepoDailyCap               Key = "xp.repo_daily_cap"
+	XPOpened                     Key = "xp.opened"
+	XPOpenedWeeklyCap            Key = "xp.opened_weekly_cap"
+	XPLevelStep                  Key = "xp.level_step"
+)
+
 // Registry is the complete set of live-reloadable keys. Adding one here without
 // a matching migration row means it falls back to Default and is reported as
 // drift at startup.
 var Registry = map[Key]Spec{
+	IngestPRsEnabled:             boolSpec(true, "Read signed-up people's public pull requests to catalog repositories and pay XP for merges (interactive lane)."),
+	IngestPRsUsersPerCycle:       intSpec(50, 1, 1000, "People whose pull requests are read per coordinator cycle."),
+	IngestPRsUsersPerQuery:       intSpec(10, 1, 50, "People read in one GraphQL request (one alias each)."),
+	IngestPRsPageSize:            intSpec(20, 1, 100, "Pull requests per person per request, newest-updated first."),
+	IngestPRsHotIntervalSeconds:  intSpec(900, 60, 86400, "How often someone with an open pull request updated within ingest.prs.hot_window_days is read."),
+	IngestPRsWarmIntervalSeconds: intSpec(3600, 60, 604800, "How often someone with an older open pull request is read."),
+	IngestPRsColdIntervalSeconds: intSpec(86400, 300, 2592000, "How often someone with no open pull request is read."),
+	IngestPRsHotWindowDays:       intSpec(7, 1, 90, "An open pull request updated this recently makes its author hot."),
+	IngestPRsRetryBaseSeconds:    intSpec(300, 30, 86400, "First wait after a failed read; doubles per attempt, up to ingest.prs.cold_interval_seconds."),
+	PRsPageSize:                  intSpec(50, 1, 500, "Tracked pull requests GET /me/pulls returns."),
+	XPRecentLimit:                intSpec(20, 1, 200, "Latest XP events GET /me/xp returns."),
+	PRsRefreshMinSeconds:         intSpec(300, 0, 86400, "Shortest gap between two \"check my pull requests now\" requests from one person."),
+	XPBaseBeginner:               intSpec(75, 0, 10000, "XP for a merge that closes a beginner catalog issue."),
+	XPBaseIntermediate:           intSpec(140, 0, 10000, "XP for a merge that closes an intermediate catalog issue."),
+	XPBaseAdvanced:               intSpec(250, 0, 10000, "XP for a merge that closes an advanced catalog issue."),
+	XPBaseUnclassified:           intSpec(100, 0, 10000, "XP for a merge that closes a catalog issue of unknown difficulty."),
+	XPBaseUnlinked:               intSpec(50, 0, 10000, "XP for a merge to a catalog repository that closes no catalog issue."),
+	XPFirstMergeRepoBonus:        intSpec(15, 0, 10000, "Extra XP for someone's first merge in a repository."),
+	XPBacklogBonus:               intSpec(50, 0, 10000, "Extra XP for closing a catalog issue that had been open xp.backlog_days or more when it was fixed."),
+	XPBacklogDays:                intSpec(180, 1, 3650, "Age at which an issue counts as neglected backlog."),
+	XPCIBonus:                    intSpec(15, 0, 10000, "Extra XP when the merged pull request's checks passed (repositories with checks)."),
+	XPApprovalBonus:              intSpec(10, 0, 10000, "Extra XP when a maintainer approved it, in a repository with checks."),
+	XPApprovalBonusNoCI:          intSpec(20, 0, 10000, "Extra XP when a maintainer approved it, in a repository without checks."),
+	XPCleanMergeBonus:            intSpec(5, 0, 10000, "Extra XP when it merged with no changes requested, in a repository with checks."),
+	XPCleanMergeBonusNoCI:        intSpec(10, 0, 10000, "Extra XP when it merged with no changes requested, in a repository without checks."),
+	XPBackfillPercent:            intSpec(50, 0, 100, "Share of the XP paid for merges from before someone signed up."),
+	XPRepoDailyCap:               intSpec(400, 0, 100000, "Most merge XP one person earns in one repository in one day (UTC); 0 = no cap."),
+	XPOpened:                     intSpec(5, 0, 1000, "XP for opening a pull request that closes a catalog issue, once per issue; reversed if it closes unmerged."),
+	XPOpenedWeeklyCap:            intSpec(3, 0, 100, "Most opened-pull-request rewards per person per week (UTC ISO week)."),
+	XPLevelStep:                  intSpec(100, 1, 100000, "Level L starts at xp.level_step x L(L-1)/2 XP: 100, 300, 600, 1000 ..."),
+
 	RateLimitUnauthPerHour: intSpec(180, 1, 100000, "Requests per window allowed for unauthenticated callers."),
 	RateLimitAuthPerHour:   intSpec(1000, 1, 1000000, "Requests per window allowed for authenticated callers."),
 	RateLimitWindowSeconds: intSpec(3600, 60, 86400, "Length of the rate-limit window."),
