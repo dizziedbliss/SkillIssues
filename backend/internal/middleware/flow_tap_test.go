@@ -51,6 +51,25 @@ func decodeHops(t *testing.T, raw []byte) []flow.Event {
 	return hops
 }
 
+// withoutTimes is the published batch with every event's timestamp taken
+// out: a leak check looks for an id like 777 in what an event says, and a
+// nanosecond timestamp ("…08.727774171Z") can contain it by chance.
+func withoutTimes(t *testing.T, raw []byte) string {
+	t.Helper()
+	var events []map[string]any
+	if err := json.Unmarshal(raw, &events); err != nil {
+		t.Fatalf("published bytes are not one JSON batch: %v\n%s", err, raw)
+	}
+	for _, e := range events {
+		delete(e, "t")
+	}
+	out, err := json.Marshal(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out)
+}
+
 func TestFlowTapRedactsASignedInRequest(t *testing.T) {
 	h, flush := tapChain(t)
 	req := httptest.NewRequest(http.MethodGet, "/saved/48151623?q=private", nil)
@@ -61,7 +80,7 @@ func TestFlowTapRedactsASignedInRequest(t *testing.T) {
 
 	raw := flush()
 	for _, leak := range []string{"48151623", "private", "/saved", "203.0.113", "198.51.100", "sess-secret-value", "octocat", "583231"} {
-		if strings.Contains(string(raw), leak) {
+		if strings.Contains(withoutTimes(t, raw), leak) {
 			t.Errorf("published flow events contain %q:\n%s", leak, raw)
 		}
 	}
@@ -98,7 +117,7 @@ func TestFlowTapPublishesAnAnonymousReadByPattern(t *testing.T) {
 
 	raw := flush()
 	for _, leak := range []string{"777", "foo", "203.0.113"} {
-		if strings.Contains(string(raw), leak) {
+		if strings.Contains(withoutTimes(t, raw), leak) {
 			t.Errorf("published flow events contain %q:\n%s", leak, raw)
 		}
 	}
