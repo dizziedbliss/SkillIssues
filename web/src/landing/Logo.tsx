@@ -1,18 +1,16 @@
-import { useT } from "../i18n";
 import s from "./Logo.module.css";
 
 type Size = "header" | "inline" | "footer";
 
 /**
- * The wordmark: Krona One at 9% tracking over its line in JetBrains Mono,
- * the two in a 24:8 ratio. Inline (in a sentence) it drops the line.
+ * The wordmark, as the owner designed it: "Skill" in the ink and "Issues" in
+ * the signal red, Krona One, underlined, widely tracked.
  */
 export function Logo({ size }: { size: Size }) {
-  const t = useT();
   return (
     <span className={`${s.logo} ${s[size]}`}>
-      <span className={s.word}>SkillIssues</span>
-      {size !== "inline" && <span className={s.line}>{t("logo.line")}</span>}
+      <span className={s.skill}>Skill</span>
+      <span className={s.issues}>Issues</span>
     </span>
   );
 }
