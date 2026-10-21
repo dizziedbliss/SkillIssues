@@ -113,6 +113,7 @@ function pageTitle(path: string, t: ReturnType<typeof useT>): string {
   if (p.startsWith("saved")) return t("app.menu.saved");
   if (p.startsWith("settings")) return t("app.menu.settings");
   if (p.startsWith("path")) return t("path.mine");
+  if (p.startsWith("work")) return t("work.page.title");
   if (p.startsWith("leaderboard")) return t("board.title");
   if (p.startsWith("u/")) return p.slice(2);
   return "";
