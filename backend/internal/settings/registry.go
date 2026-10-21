@@ -389,6 +389,11 @@ const (
 	XPOpened                     Key = "xp.opened"
 	XPOpenedWeeklyCap            Key = "xp.opened_weekly_cap"
 	XPLevelStep                  Key = "xp.level_step"
+	XPQuestReward                Key = "xp.quest_reward"
+	XPPathReward                 Key = "xp.path_reward"
+	PathsBeginnerSteps           Key = "api.paths.beginner_steps"
+	PathsIntermediateSteps       Key = "api.paths.intermediate_steps"
+	PathsPickPages               Key = "api.paths.pick_pages"
 )
 
 // Registry is the complete set of live-reloadable keys. Adding one here without
@@ -427,6 +432,11 @@ var Registry = map[Key]Spec{
 	XPRepoDailyCap:               intSpec(400, 0, 100000, "Most merge XP one person earns in one repository in one day (UTC); 0 = no cap."),
 	XPOpened:                     intSpec(5, 0, 1000, "XP for opening a pull request that closes a catalog issue, once per issue; reversed if it closes unmerged."),
 	XPOpenedWeeklyCap:            intSpec(3, 0, 100, "Most opened-pull-request rewards per person per week (UTC ISO week)."),
+	XPQuestReward:                intSpec(50, 0, 10000, "XP for finishing a quest."),
+	XPPathReward:                 intSpec(200, 0, 100000, "XP for finishing a learning path."),
+	PathsBeginnerSteps:           intSpec(3, 0, 10, "Beginner issues a new learning path starts with."),
+	PathsPickPages:               intSpec(5, 1, 50, "Shuffled-feed pages read to find a learning path's issues of one difficulty."),
+	PathsIntermediateSteps:       intSpec(2, 0, 10, "Intermediate issues a new learning path ends with."),
 	XPLevelStep:                  intSpec(100, 1, 100000, "Level L starts at xp.level_step x L(L-1)/2 XP: 100, 300, 600, 1000 ..."),
 
 	RateLimitUnauthPerHour: intSpec(180, 1, 100000, "Requests per window allowed for unauthenticated callers."),

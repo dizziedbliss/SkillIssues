@@ -19,6 +19,7 @@ import (
 	"github.com/dizziedbliss/skillissues/internal/db"
 	"github.com/dizziedbliss/skillissues/internal/httpx"
 	"github.com/dizziedbliss/skillissues/internal/issue"
+	"github.com/dizziedbliss/skillissues/internal/learnpath"
 	"github.com/dizziedbliss/skillissues/internal/notification"
 	"github.com/dizziedbliss/skillissues/internal/profile"
 	"github.com/dizziedbliss/skillissues/internal/progress"
@@ -45,6 +46,7 @@ type handlers struct {
 	progressSvc     *progress.Service
 	claimSvc        *claim.Service
 	claimed         *claimedStore
+	pathSvc         *learnpath.Service
 	hidden          *hiddenStore
 
 	// trustedProxies are the CIDRs whose X-Forwarded-For is believed, for

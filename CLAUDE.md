@@ -751,6 +751,11 @@ Every key with its default and bounds: `docs/settings.md`.
   per-language levels, streaks (UTC ISO weeks) and badges are computed from the ledger on read
   (`xp.Summarise`, `internal/progress`, `GET /me/xp`). A paid merge notifies through a trigger
   (`pr_merged`). The rules are documented in `/docs/xp`: keep both in step.
+- **Quests and learning paths ride the same pass** (migration 00059): after paying merges, ingestd
+  pays the quests the ledger now completes (`xp.Quests`, only `merged` rows, key `quest:<key>`) and
+  marks `learning_path_steps` done from merged pull requests that close them, finishing and paying the
+  path (`path:<id>`). go-api starts, swaps and abandons paths (`internal/learnpath`, issues picked by
+  `issue.Service.Pick` off the shuffled feed: unassigned, unclaimed, one per repository).
 - **Claims are SkillIssues-only and held in memory for lists** (`internal/claim`, migration 00058):
   one active claim per issue, `api.claims.max_active` per person; active until released, or past
   `api.claims.days` only while the claimer has an open tracked pull request that closes the issue

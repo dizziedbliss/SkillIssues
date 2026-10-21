@@ -5,7 +5,8 @@ import { useSaved } from "../saved";
 import { useMyClaims } from "../claims";
 import { ContribStatus, Graph, PRList, SignInPrompt, StatBoxes } from "./parts";
 import { useContributions, useProfile, useTrackedPulls, useXP } from "./data";
-import { BackfillReveal, Badges, LanguageLevels, LevelCard, SyncStatus, TrackedPulls } from "./xp";
+import { BackfillReveal, Badges, LanguageLevels, LevelCard, Quests, SyncStatus, TrackedPulls } from "./xp";
+import { useMyPath } from "../path/data";
 import s from "./ProfilePage.module.css";
 
 /** The greeting for the reader's time of day. */
@@ -34,6 +35,7 @@ export function ProfilePage() {
   const pulls = useTrackedPulls();
   const saved = useSaved();
   const claims = useMyClaims();
+  const path = useMyPath();
 
   if (isPending) return null;
   if (!user) return <SignInPrompt />;
@@ -94,6 +96,10 @@ export function ProfilePage() {
 
           <h2 className={s.heading}>{t("xp.badges")}</h2>
           <Badges data={xp.data} />
+
+          <h2 className={s.heading}>{t("xp.quests")}</h2>
+          <p className={s.muted}>{t("xp.questsLede")}</p>
+          <Quests data={xp.data} />
         </section>
 
         <section className={s.right} aria-labelledby="activity-title">
@@ -119,6 +125,16 @@ export function ProfilePage() {
             <PRList items={contributions.data?.recentMerged} empty={t("profile.noResolved")} limit={SHOWN} />
             {contributions.data && contributions.data.total > 0 && (
               <Link to="/app/contributions" className={s.more}>{t("profile.allContributions")}</Link>
+            )}
+          </div>
+          <div className={s.box} data-ui="path">
+            <h3 className={s.boxTitle}>{t("path.mine")}</h3>
+            {path.error && <p className={s.error} role="alert">{path.error.message}</p>}
+            {path.data === null && <Link to="/app/path" className={s.more}>{t("path.start")}</Link>}
+            {path.data && (
+              <Link to="/app/path" className={s.more}>
+                {t("path.continue", { done: path.data.steps.filter((st) => st.done_at).length, total: path.data.steps.length })}
+              </Link>
             )}
           </div>
           <div className={s.box} data-ui="claims">

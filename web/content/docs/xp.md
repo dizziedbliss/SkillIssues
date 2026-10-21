@@ -72,6 +72,28 @@ Badges mark milestones:
 
 Each one shows the date you earned it.
 
+## Quests
+
+Quests are one-off goals. Each pays **50 XP**, once, and only merges since you joined count towards them:
+
+| Quest | Done when |
+| --- | --- |
+| First merge here | A pull request of yours is merged in a catalog repository. |
+| Called it | You claim an issue, then close it with a merged pull request. |
+| Docs day | You close an issue labelled documentation. |
+| Second language | You've merged in repositories of two different main languages. |
+| Getting around | You've merged in three different repositories. |
+| Busy month | You get three merges in one calendar month. |
+| Backlog dive | You close an issue that had been open six months or more. |
+
+## Learning paths
+
+A learning path is five open issues for one kind of work: frontend, backend, documentation, DevOps, data or mobile. You get three for beginners, then two a step up. They come from different projects, and nobody is assigned to or has claimed any of them. Start one from **Learning path** in your profile menu.
+
+- A step is done when a pull request of yours that closes its issue is merged.
+- **Swap** replaces a step you haven't done with another issue of the same level, for example if someone else got to it first.
+- Finishing all five earns **200 XP**. You can have one path at a time, and **Give up this path** ends it.
+
 ## The numbers can change
 
 These are the current values. They can be tuned as we learn what works. A change applies to XP earned after it, and levels are always worked out from your XP as it stands. Your XP history is kept as a list of what each pull request earned and why, so nothing is recalculated behind your back.

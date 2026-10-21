@@ -138,6 +138,9 @@ function ProfileMenu() {
               <Link to="/app/contributions" className={s.item}>{t("app.menu.contributions")}</Link>
             </li>
             <li>
+              <Link to="/app/path" className={s.item}>{t("path.mine")}</Link>
+            </li>
+            <li>
               <Link to="/app/settings/profile" className={s.item}>{t("app.menu.settings")}</Link>
             </li>
             <li>

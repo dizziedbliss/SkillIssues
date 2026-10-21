@@ -233,3 +233,23 @@ export function BackfillReveal({ data, login }: { data: MyXP | undefined; login:
   );
 }
 
+
+/** Every quest with how far you are, and what finishing one pays. */
+export function Quests({ data }: { data: MyXP | undefined }) {
+  const { t, locale } = useI18n();
+  if (!data) return null;
+  const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" });
+  return (
+    <ul className={s.quests}>
+      {data.quests.map((q) => (
+        <li key={q.key} className={`${s.quest} ${q.done_at ? s.earned : ""}`} data-ui="quest" data-ui-state={q.done_at ? "done" : "open"}>
+          <span className={s.badgeName}>{t(`quest.${q.key}` as MessageKey)}</span>
+          <span className={s.muted}>{t(`quest.${q.key}.help` as MessageKey)}</span>
+          <span className={s.badgeState}>
+            {q.done_at ? t("quest.done", { date: date.format(new Date(q.done_at)) }) : t("quest.progress", { have: q.have, need: q.need })}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}

@@ -2,7 +2,7 @@ import type { Transport } from "./transport";
 import type {
   AccountDeleted, ActiveTheme, Facets, Issue, IssueBody, IssueFilters, IssuePage, MyXP, Notifications, Profile, ProfileUpdate,
   ReportTarget, RepositoryLookup, SavedChange, SearchCategory, Session, SharedThemes, SignInStart, Stats, Theme, ThemeCheck,
-  ThemeInput, TrackedPull, Claim, ClaimState,
+  ThemeInput, TrackedPull, Claim, ClaimState, LearningPath, PathRole,
 } from "./types";
 
 function query(params: Record<string, string | number | undefined>): string {
@@ -43,6 +43,10 @@ function withLists(i: Issue): Issue {
     ...i, labels: i.labels ?? [], tech: i.tech ?? [], assignees: i.assignees ?? null,
     contributing_url: i.contributing_url ?? null, claimed: i.claimed ?? false,
   };
+}
+
+function withPath(p: LearningPath | null): LearningPath | null {
+  return p && { ...p, steps: p.steps.map((s) => ({ ...s, issue: s.issue && withLists(s.issue) })) };
 }
 
 /** One typed method per API endpoint. */
@@ -149,6 +153,30 @@ export class Client {
   async myClaims(o?: Opts): Promise<(Claim & { issue: Issue })[]> {
     const r = await this.get<{ claims: (Claim & { issue: Issue })[] }>("/me/claims", o);
     return r.claims.map((c) => ({ ...c, issue: withLists(c.issue) }));
+  }
+
+  /** The roles a learning path can be made of. */
+  async pathRoles(o?: Opts): Promise<PathRole[]> {
+    return (await this.get<{ roles: PathRole[] }>("/paths/roles", o)).roles;
+  }
+
+  /** Your learning path in progress, or null. */
+  async myPath(o?: Opts): Promise<LearningPath | null> {
+    return withPath((await this.get<{ path: LearningPath | null }>("/me/path", o)).path);
+  }
+
+  /** Starts a learning path of a role. */
+  async startPath(role: string): Promise<LearningPath> {
+    return withPath(((await this.send({ method: "POST", path: "/me/path", body: { role } })) as { path: LearningPath }).path)!;
+  }
+
+  /** Swaps a step that isn't done for another issue. */
+  async swapPathStep(position: number): Promise<LearningPath> {
+    return withPath(((await this.send({ method: "POST", path: `/me/path/steps/${position}/swap`, body: {} })) as { path: LearningPath }).path)!;
+  }
+
+  async abandonPath(): Promise<void> {
+    await this.send({ method: "DELETE", path: "/me/path" });
   }
 
   /** Your level, streak, badges and latest XP, and where tracking stands. */
