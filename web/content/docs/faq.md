@@ -17,7 +17,7 @@ No, not to browse. Signing in with GitHub lets you save issues and set the langu
 
 ## What can SkillIssues do with my GitHub account?
 
-Nothing. Sign-in only reads who you are (your GitHub id, username and avatar), and we throw the token away. We can't see your private repositories or act on your behalf. A SkillIssues session ends when you sign out, when it expires, or when you sign out everywhere. Revoking the app on GitHub doesn't end one, because there is no token to revoke.
+Nothing. Sign-in only reads who you are (your GitHub id, username, profile name and avatar), and we throw the token away. We can't see your private repositories or act on your behalf. A SkillIssues session ends when you sign out, when it expires, or when you sign out everywhere. Revoking the app on GitHub doesn't end one, because there is no token to revoke.
 
 ## Why isn't a repository I know listed?
 

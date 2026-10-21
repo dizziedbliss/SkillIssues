@@ -28,7 +28,7 @@ export const pages: Page[] = [
     lede: "How SkillIssues handles your account, your code and the contribution process.",
     body: [
       { h: "Your account" },
-      "You sign in with GitHub through an app that asks for no permissions. We read your numeric GitHub id, username and avatar, then discard the token. Your account is tied to that id, never to your username, which GitHub lets someone else take.",
+      "You sign in with GitHub through an app that asks for no permissions. We read your numeric GitHub id, username, the name on your GitHub profile and your avatar, then discard the token. Your account is tied to that id, never to your username, which GitHub lets someone else take.",
       "A session lasts until you sign out, it expires, or you sign out everywhere. It lives in a secure, HTTP-only cookie.",
       { h: "Your code" },
       "Anything that writes to GitHub (forking, pushing, opening pull requests) happens in the desktop app, with a token that stays on your computer. It never reaches our servers.",
@@ -62,7 +62,7 @@ export const pages: Page[] = [
       "The issues and repositories you see are public GitHub data.",
       { h: "If you sign in" },
       "You sign in with GitHub through an app that asks for no permissions. From GitHub we keep:",
-      { list: ["your numeric GitHub id;", "your GitHub username;", "the link to your avatar."] },
+      { list: ["your numeric GitHub id;", "your GitHub username;", "the name on your GitHub profile, if you have set one, kept as GitHub has it each time you sign in;", "the link to your avatar."] },
       "We do not keep your GitHub token. We use it once to read those three items and then discard it. From you we keep:",
       { list: [
         "the profile and preferences you set, such as your bio, experience level, target level, interests and preferred languages;",

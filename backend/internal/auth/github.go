@@ -45,6 +45,8 @@ type GitHubConfig struct {
 type GitHubUser struct {
 	GitHubID  string // numeric database ID, stored as TEXT in users
 	Username  string
+	// Name is the display name on the GitHub profile; empty when unset.
+	Name      string
 	AvatarURL string
 }
 
@@ -218,21 +220,26 @@ func (g *GitHubOAuth) viewer(ctx context.Context, token string) (*GitHubUser, er
 		return nil, fmt.Errorf("github: GET /user returned HTTP %d", resp.StatusCode)
 	}
 	var u struct {
-		ID        int64  `json:"id"`
-		Login     string `json:"login"`
-		AvatarURL string `json:"avatar_url"`
+		ID        int64   `json:"id"`
+		Login     string  `json:"login"`
+		Name      *string `json:"name"`
+		AvatarURL string  `json:"avatar_url"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
 		return nil, fmt.Errorf("github: parse /user: %w", err)
 	}
-	return userFromGitHub(u.ID, u.Login, u.AvatarURL)
+	return userFromGitHub(u.ID, u.Login, u.Name, u.AvatarURL)
 }
 
-func userFromGitHub(id int64, login, avatarURL string) (*GitHubUser, error) {
+func userFromGitHub(id int64, login string, name *string, avatarURL string) (*GitHubUser, error) {
 	if id <= 0 || login == "" {
 		return nil, ErrInvalidGitHubIdentity
 	}
-	return &GitHubUser{GitHubID: strconv.FormatInt(id, 10), Username: login, AvatarURL: avatarURL}, nil
+	u := &GitHubUser{GitHubID: strconv.FormatInt(id, 10), Username: login, AvatarURL: avatarURL}
+	if name != nil {
+		u.Name = strings.TrimSpace(*name)
+	}
+	return u, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -284,9 +291,10 @@ func (g *GitHubOAuth) VerifyDeviceToken(ctx context.Context, accessToken string)
 			ClientID string `json:"client_id"`
 		} `json:"app"`
 		User struct {
-			ID        int64  `json:"id"`
-			Login     string `json:"login"`
-			AvatarURL string `json:"avatar_url"`
+			ID        int64   `json:"id"`
+			Login     string  `json:"login"`
+			Name      *string `json:"name"`
+			AvatarURL string  `json:"avatar_url"`
 		} `json:"user"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
@@ -296,5 +304,5 @@ func (g *GitHubOAuth) VerifyDeviceToken(ctx context.Context, accessToken string)
 	if out.App.ClientID != g.cfg.ClientID {
 		return nil, ErrInvalidDeviceToken
 	}
-	return userFromGitHub(out.User.ID, out.User.Login, out.User.AvatarURL)
+	return userFromGitHub(out.User.ID, out.User.Login, out.User.Name, out.User.AvatarURL)
 }
