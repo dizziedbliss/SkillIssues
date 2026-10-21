@@ -131,6 +131,24 @@ export async function fork(token: string, repository: string): Promise<RepoInfo>
   return { fullName: data.full_name, defaultBranch: data.default_branch ?? "main" };
 }
 
+/** Where a pull request stands on GitHub now, from its page's address. Throws when GitHub can't say. */
+export async function pullRequestState(token: string, url: string): Promise<"open" | "closed" | "merged"> {
+  const m = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)$/.exec(url);
+  if (!m || !parseRepository(m[1]!)) throw new Error(`Not a pull request: ${url}`);
+  const { status, data } = await api<{ state?: string; merged?: boolean }>(token, "GET", `/repos/${m[1]}/pulls/${m[2]}`);
+  if (status !== 200) throw new Error(message(data, `GitHub couldn't read the pull request (HTTP ${status})`));
+  return data.merged ? "merged" : data.state === "closed" ? "closed" : "open";
+}
+
+/** Whether a repository is on GitHub (and the token can see it). Throws when GitHub can't say. */
+export async function repositoryExists(token: string, repository: string): Promise<boolean> {
+  if (!parseRepository(repository)) throw new Error(`Not a repository: ${repository}`);
+  const { status, data } = await api<unknown>(token, "GET", `/repos/${repository}`);
+  if (status === 200) return true;
+  if (status === 404) return false;
+  throw new Error(message(data, `GitHub couldn't check ${repository} (HTTP ${status})`));
+}
+
 export async function defaultBranch(token: string, repository: string): Promise<string> {
   const { status, data } = await api<{ default_branch?: string }>(token, "GET", `/repos/${repository}`);
   if (status !== 200 || typeof data.default_branch !== "string") {

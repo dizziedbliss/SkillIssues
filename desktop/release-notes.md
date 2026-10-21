@@ -5,6 +5,14 @@ Each release's notes are the section under its version. The release workflow
 refuses to build a tag that has none; the app shows the same notes when an
 update is available, and once after it installs.
 
+## 1.2.1
+
+**When your fork is deleted on GitHub,** the app now says so, and **Fork again** makes a new one and points your folder at it. Your commits stay, ready to push.
+
+**Pull requests show where they stand on GitHub:** open, merged, or closed. A closed one offers **Open a new pull request**, and Working on shows each state.
+
+**A new look for the Windows installer:** dark, like the app, with the SkillIssues mark.
+
 ## 1.2.0
 
 **Updates ask first.** When a new version is out, the title bar says **Update available**. Open it to read what's new, then download it when you choose. Nothing downloads or restarts on its own; after the download you restart into it, or it installs when you close the app. And after an update, the app shows you what changed.
