@@ -110,6 +110,23 @@ func TestPathStartSwapAbandon(t *testing.T) {
 	if got := swapped.Steps[0].Issue; got == nil || got.ID == first || seen[got.ID] || got.Difficulty != "BEGINNER" {
 		t.Errorf("swapped step 1 to %+v, want another beginner issue not on the path", got)
 	}
+	// Swapping again walks on: six beginner issues, three on the path, so two
+	// more swaps of step 1 find new ones and the third finds none. One swapped
+	// out is never offered again.
+	seen[swapped.Steps[0].Issue.ID] = true
+	for i := 0; i < 2; i++ {
+		again, err := s.Swap(ctx, userID, 1, 5, base)
+		if err != nil {
+			t.Fatalf("swap %d: %v", i+2, err)
+		}
+		if got := again.Steps[0].Issue; got == nil || seen[got.ID] {
+			t.Fatalf("swap %d gave %+v, an issue already offered", i+2, got)
+		}
+		seen[again.Steps[0].Issue.ID] = true
+	}
+	if _, err := s.Swap(ctx, userID, 1, 5, base); !errors.Is(err, ErrNoIssues) {
+		t.Errorf("swapping with every other issue skipped: %v, want ErrNoIssues", err)
+	}
 	if err := pool.Exec(ctx, `UPDATE learning_path_steps SET done_at = now() WHERE path_id = $1 AND position = 2`, p.ID); err != nil {
 		t.Fatal(err)
 	}

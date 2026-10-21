@@ -6,6 +6,7 @@ import { Footer } from "../landing/Footer";
 import { SECTIONS, inSection, type DocPage as Doc } from "./docs";
 import { useI18n } from "../i18n";
 import { DocSearch } from "./DocSearch";
+import { Downloads } from "./Downloads";
 import s from "./DocPage.module.css";
 
 /** A documentation page: the sidebar of every page by section, and the rendered Markdown. */
@@ -66,6 +67,7 @@ export function DocPage({ doc }: { doc: Doc }) {
             <p className={s.section}>{doc.section}</p>
             <h1 className={s.title}>{doc.title}</h1>
             <p className={s.summary}>{doc.summary}</p>
+            {doc.path === "/download" && <Downloads />}
             {/* First-party Markdown from content/docs, rendered with raw HTML off (docs.ts). */}
             <div className={s.prose} onClick={onClick} dangerouslySetInnerHTML={{ __html: doc.html }} />
             {doc.updated && <p className={s.updated}>{t("docs.updated", { date: dateFormat.format(new Date(doc.updated)) })}</p>}

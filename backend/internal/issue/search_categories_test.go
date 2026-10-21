@@ -3,6 +3,7 @@ package issue
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -129,9 +130,58 @@ func TestSearchCategories(t *testing.T) {
 		t.Errorf("past the end = %v, want none", summary(p9))
 	}
 
+	// Sorted by newest when asked: the match order no longer applies.
+	if err := pool.Exec(ctx, `UPDATE issues SET created_at = now() - make_interval(hours => id % 1000) WHERE id = ANY($1)`,
+		[]int{repoIssue, titleIssue, titleIssue2}); err != nil {
+		t.Fatal(err)
+	}
+	newest, err := svc.SearchIssues(ctx, Filters{Search: word, Limit: 50, Page: 1, SearchSample: 2000, SearchPerRepo: 3, SearchSort: SortNewest}, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(newest) != 3 {
+		t.Fatalf("sorted search = %v, want 3", summary(newest))
+	}
+	for i := 1; i < len(newest); i++ {
+		if newest[i-1].CreatedAt < newest[i].CreatedAt {
+			t.Errorf("sorted search not newest first: %v", summary(newest))
+		}
+	}
+
 	// % is literal: "zq%" must not match every zq-something repository.
 	if got := search("zq%"+word[2:], 50, 1); len(got) != 0 {
 		t.Errorf("a %% in the term acted as a wildcard: %v", summary(got))
+	}
+}
+
+// Interleaving takes one of each category per rank, each issue once, and a
+// category whose next issue was taken moves on to its following one. Any
+// prefix of the list is the same however deep the categories were read.
+func TestInterleave(t *testing.T) {
+	found := [][]int{{1, 2, 3}, {2, 4, 5, 6}, {1, 7}}
+	got := interleave(found)
+	want := []searchHit{
+		{1, matchCategories[0]}, {2, matchCategories[1]}, {7, matchCategories[2]},
+		{3, matchCategories[0]}, {4, matchCategories[1]},
+		{5, matchCategories[1]},
+		{6, matchCategories[1]},
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("interleave = %v, want %v", got, want)
+	}
+	// Each category read twice as deep as a prefix of n needs (searchCategories'
+	// fetch): those n are the same as the deep read's.
+	for n := 1; n <= len(want); n++ {
+		cut := make([][]int, len(found))
+		for c, ids := range found {
+			cut[c] = ids[:min(len(ids), 2*n)]
+		}
+		if got := interleave(cut); len(got) < n || !slices.Equal(got[:n], want[:n]) {
+			t.Errorf("read %d deep: %v, want a prefix %v", 2*n, got, want[:n])
+		}
+	}
+	if got := interleave([][]int{nil, nil, nil}); len(got) != 0 {
+		t.Errorf("nothing found = %v", got)
 	}
 }
 

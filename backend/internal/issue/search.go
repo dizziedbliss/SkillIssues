@@ -110,6 +110,9 @@ type Filters struct {
 	// matches a search reads before ordering them by stars
 	// (search_categories.go).
 	SearchSample int
+	// SearchSort orders a search by easiest or newest instead of by match:
+	// set only when the caller named a sort. Empty keeps the match order.
+	SearchSort Sort
 	// SearchPerRepo is api.search.per_repo_cap: the most issues one
 	// repository contributes to a repository-led search category.
 	SearchPerRepo int

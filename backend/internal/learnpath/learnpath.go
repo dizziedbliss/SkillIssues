@@ -205,7 +205,20 @@ func (s *Service) Swap(ctx context.Context, userID, position, pickPages int, bas
 		return Path{}, ErrUnknownRole
 	}
 	var step *Step
+	// Everything on the path now, and everything swapped out of it before.
 	exclude := map[int]bool{}
+	err = s.db.QueryRows(ctx, `SELECT issue_id FROM learning_path_skips WHERE path_id = $1`, []any{p.ID},
+		func(r pgx.Rows) error {
+			var id int
+			if err := r.Scan(&id); err != nil {
+				return err
+			}
+			exclude[id] = true
+			return nil
+		})
+	if err != nil {
+		return Path{}, fmt.Errorf("learnpath: read skipped issues: %w", err)
+	}
 	for i := range p.Steps {
 		if p.Steps[i].Issue != nil {
 			exclude[p.Steps[i].Issue.ID] = true
@@ -227,9 +240,25 @@ func (s *Service) Swap(ctx context.Context, userID, position, pickPages int, bas
 	if len(found) == 0 {
 		return Path{}, ErrNoIssues
 	}
-	if err := s.db.Exec(ctx, `UPDATE learning_path_steps SET issue_id = $3 WHERE path_id = $1 AND position = $2 AND done_at IS NULL`,
-		p.ID, position, found[0].ID); err != nil {
-		return Path{}, fmt.Errorf("learnpath: swap: %w", err)
+	err = s.db.InTx(ctx, func(tx pgx.Tx) error {
+		if step.Issue != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO learning_path_skips (path_id, issue_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+				p.ID, step.Issue.ID); err != nil {
+				return fmt.Errorf("learnpath: remember the skipped issue: %w", err)
+			}
+		}
+		tag, err := tx.Exec(ctx, `UPDATE learning_path_steps SET issue_id = $3 WHERE path_id = $1 AND position = $2 AND done_at IS NULL`,
+			p.ID, position, found[0].ID)
+		if err != nil {
+			return fmt.Errorf("learnpath: swap: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrStepDone // finished between the read and now
+		}
+		return nil
+	})
+	if err != nil {
+		return Path{}, err
 	}
 	step.Issue = &found[0]
 	return p, nil

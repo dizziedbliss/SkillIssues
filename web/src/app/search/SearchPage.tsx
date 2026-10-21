@@ -11,6 +11,7 @@ import { CATEGORIES, searchURL } from "./categories";
 import { useSearchOverlay } from "./context";
 import es from "../explore/Explore.module.css";
 import s from "./SearchPage.module.css";
+import { PersonResult } from "./PersonResult";
 
 /** Issues on a page of one kind. */
 const PAGE_SIZE = 20;
@@ -160,6 +161,7 @@ export function SearchPage() {
         </section>
       )}
 
+      {query.search && !kind && <PersonResult term={query.search} />}
       {query.search && !kind && results.isSuccess && (
         <>
           <h2 className={`${es.next} ${s.resultsTitle}`}>{t("search.page.results", { term: query.search })}</h2>

@@ -1,5 +1,7 @@
 .page {
   display: grid;
+  /* One column no wider than the page: the year graph scrolls inside it rather than widening it. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.5rem;
   width: min(100%, 84rem);
   margin-inline: auto;

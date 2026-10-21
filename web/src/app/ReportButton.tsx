@@ -77,6 +77,7 @@ export function ReportButton({ target, label, className }: { target: ReportTarge
             ) : (
               <form onSubmit={submit} className={s.form}>
                 <p className={s.body}>{t("report.private")}</p>
+                <p className={s.body}>{t(`report.outcome.${target.type}` as MessageKey)}</p>
                 <fieldset className={s.reasons}>
                   <legend className="visually-hidden">{t("report.why")}</legend>
                   {REPORT_REASONS[target.type].map((r) => (
