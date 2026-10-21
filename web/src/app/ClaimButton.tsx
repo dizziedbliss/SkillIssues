@@ -1,4 +1,5 @@
 import { useI18n } from "../i18n";
+import { useConfirm } from "./Confirm";
 import { useClaimState, useToggleClaim } from "./claims";
 import { useSession, useSignIn } from "./session";
 import s from "./ClaimButton.module.css";
@@ -14,6 +15,7 @@ export function ClaimButton({ issueID, url, className }: { issueID: number; url:
   const signIn = useSignIn();
   const state = useClaimState(issueID);
   const toggle = useToggleClaim(issueID);
+  const [confirmDialog, confirm] = useConfirm();
   const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" });
   const yours = state.data?.yours ?? null;
   const error = toggle.error ?? signIn.error ?? state.error;
@@ -29,7 +31,14 @@ export function ClaimButton({ issueID, url, className }: { issueID: number; url:
             {yours.extended ? t("claim.yoursExtended") : t("claim.yours", { date: date.format(new Date(yours.expires_at)) })}{" "}
             <a href={url} target="_blank" rel="noreferrer">{t("claim.tellGitHub")}</a>
           </span>
-          <button type="button" className={s.link} onClick={() => toggle.mutate(false)} disabled={toggle.isPending}>
+          <button
+            type="button"
+            className={s.link}
+            disabled={toggle.isPending}
+            onClick={async () => {
+              if (await confirm({ title: t("claim.release.title"), body: t("claim.release.body"), confirm: t("claim.release.confirm") })) toggle.mutate(false);
+            }}
+          >
             {t("claim.release")}
           </button>
         </>
@@ -45,6 +54,7 @@ export function ClaimButton({ issueID, url, className }: { issueID: number; url:
         </button>
       )}
       {error && <span className={s.error} role="alert">{error.message}</span>}
+      {confirmDialog}
     </span>
   );
 }

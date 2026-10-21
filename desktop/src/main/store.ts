@@ -107,7 +107,17 @@ export function getWorkspace(issueId: number): Workspace | null {
   return state.workspaces[String(issueId)] ?? null;
 }
 
+/** Saves what a workspace is; the git state (changes, commits) is read fresh each time. */
 export function putWorkspace(ws: Workspace): void {
-  state.workspaces[String(ws.issueId)] = ws;
+  state.workspaces[String(ws.issueId)] = { ...ws, changes: [], commits: 0, unpushed: 0, problem: null };
+  saveState();
+}
+
+export function listWorkspaces(): Workspace[] {
+  return Object.values(state.workspaces);
+}
+
+export function forgetWorkspace(issueId: number): void {
+  delete state.workspaces[String(issueId)];
   saveState();
 }

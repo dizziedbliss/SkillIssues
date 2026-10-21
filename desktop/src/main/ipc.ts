@@ -1,8 +1,8 @@
-import { ipcMain, nativeTheme, shell, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
-import { channels, type Channel, type IssueRef, type Result } from "../shared/contract";
+import { clipboard, ipcMain, nativeTheme, shell, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
+import { channels, type Channel, type CommitInput, type IssueRef, type Result } from "../shared/contract";
 import { proxy } from "./api";
 import { githubGet } from "./githubRead";
-import { isHexColor } from "./security";
+import { isClipboardText, isHexColor } from "./security";
 import * as updater from "./updater";
 import * as auth from "./auth";
 import { isAllowedExternalURL } from "./security";
@@ -66,8 +66,16 @@ export function registerIpc(
   });
   handle(channels.openFolder, (id) => workspace.openFolder(issueId(id)));
   handle(channels.openEditor, (id) => workspace.openEditor(issueId(id)));
-  handle(channels.commitAndPush, (id, message) => workspace.commitAndPush(issueId(id), String(message ?? "")));
-  handle(channels.openPullRequest, (id) => workspace.openPullRequest(issueId(id)));
+  handle(channels.workspaces, () => workspace.list());
+  handle(channels.commit, (id, input) => workspace.commit(issueId(id), input as CommitInput));
+  handle(channels.push, (id) => workspace.push(issueId(id)));
+  handle(channels.openPullRequest, (id, input) => workspace.openPullRequest(issueId(id), input));
+  handle(channels.forgetWorkspace, (id) => workspace.forget(issueId(id)));
+  // The page's own clipboard is off with every other permission; a code goes through here.
+  handle(channels.copyText, (text) => {
+    if (!isClipboardText(text)) throw new Error("That can't be copied.");
+    clipboard.writeText(text);
+  });
   handle(channels.githubGet, (url) => {
     if (typeof url !== "string") throw new Error("That GitHub request isn't allowed from the app.");
     return githubGet(url);

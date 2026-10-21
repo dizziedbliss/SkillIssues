@@ -3,6 +3,7 @@ import { call, desktop } from "./bridge";
 import { requestSignIn } from "./signIn";
 import { WorkOnIt } from "./WorkOnIt";
 import { DesktopSettings } from "./DesktopSettings";
+import { WorkspacesPage } from "./WorkspacesPage";
 
 /** What differs inside the desktop app (web/src/app/platform.ts). */
 export const desktopPlatform: Partial<Platform> = {
@@ -21,4 +22,5 @@ export const desktopPlatform: Partial<Platform> = {
   siteOrigin: "https://skillissues.dizziedbliss.lol",
   WorkOnIt,
   DesktopSettings,
+  Workspaces: WorkspacesPage,
 };

@@ -270,8 +270,9 @@ path reaching outside the importing project). Both apps are built on `client`; t
 - CSS Modules over custom properties; no Tailwind, no CSS-in-JS. Live counts poll `GET /stats`
   every 10s (React Query, paused in background tabs).
 - The CSP (`vercel.json`) allows fetching nothing from elsewhere but the API host and GitHub's API,
-  and images only from GitHub (`github.com`, `*.githubusercontent.com`: avatars and the images in
-  issue descriptions). A theme stylesheet is someone else's code; widen it only deliberately.
+  and images only from GitHub (`github.com`, `*.githubusercontent.com`, and the S3 bucket
+  `github.com/user-attachments` redirects to: avatars and the images in issue descriptions; the
+  desktop's CSP lists the same). A theme stylesheet is someone else's code; widen it only deliberately.
 
 Runs **React 19**.
 
@@ -304,7 +305,12 @@ top frame.
   proxy) and the platform (`web/src/app/platform.ts`, `setPlatform`): sign-in is a device-flow dialog,
   GitHub reads go through the main process (`githubGet`, `isAllowedGitHubRead`: an issue, its
   timeline and pull request search, no credentials), site pages open in the browser (`SiteLink`), and
-  "Work on it here" (`WorkOnIt.tsx`: fork to pull request) and Settings → Desktop app are its own.
+  "Work on it here" (`WorkOnIt.tsx`: fork, then commit with a title and optional description, push
+  only commits, and a pull request the person writes, "Closes #n" an unchecked option), Working on
+  (`WorkspacesPage.tsx`, `/app/work`, a nav item only the desktop's platform adds) and Settings →
+  Desktop app are its own. The page's clipboard is off with every other permission; a sign-in code is
+  copied through the main process (`copyText`). Only `electron-updater` is a runtime dependency: the
+  renderer is bundled, so everything else is a dev dependency and stays out of the installer.
   Anything that differs between web and desktop goes through the platform, never a fork of a screen.
   Its CSP lets it reach no network; images may come from GitHub. `skillissues://issue/<id>` (the
   site's button) opens that issue: the main process keeps the link and the page takes it (`takeLink`)

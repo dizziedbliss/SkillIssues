@@ -63,10 +63,34 @@ export interface Workspace {
   fork: string; // the person's fork, owner/name
   path: string;
   branch: string;
-  /** git status --porcelain lines; empty when clean. */
+  /** The fork's default branch the work started from (older workspaces: read from git). */
+  base?: string;
+  /** When work started, ISO time (missing on workspaces from before 1.1.2). */
+  startedAt?: string;
+  /** git status --porcelain lines; empty when clean. Read fresh, never stored. */
   changes: string[];
+  /** Commits on the branch that aren't on the default branch. Read fresh. */
+  commits: number;
+  /** Of those, the ones not on your fork yet. Read fresh. */
+  unpushed: number;
+  /** Why the folder couldn't be read (moved, deleted), or null. */
+  problem: string | null;
   /** The pull request opened from this workspace, once there is one. */
   pullRequestUrl: string | null;
+}
+
+/** A commit: a one-line title, and an optional longer description. */
+export interface CommitInput {
+  title: string;
+  body: string;
+}
+
+/** A pull request as the person wrote it. */
+export interface PullRequestInput {
+  title: string;
+  body: string;
+  /** Add "Closes #<number>": GitHub closes the issue on merge, and SkillIssues links them. */
+  closesIssue: boolean;
 }
 
 export interface Settings {
@@ -116,11 +140,15 @@ export const channels = {
   settings: "settings:get",
   chooseWorkspaceRoot: "settings:choose-root",
   workspace: "workspace:get",
+  workspaces: "workspace:list",
   startWork: "workspace:start",
   openFolder: "workspace:open-folder",
   openEditor: "workspace:open-editor",
-  commitAndPush: "workspace:commit-push",
+  commit: "workspace:commit",
+  push: "workspace:push",
   openPullRequest: "workspace:open-pr",
+  forgetWorkspace: "workspace:forget",
+  copyText: "clipboard:write",
   openExternal: "shell:open-external",
   githubGet: "github:get",
   takeLink: "app:take-link",
@@ -151,11 +179,21 @@ export interface DesktopBridge {
   settings(): Promise<Result<Settings>>;
   chooseWorkspaceRoot(): Promise<Result<Settings>>;
   workspace(issueId: number): Promise<Result<Workspace | null>>;
+  /** Every issue you've started work on here, most recently started first. */
+  workspaces(): Promise<Result<Workspace[]>>;
   startWork(issue: IssueRef): Promise<Result<Workspace>>;
   openFolder(issueId: number): Promise<Result<null>>;
   openEditor(issueId: number): Promise<Result<null>>;
-  commitAndPush(issueId: number, message: string): Promise<Result<Workspace>>;
-  openPullRequest(issueId: number): Promise<Result<Workspace>>;
+  /** Commits every change. Refused when there is nothing to commit. */
+  commit(issueId: number, input: CommitInput): Promise<Result<Workspace>>;
+  /** Pushes the branch to your fork. Refused with uncommitted changes, or nothing to push. */
+  push(issueId: number): Promise<Result<Workspace>>;
+  /** Opens the pull request on GitHub. Refused until your commits are pushed. */
+  openPullRequest(issueId: number, input: PullRequestInput): Promise<Result<Workspace>>;
+  /** Takes the workspace off the list; the folder stays where it is. */
+  forgetWorkspace(issueId: number): Promise<Result<null>>;
+  /** Puts short text (a sign-in code) on the clipboard. */
+  copyText(text: string): Promise<Result<null>>;
   openExternal(url: string): Promise<Result<null>>;
   /** GETs an allowlisted public GitHub API URL, without credentials. */
   githubGet(url: string): Promise<Result<GitHubReply>>;
