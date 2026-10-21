@@ -13,6 +13,7 @@ import { PathPage } from "./path/PathPage";
 import { PublicProfilePage } from "./people/PublicProfilePage";
 import { LeaderboardPage } from "./people/LeaderboardPage";
 import { Settings } from "./settings/Settings";
+import { ModerationPage } from "./moderation/ModerationPage";
 import { platform } from "./platform";
 import { AppearanceProvider, useAppTheme } from "./theme";
 import { useRouteSettled, useTransitionNavigate } from "./transition";
@@ -114,6 +115,7 @@ export default function AppShell() {
               <Route path="path" element={<PathPage />} />
               <Route path="u/:login" element={<PublicProfilePage />} />
               <Route path="leaderboard" element={<LeaderboardPage />} />
+              <Route path="moderation" element={<ModerationPage />} />
               {Workspaces && <Route path="work" element={<Workspaces />} />}
               <Route path="settings/*" element={<Settings />} />
               <Route path="*" element={<AppNotFound />} />

@@ -198,6 +198,8 @@ export interface Profile {
   joined_at: string;
   /** Shown to anyone at /app/u/<username>, and eligible for the leaderboard. */
   public_profile: boolean;
+  /** Reviews reports (set by an operator); older servers leave it out. */
+  moderator?: boolean;
 }
 
 /** PUT /profile: the whole editable profile. */
@@ -426,4 +428,20 @@ export interface SharedThemes {
   themes: SharedTheme[];
   page: number;
   more: boolean;
+}
+
+/** One reported thing waiting for a moderator: its open reports together. */
+export interface ReportSummary {
+  type: ReportTarget["type"];
+  /** The issue's or repository's id, or the theme's. */
+  id: string;
+  /** What it is: "owner/repo#12 title", "owner/repo" or the theme's name; "(gone)" once deleted. */
+  label: string;
+  /** Different people who reported it. */
+  reporters: number;
+  /** How many reports gave each reason. */
+  reasons: Record<string, number>;
+  notes: string[];
+  first_reported: string;
+  last_reported: string;
 }

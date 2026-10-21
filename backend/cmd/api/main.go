@@ -318,6 +318,9 @@ func buildRouter(
 
 	// ----- User profile -----
 	mux.Handle("GET /me", requireAuth(authSvc, http.HandlerFunc(h.getMe)))
+	// Report review in the app, for accounts an operator marked moderator.
+	mux.Handle("GET /moderation/reports", requireAuth(authSvc, http.HandlerFunc(h.moderationReports)))
+	mux.Handle("POST /moderation/reports/resolve", requireAuth(authSvc, http.HandlerFunc(h.moderationResolve)))
 	mux.Handle("PUT /profile", requireAuth(authSvc, http.HandlerFunc(h.updateProfile)))
 	mux.HandleFunc("GET /preferences/options", h.getPreferenceOptions) // no auth required
 

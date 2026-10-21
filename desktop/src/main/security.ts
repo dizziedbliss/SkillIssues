@@ -75,6 +75,8 @@ const apiPaths: { method: string; pattern: RegExp }[] = [
   { method: "DELETE", pattern: /^\/issues\/\d+\/claim$/ },
   { method: "GET", pattern: /^\/users\/[A-Za-z0-9-]{1,39}$/ },
   { method: "GET", pattern: /^\/leaderboards$/ },
+  { method: "GET", pattern: /^\/moderation\/reports$/ },
+  { method: "POST", pattern: /^\/moderation\/reports\/resolve$/ },
   { method: "POST", pattern: /^\/auth\/logout-all$/ },
 ];
 
