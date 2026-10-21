@@ -197,13 +197,111 @@ export interface ProfileUpdate {
   preferred_languages: string[];
 }
 
-/** One notification: today only an issue you saved being closed on GitHub. */
-export interface Notification {
+/**
+ * One notification: an issue you saved closed on GitHub (issue), or a pull
+ * request of yours merged and paid (pull_request).
+ */
+export type Notification = {
   id: number;
-  kind: "issue_closed";
   created_at: string;
   read_at: string | null;
-  issue: { id: number; repository: string; number: number; title: string; url: string; state: "OPEN" | "CLOSED" };
+} & (
+  | { kind: "issue_closed"; issue: { id: number; repository: string; number: number; title: string; url: string; state: "OPEN" | "CLOSED" } }
+  | { kind: "pr_merged"; pull_request: { id: number; repository: string; number: number; title: string; url: string; xp: number } }
+);
+
+/** Where an XP total stands: level L runs from start up to next. */
+export interface XPLevel {
+  level: number;
+  start: number;
+  next: number;
+}
+
+/** How an XP amount was reached, as the ledger stores it. */
+export interface XPDetail {
+  base?: number;
+  difficulty?: Difficulty;
+  issue_id?: number;
+  first_in_repo?: number;
+  backlog?: number;
+  ci?: number;
+  approval?: number;
+  clean_merge?: number;
+  /** Backfill: the share paid for a merge from before signing up. */
+  percent?: number;
+  /** Taken off by the daily cap per repository. */
+  capped?: number;
+  repository_id?: number;
+  language?: string;
+  docs?: boolean;
+}
+
+export type XPSource = "merged" | "backfill" | "opened" | "opened_reversed" | "quest" | "path";
+
+/** One ledger row. */
+export interface XPEvent {
+  source: XPSource;
+  key?: string;
+  amount: number;
+  detail: XPDetail;
+  earned_at: string;
+  pull_request?: { id: number; repository: string; number: number; title: string; url: string };
+}
+
+/** Level, streak, badges and languages, from the ledger. */
+export interface XPSummary {
+  total: number;
+  level: XPLevel;
+  merges: number;
+  languages: { language: string; xp: number; level: XPLevel }[];
+  /** UTC weeks in a row with a merge. */
+  streak: { current: number; best: number; this_week: boolean };
+  badges: { key: string; earned_at: string }[];
+}
+
+/** Where tracking of your pull requests stands. */
+export interface PRSync {
+  /** False until the tracker has enrolled you, within minutes of signing up. */
+  tracked: boolean;
+  synced_through: string | null;
+  /** The first read of your history hasn't finished. */
+  backfilling: boolean;
+  last_checked_at: string | null;
+  next_check_at: string | null;
+  requested_at: string | null;
+  last_error: string | null;
+}
+
+/** GET /me/xp. */
+export interface MyXP {
+  summary: XPSummary;
+  recent: XPEvent[];
+  sync: PRSync;
+  /** Every badge, in display order: those not in summary.badges are still to earn. */
+  badge_keys: string[];
+}
+
+/** A pull request of yours to a catalog repository, and what it earned. */
+export interface TrackedPull {
+  id: number;
+  repository: string;
+  number: number;
+  title: string;
+  url: string;
+  state: "OPEN" | "CLOSED" | "MERGED";
+  created_at: string;
+  updated_at: string;
+  merged_at: string | null;
+  closed_at: string | null;
+  /** The last commit's checks; null when the repository runs none. */
+  checks: string | null;
+  approvals: number;
+  changes_requested: number;
+  /** Why it earns nothing; null when it can. */
+  no_xp_reason: "own_repository" | "organisation_member" | null;
+  /** Catalog issues it says it closes. */
+  issues: number[];
+  xp: number;
 }
 
 /** GET /notifications. */

@@ -2,8 +2,9 @@ import { Link } from "react-router";
 import { useI18n } from "../../i18n";
 import { useSession } from "../session";
 import { useSaved } from "../saved";
-import { Achievements, ContribStatus, Graph, PRList, SignInPrompt, StatBoxes } from "./parts";
-import { useContributions, useProfile } from "./data";
+import { ContribStatus, Graph, PRList, SignInPrompt, StatBoxes } from "./parts";
+import { useContributions, useProfile, useTrackedPulls, useXP } from "./data";
+import { BackfillReveal, Badges, LanguageLevels, LevelCard, SyncStatus, TrackedPulls } from "./xp";
 import s from "./ProfilePage.module.css";
 
 /** The greeting for the reader's time of day. */
@@ -28,6 +29,8 @@ export function ProfilePage() {
   const { user, isPending } = useSession();
   const profile = useProfile();
   const contributions = useContributions();
+  const xp = useXP();
+  const pulls = useTrackedPulls();
   const saved = useSaved();
 
   if (isPending) return null;
@@ -43,6 +46,8 @@ export function ProfilePage() {
     <div className={s.page}>
       <h1 className={s.hello}>{t(greeting(), { name })}</h1>
       {profile.error && <p className={s.error} role="alert">{profile.error.message}</p>}
+      {xp.error && <p className={s.error} role="alert">{xp.error.message}</p>}
+      <BackfillReveal data={xp.data} login={user.username} />
 
       <div className={s.columns}>
         <section className={s.left} aria-label={name}>
@@ -78,17 +83,29 @@ export function ProfilePage() {
             </div>
           </div>
 
+          <LevelCard data={xp.data} />
+          <LanguageLevels data={xp.data} />
+
           <StatBoxes data={contributions.data} />
           <Graph data={contributions.data} />
           <ContribStatus query={contributions} login={user.username} />
 
-          <h2 className={s.heading}>{t("achieve.title")}</h2>
-          <Achievements data={contributions.data} />
+          <h2 className={s.heading}>{t("xp.badges")}</h2>
+          <Badges data={xp.data} />
         </section>
 
         <section className={s.right} aria-labelledby="activity-title">
           <h2 id="activity-title" className={s.heading}>{t("profile.activity")}</h2>
           <div className={s.box} data-ui="activity">
+            <h3 className={s.boxTitle}>{t("xp.pulls.title")}</h3>
+            <SyncStatus data={xp.data} />
+            {pulls.error && <p className={s.error} role="alert">{pulls.error.message}</p>}
+            <TrackedPulls items={pulls.data} limit={SHOWN} />
+            {pulls.data && pulls.data.length > SHOWN && (
+              <Link to="/app/contributions" className={s.more}>{t("search.viewMore")}</Link>
+            )}
+          </div>
+          <div className={s.box}>
             <h3 className={s.boxTitle}>{t("profile.prs")}</h3>
             <PRList items={contributions.data?.recent} empty={t("profile.noPRs")} limit={SHOWN} />
             {contributions.data && contributions.data.total > SHOWN && (

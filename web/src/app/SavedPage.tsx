@@ -40,12 +40,23 @@ export function SavedPage() {
           <ul>
             {unread.map((n) => (
               <li key={n.id} className={s.update}>
-                <span>
-                  <Link to={`/app/issues/${n.issue.id}`}>{t("saved.closedOn", { title: n.issue.title })}</Link>{" "}
-                  <span className={s.muted}>
-                    {n.issue.repository}, {ago(n.created_at, locale)}
+                {n.kind === "issue_closed" ? (
+                  <span>
+                    <Link to={`/app/issues/${n.issue.id}`}>{t("saved.closedOn", { title: n.issue.title })}</Link>{" "}
+                    <span className={s.muted}>
+                      {n.issue.repository}, {ago(n.created_at, locale)}
+                    </span>
                   </span>
-                </span>
+                ) : (
+                  <span>
+                    <a href={n.pull_request.url} target="_blank" rel="noreferrer">
+                      {t("saved.mergedOn", { title: n.pull_request.title, xp: new Intl.NumberFormat(locale).format(n.pull_request.xp) })}
+                    </a>{" "}
+                    <span className={s.muted}>
+                      {n.pull_request.repository}, {ago(n.created_at, locale)}
+                    </span>
+                  </span>
+                )}
                 <button type="button" className={s.link} onClick={() => mark.mutate(n.id)} disabled={mark.isPending}>
                   {t("saved.markRead")}
                 </button>
