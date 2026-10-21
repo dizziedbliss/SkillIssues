@@ -1,0 +1,34 @@
+.wrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.9rem;
+}
+
+.note {
+  color: var(--colors-text-muted);
+  font-size: 0.9375rem;
+}
+
+.note a,
+.link {
+  color: var(--colors-text);
+  text-decoration: underline;
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+}
+
+.link {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+.error {
+  flex-basis: 100%;
+  color: var(--colors-danger);
+  font-size: var(--label-size);
+}

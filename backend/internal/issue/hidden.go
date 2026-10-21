@@ -13,20 +13,53 @@ type Hidden struct {
 // it should answer from memory (go-api refreshes it on a timer).
 func (s *Service) SetHidden(fn func() Hidden) { s.hidden = fn }
 
-// visible drops hidden issues from a list, keeping its order.
-func (s *Service) visible(list []Issue) []Issue {
-	if s.hidden == nil || len(list) == 0 {
+// SetClaimed gives the service the issues someone on SkillIssues has claimed
+// (internal/claim); like SetHidden, fn should answer from memory.
+func (s *Service) SetClaimed(fn func() map[int]bool) { s.claimed = fn }
+
+// visible drops hidden issues from a list, keeping its order, and marks the
+// claimed ones; with dropClaimed (the catalog's "nobody is on it yet"), it
+// drops those too.
+func (s *Service) visible(list []Issue, dropClaimed bool) []Issue {
+	if len(list) == 0 {
 		return list
 	}
-	h := s.hidden()
-	if len(h.Issues) == 0 && len(h.Repositories) == 0 {
+	var h Hidden
+	if s.hidden != nil {
+		h = s.hidden()
+	}
+	claimed := s.claimedNow()
+	if len(h.Issues) == 0 && len(h.Repositories) == 0 && len(claimed) == 0 {
 		return list
 	}
 	out := list[:0:0]
 	for _, it := range list {
-		if !h.Issues[it.ID] && !h.Repositories[it.RepositoryID] {
-			out = append(out, it)
+		if h.Issues[it.ID] || h.Repositories[it.RepositoryID] {
+			continue
 		}
+		if claimed[it.ID] {
+			if dropClaimed {
+				continue
+			}
+			it.Claimed = true
+		}
+		out = append(out, it)
 	}
 	return out
+}
+
+// markClaimed sets Claimed on issues shown whatever their claim: an issue's
+// own page and saved issues.
+func (s *Service) markClaimed(list []Issue) {
+	claimed := s.claimedNow()
+	for i := range list {
+		list[i].Claimed = claimed[list[i].ID]
+	}
+}
+
+func (s *Service) claimedNow() map[int]bool {
+	if s.claimed == nil {
+		return nil
+	}
+	return s.claimed()
 }

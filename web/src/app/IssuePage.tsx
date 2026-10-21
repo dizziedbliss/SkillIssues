@@ -10,6 +10,8 @@ import { CommentIcon } from "./icons";
 import { SaveButton } from "./SaveButton";
 import { scopeURL } from "./explore/query";
 import { DesktopButton } from "./DesktopButton";
+import { ClaimButton } from "./ClaimButton";
+import { useClaimState } from "./claims";
 import { BeginnerCheck } from "./BeginnerCheck";
 import { ReportButton } from "./ReportButton";
 import { loadLinkedPulls } from "../lib/linkedPulls";
@@ -41,6 +43,7 @@ export function IssuePage() {
     staleTime: 10 * 60_000,
     retry: false,
   });
+  const claim = useClaimState(valid ? id : 0);
   const html = useMemo(() => (body.data && "body" in body.data ? renderMarkdown(body.data.body) : ""), [body.data]);
 
   const notFound = !valid || (issue.error as { status?: number } | null)?.status === 404;
@@ -102,6 +105,7 @@ export function IssuePage() {
       <div className={s.actions}>
         <a href={it.url} target="_blank" rel="noreferrer" className={s.primary} data-ui="button-primary">{t("issue.openGitHub")}</a>
         <DesktopButton issue={it} className={s.secondary} />
+        <ClaimButton issueID={it.id} url={it.url} className={s.secondary} />
         <SaveButton issue={it} label />
         <span className={s.reportRow}>
           <ReportButton target={{ type: "issue", id: it.id }} label="report.issue" />
@@ -136,6 +140,7 @@ export function IssuePage() {
             body={body.data && "body" in body.data ? body.data.body : null}
             live={live}
             pulls={{ data: pulls.data, error: pulls.error }}
+            claimedByOther={claim.data ? claim.data.claimed && !claim.data.yours : null}
           />
           <h2 id="issue-repo" className={s.heading}>{t("issue.repository")}</h2>
           <p className={s.repoName}>

@@ -17,7 +17,7 @@ import (
 // its filters are ignored.
 func (s *Service) RecommendationCandidates(ctx context.Context, base Filters, langs []string, level string, want, pool int) ([]Issue, error) {
 	found, err := s.recommendationCandidates(ctx, base, langs, level, want, pool)
-	return s.visible(found), err
+	return s.visible(found, true), err
 }
 
 func (s *Service) recommendationCandidates(ctx context.Context, base Filters, langs []string, level string, want, pool int) ([]Issue, error) {

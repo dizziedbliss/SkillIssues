@@ -29,11 +29,14 @@ export function BeginnerCheck({
   body,
   live,
   pulls,
+  claimedByOther,
 }: {
   issue: Issue;
   body: string | null;
   live: Live | null;
   pulls: { data?: LinkedPulls; error: Error | null };
+  /** Someone else on SkillIssues claimed it; null while unknown. */
+  claimedByOther: boolean | null;
 }) {
   const { t, locale } = useI18n();
   const labels = live?.labels ?? issue.labels;
@@ -56,6 +59,11 @@ export function BeginnerCheck({
       : live.assignees === 0
         ? { state: "pass", text: t("check.unassigned") }
         : { state: "warn", text: t("check.assigned") },
+    claimedByOther === null
+      ? { state: "unknown", text: t("check.claimUnknown") }
+      : claimedByOther
+        ? { state: "warn", text: t("check.claimed") }
+        : { state: "pass", text: t("check.unclaimed") },
     pulls.error
       ? { state: "unknown", text: t("check.pullsUnknown") }
       : !pulls.data

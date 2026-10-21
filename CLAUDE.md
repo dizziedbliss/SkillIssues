@@ -751,6 +751,13 @@ Every key with its default and bounds: `docs/settings.md`.
   per-language levels, streaks (UTC ISO weeks) and badges are computed from the ledger on read
   (`xp.Summarise`, `internal/progress`, `GET /me/xp`). A paid merge notifies through a trigger
   (`pr_merged`). The rules are documented in `/docs/xp`: keep both in step.
+- **Claims are SkillIssues-only and held in memory for lists** (`internal/claim`, migration 00058):
+  one active claim per issue, `api.claims.max_active` per person; active until released, or past
+  `api.claims.days` only while the claimer has an open tracked pull request that closes the issue
+  (the rule is one SQL predicate, `claim.active`). go-api re-reads the claimed set every
+  `api.claims.refresh_seconds` (`cmd/api/claims.go`; a claim made here applies at once) and
+  `issue.Service` marks `claimed` and, with `unassigned`, drops them after the cursor, like reports.
+  A person's own claim comes from `GET /issues/{id}/claim`, so issue pages stay cacheable.
 - **Reports are private and hide by count, never by query**: a signed-in person reports an issue, a
   repository or a public theme (`POST /reports`, `internal/report`, migration 00052; one open report
   per person per target, `api.reports.per_user_per_day`). Targets reported by

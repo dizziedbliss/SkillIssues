@@ -29,6 +29,8 @@ export interface Issue {
   assignees: number | null;
   /** The repository's contributing guide on GitHub; null when it has none or it isn't read yet. */
   contributing_url: string | null;
+  /** Someone on SkillIssues said they're working on it. */
+  claimed: boolean;
   comments: number;
   author: string;
   repository: string;
@@ -279,6 +281,22 @@ export interface MyXP {
   sync: PRSync;
   /** Every badge, in display order: those not in summary.badges are still to earn. */
   badge_keys: string[];
+}
+
+/** Your claim on an issue. */
+export interface Claim {
+  issue_id: number;
+  claimed_at: string;
+  expires_at: string;
+  /** Past expires_at but kept: you have an open pull request that closes it. */
+  extended: boolean;
+}
+
+/** GET /issues/{id}/claim. */
+export interface ClaimState {
+  claimed: boolean;
+  /** Yours, when the claim is yours. */
+  yours: Claim | null;
 }
 
 /** A pull request of yours to a catalog repository, and what it earned. */

@@ -38,7 +38,7 @@ You can combine any of these:
 | Difficulty | Beginner, Intermediate, Advanced or Unranked. See [Difficulty ratings](/docs/difficulty-ratings). |
 | Comments | A minimum and a maximum number of comments. A maximum of 0 means "no comments yet". |
 
-Issues someone is assigned to on GitHub are left out, since someone is already on them. Tick **Include issues someone is assigned to** in the filters to see them too; they're marked **Assigned**. The catalog learns who's assigned as it re-reads each repository, so for a while some assigned issues may still show.
+Issues someone is assigned to on GitHub, or has claimed on SkillIssues, are left out, since someone is already on them. Tick **Include issues someone is assigned to or has claimed** in the filters to see them too; they're marked **Assigned** or **Claimed**. The catalog learns who's assigned as it re-reads each repository, so for a while some assigned issues may still show.
 
 The difficulty buttons under the search box are the same filter, one press away. Press one to add or remove it. With none pressed, you see every difficulty. If you're signed in, they start at the experience level in your profile.
 
