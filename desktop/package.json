@@ -61,7 +61,10 @@
           "skillissues"
         ]
       }
-    ]
+    ],
+    "nsis": {
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    }
   },
   "dependencies": {
     "@fontsource/instrument-serif": "5.3.0",
