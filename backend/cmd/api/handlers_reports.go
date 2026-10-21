@@ -90,6 +90,43 @@ func (h *handlers) adminListReports(w http.ResponseWriter, r *http.Request) {
 // adminResolveReport closes a target's open reports: {"type", "id",
 // "action": "uphold" | "dismiss"}. Upholding acts on the target (report.Resolve).
 func (h *handlers) adminResolveReport(w http.ResponseWriter, r *http.Request) {
+	h.resolveReport(w, r)
+}
+
+// moderator answers 404 to anyone who isn't one, so the routes don't say they exist.
+func (h *handlers) moderator(w http.ResponseWriter, r *http.Request) bool {
+	ok, err := h.profileSvc.IsModerator(r.Context(), middleware.GetUserID(r.Context()))
+	if err != nil {
+		slog.Error("reading moderator flag failed", "error", err)
+		middleware.RespondError(w, http.StatusInternalServerError, "failed to check your account")
+		return false
+	}
+	if !ok {
+		middleware.RespondError(w, http.StatusNotFound, "not found")
+		return false
+	}
+	return true
+}
+
+// moderationReports is GET /admin/reports for a moderator signed in to the app.
+func (h *handlers) moderationReports(w http.ResponseWriter, r *http.Request) {
+	if h.moderator(w, r) {
+		w.Header().Set("Cache-Control", "private, no-store")
+		h.adminListReports(w, r)
+	}
+}
+
+// moderationResolve is POST /admin/reports/resolve for a moderator signed in to the app.
+func (h *handlers) moderationResolve(w http.ResponseWriter, r *http.Request) {
+	if h.moderator(w, r) {
+		slog.Info("moderator resolved reports", "user_id", middleware.GetUserID(r.Context()))
+		h.resolveReport(w, r)
+	}
+}
+
+// resolveReport closes a target's open reports and re-reads the hidden set,
+// so the decision shows in lists at once rather than at the next refresh.
+func (h *handlers) resolveReport(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Type   string `json:"type"`
 		ID     string `json:"id"`
@@ -109,5 +146,8 @@ func (h *handlers) adminResolveReport(w http.ResponseWriter, r *http.Request) {
 		middleware.RespondError(w, http.StatusInternalServerError, "failed to resolve the reports")
 		return
 	}
+	// Resolved either way; a failed re-read is logged and counted, and the
+	// periodic refresh catches up.
+	_ = h.hidden.refresh(r.Context(), h.reportSvc, h.live.Current())
 	middleware.RespondJSON(w, http.StatusOK, map[string]any{"resolved": true, "action": body.Action})
 }

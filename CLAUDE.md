@@ -843,7 +843,10 @@ Every key with its default and bounds: `docs/settings.md`.
   still continues. Never filter them inside the catalog SQL: it would change the index plans. The
   community theme listing (`GET /themes/public`) leaves hidden themes out. Review is
   `GET/POST /admin/reports[/resolve]`: upheld, a repository goes into `excluded_repositories`, a
-  theme becomes private, an issue stays hidden; dismissed, it comes back.
+  theme becomes private, an issue stays hidden; dismissed, it comes back. The same review is in the app for
+  moderators (`/app/moderation`, Reports in the Profile menu): `GET /moderation/reports` and `POST
+  /moderation/reports/resolve` answer 404 unless `users.moderator` (00065), which only an operator sets,
+  in the database; nothing in the API writes it. A decision re-reads the hidden set at once.
 - **Live counts are kept, never counted per request**: `GET /stats` (open, closed since tracking
   began, arrived/closed today, indexed issues and repositories, signed-up developers, recent
   activity) reads `catalog_stats`. Statement-level triggers on `issues` (migration 00043) append one

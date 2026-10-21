@@ -203,7 +203,8 @@ test("a skillissues:// link opens only an issue page", () => {
 
 test("the new app routes are allowed, and operational ones still aren't", () => {
   for (const [m, p] of [["GET", "/me/xp"], ["POST", "/me/pulls/refresh"], ["POST", "/issues/9/claim"], ["DELETE", "/issues/9/claim"],
-    ["POST", "/me/path/steps/2/swap"], ["GET", "/users/octo"], ["PUT", "/profile"], ["POST", "/reports"], ["POST", "/auth/logout-all"]] as const) {
+    ["POST", "/me/path/steps/2/swap"], ["GET", "/users/octo"], ["PUT", "/profile"], ["POST", "/reports"], ["POST", "/auth/logout-all"],
+    ["GET", "/moderation/reports"], ["POST", "/moderation/reports/resolve"]] as const) {
     assert.ok(isAllowedApiCall(m, p), `${m} ${p}`);
   }
   for (const [m, p] of [["GET", "/admin/reports"], ["POST", "/admin/reports/resolve"], ["DELETE", "/me"], ["POST", "/auth/github/device"], ["GET", "/metrics"]] as const) {
