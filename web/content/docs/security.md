@@ -4,12 +4,12 @@ slug: /security
 section: Legal & Trust
 summary: How SkillIssues protects your account, your code and its own servers, and how to report a vulnerability.
 draft: false
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 ## Your account
 
-You sign in with GitHub through an app that asks for no permissions. We read your numeric GitHub id, username and avatar, then discard the token. We never store it, not encrypted and not for a minute.
+You sign in with GitHub through an app that asks for no permissions. We read your numeric GitHub id, username, profile name and avatar, then discard the token. We never store it, not encrypted and not for a minute.
 
 Your account is tied to your GitHub id, never to your username. GitHub lets someone else take a username after you change yours, so a username can't be used to reach your account. If another account holds the username, the old row's username is cleared, not merged.
 
