@@ -24,6 +24,10 @@ const catalogOrder = "i.difficulty_score ASC, i.updated_at DESC, i.id DESC"
 // newestOrder is the Newest sort, issues_open_newest_idx's order (00041).
 const newestOrder = "i.created_at DESC, i.id DESC"
 
+// ratedNewestOrder is newestOrder within one difficulty score:
+// issues_open_rated_newest_idx's order (00063), which nothing else provides.
+const ratedNewestOrder = "i.difficulty_score ASC, i.created_at DESC, i.id DESC"
+
 // Cursor is the position of the last item on a browse page; the next page
 // starts right after it. Which fields mean anything depends on Sort.
 type Cursor struct {
@@ -391,12 +395,17 @@ func (s *Service) newestByDifficulty(ctx context.Context, f Filters, after *Curs
 		one := f
 		one.Difficulties = []string{d}
 		// A plain equality on the score, so the planner sees the rated index's range.
-		cond := " AND i.difficulty_score IS NULL"
+		cond, order := " AND i.difficulty_score IS NULL", newestOrder
 		if score, ok := difficultyScores[d]; ok {
 			cond = fmt.Sprintf(" AND i.difficulty_score = %d", score)
+			// The same order (the score is one value here), but only the rated
+			// index provides it: ordered by created_at alone, the planner bets
+			// on finding LIMIT rated issues early in issues_open_newest_idx and
+			// walks millions of unrated ones instead (11s in production).
+			order = ratedNewestOrder
 		}
 		g.Go(func() error {
-			sql, args := newestQuery(one, after, newestOrder, limit, cond)
+			sql, args := newestQuery(one, after, order, limit, cond)
 			got, err := s.queryIssues(gctx, sql, args)
 			parts[i] = got
 			return err
