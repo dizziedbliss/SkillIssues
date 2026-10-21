@@ -26,7 +26,6 @@ export const en = {
   "site.nav.docs": "Docs",
   "site.nav.live": "SkillIssues Live",
   "site.nav.contribute": "Contribute",
-  "logo.line": "You Have the Skills. We Have the Issues.",
 
   "footer.col.skillissues": "SkillIssues",
   "footer.col.guides": "Guides",
