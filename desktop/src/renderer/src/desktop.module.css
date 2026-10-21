@@ -169,6 +169,58 @@
   list-style: none;
 }
 
+/* Release notes in the update dialogs: the issue body's prose, kept to a scrolling box. */
+.notes {
+  max-height: 18rem;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.notes > * + * {
+  margin-top: 0.6rem;
+}
+
+.notes h1,
+.notes h2,
+.notes h3 {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: 1.2rem;
+}
+
+.notes ul,
+.notes ol {
+  padding-left: 1.25rem;
+}
+
+.notes a {
+  color: var(--colors-text);
+  text-decoration-color: var(--colors-accent);
+}
+
+.notes code {
+  padding: 0.1em 0.3em;
+  background: var(--code-bg);
+  font-family: var(--typography-mono-font);
+  font-size: 0.9em;
+}
+
+.meter {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--chip);
+  overflow: hidden;
+}
+
+.meter > span {
+  display: block;
+  height: 100%;
+  background: var(--colors-success);
+  transition: width var(--slow) var(--ease);
+}
+
 /* Working on: one row per workspace, its next step, and the way back in. */
 
 .page {

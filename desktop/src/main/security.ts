@@ -267,3 +267,18 @@ export function gitEnv(token: string | null, base: NodeJS.ProcessEnv = process.e
   }
   return env;
 }
+
+/** A release version as the app's tags have them: x.y.z, no prefix. */
+export function isVersion(v: unknown): v is string {
+  return typeof v === "string" && /^\d{1,4}\.\d{1,4}\.\d{1,6}$/.test(v);
+}
+
+/** Whether version a is newer than b (both x.y.z). */
+export function isNewerVersion(a: string, b: string): boolean {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    if (pa[i]! !== pb[i]!) return pa[i]! > pb[i]!;
+  }
+  return false;
+}

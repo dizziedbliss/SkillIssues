@@ -1,9 +1,10 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router";
 import AppShell from "@web/app/AppShell";
 import { call, desktop } from "./bridge";
 import { SignInDialog } from "./SignInDialog";
 import { TitleBar } from "./TitleBar";
+import { UpdateDialog, WhatsNew } from "./Updates";
 import "./chrome.css";
 import { signInOpen, subscribeSignIn } from "./signIn";
 
@@ -11,6 +12,7 @@ import { signInOpen, subscribeSignIn } from "./signIn";
 export function DesktopRoot() {
   const navigate = useNavigate();
   const signingIn = useSyncExternalStore(subscribeSignIn, signInOpen);
+  const [updateOpen, setUpdateOpen] = useState(false);
 
   // A skillissues://issue/<id> link opened the app, or reached it while open.
   useEffect(() => {
@@ -29,8 +31,10 @@ export function DesktopRoot() {
         <Route path="/app/*" element={<AppShell />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>
-      <TitleBar />
+      <TitleBar onUpdate={() => setUpdateOpen(true)} />
       {signingIn && <SignInDialog />}
+      {updateOpen && <UpdateDialog onClose={() => setUpdateOpen(false)} />}
+      <WhatsNew />
     </>
   );
 }
