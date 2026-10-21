@@ -169,3 +169,56 @@ func TestBrowseUnassigned(t *testing.T) {
 		}
 	}
 }
+
+// A webhook closes or reopens an issue only when it is newer than what is
+// stored: a delivery that arrives late, or a redelivered old one, never
+// undoes a later change.
+func TestSetStateByRepoAndNumberIgnoresStaleEvents(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	repoID, lang := seedBrowseRepo(t, pool, "webhook")
+	stored := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	var id int
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO issues (repository_id, number, title, url, difficulty, labels, state, updated_at)
+		 VALUES ($1, 7, 't', 'u', 'UNCLASSIFIED', '{}', 'OPEN', $2) RETURNING id`,
+		[]any{repoID, stored}, func(row pgx.Row) error { return row.Scan(&id) }); err != nil {
+		t.Fatalf("insert issue: %v", err)
+	}
+	svc := New(pool, nil)
+	read := func() (string, time.Time) {
+		t.Helper()
+		var state string
+		var updated time.Time
+		if err := pool.QueryRow(ctx, `SELECT state, updated_at FROM issues WHERE id = $1`, []any{id},
+			func(row pgx.Row) error { return row.Scan(&state, &updated) }); err != nil {
+			t.Fatalf("read issue: %v", err)
+		}
+		return state, updated
+	}
+	set := func(state string, at time.Time) {
+		t.Helper()
+		if err := svc.SetStateByRepoAndNumber(ctx, "browse-test/"+lang, 7, state, at); err != nil {
+			t.Fatalf("SetStateByRepoAndNumber(%s, %s): %v", state, at, err)
+		}
+	}
+
+	set("CLOSED", stored.Add(-time.Hour)) // older than the stored issue
+	if state, updated := read(); state != "OPEN" || !updated.Equal(stored) {
+		t.Fatalf("stale event: state %s at %s, want OPEN at %s", state, updated, stored)
+	}
+	set("CLOSED", stored) // the same moment is not newer either
+	if state, _ := read(); state != "OPEN" {
+		t.Fatalf("same-time event: state %s, want OPEN", state)
+	}
+
+	closed := stored.Add(time.Hour)
+	set("CLOSED", closed)
+	if state, updated := read(); state != "CLOSED" || !updated.Equal(closed) {
+		t.Fatalf("newer event: state %s at %s, want CLOSED at %s", state, updated, closed)
+	}
+	set("OPEN", stored.Add(30*time.Minute)) // a reopen from before the close
+	if state, _ := read(); state != "CLOSED" {
+		t.Fatalf("late reopen: state %s, want CLOSED", state)
+	}
+}
