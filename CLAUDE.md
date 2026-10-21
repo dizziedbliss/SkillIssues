@@ -325,6 +325,20 @@ top frame.
   site's button) opens that issue: the main process keeps the link and the page takes it (`takeLink`)
   on start and focus.
 
+- **Updates ask first** (`main/updater.ts`, `Updates.tsx`): electron-updater checks GitHub releases on
+  start and every 6 h but never downloads on its own (`autoDownload` off): the title bar says **Update
+  available**, the dialog shows that version's notes (`releaseNotes`, its GitHub release read without
+  credentials) and downloads only when asked; then restart, or it installs on quit. The first start
+  after an update shows What's new once (`whatsNew`, from `lastVersion` in state.json). macOS isn't
+  signed, so there "download" opens the release page.
+- **Release notes are in the repository**: `desktop/release-notes.md`, one `## x.y.z` section per
+  version. `release.yml` refuses a tag without one (`scripts/release-notes.sh`) and puts it on the
+  GitHub release.
+- **The Windows installer is assisted** (`build.nsis`): a welcome page (`build/installer.nsh`), the
+  license and terms (`build/license.txt`), per-user or per-machine, and the folder. CI builds it on
+  every desktop change (`desktop-installer`). Builds are unsigned, which is why Windows SmartScreen
+  warns; `release.yml` signs once `WIN_CSC_LINK`/`WIN_CSC_KEY_PASSWORD` secrets exist.
+
 Runs **Electron 44**. Release builds: `.github/workflows/release.yml`.
 
 ### Database (`backend/internal/migrate/migrations/`)

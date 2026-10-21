@@ -97,14 +97,26 @@ export interface Settings {
   workspaceRoot: string;
 }
 
-/** Where the app's own updates stand (main/updater.ts). */
+/**
+ * Where the app's own updates stand (main/updater.ts). Nothing downloads
+ * until the person asks: "available" waits for them.
+ */
 export interface UpdateState {
-  status: "idle" | "checking" | "current" | "downloading" | "ready" | "error" | "unsupported";
+  status: "idle" | "checking" | "current" | "available" | "downloading" | "ready" | "error" | "unsupported";
   version?: string;
   percent?: number;
   /** macOS: installing means downloading it from the release page. */
   manual?: boolean;
   reason?: string;
+}
+
+/** A version's release notes, from its GitHub release. */
+export interface ReleaseNotes {
+  version: string;
+  /** Markdown, rendered through packages/markdown. */
+  body: string;
+  url: string;
+  published_at: string;
 }
 
 /** The title bar's look, from the theme in use. */
@@ -156,7 +168,10 @@ export const channels = {
   titleBar: "window:title-bar",
   updateState: "update:state",
   checkUpdates: "update:check",
+  downloadUpdate: "update:download",
   installUpdate: "update:install",
+  releaseNotes: "update:notes",
+  whatsNew: "update:whats-new",
 } as const;
 
 export type Channel = (typeof channels)[keyof typeof channels];
@@ -208,6 +223,12 @@ export interface DesktopBridge {
   titleBar(colors: TitleBarColors): Promise<Result<null>>;
   updateState(): Promise<Result<UpdateState>>;
   checkUpdates(): Promise<Result<UpdateState>>;
-  /** Restarts into a downloaded update (macOS: opens the release page). */
+  /** Downloads the available update, when the person says so (macOS: opens the release page). */
+  downloadUpdate(): Promise<Result<UpdateState>>;
+  /** Restarts into a downloaded update. */
   installUpdate(): Promise<Result<null>>;
+  /** A version's release notes (x.y.z), or null when it has no release. */
+  releaseNotes(version: string): Promise<Result<ReleaseNotes | null>>;
+  /** The version the app was just updated to, once, on its first start after the update; else null. */
+  whatsNew(): Promise<Result<string | null>>;
 }

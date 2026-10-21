@@ -1,0 +1,30 @@
+# SkillIssues desktop: release notes
+
+Each release's notes are the section under its version. The release workflow
+(.github/workflows/release.yml) puts that section on the GitHub release and
+refuses to build a tag that has none; the app shows the same notes when an
+update is available, and once after it installs.
+
+## 1.2.0
+
+**Updates ask first.** When a new version is out, the title bar says **Update available**. Open it to read what's new, then download it when you choose. Nothing downloads or restarts on its own; after the download you restart into it, or it installs when you close the app. And after an update, the app shows you what changed.
+
+**A proper installer on Windows.** It now opens with what SkillIssues does, shows the license and terms, and lets you choose where to install it, for just you or everyone on the computer.
+
+**Working on.** A new page in the menu lists every issue you've started in the app and what's next for each. Commit, push and the pull request are now separate steps:
+
+- **Commit** takes a title and, if you like, a description.
+- **Push** sends only your commits, never uncommitted changes.
+- **Pull request** is yours to write. Tick **Close #number when it's merged** if your change fixes the issue.
+
+**For you.** Explore's default list now picks issues that suit you (your languages, your level, what you've merged before), look likely to get merged, and have waited. Each card says why it's there.
+
+**Fixes**
+
+- Copying the sign-in code works, and says so.
+- Connecting GitHub for pushing no longer says you're signed in as "nobody".
+- Open in VS Code finds the folder on Windows.
+- Giving up a path, releasing a claim and deleting a theme ask first.
+- Explore keeps its filters and page when you open an issue and come back.
+- Issue descriptions show attached images and colour their code.
+- The app is smaller to download.

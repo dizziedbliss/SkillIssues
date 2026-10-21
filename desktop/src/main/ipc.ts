@@ -91,7 +91,10 @@ export function registerIpc(
   });
   handle(channels.updateState, () => updater.updateState());
   handle(channels.checkUpdates, () => updater.checkUpdates());
+  handle(channels.downloadUpdate, () => updater.downloadUpdate());
   handle(channels.installUpdate, () => updater.installUpdate());
+  handle(channels.releaseNotes, (version) => updater.releaseNotes(version));
+  handle(channels.whatsNew, () => updater.whatsNew());
   handle(channels.openExternal, async (url) => {
     if (typeof url !== "string" || !isAllowedExternalURL(url)) throw new Error("That link can't be opened from the app.");
     await shell.openExternal(url);

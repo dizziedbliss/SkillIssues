@@ -1,0 +1,53 @@
+SkillIssues: license and terms
+==============================
+
+Please read this before installing.
+
+What SkillIssues is
+-------------------
+SkillIssues helps you find open-source issues you can solve, and takes you from
+reading an issue to a pull request. The app forks a project to your GitHub
+account, clones your fork into a folder you choose, makes a branch, and opens it
+in VS Code. You commit, push and open the pull request from the app.
+
+Your GitHub token for pushing stays on this computer, encrypted by your system
+(or held in memory only, where it can't encrypt it). It is never sent to
+SkillIssues. Signing in to SkillIssues only reads your GitHub id, username and
+avatar.
+
+Terms of Service and Privacy Policy
+-----------------------------------
+By installing and using SkillIssues you agree to the Terms of Service and the
+Privacy Policy:
+
+  Terms of Service: https://skillissues.dizziedbliss.lol/terms
+  Privacy Policy:   https://skillissues.dizziedbliss.lol/privacy
+
+Updates
+-------
+The app checks for new versions and tells you when one is available. Nothing is
+downloaded or installed until you choose to.
+
+The software license
+--------------------
+MIT License
+
+Copyright (c) 2026 Max!!
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
