@@ -31,6 +31,7 @@ const bridge: DesktopBridge = {
   push: (issueId) => invoke(channels.push, issueId),
   openPullRequest: (issueId, input) => invoke(channels.openPullRequest, issueId, input),
   forgetWorkspace: (issueId) => invoke(channels.forgetWorkspace, issueId),
+  refork: (issueId) => invoke(channels.refork, issueId),
   copyText: (text) => invoke(channels.copyText, text),
   openExternal: (url) => invoke(channels.openExternal, url),
   githubGet: (url) => invoke(channels.githubGet, url),

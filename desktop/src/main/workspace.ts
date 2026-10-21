@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { IssueRef, Settings, Workspace } from "../shared/contract";
 import { git } from "./git";
-import { fork, openPullRequest as createPullRequest } from "./github";
+import { fork, openPullRequest as createPullRequest, pullRequestState, repositoryExists } from "./github";
 import type { CommitInput } from "../shared/contract";
 import {
   branchFor, commitMessage, githubRemote, isGitHubRemote, isValidBranch, isWithin, parseRepository, pullRequestText, vscodeFolderLink,
@@ -100,14 +100,36 @@ async function withGit(ws: Workspace): Promise<Workspace> {
   return { ...ws, path: dir, base, changes: await changes(dir), commits, unpushed, problem: null };
 }
 
+/**
+ * What GitHub says now: whether the fork is still there (deleted, there's
+ * nothing to push to until it's forked again), and whether the pull request
+ * is open, merged or closed. Without a push token, or when GitHub can't be
+ * asked, neither is known: the check is skipped (and logged), and a push or
+ * a pull request still says what went wrong.
+ */
+async function withFork(ws: Workspace): Promise<Workspace> {
+  const { push } = getSecrets();
+  if (!push || ws.problem) return ws;
+  const [fork, pr] = await Promise.allSettled([
+    repositoryExists(push, ws.fork),
+    ws.pullRequestUrl ? pullRequestState(push, ws.pullRequestUrl) : Promise.resolve(undefined),
+  ]);
+  const out = { ...ws };
+  if (fork.status === "fulfilled") out.forkMissing = !fork.value;
+  else console.warn("[workspace] couldn't check the fork:", fork.reason instanceof Error ? fork.reason.message : fork.reason);
+  if (pr.status === "fulfilled") out.pullRequestState = pr.value;
+  else console.warn("[workspace] couldn't check the pull request:", pr.reason instanceof Error ? pr.reason.message : pr.reason);
+  return out;
+}
+
 export async function get(issueId: number): Promise<Workspace | null> {
   const ws = getWorkspace(issueId);
-  return ws ? withGit(ws) : null;
+  return ws ? withFork(await withGit(ws)) : null;
 }
 
 /** Every workspace, most recently started first. */
 export async function list(): Promise<Workspace[]> {
-  const all = await Promise.all(listWorkspaces().map(withGit));
+  const all = await Promise.all(listWorkspaces().map(async (ws) => withFork(await withGit(ws))));
   return all.sort((a, b) => (b.startedAt ?? "").localeCompare(a.startedAt ?? "") || b.issueId - a.issueId);
 }
 
@@ -228,8 +250,47 @@ export async function push(issueId: number): Promise<Workspace> {
   if (state.unpushed === 0) {
     throw new Error(state.commits === 0 ? "There's nothing to push yet: commit your changes first." : "Everything is already pushed.");
   }
-  await git(dir, ["push", "--quiet", "--set-upstream", "origin", ws.branch], pushToken());
+  const token = pushToken();
+  if (!(await repositoryExists(token, ws.fork))) {
+    throw new Error(`Your fork ${ws.fork} is gone from GitHub. Fork it again, then push: your commits are still here.`);
+  }
+  await git(dir, ["push", "--quiet", "--set-upstream", "origin", ws.branch], token);
   return withGit(ws);
+}
+
+/**
+ * Forks the repository again after the fork was deleted on GitHub: origin
+ * points at the new fork, what the old one had is forgotten, and the old
+ * pull request link goes (GitHub closes a pull request whose fork is
+ * deleted). The commits in the folder stay, ready to push.
+ */
+export async function refork(issueId: number): Promise<Workspace> {
+  const ws = known(issueId);
+  const dir = checkedPath(ws);
+  const token = pushToken();
+  const forked = await fork(token, ws.repository);
+  await git(dir, ["remote", "set-url", "origin", githubRemote(forked.fullName)]);
+  // A new fork can take a few seconds before it answers.
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await git(dir, ["fetch", "--quiet", "--prune", "origin"], token);
+      lastError = null;
+      break;
+    } catch (err) {
+      lastError = err;
+      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+    }
+  }
+  if (lastError) throw lastError;
+  const next: Workspace = {
+    ...ws,
+    fork: forked.fullName,
+    base: isValidBranch(forked.defaultBranch) ? forked.defaultBranch : ws.base,
+    pullRequestUrl: null,
+  };
+  putWorkspace(next);
+  return { ...(await withGit(next)), forkMissing: false };
 }
 
 /** Opens the pull request, as the person wrote it, once their commits are on the fork. */
@@ -245,5 +306,5 @@ export async function openPullRequest(issueId: number, input: unknown): Promise<
   const url = await createPullRequest(pushToken(), ws.repository, forkOwner, ws.branch, text.title, text.body);
   putWorkspace({ ...ws, pullRequestUrl: url });
   await shell.openExternal(url);
-  return { ...state, pullRequestUrl: url };
+  return { ...state, pullRequestUrl: url, pullRequestState: "open" };
 }

@@ -113,12 +113,15 @@ export function WorkspaceSteps({ ws: w, issue }: { ws: Workspace; issue: WorkIss
   const [prTitle, setPrTitle] = useState(issue.title);
   const [prBody, setPrBody] = useState("");
   const [closes, setCloses] = useState(false);
+  // A closed pull request can be followed by a new one.
+  const [another, setAnother] = useState(false);
 
   const update = (next: Workspace) => {
     queryClient.setQueryData(workspaceKey(issue.id), next);
     return queryClient.invalidateQueries({ queryKey: workspacesKey });
   };
   const refresh = useMutation({ mutationFn: () => call(desktop.workspace(issue.id)), onSuccess: (n) => n && update(n) });
+  const refork = useMutation({ mutationFn: () => call(desktop.refork(issue.id)), onSuccess: update });
   const commit = useMutation({
     mutationFn: () => call(desktop.commit(issue.id, { title: commitTitle, body: commitBody })),
     onSuccess: (n) => {
@@ -143,10 +146,12 @@ export function WorkspaceSteps({ ws: w, issue }: { ws: Workspace; issue: WorkIss
     },
   });
 
-  const failure = refresh.error ?? commit.error ?? push.error ?? pr.error ?? reveal.error ?? forget.error;
+  const failure = refork.error ?? refresh.error ?? commit.error ?? push.error ?? pr.error ?? reveal.error ?? forget.error;
   const dirty = w.changes.length > 0;
-  const canPush = !dirty && w.unpushed > 0;
-  const canOpenPr = !dirty && w.commits > 0 && w.unpushed === 0;
+  const canPush = !dirty && w.unpushed > 0 && !w.forkMissing;
+  const canOpenPr = !dirty && w.commits > 0 && w.unpushed === 0 && !w.forkMissing;
+  // An open or merged pull request is the end of the road; a closed one isn't.
+  const prDone = !!w.pullRequestUrl && w.pullRequestState !== "closed";
   const pushed = w.commits > 0 && w.unpushed === 0;
   const forkURL = `https://github.com/${w.fork}${pushed ? `/tree/${w.branch.split("/").map(encodeURIComponent).join("/")}` : ""}`;
 
@@ -179,6 +184,16 @@ export function WorkspaceSteps({ ws: w, issue }: { ws: Workspace; issue: WorkIss
         </div>
       </section>
 
+      {w.forkMissing && (
+        <section className={s.step} data-ui="work-fork" data-ui-state="missing">
+          <h3 className={s.stepTitle}>{t("work.fork.title")}</h3>
+          <p className={s.error} role="alert">{t("work.fork.body", { fork: w.fork })}</p>
+          <button type="button" className={s.button} onClick={() => refork.mutate()} disabled={refork.isPending}>
+            {refork.isPending ? t("work.fork.busy") : t("work.fork.again")}
+          </button>
+        </section>
+      )}
+
       <section className={s.step} data-ui="work-commit" data-ui-state={dirty ? "ready" : "idle"}>
         <h3 className={s.stepTitle}>{t("work.commit.title")}</h3>
         {dirty ? (
@@ -209,7 +224,9 @@ export function WorkspaceSteps({ ws: w, issue }: { ws: Workspace; issue: WorkIss
       <section className={s.step} data-ui="work-push" data-ui-state={canPush ? "ready" : "idle"}>
         <h3 className={s.stepTitle}>{t("work.push.title")}</h3>
         <p className={s.muted}>
-          {dirty
+          {w.forkMissing
+            ? t("work.push.noFork")
+            : dirty
             ? t("work.push.dirty")
             : w.commits === 0
               ? t("work.push.nothing")
@@ -224,12 +241,20 @@ export function WorkspaceSteps({ ws: w, issue }: { ws: Workspace; issue: WorkIss
         )}
       </section>
 
-      <section className={s.step} data-ui="work-pr" data-ui-state={w.pullRequestUrl ? "open" : canOpenPr ? "ready" : "idle"}>
+      <section className={s.step} data-ui="work-pr" data-ui-state={w.pullRequestUrl ? (w.pullRequestState ?? "open") : canOpenPr ? "ready" : "idle"}>
         <h3 className={s.stepTitle}>{t("work.pr.title")}</h3>
-        {w.pullRequestUrl ? (
+        {w.pullRequestUrl && (prDone || !another) ? (
           <>
-            <p className={s.muted}>{t("work.pr.opened")}</p>
-            <button type="button" className={s.button} onClick={() => void desktop.openExternal(w.pullRequestUrl!)}>{t("work.pr.goto")}</button>
+            <p className={w.pullRequestState === "closed" ? s.error : s.muted}>
+              {w.pullRequestState === "merged" ? t("work.pr.merged") : w.pullRequestState === "closed" ? t("work.pr.closed") : t("work.pr.opened")}
+            </p>
+            <div className={s.row}>
+              <button type="button" className={s.button} onClick={() => void desktop.openExternal(w.pullRequestUrl!)}>{t("work.pr.goto")}</button>
+              {w.pullRequestState === "closed" && (
+                <button type="button" className={s.link} onClick={() => setAnother(true)} disabled={!canOpenPr}>{t("work.pr.another")}</button>
+              )}
+            </div>
+            {w.pullRequestState === "closed" && !canOpenPr && <p className={s.muted}>{t("work.pr.needsPush")}</p>}
           </>
         ) : canOpenPr ? (
           <>
@@ -263,8 +288,11 @@ export function WorkspaceSteps({ ws: w, issue }: { ws: Workspace; issue: WorkIss
 }
 
 /** What's next for a workspace, in a few words: Working on's status line. */
-export function nextStep(w: Workspace): "missing" | "edit" | "commit" | "push" | "pr" | "open" {
+export function nextStep(w: Workspace): "missing" | "fork" | "edit" | "commit" | "push" | "pr" | "open" | "merged" | "closed" {
   if (w.problem) return "missing";
+  if (w.pullRequestUrl && w.pullRequestState === "merged") return "merged";
+  if (w.forkMissing) return "fork";
+  if (w.pullRequestUrl && w.pullRequestState === "closed") return "closed";
   if (w.pullRequestUrl) return "open";
   if (w.changes.length > 0) return "commit";
   if (w.unpushed > 0) return "push";

@@ -289,7 +289,13 @@
   background: color-mix(in srgb, var(--colors-success) 25%, var(--colors-surface));
 }
 
-.status[data-step="missing"] {
+.status[data-step="merged"] {
+  background: color-mix(in srgb, var(--colors-success) 40%, var(--colors-surface));
+}
+
+.status[data-step="missing"],
+.status[data-step="fork"],
+.status[data-step="closed"] {
   background: color-mix(in srgb, var(--colors-danger) 25%, var(--colors-surface));
 }
 
