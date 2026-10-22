@@ -1,9 +1,9 @@
 # Database reference
 
 Every table and column in production, what it means, where its value comes from, and how
-fresh it is. Checked against prod data on 2026-10-16 and updated for the schema at **migration 33** (the
-last migration in `backend/internal/migrate/migrations/`). Row counts below are from that
-date's prod data and will have moved.
+fresh it is. Every table and column matches the schema at **migration 65** (checked against a
+freshly migrated database on 2026-10-22). Row counts are from prod data on 2026-10-16 and will
+have moved.
 
 **Where values come from** — the single most useful thing to know when a number looks wrong:
 
@@ -45,6 +45,10 @@ every column is a **dataset snapshot**.
 | `eligibility_reason` | Why not eligible; `''` when eligible | import + crawl | `;`-separated: `is_fork`, `archived`, `no_issues`, `no_primary_language`, `stale`, `below_star_floor`, `excluded`, or `not_found` (crawler got NOT_FOUND from GitHub — deleted/renamed/private; never reset by a re-import, cleared when the Discovery Sweeper finds the repository again) or `duplicate` (another row holds this repository's GitHub id; never reset by a recompute or re-import). Prod today: 284,198 eligible, 2,203 `not_found`, 864 `stale`. |
 | `last_synced_at` | Last time the crawler finished a page for this repo | crawl | NULL = never crawled yet (52k on 2026-10-16; 0 since the first full crawl finished on 2026-10-17 — see `ingestion-architecture.md` §9). Freshness is due once this is older than `ingest.freshness_interval_seconds`. |
 | `issues_synced_through` | Watermark: every open/closed change up to here is in `issues` | crawl | The enqueue time of the last **completed** pass. The next pass fetches only changes after it. NULL = no pass completed; next one is a full crawl. |
+| `shuffle_key` | Random position in the shuffled feed and For you | ingestd | Redrawn every `ingest.catalog.shuffle_interval_seconds`. |
+| `tech` | Every language GitHub reports for the repository, lower-cased | generated from `languages` | The `tech` filter; GIN-indexed, with a larger statistics sample (00048). |
+| `contributing_url` | The repository's contributing guide | crawl | Only an https github.com page is kept; linked first on the issue page. |
+| `health_sampled` / `health_outside` / `health_median_merge_hours` | Of the last `ingest.health.sample` merged pull requests: how many were read, how many came from people who aren't OWNER/MEMBER/COLLABORATOR, and the median hours to merge | crawl | Turned into `welcoming`/`slow` per request against `api.health.*`. |
 | `github_database_id` | GitHub's numeric repository id | crawl / discovery | Stable across renames, unlike `full_name`; unique. Filled by the first page of every pass and by the Discovery Sweeper (migration 32). NULL = not seen by either yet. A row whose id another row already holds is the id-less twin of that repository and is marked `duplicate`. |
 
 ## issues — 5.5M rows
@@ -75,6 +79,7 @@ kept forever. Identity is `(repository_id, number)`.
 | `first_seen_at` | When **we** first stored it | crawl | Never changes. NULL for issues stored before migration 19 (2026-10-14). |
 | `last_synced_at` | When **we** last wrote GitHub data to it | crawl / on-demand | NULL for issues not re-fetched since migration 19. |
 | `search_vector` | Full-text index of title + labels | trigger | Maintained automatically. |
+| `assignees` | GitHub's assignee count | crawl / archive | A source that doesn't say keeps the stored value. NULL (not read since 00053) counts as unassigned for `?unassigned=true`. |
 
 ## ingest_jobs — the crawl queue
 
@@ -121,7 +126,7 @@ The shared GitHub API budget, read from GitHub's rate-limit replies.
 | Column | Meaning |
 |---|---|
 | `identity` | Which credential (server App installation / token) |
-| `lane` | `crawler` (ingestd) or `interactive` (reserved: nothing uses it since issue bodies and freshness moved to the clients) |
+| `lane` | `crawler` (the crawl, discovery, archive candidate lookups) or `interactive` (work a person is waiting on: the tracked-issue check, issue body fetches, the pull request/XP pass). Read as one counter; the crawler stops while `ingest.interactive_reserve_percent` is left |
 | `rate_limit` / `remaining` / `reset_at` | GitHub's primary rate limit for this lane |
 | `secondary_until` | Paused until this time after a secondary (abuse) rate limit |
 | `updated_at` | Last refresh |
@@ -137,6 +142,9 @@ One row per GitHub account. The server stores **no GitHub token of any kind**; t
 | `github_id` | GitHub's numeric user id (text, `NOT NULL`, unique). The only thing an account is matched on. |
 | `username` | GitHub login, display data only; NULL when another account has taken the name (unique, case-insensitive) |
 | `name` / `avatar_url` | From the GitHub profile |
+| `active_theme_id` / `active_preset` | The theme applied to the account: a stored theme, or a built-in by name; both NULL is the default |
+| `public_profile` | Opt-in (default false); gates `GET /users/{login}` and every leaderboard row |
+| `moderator` | May review reports in the app. Set only by an operator, in the database |
 | `created_at` | Sign-up time |
 
 ## auth_sessions
@@ -176,7 +184,7 @@ Written by the database (trigger `issues_notify_closed`), read by `GET /notifica
 |---|---|
 | `id` | |
 | `user_id` | Who to tell |
-| `kind` | `issue_closed` — an issue they saved closed |
+| `kind` | `issue_closed` (an issue they saved closed; `issue_id` set) or `pr_merged` (a merge paid XP; `pull_request_id` set) |
 | `issue_id` | → `issues.id` |
 | `created_at` | When it was raised (bumped if the issue reopens and closes again) |
 | `read_at` | When they marked it read; NULL = unread |
@@ -198,6 +206,24 @@ Live operational settings (`docs/settings.md`). `settings`: `key`, `value` (JSON
 Repositories that pass every threshold and are still never crawled (`full_name`, `reason`,
 `created_at`; unique on `lower(full_name)`). Applied by the eligibility recompute, the importer
 and job claiming. Add one with `INSERT INTO excluded_repositories (full_name, reason) VALUES (...)`.
+
+## Since migration 33
+
+**GH Archive** (00037). `archive_hours`: one row per hour, a leased and fenced queue like `ingest_jobs`: `hour`, `status` (`pending`/`running`/`done`/`missing`/`failed`), `attempts`, `next_retry_at`, `lease_owner`/`lease_expires_at`, `events_read`, `issues_applied`, `candidates_found`, `last_error`, `created_at`, `finished_at`. `repo_candidates`: repositories with issue activity that are not stored: `github_database_id`, `full_name`, `first_seen_hour`/`last_seen_hour`, `checked_at`, `outcome`.
+
+**Issue bodies** (00038). `issue_bodies`: `issue_id`, `body` (attacker-controlled; `metrics_ro` sees the bookkeeping columns only), `source`, `fetched_at`, `last_read_at`. Trimmed to `ingest.bodies.cache_max_mb`; a saved issue's body is never evicted.
+
+**Catalog counts and facets** (00041, 00043). `catalog_facets` (`kind`, `value`, `issues`): the filter dropdowns, recomputed by ingestd. `catalog_stat_deltas`: one row per repository a statement on `issues` touched (written by statement-level triggers, so granted to both services); folded by ingestd into `catalog_stats` (`key`, `value`, `since`, `updated_at`), `catalog_stats_daily` (`day`, `arrived`, `closed`) and `catalog_activity` (recent activity). `catalog_refresh` (`name`, `refreshed_at`) records when each periodic catalog job last ran, so a restart doesn't rerun it.
+
+**Themes** (00045). `user_themes`: `id`, `user_id`, `name`, `toml`, `css`, `public`, `created_at`, `updated_at`.
+
+**Reports** (00052). `reports`: `id`, `user_id`, `target_type` (`issue`/`repository`/`theme`), `target_id`, `reason`, `note`, `status`, `created_at`, `resolved_at`. One open report per person per target.
+
+**Pull requests and XP** (00057). `pull_requests`: each signed-up person's public pull requests to catalog repositories, with `state`, `merged_at`/`closed_at`, `author_association`, size, `checks`, `approvals`, `changes_requested` and `no_xp_reason`. `pull_request_issues` links them to the catalog issues they close. `pr_sync` is each person's tracking state (`synced_through` watermark, the pass in progress, `next_check_at`, `requested_at` for "Check now"). `xp_events` is the append-only ledger: `source`, `pull_request_id`, `key`, `amount`, `detail`, `earned_at`; unique per person, source and pull request.
+
+**Claims** (00058). `issue_claims`: `issue_id`, `user_id`, `claimed_at`, `expires_at`, `released_at`, `release_reason`. "Active" is one SQL predicate (`claim.active`).
+
+**Learning paths** (00059, 00062). `learning_paths` (`role`, `started_at`, `finished_at`, `abandoned_at`), `learning_path_steps` (`position`, `issue_id`, `difficulty`, `done_at`) and `learning_path_skips` (issues swapped out, never offered again on that path).
 
 ## import_skipped
 

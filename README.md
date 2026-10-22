@@ -1,78 +1,137 @@
 # SkillIssues
 
-> **You have the skills. We have the issues.**
+<p align="center">
+    <a href="https://skillissues.dizziedbliss.lol"><img width="160" alt="The SkillIssues mark: a ring with a red exclamation point" src="web/public/logo.png" /></a><br />
+    <a href="https://github.com/dizziedbliss/SkillIssues/releases/latest"><img src="https://img.shields.io/github/v/release/dizziedbliss/SkillIssues?label=desktop" alt="Latest desktop release"></a>
+    <a href="https://github.com/dizziedbliss/SkillIssues/actions/workflows/deploy.yml"><img src="https://github.com/dizziedbliss/SkillIssues/actions/workflows/deploy.yml/badge.svg" alt="Deploy status"></a>
+    <a href="https://github.com/dizziedbliss/SkillIssues/blob/main/backend/go.mod"><img src="https://img.shields.io/github/go-mod/go-version/dizziedbliss/SkillIssues?filename=backend%2Fgo.mod" alt="Go version"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/dizziedbliss/SkillIssues" alt="MIT license"></a>
+</p>
 
-SkillIssues collects open issues from real GitHub repositories, sorts them by difficulty,
-language and skills, and helps you go from "what should I work on?" to a merged pull request —
-with XP, levels and badges awarded only after GitHub confirms the merge.
+<p align="center"><strong>You have the skills. We have the issues.</strong><br />
+Open issues from active GitHub projects, matched to your languages, skills and level.<br />
+Pick one, fix it, get it merged, level up.</p>
 
-[Architecture](ARCHITECTURE.md) · [Contributing](CONTRIBUTING.md) · [API](docs/api.md) · [Settings](docs/settings.md) · [Code of Conduct](CODE_OF_CONDUCT.md)
+<p align="center"><img width="800" alt="Explore: beginner issues from real repositories, with their labels and languages" src=".github/assets/explore.png" /></p>
 
----
+## Why
 
-## What it does
+Tutorials teach you to code. Nothing teaches you to *develop*: read a stranger's codebase, find
+your way round an issue tracker, get a pull request merged by someone who doesn't know you.
+Meanwhile millions of open issues sit on GitHub waiting for exactly that person.
 
-- **Collects issues** from about 288k eligible public repositories (at least 25 stars, pushed
-  within two years) — open issues only, most recently updated first.
-- **Classifies difficulty from labels.** `good first issue`, `difficulty/easy`, `size/xs` and
-  similar become `BEGINNER`; medium and hard labels become `INTERMEDIATE` and `ADVANCED`. An
-  issue with no difficulty label is `UNCLASSIFIED` — unknown, not easy.
-- **Search and filter** by repository, title, language/technology and author. Search results
-  are balanced across those categories so one can't drown out the rest.
-- **Recommends issues** from your profile: preferred languages, skills, interests and target
-  level.
-- **Sets up a workspace** from the desktop app: forks with your own GitHub account, clones into
-  your workspace folder, creates a branch, pushes, and opens VS Code.
-- **Verifies the pull request** on GitHub — merged, and authored by you — before awarding XP.
+SkillIssues connects the two. It keeps every open issue of hundreds of thousands of active
+repositories fresh, works out which ones fit you, helps you set up a workspace, and pays you XP
+when GitHub says your fix was merged.
 
-### XP and levels
+## Features
 
-| Difficulty | Base XP |
-| :--- | ---: |
-| `BEGINNER` | 75 |
-| `INTERMEDIATE` | 140 |
-| `ADVANCED` | 250 |
+- **Every open issue, fresh:** ~8 million issues from every public repository with 25+ stars
+  pushed in the last two years, kept current from GitHub's own event stream
+- **For you:** a feed that weighs your languages, level and interests, how doable an issue is,
+  and how long it has waited. Every repository gets one slot, and stars never count
+- **Honest difficulty:** read from the repository's own labels (`good first issue`,
+  `difficulty/easy`, …). No label means *unknown*, never *easy*
+- **A beginner's checklist** on every issue: labelled, described, unassigned, no open pull
+  request already, recent, short discussion
+- **Search and filters:** by repository, title, language or tech, labels, topics and comment
+  count, with results balanced so one kind of match can't drown the rest
+- **XP for real merges only:** base XP by difficulty, bonuses for old issues and clean reviews,
+  levels, streaks, badges, quests and learning paths. Opening pull requests earns almost nothing,
+  so spamming maintainers gets you nowhere
+- **"I'm working on this":** claim an issue so other SkillIssues users leave it to you
+- **A desktop app** that forks, clones, branches, commits, pushes and opens the pull request
+  with your own GitHub account, then opens VS Code
+- **Themes:** twelve built-ins (Catppuccin, Dracula, Nord, Gruvbox, Tokyo Night, Rosé Pine…),
+  or write your own in TOML and share it
+- **Private by design:** the server never holds your GitHub token, not even encrypted. Public
+  profiles are opt-in
+- **Watch it run:** [SkillIssues Live](https://flow.dizziedbliss.lol) draws every request, query
+  and crawled page moving through the system, in real time, with anything of yours turned into
+  symbols
 
-Every merged PR adds **+25**, **+15** for your first or second merge in that repository, and
-**+10** if the issue spans more than one skill or technology — so a beginner issue can be worth
-up to 125. Levels get steadily more expensive: level 2 at 300 XP, 3 at 750, 4 at 1,350, 5 at
-2,100 (each level costs 150 more than the last). Badges: *First Blood* (1 merge), *Bug Wrangler*
-(3), *Touch Grass* (5), *Polyglot* (2 languages), *World Traveller* (2 repositories).
+## Get it
 
----
+**On the web:** [skillissues.dizziedbliss.lol](https://skillissues.dizziedbliss.lol). Browse
+without an account; sign in with GitHub to save issues, claim them and earn XP.
 
-## Repository layout
+**On the desktop:** download from [the download page](https://skillissues.dizziedbliss.lol/download)
+or [the latest release](https://github.com/dizziedbliss/SkillIssues/releases/latest). The app asks
+before it downloads an update, every time.
 
-```text
-SkillIssues/
-├── backend/        Go: cmd/{api,ingestd,flowd,migrate,repoimport,healthcheck}, internal/*
-│                   schema = backend/internal/migrate/migrations (goose, embedded)
-├── web/            React 19 + Vite + TypeScript web app
-├── desktop/        Electron 44 app (React + TypeScript renderer)
-├── packages/       shared npm workspaces: api-client, ui, markdown
-├── monitoring/     Prometheus config, Grafana provisioning and dashboards
-├── scripts/        deploy-remote.sh (run on the VPS), backup-db.sh
-├── systemd/        daily backup timer for the VPS
-├── benchmark/      Python v6 ingestion prototype and its benchmark data (historical)
-├── docs/           API reference, live settings, ingestion design
-├── compose.yaml        local stack (builds from source)
-├── compose.prod.yaml   production stack (pulls images from GHCR)
-├── Caddyfile           production reverse proxy / TLS
-└── Dockerfile          one file, targets: api, ingestd, flowd, migrate, web, repoimport
+<details>
+<summary><strong>Windows</strong></summary>
+
+Run `SkillIssues-Setup-<version>.exe`. It installs for you or for everyone on the machine, in the
+folder you choose.
+
+The installer isn't code-signed yet, so SmartScreen will warn about an unrecognised app. Choose
+**More info → Run anyway**.
+
+</details>
+
+<details>
+<summary><strong>macOS</strong></summary>
+
+Open the `.dmg` (Apple silicon) and drag SkillIssues to Applications.
+
+The app isn't signed, so the first time, right-click it and choose **Open**. Updates open the
+release page instead of installing themselves.
+
+</details>
+
+<details>
+<summary><strong>Linux</strong></summary>
+
+```bash
+chmod +x SkillIssues-*.AppImage
+./SkillIssues-*.AppImage
 ```
 
----
+Where your system has no keyring, the app keeps your sign-in in memory only and asks again each
+launch. It never writes a token to disk unencrypted.
 
-## Getting started
+</details>
 
-### Prerequisites
+> [!WARNING]
+> Side effects may include merged pull requests, maintainers who know your name, and an
+> uncontrollable urge to fix "just one more" `good first issue`. If symptoms persist, open
+> [a discussion](https://github.com/dizziedbliss/SkillIssues/discussions) and tell the rest of us.
 
-- Docker with Compose v2
-- Go 1.26, Node.js 22 and npm 11 (only for running services natively or working on the clients)
-- A GitHub token for `GITHUB_TOKEN` — the crawler only reads public data, so a token with no
-  scopes is enough
+## How it works
 
-### 1. Start the stack
+```mermaid
+flowchart LR
+    Kaggle[/"repository dataset"/] -->|repoimport| PG[("Postgres")]
+    Search[/"GitHub search"/] -->|discovery| Ingestd
+    Archive[/"GH Archive<br/>hourly events"/] --> Ingestd
+    GH["GitHub GraphQL"] <-->|crawl| Ingestd["ingestd"]
+    Ingestd --> PG
+    PG --> API["go-api"]
+    API --> Web["web · Vercel"]
+    API --> Desktop["desktop · Electron"]
+    Desktop -->|"fork, push, PR<br/>with your token"| GH
+```
+
+- **`ingestd`** keeps the catalog. Repositories come from a public dataset and from GitHub
+  search. Their open issues come from a crawl that commits each page together with its bookmark,
+  so a crash never skips one. Changes arrive from GH Archive's hourly event files, which cost no
+  API budget. Every eligible repository gets the same treatment: there's no priority queue for
+  big projects.
+- **`go-api`** serves the catalog in index order, so page 500 costs the same as page 1. It holds
+  no GitHub credential at all.
+- **The web app and the desktop app** run the same screens. Issue descriptions are read from
+  GitHub in your browser and rendered through a sanitiser, because anyone can write one.
+- **Every number** (page sizes, intervals, thresholds, XP amounts) is a live setting, changeable
+  on the running system.
+
+The full picture: [ARCHITECTURE.md](ARCHITECTURE.md) and
+[the ingestion design](docs/ingestion-architecture.md).
+
+## Run it yourself
+
+You need Docker with Compose v2, and a GitHub token for `GITHUB_TOKEN`. The crawler reads only
+public data, so a token with no scopes is enough.
 
 ```bash
 git clone https://github.com/dizziedbliss/SkillIssues.git
@@ -82,7 +141,10 @@ docker compose up -d --build
 docker compose ps             # migrate and metrics-role exit 0; everything else running
 ```
 
-### 2. Load repositories
+The `migrate` service applies the schema; nothing needs setting up by hand.
+
+<details>
+<summary><strong>Loading repositories</strong></summary>
 
 The catalog starts empty. Repositories come from the Kaggle dataset
 *github-repository-metadata-with-5-stars* (`repo_metadata.json`, ~3 GB). Put it at
@@ -94,10 +156,13 @@ DATABASE_URL=postgresql://skillissues:skillissues@localhost:5432/skillissues \
   go run ./cmd/repoimport --file ../data/repo_metadata.json
 ```
 
-Only eligible repositories are stored. A full pass takes about 16 minutes and is safe to re-run.
-`ingestd` then starts crawling their issues on its own.
+Only eligible repositories are stored. A full pass takes about 16 minutes and is safe to re-run;
+`ingestd` starts crawling their issues on its own.
 
-### 3. Open it
+</details>
+
+<details>
+<summary><strong>What runs where</strong></summary>
 
 | What | URL |
 |---|---|
@@ -105,43 +170,122 @@ Only eligible repositories are stored. A full pass takes about 16 minutes and is
 | API | http://localhost:8000 (`/health`, `/metrics`) |
 | ingestd | http://localhost:8002/sync/status |
 | flowd (live flow stream) | `curl -N 'http://localhost:8003/stream?format=ndjson'` |
-| Grafana | http://localhost:3000 — `admin` / `admin` unless `GRAFANA_ADMIN_PASSWORD` is set |
+| Grafana | http://localhost:3000 (`admin` / `admin` unless `GRAFANA_ADMIN_PASSWORD` is set) |
 | Prometheus | http://localhost:9090 |
 
 ```bash
 docker compose logs -f go-api ingestd
 ```
 
-### Desktop app
+</details>
+
+<details>
+<summary><strong>The desktop app, from source</strong></summary>
+
+You'll need Node.js 22 and npm 11. `web`, `desktop` and `packages/*` are one npm workspace with
+one lockfile, so install once, at the root:
 
 ```bash
-npm ci              # once, at the repo root — web, desktop and packages share one lockfile
+npm ci
 cd desktop
 npm run dev         # expects the API at http://localhost:8000
 ```
 
-### Checks (what CI runs)
+</details>
+
+<details>
+<summary><strong>The checks CI runs</strong></summary>
+
+Go 1.27 (what CI and the images use; `go.mod` needs 1.26 or later):
 
 ```bash
 cd backend && go vet ./... && gofmt -l . && go build ./... && go test -short ./...
 cd web && npm run typecheck && npm run build
-cd desktop && npm run check && npm run build
+cd desktop && npm run check && npm run build && npm test
 ```
 
-More detail — native (non-Docker) development, branch and commit conventions — is in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+The database tests run against a migrated Postgres when `TEST_DATABASE_URL` is set, and pass
+with Redis stopped.
 
----
+</details>
+
+## Configuration
+
+Three layers: bootstrap values and secrets come from the environment (`.env`), and **everything
+operational lives in the `settings` table**, validated by the database and changeable while the
+system runs:
+
+```bash
+# read everything
+curl localhost:8000/admin/config -H "Authorization: Bearer $ADMIN_SYNC_TOKEN"
+
+# give the crawler four workers, right now, no restart
+curl -XPUT localhost:8000/admin/config/ingest.routine_workers \
+     -H "Authorization: Bearer $ADMIN_SYNC_TOKEN" -d '{"value": 4}'
+```
+
+Every change is recorded in `settings_audit`. Every key, with its default and bounds:
+[docs/settings.md](docs/settings.md).
+
+> [!TIP]
+> `psql` works too, and hits the same validation trigger. That's handy when a bad value has made
+> the API itself unhealthy.
+
+## Themes
+
+A theme is a TOML file of design tokens, plus an optional stylesheet. Start from any built-in and
+change only what you name:
+
+```toml
+[meta]
+name = "Night shift"
+base = "tokyo-night"
+
+[colors]
+accent = "#ff7a59"
+
+[dark]
+background = "#0b0d14"
+```
+
+Write one in **Settings → Themes**: the editor checks it as you type and shows a live preview.
+Share it, and it appears in the Community tab. Stylesheets are checked against an allowlist on
+the server *and* in your browser, because a theme somebody shares is code running on your page.
+The full reference: [the themes guide](https://skillissues.dizziedbliss.lol/docs/themes).
+
+## Documentation
+
+| | |
+|---|---|
+| [Getting started](https://skillissues.dizziedbliss.lol/docs/getting-started) | Your first issue, from sign-in to merge |
+| [How XP works](https://skillissues.dizziedbliss.lol/docs/xp) | What earns XP, levels, streaks, badges, quests |
+| [For maintainers](https://skillissues.dizziedbliss.lol/maintainers) | How your repository gets listed, and how to ask for it not to be |
+| [Public API](https://skillissues.dizziedbliss.lol/docs/public-api) | Reading the catalog from your own code |
+| [docs/api.md](docs/api.md) | Every route, with its auth and responses |
+| [docs/database.md](docs/database.md) | Every table and column, and where its values come from |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | How the pieces fit |
 
 ## Contributing
 
-Bug reports, fixes, docs, tests and accessibility improvements are all welcome. Read
-[CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md), then open an
-issue or a pull request.
+Bug reports, fixes, docs, tests, translations and accessibility improvements are all welcome.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md), then open
+an issue (there's a form for each kind, including "my repository isn't indexed" and "exclude my
+repository") or a pull request.
 
-When reporting a bug, include what you expected, what happened, steps to reproduce, logs with
-secrets removed, and your OS and tool versions.
+Found a security problem? Please don't open an issue: use
+[private vulnerability reporting](https://github.com/dizziedbliss/SkillIssues/security/advisories/new).
+See [SECURITY.md](SECURITY.md).
+
+## Whatcha think?
+
+We'd love to hear from you. Ideas, questions, a theme you're proud of, your first merged pull
+request: bring them to [Discussions](https://github.com/dizziedbliss/SkillIssues/discussions).
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE)
+
+---
+
+<p align="center"><img width="40" alt="" src="web/public/logo.png" /><br />
+Made by <a href="https://github.com/dizziedbliss">dizziedbliss</a>. Go fix something.</p>
