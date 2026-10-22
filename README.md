@@ -1,7 +1,13 @@
-# SkillIssues
+<h1 align="center">
+    <a href="https://skillissues.dizziedbliss.lol">
+        <picture>
+            <source media="(prefers-color-scheme: dark)" srcset=".github/assets/wordmark-dark.png">
+            <img width="420" alt="SkillIssues" src=".github/assets/wordmark-light.png">
+        </picture>
+    </a>
+</h1>
 
 <p align="center">
-    <a href="https://skillissues.dizziedbliss.lol"><img width="160" alt="The SkillIssues mark: a ring with a red exclamation point" src="web/public/logo.png" /></a><br />
     <a href="https://github.com/dizziedbliss/SkillIssues/releases/latest"><img src="https://img.shields.io/github/v/release/dizziedbliss/SkillIssues?label=desktop" alt="Latest desktop release"></a>
     <a href="https://github.com/dizziedbliss/SkillIssues/actions/workflows/deploy.yml"><img src="https://github.com/dizziedbliss/SkillIssues/actions/workflows/deploy.yml/badge.svg" alt="Deploy status"></a>
     <a href="https://github.com/dizziedbliss/SkillIssues/blob/main/backend/go.mod"><img src="https://img.shields.io/github/go-mod/go-version/dizziedbliss/SkillIssues?filename=backend%2Fgo.mod" alt="Go version"></a>
@@ -287,5 +293,10 @@ request: bring them to [Discussions](https://github.com/dizziedbliss/SkillIssues
 
 ---
 
-<p align="center"><img width="40" alt="" src="web/public/logo.png" /><br />
-Made by <a href="https://github.com/dizziedbliss">dizziedbliss</a>. Go fix something.</p>
+<p align="center">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset=".github/assets/wordmark-dark.png">
+        <img width="160" alt="SkillIssues" src=".github/assets/wordmark-light.png">
+    </picture><br />
+    Made by <a href="https://github.com/dizziedbliss">dizziedbliss</a>. Go fix something.
+</p>
