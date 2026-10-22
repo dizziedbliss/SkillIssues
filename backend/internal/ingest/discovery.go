@@ -680,8 +680,8 @@ func (w *Worker) handleDiscoveryError(ctx context.Context, win DiscoveryWindow, 
 	snap := w.live()
 	backoff, attempts := snap.Seconds(settings.IngestBackoffBaseSeconds), snap.Int(settings.IngestMaxAttempts)
 
-	if strings.Contains(msg, "rate limit exceeded") || strings.Contains(msg, "HTTP 403") || strings.Contains(msg, "HTTP 429") {
-		until := time.Now().Add(snap.Seconds(settings.IngestRateLimitPauseSeconds))
+	if limited, retryAfter := github.IsRateLimited(err); limited {
+		until := time.Now().Add(rateLimitPause(snap, retryAfter))
 		if err := MarkSecondaryLimit(ctx, w.pool, LaneCrawler, installationIdentity, until); err != nil {
 			metrics.BudgetErrors.WithLabelValues("write", string(LaneCrawler)).Inc()
 			slog.Warn("failed to record secondary rate limit pause", "error", err)

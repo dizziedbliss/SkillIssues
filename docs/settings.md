@@ -102,7 +102,7 @@ readable through the endpoint above and copied into backups.
 | `ingest.claim_interval_seconds` | 5 | 1–300 | Coordinator cycle: enqueue, reclaim, claim, submit |
 | `ingest.lease_seconds` | 300 | 60–3600 | How long a claimed job may wait in a pool queue and run before it can be reclaimed |
 | `ingest.lease_reclaim_interval_seconds` | 60 | 5–3600 | How often expired leases are returned to `pending` |
-| `ingest.rate_limit_pause_seconds` | 60 | 5–3600 | Crawler pause after a GitHub rate limit; retry delay for a job released for budget |
+| `ingest.rate_limit_pause_seconds` | 60 | 5–3600 | Crawler pause after a GitHub rate limit (longer when GitHub's `Retry-After` or reset says so); retry delay for a job released for budget |
 | `ingest.discovery.enabled` | false | bool | Run the Discovery Sweeper (GitHub repository Search for repositories the dataset lacks) |
 | `ingest.discovery_workers` | 1 | 1–16 | Concurrent Discovery Sweeper workers (one search page each) |
 | `ingest.discovery.window_hours` | 24 | 1–720 | Pushed-date span of each window a new sweep starts with |

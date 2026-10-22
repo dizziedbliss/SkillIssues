@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/dizziedbliss/skillissues/internal/github"
@@ -59,9 +60,11 @@ func writeIssueTx(ctx context.Context, tx pgx.Tx, repoID int, issue github.Graph
 	if !issue.CreatedAt.IsZero() {
 		createdAt = &issue.CreatedAt
 	}
+	// updated_at is GitHub's, never ours: both sources refuse an issue
+	// without one, so this only guards a new caller from inventing one.
 	updatedAt := issue.UpdatedAt
 	if updatedAt.IsZero() {
-		updatedAt = time.Now().UTC()
+		return false, fmt.Errorf("ingest: issue #%d has no updatedAt from GitHub", issue.Number)
 	}
 
 	args := []any{
