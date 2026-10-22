@@ -14,7 +14,7 @@ curl -XPUT localhost:8000/admin/config/ingest.routine_workers \
      -H "Authorization: Bearer $ADMIN_SYNC_TOKEN" -d '{"value": 4}'
 ```
 
-In production the API is under `https://<domain>/api/…`. Secrets never go in this table — it is
+In production `/admin` is not on the internet (Caddy answers 404); reach it over ssh on the host. Secrets never go in this table — it is
 readable through the endpoint above and copied into backups.
 
 ## API

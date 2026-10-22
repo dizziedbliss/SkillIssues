@@ -39,9 +39,11 @@ works signed out, personalised when signed in; *none* = public; *admin* =
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET | `/issues` | optional | Browse or search (`?search=`, filters). Search is balanced across Repository (name contains the term), Title (full-text on title and labels), Language (exactly the term) and Author (login contains it); terms under 3 characters match Title and Language only |
+| GET | `/issues` | optional | Browse or search (`?search=`, filters). Search is balanced across Repository (the name contains the term), Title (full-text on title and labels) and Language (the main language is the term, or one of its tech is), interleaved rank by rank; authors are not searched. Terms under 3 characters skip Repository. `?category=repository\|title\|language` returns one category alone, paged on its own |
 | GET | `/issues/facets` | none | The filter dropdowns' values, most common first: `{"labels", "topics", "tech", "languages": [{"value", "issues"}], "refreshed_at"}`. Refreshed daily by ingestd |
 | GET | `/issues/{id}` | none | One issue |
+| GET | `/stats` | none | Live catalog counts (`catalog_stats`): open, closed since tracking began, arrived and closed today, indexed issues and repositories, signed-up developers, recent activity. Public to any origin, cached `api.stats.max_age_seconds` |
+| GET | `/repositories/lookup` | none | `?name=owner/repo`: whether it is indexed, how many open issues it has listed, and why not when it isn't |
 | GET | `/issues/{id}/body` | optional | The body fallback, for a client GitHub refused for its own rate limit: `{"body"}` from the cache, or fetched by ingestd. `202 {"status": "queued", "reason": "budget" \| "no-credential" \| "disabled"}` when it cannot be fetched now; `429` past `api.bodies.fallback_misses_per_hour` misses (cache hits are free); `503` when the cap cannot be counted |
 | GET | `/recommendations` | session | Issues ranked for the user's profile (`difficulty`, `page`, `limit`) |
 | GET | `/preferences/options` | none | Selectable languages/interests for the profile form |
@@ -95,6 +97,71 @@ for a failure.
 | GET | `/saved` | session | Saved issues (a closed issue stays listed) |
 | POST | `/saved` | session | Save an issue |
 | DELETE | `/saved/{id}` | session | Unsave |
+| GET | `/notifications` | session | Newest first, `api.notifications.page_size`; `?unread=true` for unread ones; `unread_count` always counts all. Written by database triggers (an issue you saved closed, a merge paid XP) |
+| POST | `/notifications/{id}/read` | session | Mark one read |
+| POST | `/notifications/read-all` | session | Mark every unread one read |
+
+## Claims ("I'm working on this")
+
+One active claim per issue, `api.claims.max_active` per person. A claim is active until released, or past `api.claims.days` only while the claimer has an open tracked pull request that closes the issue.
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/issues/{id}/claim` | optional | Whether the issue is claimed, and the caller's own claim on it (kept off `/issues/{id}` so that stays cacheable) |
+| POST | `/issues/{id}/claim` | session | Claim it: `201` with the claim (or your existing one); `404` no such issue; `409` closed, or someone else holds it; `422` past `api.claims.max_active` |
+| DELETE | `/issues/{id}/claim` | session | Release it; `404` when you hold none. Send a JSON body like any cookie-authenticated mutation |
+| GET | `/me/claims` | session | Your active claims with their issues |
+
+## Pull requests and XP
+
+ingestd reads each signed-up person's public pull requests with the server's credential; go-api only reads the result.
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/me/xp` | session | Level, streak, badges, per-language levels, latest XP events, quests, and where tracking of your pull requests stands. Computed from the ledger on read |
+| GET | `/me/pulls` | session | Your tracked pull requests to catalog repositories; `?state=open` for open ones |
+| POST | `/me/pulls/refresh` | session | "Check now": ingestd reads your pull requests on its next cycle. `202 {"next_allowed_at"}`, or `429` with `Retry-After` inside `api.prs.refresh_min_seconds` |
+
+## Learning paths
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/paths/roles` | none | The roles a path can be made of |
+| GET | `/me/path` | session | Your path in progress, or null |
+| POST | `/me/path` | session | Start one: `{"role"}`. `201`; `409` when one is in progress; `422` for an unknown role or when no open, unclaimed issues fit |
+| DELETE | `/me/path` | session | Give it up (JSON body); `404` when there is none |
+| POST | `/me/path/steps/{position}/swap` | session | Replace a step that isn't done; a swapped-out issue is never offered again on that path. `404` no such step, `409` it is done |
+
+## Public profiles and the leaderboard
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/users/{login}` | none | A public profile: level, earned badges, merges. A private or missing account is the same `404`. `no-store` |
+| GET | `/leaderboards` | none | `?period=month\|all&language=`: people with public profiles ranked by XP. `404` until `api.leaderboards.enabled` |
+
+## Themes
+
+A theme is TOML design tokens plus an optional stylesheet, validated against a fixed schema and a stylesheet allowlist (the authors' guide is `web/content/docs/themes.md`). Every response is `no-store`. Problems come back as `422 {"error", "problems": ["line 7: …"]}`.
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/themes/validate` | none | Dry run of `{"toml", "css"}`: `200 {"valid": true, "name"}` or `422` with every problem. Stores nothing |
+| GET | `/themes` | session | Your themes |
+| POST | `/themes` | session | Create `{"toml", "css", "public"}`: `201`; `409` past `api.themes.max_per_user`; larger than `api.themes.max_bytes` is refused |
+| GET | `/themes/public` | optional | The community listing: `?sort=popular\|newest`, `?search=`, `?page=` (`api.themes.public_page_size`). Themes reports have hidden are left out |
+| GET | `/themes/{id}` | optional | A theme, to its owner or to anyone once public |
+| PUT | `/themes/{id}` | session | Update your theme (same body as create) |
+| DELETE | `/themes/{id}` | session | Delete your theme |
+| GET | `/me/theme` | session | The theme applied to your account, or null |
+| PUT | `/me/theme` | session | Apply `{"id": "…"}` (yours or public), `{"preset": "nord"}` (a built-in as it is), or `{"id": null}` for the default |
+
+## Reports and moderation
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/reports` | session | Report `{"type": "issue"\|"repository"\|"theme", "id", "reason", "note"}`: `201`; `400` for an unknown type or reason; `404` nothing to report (or a theme that isn't public); `409` already reported; `429` past `api.reports.per_user_per_day`. A target reported by `api.reports.hide_after` people leaves every list until reviewed |
+| GET | `/moderation/reports` | session (moderator) | Targets with open reports, most reported first. `404` unless `users.moderator`, which only an operator sets |
+| POST | `/moderation/reports/resolve` | session (moderator) | `{"type", "id", "action": "uphold"\|"dismiss"}`. Upheld: a repository is excluded, a theme made private, an issue stays hidden. The hidden set is re-read at once |
 
 ## Webhooks and admin
 
@@ -104,6 +171,8 @@ for a failure.
 | POST | `/admin/sync/repository/{id}` | admin | Ask ingestd to crawl one repository now |
 | GET | `/admin/config` | admin | All live settings |
 | PUT | `/admin/config/{key}` | admin | Change a live setting — see [settings.md](settings.md) |
+| GET | `/admin/reports` | admin | The moderation queue, for operators |
+| POST | `/admin/reports/resolve` | admin | Same body and effect as `/moderation/reports/resolve` |
 
 ## ingestd (internal only, `:8002`)
 
