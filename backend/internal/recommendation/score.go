@@ -22,7 +22,7 @@ var TargetDifficultyMap = map[string]int{
 //
 // Formula:
 //
-//	Score = LangBoost (15) + TechBoost (8) + (SkillMatch * 2) + InterestMatch + DifficultyFit + Quality
+//	Score = LangBoost (15) + TechBoost (8) + (SkillMatch * 2) + InterestMatch + DifficultyFit
 //
 // Factors:
 //   - LangBoost: +15 if repository primary language matches user's preferred languages
@@ -30,7 +30,10 @@ var TargetDifficultyMap = map[string]int{
 //   - SkillMatch: Number of overlapping skills between user and issue (*2 weighting)
 //   - InterestMatch: Number of overlapping tags between user interests and issue learning tags
 //   - DifficultyFit: Proximity to user's target level: max(0, 5 - |difficulty_score - target|)
-//   - Quality: Tiered boost for popular repositories: min(3, stars / 25000 + 1)
+//
+// Stars never enter the score (the same rule as For you, and what the public
+// docs promise): ties keep the candidates' order, which comes off the
+// shuffled feed, so popular repositories get no head start.
 func ScoreCandidates(u *profile.FullProfile, candidates []issue.Issue, limit int) []issue.Issue {
 	if limit <= 0 {
 		limit = 3
@@ -174,15 +177,7 @@ func ScoreCandidates(u *profile.FullProfile, candidates []issue.Issue, limit int
 			difficultyFit = 0
 		}
 
-		quality := (item.Stars / 25000) + 1
-		if quality > 3 {
-			quality = 3
-		}
-		if quality < 1 {
-			quality = 1
-		}
-
-		item.RecommendationScore = langBoost + techBoost + skillMatch + interestMatch + difficultyFit + quality
+		item.RecommendationScore = langBoost + techBoost + skillMatch + interestMatch + difficultyFit
 
 		var why []string
 		if languageMatch {
