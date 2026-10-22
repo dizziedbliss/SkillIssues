@@ -198,7 +198,7 @@ func (c *Client) SearchRepositories(ctx context.Context, token, query string, fi
 		return nil, err
 	}
 	if len(raw.Errors) > 0 {
-		return nil, fmt.Errorf("github graphql: %s", raw.Errors[0].Message)
+		return nil, newGraphQLError(raw.Errors[0])
 	}
 	if raw.Data.Search == nil {
 		return nil, fmt.Errorf("github: search returned no result")

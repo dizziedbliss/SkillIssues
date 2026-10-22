@@ -53,7 +53,7 @@ func (c *Client) LookupRepositories(ctx context.Context, token string, names []s
 	}
 	for _, e := range rawResponse.Errors {
 		if e.Type != "NOT_FOUND" {
-			return nil, GraphQLRateLimit{}, fmt.Errorf("github graphql: %s", e.Message)
+			return nil, GraphQLRateLimit{}, newGraphQLError(e)
 		}
 	}
 

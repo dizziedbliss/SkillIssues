@@ -43,7 +43,7 @@ func (c *Client) FetchIssueBody(ctx context.Context, token string, ref IssueRef)
 	}
 	for _, e := range raw.Errors {
 		if e.Type != "NOT_FOUND" {
-			return IssueBody{}, GraphQLRateLimit{}, fmt.Errorf("github graphql: %s", e.Message)
+			return IssueBody{}, GraphQLRateLimit{}, newGraphQLError(e)
 		}
 	}
 	rl := raw.Data.RateLimit.parse()

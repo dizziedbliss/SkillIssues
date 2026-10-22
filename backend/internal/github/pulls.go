@@ -106,7 +106,7 @@ func (c *Client) FetchUserPullRequests(ctx context.Context, token string, qs []U
 	}
 	for _, e := range raw.Errors {
 		if e.Type != "NOT_FOUND" {
-			return nil, GraphQLRateLimit{}, fmt.Errorf("github graphql: %s", e.Message)
+			return nil, GraphQLRateLimit{}, newGraphQLError(e)
 		}
 	}
 	var rl rawRateLimit

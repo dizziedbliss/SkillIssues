@@ -73,9 +73,9 @@ func (w *Worker) FetchIssueBody(ctx context.Context, issueID int) (string, BodyO
 
 	got, rl, err := w.github.FetchIssueBody(ctx, token, github.IssueRef{Owner: owner, Name: name, Number: number})
 	if err != nil {
-		if strings.Contains(err.Error(), "rate limit exceeded") {
+		if limited, retryAfter := github.IsRateLimited(err); limited {
 			// As the crawl does: pause the credential rather than retry into it.
-			until := time.Now().Add(snap.Seconds(settings.IngestRateLimitPauseSeconds))
+			until := time.Now().Add(rateLimitPause(snap, retryAfter))
 			if err := MarkSecondaryLimit(ctx, w.pool, LaneInteractive, installationIdentity, until); err != nil {
 				metrics.BudgetErrors.WithLabelValues("write", string(LaneInteractive)).Inc()
 				slog.Warn("failed to record secondary rate limit pause", "error", err)

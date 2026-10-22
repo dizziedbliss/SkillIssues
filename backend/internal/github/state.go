@@ -60,7 +60,7 @@ func (c *Client) FetchIssueStates(ctx context.Context, token string, refs []Issu
 	}
 	for _, e := range rawResponse.Errors {
 		if e.Type != "NOT_FOUND" {
-			return nil, GraphQLRateLimit{}, fmt.Errorf("github graphql: %s", e.Message)
+			return nil, GraphQLRateLimit{}, newGraphQLError(e)
 		}
 	}
 
