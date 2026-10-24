@@ -1,10 +1,12 @@
 // Grafana Alloy: every container on this host, its logs into Loki
-// (monitoring/loki/loki.yml), labelled by compose service. It reads Docker's
-// API through the read-only socket, as cAdvisor reads its files; positions are
-// kept on the alloy_data volume, so a restart neither drops nor repeats lines.
+// (monitoring/loki/loki.yml), labelled by compose service, with IP addresses
+// removed. It reaches Docker only through docker-socket-proxy, which allows
+// listing containers and reading their logs and nothing that changes anything.
+// Positions are kept on the alloy_data volume, so a restart neither drops nor
+// repeats lines.
 
 discovery.docker "containers" {
-  host             = "unix:///var/run/docker.sock"
+  host             = "tcp://docker-socket-proxy:2375"
   refresh_interval = "30s"
 }
 
@@ -28,16 +30,32 @@ discovery.relabel "containers" {
 }
 
 loki.source.docker "containers" {
-  host          = "unix:///var/run/docker.sock"
+  host          = "tcp://docker-socket-proxy:2375"
   targets       = discovery.docker.containers.targets
   relabel_rules = discovery.relabel.containers.rules
   forward_to    = [loki.process.level.receiver]
 }
 
-// The Go services log JSON (log/slog): lift its level into a label, so errors
-// can be found and counted. Lines that aren't JSON (Postgres, Caddy's access
-// log) pass through unchanged.
 loki.process "level" {
+  // No IP address is kept: Loki holds logs for weeks, and the Privacy policy
+  // promises that logs with IP addresses go within days (Docker's own rotating
+  // json-file logs still have them). Caddy's access log carries the visitor's
+  // in client_ip, Cf-Connecting-Ip and X-Forwarded-For. Every IPv4 and IPv6
+  // address in any line becomes <ip>; times like 19:38:59 have no "::" and too
+  // few groups to match.
+  stage.replace {
+    expression = `\b((?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(?:\.(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3})\b`
+    replace    = "<ip>"
+  }
+
+  stage.replace {
+    expression = `((?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}|(?:[0-9A-Fa-f]{1,4}:){1,7}:(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,6})?)`
+    replace    = "<ip>"
+  }
+
+  // The Go services log JSON (log/slog): lift its level into a label, so
+  // errors can be found and counted. Lines that aren't JSON (Postgres, Caddy's
+  // access log) pass through unchanged.
   stage.json {
     expressions = { level = "level" }
   }
