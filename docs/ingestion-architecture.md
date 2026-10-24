@@ -97,7 +97,10 @@ As built (migration 00032, `internal/ingest/discovery.go`), with `ingest.discove
 - **Queue.** One search page per claim, with `FOR UPDATE SKIP LOCKED`, a lease, and every write
   fenced on `lease_owner`. Each page's repository writes commit together with its cursor. The
   sweep closes once no window is pending or running. It closes `failed` if any window failed,
-  and a failed sweep does not move the watermark.
+  and a failed sweep does not move the watermark. After `ingest.discovery.failed_retry_seconds`
+  (a day) it is reopened: its failed windows go back to pending with their attempts reset, so
+  only the ranges that failed are searched again. Without this a failed full sweep waited the
+  whole full interval, since the incremental sweep is off while the archive is current.
 - **Budget.** Discovery shares the `crawler` lane but checks it against
   `ingest.discovery.rate_limit_floor` (1,000), which is above the crawl's own floor, so
   discovery stops first when points run low. Both floors sit above the interactive reserve

@@ -72,7 +72,8 @@ var (
 func refreshDiscovery(ctx context.Context, pool *db.Pool) error {
 	counts := map[string]float64{}
 	err := pool.QueryRows(ctx,
-		`SELECT status, count(*) FROM discovery_windows GROUP BY 1`, nil,
+		`SELECT status, count(*) FROM discovery_windows
+		 WHERE sweep_id = (SELECT max(id) FROM discovery_sweeps) GROUP BY 1`, nil,
 		func(rows pgx.Rows) error {
 			var st string
 			var n int64
@@ -132,6 +133,18 @@ func refreshJobCounts(ctx context.Context, pool *db.Pool) error {
 			metrics.IngestJobs.WithLabelValues(jt, st).Set(counts[[2]string{jt, st}])
 		}
 	}
+
+	// Pending jobs ClaimJobs skips because their repository is not eligible:
+	// they wait, and run if it qualifies again, so they are not work due.
+	var parked int64
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM ingest_jobs j JOIN repositories r ON r.id = j.repository_id
+		 WHERE j.status = 'pending' AND NOT r.is_eligible`, nil,
+		func(row pgx.Row) error { return row.Scan(&parked) },
+	); err != nil {
+		return fmt.Errorf("ingest: count parked jobs: %w", err)
+	}
+	metrics.IngestJobsParked.Set(float64(parked))
 	return nil
 }
 

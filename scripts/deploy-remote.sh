@@ -125,5 +125,17 @@ if [ -z "$healthy" ]; then
 fi
 
 echo "go-api is healthy."
-docker image prune -f
+# Every deploy pulls new sha- tags, and a tagged image is never "dangling", so
+# plain `image prune` left every old release on disk (457 images, ~8 GB on a
+# 40 GB host). -a removes unused images older than the cutoff; an image a
+# container runs is never removed, and a rollback pulls and verifies its tag
+# from GHCR again. A failed prune doesn't undo a good deploy, but it says so.
+prune_after="${IMAGE_PRUNE_AFTER_HOURS:-72}"
+if ! [[ "$prune_after" =~ ^[0-9]+$ ]]; then
+	echo "IMAGE_PRUNE_AFTER_HOURS must be a whole number of hours, got: ${prune_after}" >&2
+	exit 1
+fi
+if ! docker image prune -af --filter "until=${prune_after}h"; then
+	echo "WARNING: pruning images older than ${prune_after}h failed; disk use will grow until it succeeds." >&2
+fi
 echo "Deploy of ${IMAGE_TAG} complete."

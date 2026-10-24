@@ -25,3 +25,13 @@ datasources:
       maxOpenConns: 4
     secureJsonData:
       password: ${METRICS_DB_PASSWORD}
+
+  # Every container's logs, shipped by Alloy (monitoring/alloy/config.alloy).
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      maxLines: 1000

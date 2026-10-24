@@ -525,3 +525,61 @@ func TestStartSweep(t *testing.T) {
 		t.Fatalf("second sweep while one runs: err = %v, want ErrSweepRunning", err)
 	}
 }
+
+// A sweep that ended failed is reopened once ingest.discovery.failed_retry_seconds
+// has passed: only its failed windows go back to pending, with their attempts
+// reset, and never while another sweep runs.
+func TestRetryFailedSweep(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	now := time.Now()
+	read := func(q string, id int64) (status string, attempts int) {
+		t.Helper()
+		if err := pool.QueryRow(ctx, q, []any{id}, func(row pgx.Row) error { return row.Scan(&status, &attempts) }); err != nil {
+			t.Fatal(err)
+		}
+		return status, attempts
+	}
+
+	sweepID, failedWin := testSweep(t, pool, now.Add(-2*time.Hour), now.Add(-time.Hour))
+	var doneWin int64
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO discovery_windows (sweep_id, pushed_from, pushed_to, status, next_retry_at)
+		 VALUES ($1, $2, $3, 'done', now()) RETURNING id`,
+		[]any{sweepID, now.Add(-time.Hour), now}, func(row pgx.Row) error { return row.Scan(&doneWin) },
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.Exec(ctx,
+		`UPDATE discovery_windows SET status = 'failed', attempt_count = 3, last_error_class = 'fetch_error' WHERE id = $1`, failedWin); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.Exec(ctx,
+		`UPDATE discovery_sweeps SET status = 'failed', completed_at = now() - interval '2 hours' WHERE id = $1`, sweepID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Not yet: it failed two hours ago and the retry waits three.
+	if id, err := RetryFailedSweep(ctx, pool, 3*time.Hour); err != nil || id != 0 {
+		t.Fatalf("before the retry interval: id = %d, err = %v; want 0, nil", id, err)
+	}
+
+	id, err := RetryFailedSweep(ctx, pool, time.Hour)
+	if err != nil || id != sweepID {
+		t.Fatalf("after the retry interval: id = %d, err = %v; want %d", id, err, sweepID)
+	}
+	if s, _ := read(`SELECT status, 0 FROM discovery_sweeps WHERE id = $1`, sweepID); s != "running" {
+		t.Fatalf("sweep = %s, want running", s)
+	}
+	if s, n := read(`SELECT status, attempt_count FROM discovery_windows WHERE id = $1`, failedWin); s != "pending" || n != 0 {
+		t.Fatalf("failed window = %s after %d attempts, want pending after 0", s, n)
+	}
+	if s, _ := read(`SELECT status, attempt_count FROM discovery_windows WHERE id = $1`, doneWin); s != "done" {
+		t.Fatalf("done window = %s, want left done", s)
+	}
+
+	// It is running again, so a second call finds nothing to reopen.
+	if id, err := RetryFailedSweep(ctx, pool, time.Hour); err != nil || id != 0 {
+		t.Fatalf("while it runs: id = %d, err = %v; want 0, nil", id, err)
+	}
+}
