@@ -21,7 +21,10 @@ common:
 
 schema_config:
   configs:
-    - from: 2026-10-24
+    # Well before any log: Alloy first reads each container's whole json-file
+    # history, and a line older than the first period has no schema, so Loki
+    # refused (500) the batch holding it and every newer line with it.
+    - from: 2024-01-01
       store: tsdb
       object_store: filesystem
       schema: v13

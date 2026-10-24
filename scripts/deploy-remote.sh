@@ -101,6 +101,11 @@ done
 # non-zero exit fails the deploy so the error is seen.
 "${COMPOSE[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 "${COMPOSE[@]}" kill -s SIGHUP prometheus
+# Loki and Alloy read their config files only at start, and have no reload
+# signal compose can send; restart them so a changed loki.yml or config.alloy
+# applies. Logs wait in Docker meanwhile, and Alloy resumes from its saved
+# positions, so nothing is lost.
+"${COMPOSE[@]}" restart loki alloy
 
 # Wait for go-api to report healthy before declaring success — a container
 # that's merely "Up" may still be failing its startup DB/Redis connection.
