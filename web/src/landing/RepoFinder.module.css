@@ -1,0 +1,173 @@
+/* The repository finder: the issue finder's box (IssueFinder.module.css), a text box, rows. */
+
+.grow {
+  flex: 1 1 22rem;
+}
+
+.input {
+  padding: 0.65em 0.8em 0.6em;
+  border: 1px solid var(--hair);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.input::placeholder {
+  color: var(--quiet);
+}
+
+.input:focus-visible,
+.row:focus-visible,
+.button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.list {
+  list-style: none;
+  border-top: 1px solid var(--hair);
+}
+
+.list li {
+  animation: rise var(--slow) var(--ease) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.25rem 1rem;
+  padding: 0.9rem 0.5rem;
+  border-bottom: 1px solid var(--hair);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background-color var(--slow) var(--ease);
+}
+
+.row:hover {
+  background: var(--wash);
+}
+
+.name {
+  font-family: var(--serif);
+  font-size: 1.5rem;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.lang {
+  align-self: center;
+  font-size: var(--label-size);
+  color: var(--quiet);
+}
+
+.desc {
+  grid-column: 1 / -1;
+  font-size: var(--label-size);
+  line-height: 1.5;
+  color: var(--quiet);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.verdict {
+  animation: rise var(--slow) var(--ease) both;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: var(--serif);
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 2.1rem);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+/* A square, like the background's cells: green listed, red not. */
+.mark {
+  flex: none;
+  width: 0.55em;
+  height: 0.55em;
+}
+
+.yes {
+  background: var(--closed);
+}
+
+.no {
+  background: var(--signal);
+}
+
+.why {
+  margin-top: 0.6rem;
+  max-width: var(--measure);
+  font-size: var(--body-size);
+  line-height: var(--body-leading);
+}
+
+/* The way forward: a red button, then quieter links. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  margin-top: 1.25rem;
+}
+
+.actions .button {
+  margin-top: 0;
+}
+
+.actions a:not(.button) {
+  color: var(--ink);
+  font-size: 1rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.button {
+  display: inline-block;
+  margin-top: 1.25rem;
+  padding: 0.7em 1.1em 0.65em;
+  background: var(--signal);
+  color: var(--on-signal);
+  font-size: 1rem;
+  text-decoration: none;
+  transition:
+    background-color var(--slow) var(--ease),
+    color var(--slow) var(--ease);
+}
+
+.button:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+@media (max-width: 520px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .list li,
+  .verdict {
+    animation: none;
+  }
+
+  .row,
+  .button {
+    transition: none;
+  }
+}

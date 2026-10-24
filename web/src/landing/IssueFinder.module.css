@@ -1,0 +1,231 @@
+/* The hero's issue finder: two choices, a red button, three cards. */
+
+.finder {
+  margin-top: clamp(3rem, 6vw, 5rem);
+  padding: clamp(1.25rem, 3vw, 2.25rem);
+  border: 1px solid var(--hair);
+  background: var(--paper);
+}
+
+.title {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(1.9rem, 1.2rem + 2vw, 2.9rem);
+  line-height: 1.05;
+  letter-spacing: var(--h-track);
+}
+
+.lede {
+  margin-top: 0.5rem;
+  font-size: var(--body-size);
+  line-height: var(--body-leading);
+  color: var(--quiet);
+}
+
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: min(100%, 14rem);
+}
+
+.label {
+  font-size: var(--label-size);
+}
+
+.select {
+  appearance: none;
+  padding: 0.65em 2.4em 0.6em 0.8em;
+  border: 1px solid var(--hair);
+  border-radius: 0;
+  /* A plain chevron drawn in the ink colour. */
+  background:
+    linear-gradient(45deg, transparent 50%, var(--ink) 50%) calc(100% - 1.15em) 55% / 0.4em 0.4em no-repeat,
+    linear-gradient(135deg, var(--ink) 50%, transparent 50%) calc(100% - 0.75em) 55% / 0.4em 0.4em no-repeat,
+    var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.select:focus-visible,
+.go:focus-visible,
+.card:focus-visible,
+.retry:focus-visible,
+.more:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.go {
+  padding: 0.7em 1.4em 0.65em;
+  border: 0;
+  background: var(--signal);
+  color: var(--on-signal);
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+  transition:
+    background-color var(--slow) var(--ease),
+    color var(--slow) var(--ease),
+    transform var(--fast) var(--ease);
+}
+
+.go:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.go:active {
+  transform: translateY(1px) scale(0.985);
+}
+
+.results {
+  margin-top: 1.75rem;
+}
+
+.note {
+  font-size: var(--body-size);
+}
+
+.retry {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  list-style: none;
+}
+
+.cards li {
+  display: flex;
+  /* Each card rises in, one after another. */
+  animation: rise var(--slow) var(--ease) both;
+}
+
+.cards li:nth-child(2) {
+  animation-delay: 80ms;
+}
+
+.cards li:nth-child(3) {
+  animation-delay: 160ms;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 1.1rem 1.1rem 1rem;
+  border: 1px solid var(--hair);
+  background: var(--paper);
+  color: var(--ink);
+  text-decoration: none;
+  transition:
+    background-color var(--slow) var(--ease),
+    transform var(--fast) var(--ease);
+}
+
+.card:hover {
+  background: var(--wash);
+}
+
+.card:active {
+  transform: translateY(1px);
+}
+
+.repo {
+  font-size: var(--label-size);
+  color: var(--quiet);
+  overflow-wrap: anywhere;
+}
+
+.issueTitle {
+  flex: 1;
+  font-family: var(--serif);
+  font-size: 1.5rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  font-size: var(--label-size);
+}
+
+.after {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1.25rem;
+  margin-top: 1.25rem;
+}
+
+.more {
+  color: var(--ink);
+  font-size: 1rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.aside {
+  font-size: var(--label-size);
+  color: var(--quiet);
+}
+
+@media (max-width: 860px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cards li {
+    animation: none;
+  }
+
+  .go,
+  .card {
+    transition: none;
+  }
+}
+
+.go:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.go:disabled:hover {
+  background: var(--signal);
+  color: var(--on-signal);
+}
+
+/* Under the form: a note about the choices themselves. */
+.form + .aside {
+  margin-top: 0.75rem;
+}

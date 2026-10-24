@@ -5,17 +5,21 @@
  * copy or 14px for labels, and scale up fluidly on wider screens.
  */
 .page {
-  --ink: #000000;
-  --paper: #ffffff;
-  --signal: #ff0000;
-  --closed: #5ac800;
-  --quiet: #595959;          /* 7:1 on white */
-  --hair: #000000;
-  --wash: #f2f2f2;           /* code and quiet panels */
+  /* The palette, light or dark: the site's brand colours (styles/base.css). */
+  --ink: var(--brand-ink);
+  --paper: var(--brand-paper);
+  --signal: var(--brand-signal);
+  --on-signal: var(--brand-on-signal);
+  --closed: var(--brand-closed);
+  --quiet: var(--brand-quiet);
+  --hair: var(--brand-hair);
+  --wash: var(--brand-wash);
 
   --serif: "Instrument Serif", "Times New Roman", serif;
   --mono: "JetBrains Mono", ui-monospace, monospace;
   --logo: "Krona One", sans-serif;
+  /* Long reading (docs, legal pages): a proportional face reads faster than mono over many lines. */
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
 
   --gutter: clamp(16px, 4vw, 64px);
   --container: 84rem;        /* the zig-zag's frame, equal margins either side */
@@ -33,6 +37,9 @@
   --body-size: clamp(1rem, 0.92rem + 0.25vw, 1.125rem);
   --body-leading: 1.6;
   --body-track: 0;
+  --prose-size: clamp(1.0625rem, 1rem + 0.2vw, 1.1875rem);
+  --prose-leading: 1.7;
+  --prose-measure: 40rem;    /* about 70 characters of Inter */
   --label-size: 0.875rem;
   --button-size: 0.9375rem;
 
@@ -44,14 +51,10 @@
 }
 
 /*
- * The same page, dark: black paper, white ink, the same red. Chosen with the
- * footer's theme button (lib/siteMode.ts); still locked, never a user theme.
+ * The same page, dark: the brand colours switch with html[data-mode]
+ * (styles/base.css), chosen with the footer's theme button (lib/siteMode.ts);
+ * still locked, never a user theme.
  */
 :global(html[data-mode="dark"]) .page {
-  --ink: #ffffff;
-  --paper: #000000;
-  --quiet: #a6a6a6;          /* 8:1 on black */
-  --hair: #ffffff;
-  --wash: #161616;
   color-scheme: dark;
 }
