@@ -3,7 +3,7 @@ title: Privacy policy
 slug: /privacy
 section: Legal & Trust
 summary: What SkillIssues collects, why, and what it doesn't collect.
-updated: 2026-10-21
+updated: 2026-10-25
 ---
 
 ## Who is responsible
@@ -106,8 +106,9 @@ Data is stored in a database on a server in Sydney, Australia. Because Vercel, C
 | Account, profile, preferences, saved issues, themes, notifications, reports, the pull requests we track, XP, claims, learning paths | Until you delete your account |
 | Sessions | 7 days by default, or until you sign out |
 | Access logs (include IP addresses) | Until newer logs replace them (they rotate by size), usually within a few days |
+| Service logs | 14 days, with every IP address removed before they are stored |
 | Rate-limit counters | Within the rate-limit window (an hour by default) |
-| Encrypted backups | 14 days, then deleted. Backups are encrypted and kept on the server. Your data can remain in a backup for that time after you delete it from the live database |
+| Encrypted backups | 3 days, then deleted. Backups are encrypted and kept on the server. Your data can remain in a backup for that time after you delete it from the live database |
 
 ## Your rights
 

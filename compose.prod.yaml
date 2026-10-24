@@ -31,6 +31,11 @@ networks:
         # guess — Docker's default bridge gets a subnet assigned at
         # creation time that this file can't know in advance.
         - subnet: 172.28.0.0/24
+  # The Docker API, through docker-socket-proxy: only it and Alloy are on this
+  # network, and it has no route out. Nothing else can reach Docker.
+  docker-api:
+    name: skillissues_docker_api
+    internal: true
 
 services:
   postgres:
@@ -394,6 +399,27 @@ services:
       - ./monitoring/loki/loki.yml:/etc/loki/loki.yml:ro
       - loki_data:/loki
 
+  # The only thing holding the Docker socket for the log pipeline. A socket
+  # mounted :ro still answers every API call (":ro" only stops the file being
+  # replaced), which is root on the host; this proxy forwards GETs for listing
+  # containers and networks and reading logs, and refuses everything else
+  # (POST is off: no create, exec, start or delete).
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
+    restart: unless-stopped
+    mem_limit: ${SOCKET_PROXY_MEM_LIMIT:-48m}
+    cpus: ${SOCKET_PROXY_CPUS:-0.1}
+    logging: *default-logging
+    environment:
+      CONTAINERS: 1   # list containers, inspect them, read their logs
+      NETWORKS: 1     # Alloy's discovery labels containers by network
+      EVENTS: 1
+      POST: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - docker-api
+
   alloy:
     image: grafana/alloy:v1.20.1@sha256:2aa2099af76c0098d4af7a4d6e48f86cb66dc1a000222ad927a1c67c6542d13f
     restart: unless-stopped
@@ -411,11 +437,14 @@ services:
       GOMEMLIMIT: ${ALLOY_GOMEMLIMIT:-150MiB}
     volumes:
       - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
-      # Read-only: it lists containers and follows their logs, nothing else.
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - alloy_data:/var/lib/alloy/data
+    # default: Loki and Prometheus; docker-api: the proxy, never the socket.
+    networks:
+      - default
+      - docker-api
     depends_on:
       - loki
+      - docker-socket-proxy
 
   # Host network so it reports the real NIC; listens only on this compose
   # network's gateway (fixed subnet above), never on the public interface.
