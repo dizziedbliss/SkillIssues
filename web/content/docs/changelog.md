@@ -4,7 +4,7 @@ slug: /docs/changelog
 section: SkillIssues
 summary: Where releases are published, and a summary of the notable changes made recently.
 draft: false
-updated: 2026-10-21
+updated: 2026-10-24
 ---
 
 ## Releases
@@ -14,6 +14,15 @@ Desktop builds and release notes are published on the [GitHub releases page](htt
 The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/SkillIssues/blob/main/CHANGELOG.md) in the repository. This page summarises the parts you are most likely to notice.
 
 ## October 2026
+
+### A new home page and calmer colours, 24 October
+
+- **The Backlog Clock.** The home page opens on every open issue in the catalog as one live number, what arrived and closed today, and the closed-against-open bar.
+- **Find your issue in ten seconds.** Pick a language and a level and get three of today's picks, one per repository and nobody assigned, with no account.
+- **Got a project in mind?** Search the catalog's repositories by name, or paste `owner/name` or a GitHub link to see whether it's listed and, if not, why. When it isn't there, **Ask us to add it** opens the repository form with the details filled in. See [Suggest a repository](/docs/suggest-a-repository).
+- **Warm paper and ink.** The site and the Default and Midnight themes moved off pure white and black, with a red set per mode so every text pairing passes WCAG AA.
+- **Easier reading.** These docs and the legal pages set their text in a proportional face, larger and with a shorter line, and lists show their bullets again.
+- **A living background**: a quiet grid where issues light up as they arrive and close, in today's real proportions.
 
 ### For you, 21 October
 

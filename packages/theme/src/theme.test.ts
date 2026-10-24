@@ -41,7 +41,7 @@ test("a theme compiles over its base preset", () => {
   const r = compileTheme({ toml: '[meta]\nbase = "midnight"\n[colors]\naccent = "#2b6bff"\n', css: "" });
   assert.ok(r.ok);
   assert.match(r.value.declarations, /--colors-accent: #2b6bff;/);
-  assert.match(r.value.declarations, /--colors-background: #0a0a0c;/); // from midnight
+  assert.match(r.value.declarations, /--colors-background: #0f0e0d;/); // from midnight
   assert.match(r.value.declarations, /--typography-heading-font: "Instrument Serif"/); // from default
 });
 

@@ -5,7 +5,9 @@ Each release's notes are the section under its version. The release workflow
 refuses to build a tag that has none; the app shows the same notes when an
 update is available, and once after it installs.
 
-## 1.2.2
+## 1.3.0
+
+**Easier on the eyes.** The Default and Midnight themes moved from pure white and pure black to warm paper and ink, with softer lines. The red is still fully saturated, now set for each mode so text on it and in it is easy to read: every pairing passes WCAG AA. Your own themes are unchanged; ones built on Default or Midnight pick up the new colours for anything they don't set.
 
 **The installer shows the wordmark alone.** The mark stays the app's icon, nothing more.
 

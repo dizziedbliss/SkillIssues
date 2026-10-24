@@ -46,24 +46,24 @@
 }
 
 .closedCount {
-  color: var(--closed, var(--colors-success, #1a7f37));
+  color: var(--closed, var(--colors-success, var(--brand-closed)));
 }
 
 .openCount {
-  color: var(--signal, #ff0000);
+  color: var(--signal, var(--brand-signal));
 }
 
 .track {
   position: relative;
   width: 4.5rem;
   height: 0.55rem;
-  background: var(--signal, #ff0000);
+  background: var(--signal, var(--brand-signal));
 }
 
 .closed {
   position: absolute;
   inset: 0 auto 0 0;
-  background: var(--closed, var(--colors-success, #1a7f37));
+  background: var(--closed, var(--colors-success, var(--brand-closed)));
   transition: width 9.5s linear;
 }
 
