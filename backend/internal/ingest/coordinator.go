@@ -360,10 +360,23 @@ func (c *Coordinator) completeSweeps() {
 	}
 }
 
-// scheduleDiscovery starts a full or incremental sweep when one is due. While
-// the archive is current its candidates find newly active repositories, so
-// only the full sweep runs, as a backstop.
+// scheduleDiscovery reopens a failed sweep once
+// ingest.discovery.failed_retry_seconds has passed, or starts a full or
+// incremental sweep when one is due. While the archive is current its
+// candidates find newly active repositories, so only the full sweep runs, as
+// a backstop.
 func (c *Coordinator) scheduleDiscovery(snap *settings.Snapshot, archiveCurrent bool) {
+	reopened, err := RetryFailedSweep(c.ctx, c.pool, snap.Seconds(settings.IngestDiscoveryFailedRetrySeconds))
+	if err != nil {
+		metrics.IngestCycleErrors.WithLabelValues("discovery_retry").Inc()
+		slog.Warn("failed to reopen a failed discovery sweep", "error", err)
+		return
+	}
+	if reopened != 0 {
+		slog.Info("discovery sweep reopened: retrying its failed windows", "sweep_id", reopened)
+		return
+	}
+
 	incremental := snap.Seconds(settings.IngestDiscoveryIncrementalIntervalSeconds)
 	if archiveCurrent {
 		incremental = 0

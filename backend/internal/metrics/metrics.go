@@ -149,6 +149,11 @@ var (
 		Help: "Rows in ingest_jobs by job type and status, as of the last refresh.",
 	}, []string{"job_type", "status"})
 
+	IngestJobsParked = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "ingest_jobs_parked",
+		Help: "Pending ingest jobs of repositories that are not eligible: never claimed, and run if the repository qualifies again. Not work due.",
+	})
+
 	IngestStuckLeases = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "ingest_stuck_leases",
 		Help: "Running jobs whose lease has expired and not yet been reclaimed.",
@@ -211,7 +216,7 @@ var (
 
 	DiscoveryWindows = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "discovery_windows",
-		Help: "Rows in discovery_windows by status, as of the last refresh.",
+		Help: "Windows of the latest discovery sweep by status, as of the last refresh.",
 	}, []string{"status"})
 
 	DiscoveryLastSweepCompleted = prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -321,7 +326,7 @@ func RegisterFlowd() {
 func RegisterIngest() {
 	Registry.MustRegister(
 		IngestJobOutcomes, IngestIssuesUpserted, IngestIssuesClosed, IngestIssuesPruned, IngestCycleErrors,
-		IngestJobs, IngestStuckLeases, IngestLeasesReclaimed, IngestDBSizeBytes, IngestPaused, RepositoriesEligible,
+		IngestJobs, IngestJobsParked, IngestStuckLeases, IngestLeasesReclaimed, IngestDBSizeBytes, IngestPaused, RepositoriesEligible,
 		GitHubBudgetRemaining, GitHubBudgetLimit, GitHubBudgetResetSeconds, GitHubSecondaryPaused,
 		WorkerPool, BudgetErrors,
 		DiscoveryWindowOutcomes, DiscoveryRepositories, DiscoveryWindowsTruncated, DiscoveryWindows,

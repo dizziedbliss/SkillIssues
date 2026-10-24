@@ -438,7 +438,8 @@ took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
   used as a database, a public archive. A listed repository is ineligible (`excluded` in
   `eligibility_reason`): `ingest.RecomputeEligibility` applies the list, `cmd/repoimport`
   checks it before `eligible()` so a re-import cannot store one, and `ClaimJobs` only claims
-  jobs of eligible repositories, so a job queued earlier does not run. The coordinator also
+  jobs of eligible repositories, so a job queued earlier does not run: it stays `pending`
+  (parked, `ingest_jobs_parked`), and runs if the repository qualifies again. The coordinator also
   deletes the stored issues of excluded, **archived** and `duplicate` repositories (never ones a user saved)
   on the closed-issue prune interval. Add one with
   `INSERT INTO excluded_repositories (full_name, reason) VALUES ('owner/name', 'why')`.
@@ -459,7 +460,10 @@ took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
   window over GitHub's 1,000-result search cap is replaced by its halves down to
   `ingest.discovery.min_window_seconds`. Windows (`discovery_windows`) are a leased, fenced queue
   like `ingest_jobs`; a sweep with a failed window ends `failed` and does not advance the
-  watermark. Discovery checks the shared `crawler` budget against its own, higher
+  watermark, and is reopened `ingest.discovery.failed_retry_seconds` later (`RetryFailedSweep`:
+  its failed windows back to pending, attempts reset), rather than waiting for the next full
+  sweep. A GitHub 502/504 on search counts as too expensive and halves the page size, like
+  `RESOURCE_LIMITS_EXCEEDED`. Discovery checks the shared `crawler` budget against its own, higher
   `ingest.discovery.rate_limit_floor`, so it yields before the crawl. `POST /sync/discovery`
   (ingestd, admin) starts a full sweep.
 - **`github_database_id` is a repository's identity; `full_name` is display data.** Discovery

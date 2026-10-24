@@ -153,6 +153,48 @@ func DueSweep(ctx context.Context, pool *db.Pool, fullEvery, incrementalEvery ti
 	return "", false, nil
 }
 
+// RetryFailedSweep reopens the latest sweep when it ended 'failed' at least
+// retryAfter ago and no sweep is running: its failed windows go back to
+// pending with their attempts reset, and the sweep to running, so only the
+// ranges that failed are searched again and a done one then advances the
+// watermark. Without it a failed full sweep waited out the whole full
+// interval, because the incremental sweep is off while the archive is
+// current. It returns the reopened sweep's id, or 0 when there was none.
+func RetryFailedSweep(ctx context.Context, pool *db.Pool, retryAfter time.Duration) (int64, error) {
+	var sweepID int64
+	err := pool.InTx(ctx, func(tx pgx.Tx) error {
+		err := tx.QueryRow(ctx,
+			`UPDATE discovery_sweeps SET status = 'running', completed_at = NULL
+			 WHERE id = (SELECT max(id) FROM discovery_sweeps)
+			   AND status = 'failed'
+			   AND completed_at < now() - ($1 * interval '1 second')
+			   AND NOT EXISTS (SELECT 1 FROM discovery_sweeps WHERE status = 'running')
+			 RETURNING id`,
+			retryAfter.Seconds(),
+		).Scan(&sweepID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			sweepID = 0
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("reopen discovery sweep: %w", err)
+		}
+		if _, err := tx.Exec(ctx,
+			`UPDATE discovery_windows SET status = 'pending', attempt_count = 0,
+			    lease_owner = NULL, lease_expires_at = NULL, next_retry_at = now(), updated_at = now()
+			 WHERE sweep_id = $1 AND status = 'failed'`,
+			sweepID,
+		); err != nil {
+			return fmt.Errorf("reopen failed discovery windows: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, fmt.Errorf("ingest: retry failed sweep: %w", err)
+	}
+	return sweepID, nil
+}
+
 // CompletedSweep is a sweep CompleteSweeps just closed.
 type CompletedSweep struct {
 	ID     int64

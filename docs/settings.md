@@ -110,6 +110,7 @@ readable through the endpoint above and copied into backups.
 | `ingest.discovery.page_size` | 100 | 1–100 | Repositories per search page |
 | `ingest.discovery.rate_limit_floor` | 1000 | 0–12500 | Discovery's floor on the shared budget, above the interactive reserve; above `ingest.rate_limit_floor` so discovery yields first |
 | `ingest.discovery.incremental_interval_seconds` | 86400 | 3600–2592000 | How often an incremental sweep covers repositories pushed since the last completed sweep. Not run while the archive reader is current |
+| `ingest.discovery.failed_retry_seconds` | 86400 | 3600–2592000 | How long after a sweep ends failed its failed windows are searched again (the sweep is reopened), rather than waiting for the next full sweep |
 | `ingest.discovery.full_interval_seconds` | 2592000 | 86400–31536000 | How often a full sweep covers the whole `pushed_within_days` range |
 | `ingest.catalog.shuffle_interval_seconds` | 86400 | 3600–2592000 | How often the shuffled feed's repository order is redrawn |
 | `ingest.catalog.facets_refresh_seconds` | 86400 | 3600–2592000 | How often the filter dropdowns' values and counts (`catalog_facets`) are recomputed |

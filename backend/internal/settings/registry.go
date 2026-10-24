@@ -264,6 +264,9 @@ const (
 	// sweep, and a full one over the whole pushed-within range.
 	IngestDiscoveryIncrementalIntervalSeconds Key = "ingest.discovery.incremental_interval_seconds"
 	IngestDiscoveryFullIntervalSeconds        Key = "ingest.discovery.full_interval_seconds"
+	// IngestDiscoveryFailedRetrySeconds is how long after a sweep ends failed
+	// its failed windows are searched again.
+	IngestDiscoveryFailedRetrySeconds Key = "ingest.discovery.failed_retry_seconds"
 
 	// IngestArchive* drive the GH Archive reader (internal/ingest/archive.go):
 	// hourly public event files applied to stored issues with no GitHub API
@@ -569,6 +572,7 @@ var Registry = map[Key]Spec{
 	IngestDiscoveryPageSize:                   intSpec(100, 1, 100, "Repositories requested per search page. GitHub caps this at 100."),
 	IngestDiscoveryRateLimitFloor:             intSpec(1000, 0, 12500, "Discovery stops searching when the shared budget falls below this plus the interactive reserve; kept above ingest.rate_limit_floor so the issue crawl keeps going after discovery yields."),
 	IngestDiscoveryIncrementalIntervalSeconds: intSpec(86400, 3600, 2592000, "How often an incremental sweep covers repositories pushed since the last completed sweep."),
+	IngestDiscoveryFailedRetrySeconds:         intSpec(86400, 3600, 2592000, "How long after a sweep ends failed its failed windows are searched again, rather than waiting for the next full sweep."),
 	IngestArchiveEnabled:                      boolSpec(false, "Read GH Archive's hourly public event files and apply their issue events to stored repositories."),
 	IngestArchiveWorkers:                      intSpec(1, 1, 8, "Archive hours processed at once."),
 	IngestArchivePollSeconds:                  intSpec(300, 30, 3600, "How often newly ended hours are queued for the archive reader."),
