@@ -615,8 +615,15 @@ remain in earlier git history, which is not rewritten.
   with **no off-site copy** unless the operator pulls them. It fails loudly (non-zero) on any missing
   setting, failed dump or failed upload, never keeps an unencrypted copy, and retries an unuploaded
   `r2` dump next run.
-- Monitoring runs in both compose files: Prometheus, Grafana (six provisioned dashboards in
-  `monitoring/grafana/dashboards/`), node-exporter, cAdvisor, postgres- and redis-exporter.
+- Monitoring runs in both compose files: Prometheus, Grafana (seven provisioned dashboards in
+  `monitoring/grafana/dashboards/`), node-exporter, cAdvisor, postgres- and redis-exporter, and the
+  log pipeline. **Logs outlive the containers a deploy recreates:** Grafana Alloy
+  (`monitoring/alloy/config.alloy`, the Docker socket read-only) ships every container's output to
+  Loki (`monitoring/loki/loki.yml`, the `loki_data` volume), labelled `service` and, for the Go
+  services' JSON, `level`; kept for `LOKI_RETENTION_PERIOD` (336h in prod). Read it in the
+  "SkillIssues · Logs" dashboard or Explore. Loki has no shell for a healthcheck, so Prometheus
+  scrapes both (`up{job=~"loki|alloy"}`). Both run with `GOMEMLIMIT`: Go ignores a container's
+  memory limit otherwise. The deploy prunes unused images older than `IMAGE_PRUNE_AFTER_HOURS` (72).
   Grafana (:3000) and Prometheus (:9090) bind to `127.0.0.1` and are reached over `ssh -L`.
   `deploy.yml` scp's `monitoring/` alongside the compose file. Runbook: `DEPLOYMENT.md`,
   *Monitoring*.

@@ -25,6 +25,15 @@ scrape_configs:
     static_configs:
       - targets: ["flowd:8003"]
 
+  # The log pipeline: up == 0 here means logs have stopped being kept.
+  - job_name: loki
+    static_configs:
+      - targets: ["loki:3100"]
+
+  - job_name: alloy
+    static_configs:
+      - targets: ["alloy:12345"]
+
   - job_name: postgres
     static_configs:
       - targets: ["postgres-exporter:9187"]
