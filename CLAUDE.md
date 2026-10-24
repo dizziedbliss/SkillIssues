@@ -618,9 +618,15 @@ remain in earlier git history, which is not rewritten.
 - Monitoring runs in both compose files: Prometheus, Grafana (seven provisioned dashboards in
   `monitoring/grafana/dashboards/`), node-exporter, cAdvisor, postgres- and redis-exporter, and the
   log pipeline. **Logs outlive the containers a deploy recreates:** Grafana Alloy
-  (`monitoring/alloy/config.alloy`, the Docker socket read-only) ships every container's output to
-  Loki (`monitoring/loki/loki.yml`, the `loki_data` volume), labelled `service` and, for the Go
-  services' JSON, `level`; kept for `LOKI_RETENTION_PERIOD` (336h in prod). Read it in the
+  (`monitoring/alloy/config.alloy`) ships every container's output to Loki
+  (`monitoring/loki/loki.yml`, the `loki_data` volume), labelled `service` and, for the Go
+  services' JSON, `level`; kept for `LOKI_RETENTION_PERIOD` (336h in prod). **No IP address is
+  stored**: Alloy replaces every IPv4/IPv6 address with `<ip>` (Caddy's access log carries the
+  visitor's), which keeps the Privacy policy's "logs with IP addresses go within days" true; only
+  Docker's rotating json-file logs hold them. Alloy reaches Docker only through
+  `docker-socket-proxy` (GETs for containers, networks and logs; `POST: 0`) on the internal
+  `docker-api` network: a socket mounted `:ro` still answers every API call, which is root on the
+  host. cAdvisor still mounts `/var/run` (and so the socket) read-only. Read it in the
   "SkillIssues · Logs" dashboard or Explore. Loki has no shell for a healthcheck, so Prometheus
   scrapes both (`up{job=~"loki|alloy"}`). Both run with `GOMEMLIMIT`: Go ignores a container's
   memory limit otherwise. The deploy prunes unused images older than `IMAGE_PRUNE_AFTER_HOURS` (72).
