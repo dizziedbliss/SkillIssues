@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Home page rework (web): the Backlog Clock (open issues, arrived and closed today from `GET /stats`),
+  an issue finder (language and level, three For you picks, unassigned, no account), a repository
+  finder (name search over the Repository category; `owner/name` or a GitHub link through
+  `GET /repositories/lookup` with the reason in words, and a prefilled `repository_coverage.yml`
+  form when one is missing), four steps, a developers/maintainers split, and "Only merges count".
+  The glyph-noise background is replaced by `BacklogField.tsx`.
+- Brand colours (web, `packages/theme`): warm paper and ink instead of pure white and black, and a
+  saturated red per mode (`#d81b0c` light, `#ff3322` dark) that passes AA as text and under
+  paper-coloured text. Written once, as `--brand-*` on `:root` in `web/src/styles/base.css`; the
+  Default and Midnight themes, the favicon and `theme-color` follow. Text on the red uses
+  `--on-signal`, and buttons hover to ink with paper text.
+- Docs and legal pages set prose in Inter (`--sans`) at `--prose-size` on a 40rem measure; the legal
+  pages' body no longer drops under 16px.
+
+### Fixed
+- Docs lists render their markers again (base.css reset them for layout).
+
 ### Added
 - Catalog filters and sorts (migration 00041).
   - **Filters:** `GET /issues` takes `labels`, `topics`, `tech` (any language the repository

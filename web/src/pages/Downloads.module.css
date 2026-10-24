@@ -22,7 +22,7 @@
   margin-top: 1rem;
   padding: 0.7em 1.1em 0.65em;
   background: var(--signal);
-  color: var(--ink);
+  color: var(--on-signal);
   font-family: var(--mono);
   line-height: 1.2;
   text-decoration: none;
@@ -31,7 +31,7 @@
 
 .button:hover {
   background-color: var(--ink);
-  color: var(--signal);
+  color: var(--paper);
 }
 
 .button:focus-visible {

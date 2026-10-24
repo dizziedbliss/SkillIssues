@@ -1,15 +1,16 @@
 <svg width="111" height="111" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<!-- The owner's mark. The black turns white in a dark browser theme. -->
+<!-- The owner's mark, in the site's ink and red (landing/tokens.module.css), lighter in a dark browser theme. -->
 <style>
-  .ink { stroke: #000; }
-  @media (prefers-color-scheme: dark) { .ink { stroke: #fff; } }
+  .ink { stroke: #161412; }
+  .signal { fill: #d81b0c; }
+  @media (prefers-color-scheme: dark) { .ink { stroke: #f3f0ea; } .signal { fill: #ff3322; } }
 </style>
 
 <g filter="url(#filter0_g_159_347)">
 <circle cx="56" cy="55" r="47" class="ink" stroke-miterlimit="1" stroke-linecap="round" stroke-dasharray="22 22"/>
 </g>
 <path d="M97.5 55C97.5 77.9198 78.9198 96.5 56 96.5C33.0802 96.5 14.5 77.9198 14.5 55C14.5 32.0802 33.0802 13.5 56 13.5C78.9198 13.5 97.5 32.0802 97.5 55Z" stroke-width="5" class="ink"/>
-<use xlink:href="#stroke0_159_347" fill="#FF0000"/>
+<use xlink:href="#stroke0_159_347" class="signal"/>
 <mask id="stroke1_159_347" maskUnits="userSpaceOnUse" x="49" y="31" width="15" height="54" fill="black">
 <rect fill="white" x="49" y="31" width="15" height="54"/>
 <use xlink:href="#stroke0_159_347"/>

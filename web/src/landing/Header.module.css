@@ -45,7 +45,7 @@
   display: none;
   border: 0;
   background: var(--signal);
-  color: var(--ink);
+  color: var(--on-signal);
   font-family: var(--mono);
   font-size: var(--button-size);
   padding: 0.45em 0.8em;
