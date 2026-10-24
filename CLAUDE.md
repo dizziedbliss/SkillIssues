@@ -438,7 +438,8 @@ took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
   used as a database, a public archive. A listed repository is ineligible (`excluded` in
   `eligibility_reason`): `ingest.RecomputeEligibility` applies the list, `cmd/repoimport`
   checks it before `eligible()` so a re-import cannot store one, and `ClaimJobs` only claims
-  jobs of eligible repositories, so a job queued earlier does not run. The coordinator also
+  jobs of eligible repositories, so a job queued earlier does not run: it stays `pending`
+  (parked, `ingest_jobs_parked`), and runs if the repository qualifies again. The coordinator also
   deletes the stored issues of excluded, **archived** and `duplicate` repositories (never ones a user saved)
   on the closed-issue prune interval. Add one with
   `INSERT INTO excluded_repositories (full_name, reason) VALUES ('owner/name', 'why')`.
@@ -459,7 +460,10 @@ took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
   window over GitHub's 1,000-result search cap is replaced by its halves down to
   `ingest.discovery.min_window_seconds`. Windows (`discovery_windows`) are a leased, fenced queue
   like `ingest_jobs`; a sweep with a failed window ends `failed` and does not advance the
-  watermark. Discovery checks the shared `crawler` budget against its own, higher
+  watermark, and is reopened `ingest.discovery.failed_retry_seconds` later (`RetryFailedSweep`:
+  its failed windows back to pending, attempts reset), rather than waiting for the next full
+  sweep. A GitHub 502/504 on search counts as too expensive and halves the page size, like
+  `RESOURCE_LIMITS_EXCEEDED`. Discovery checks the shared `crawler` budget against its own, higher
   `ingest.discovery.rate_limit_floor`, so it yields before the crawl. `POST /sync/discovery`
   (ingestd, admin) starts a full sweep.
 - **`github_database_id` is a repository's identity; `full_name` is display data.** Discovery
@@ -611,8 +615,15 @@ remain in earlier git history, which is not rewritten.
   with **no off-site copy** unless the operator pulls them. It fails loudly (non-zero) on any missing
   setting, failed dump or failed upload, never keeps an unencrypted copy, and retries an unuploaded
   `r2` dump next run.
-- Monitoring runs in both compose files: Prometheus, Grafana (six provisioned dashboards in
-  `monitoring/grafana/dashboards/`), node-exporter, cAdvisor, postgres- and redis-exporter.
+- Monitoring runs in both compose files: Prometheus, Grafana (seven provisioned dashboards in
+  `monitoring/grafana/dashboards/`), node-exporter, cAdvisor, postgres- and redis-exporter, and the
+  log pipeline. **Logs outlive the containers a deploy recreates:** Grafana Alloy
+  (`monitoring/alloy/config.alloy`, the Docker socket read-only) ships every container's output to
+  Loki (`monitoring/loki/loki.yml`, the `loki_data` volume), labelled `service` and, for the Go
+  services' JSON, `level`; kept for `LOKI_RETENTION_PERIOD` (336h in prod). Read it in the
+  "SkillIssues · Logs" dashboard or Explore. Loki has no shell for a healthcheck, so Prometheus
+  scrapes both (`up{job=~"loki|alloy"}`). Both run with `GOMEMLIMIT`: Go ignores a container's
+  memory limit otherwise. The deploy prunes unused images older than `IMAGE_PRUNE_AFTER_HOURS` (72).
   Grafana (:3000) and Prometheus (:9090) bind to `127.0.0.1` and are reached over `ssh -L`.
   `deploy.yml` scp's `monitoring/` alongside the compose file. Runbook: `DEPLOYMENT.md`,
   *Monitoring*.

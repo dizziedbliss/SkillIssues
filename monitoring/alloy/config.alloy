@@ -1,0 +1,56 @@
+// Grafana Alloy: every container on this host, its logs into Loki
+// (monitoring/loki/loki.yml), labelled by compose service. It reads Docker's
+// API through the read-only socket, as cAdvisor reads its files; positions are
+// kept on the alloy_data volume, so a restart neither drops nor repeats lines.
+
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "30s"
+}
+
+discovery.relabel "containers" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "project"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
+}
+
+loki.source.docker "containers" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.containers.targets
+  relabel_rules = discovery.relabel.containers.rules
+  forward_to    = [loki.process.level.receiver]
+}
+
+// The Go services log JSON (log/slog): lift its level into a label, so errors
+// can be found and counted. Lines that aren't JSON (Postgres, Caddy's access
+// log) pass through unchanged.
+loki.process "level" {
+  stage.json {
+    expressions = { level = "level" }
+  }
+
+  stage.labels {
+    values = { level = "" }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

@@ -274,15 +274,15 @@ services:
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_NEWS_NEWS_FEED_ENABLED: "false"
       # Grafana 13 no longer bundles its datasources; it downloads them in the
-      # background at startup, so panels fail until they land. Install the two
+      # background at startup, so panels fail until they land. Install the three
       # the dashboards use, pinned and synchronously, before the server starts.
-      GF_PLUGINS_PREINSTALL_SYNC: prometheus@13.2.3,grafana-postgresql-datasource@13.0.4
+      GF_PLUGINS_PREINSTALL_SYNC: prometheus@13.2.3,grafana-postgresql-datasource@13.0.4,loki@13.2.2
       # Grafana also fetches its default plugin bundle into grafana_data, and
       # every backend plugin in it runs as its own process. Loading all 17
-      # pushed Grafana past 160m and into an OOM restart loop. Only the two
+      # pushed Grafana past 160m and into an OOM restart loop. Only the three
       # above are used, so the rest are installed but never loaded.
       # (PREINSTALL_DISABLED would skip the bundle but also the sync install.)
-      GF_PLUGINS_DISABLE_PLUGINS: elasticsearch,influxdb,jaeger,loki,mssql,mysql,opentsdb,tempo,zipkin,grafana-pyroscope-datasource,grafana-advisor-app,grafana-exploretraces-app,grafana-lokiexplore-app,grafana-metricsdrilldown-app,grafana-pyroscope-app
+      GF_PLUGINS_DISABLE_PLUGINS: elasticsearch,influxdb,jaeger,mssql,mysql,opentsdb,tempo,zipkin,grafana-pyroscope-datasource,grafana-advisor-app,grafana-exploretraces-app,grafana-lokiexplore-app,grafana-metricsdrilldown-app,grafana-pyroscope-app
       POSTGRES_DB: skillissues
       METRICS_DB_PASSWORD: ${METRICS_DB_PASSWORD:-metrics_ro_dev}
     ports:
@@ -296,6 +296,33 @@ services:
         condition: service_healthy
       metrics-role:
         condition: service_completed_successfully
+
+  # Logs that outlive their containers, as in compose.prod.yaml.
+  loki:
+    image: grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
+    command:
+      - -config.file=/etc/loki/loki.yml
+      - -config.expand-env=true
+    environment:
+      LOKI_RETENTION_PERIOD: ${LOKI_RETENTION_PERIOD:-72h}
+    volumes:
+      - ./monitoring/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+
+  alloy:
+    image: grafana/alloy:v1.20.1@sha256:2aa2099af76c0098d4af7a4d6e48f86cb66dc1a000222ad927a1c67c6542d13f
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - --disable-reporting
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on:
+      - loki
 
   node-exporter:
     image: prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
@@ -344,3 +371,5 @@ volumes:
   postgres_data:
   prometheus_data:
   grafana_data:
+  loki_data:
+  alloy_data:

@@ -328,7 +328,7 @@ services:
   grafana:
     image: grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
     restart: unless-stopped
-    mem_limit: ${GRAFANA_MEM_LIMIT:-384m}
+    mem_limit: ${GRAFANA_MEM_LIMIT:-512m}
     cpus: ${GRAFANA_CPUS:-0.25}
     logging: *default-logging
     environment:
@@ -343,15 +343,15 @@ services:
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_NEWS_NEWS_FEED_ENABLED: "false"
       # Grafana 13 no longer bundles its datasources; it downloads them in the
-      # background at startup, so panels fail until they land. Install the two
+      # background at startup, so panels fail until they land. Install the three
       # the dashboards use, pinned and synchronously, before the server starts.
-      GF_PLUGINS_PREINSTALL_SYNC: prometheus@13.2.3,grafana-postgresql-datasource@13.0.4
+      GF_PLUGINS_PREINSTALL_SYNC: prometheus@13.2.3,grafana-postgresql-datasource@13.0.4,loki@13.2.2
       # Grafana also fetches its default plugin bundle into grafana_data, and
       # every backend plugin in it runs as its own process. Loading all 17
-      # pushed Grafana past 160m and into an OOM restart loop. Only the two
+      # pushed Grafana past 160m and into an OOM restart loop. Only the three
       # above are used, so the rest are installed but never loaded.
       # (PREINSTALL_DISABLED would skip the bundle but also the sync install.)
-      GF_PLUGINS_DISABLE_PLUGINS: elasticsearch,influxdb,jaeger,loki,mssql,mysql,opentsdb,tempo,zipkin,grafana-pyroscope-datasource,grafana-advisor-app,grafana-exploretraces-app,grafana-lokiexplore-app,grafana-metricsdrilldown-app,grafana-pyroscope-app
+      GF_PLUGINS_DISABLE_PLUGINS: elasticsearch,influxdb,jaeger,mssql,mysql,opentsdb,tempo,zipkin,grafana-pyroscope-datasource,grafana-advisor-app,grafana-exploretraces-app,grafana-lokiexplore-app,grafana-metricsdrilldown-app,grafana-pyroscope-app
       POSTGRES_DB: ${POSTGRES_DB:-skillissues}
       METRICS_DB_PASSWORD: ${METRICS_DB_PASSWORD}
     ports:
@@ -370,6 +370,52 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+
+  # Logs that survive a redeploy: Alloy ships every container's output to Loki,
+  # which keeps it on loki_data for LOKI_RETENTION_PERIOD (monitoring/loki).
+  # Docker's own json-file logs go with the container a deploy recreates.
+  # Read in Grafana. Loki's image has no shell for a healthcheck, so Prometheus
+  # scrapes both: a stopped one shows as up == 0.
+  loki:
+    image: grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
+    restart: unless-stopped
+    mem_limit: ${LOKI_MEM_LIMIT:-256m}
+    cpus: ${LOKI_CPUS:-0.25}
+    logging: *default-logging
+    command:
+      - -config.file=/etc/loki/loki.yml
+      - -config.expand-env=true
+    environment:
+      LOKI_RETENTION_PERIOD: ${LOKI_RETENTION_PERIOD:-336h}
+      # Go ignores the container's limit unless told; this keeps the heap
+      # under mem_limit (it idles near 45 MiB).
+      GOMEMLIMIT: ${LOKI_GOMEMLIMIT:-200MiB}
+    volumes:
+      - ./monitoring/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+
+  alloy:
+    image: grafana/alloy:v1.20.1@sha256:2aa2099af76c0098d4af7a4d6e48f86cb66dc1a000222ad927a1c67c6542d13f
+    restart: unless-stopped
+    mem_limit: ${ALLOY_MEM_LIMIT:-192m}
+    cpus: ${ALLOY_CPUS:-0.2}
+    logging: *default-logging
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - --disable-reporting
+      - /etc/alloy/config.alloy
+    environment:
+      # As for Loki: uncapped it grew to ~370 MiB; with this it idles near 45 MiB.
+      GOMEMLIMIT: ${ALLOY_GOMEMLIMIT:-150MiB}
+    volumes:
+      - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      # Read-only: it lists containers and follows their logs, nothing else.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on:
+      - loki
 
   # Host network so it reports the real NIC; listens only on this compose
   # network's gateway (fixed subnet above), never on the public interface.
@@ -439,3 +485,5 @@ volumes:
   caddy_config:
   prometheus_data:
   grafana_data:
+  loki_data:
+  alloy_data:
