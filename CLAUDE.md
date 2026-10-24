@@ -193,15 +193,24 @@ path reaching outside the importing project). Both apps are built on `client`; t
 - **`landing/`** — the landing page, the owner's design. Its look is **locked**
   (`landing/tokens.module.css`, light and a dark version) and outside the theme system: no user theme reaches it. A zig-zag:
   each section in the left or right part of one container with equal margins, the other side left
-  white (one column under 860px), over a faint glyph noise (`GlyphNoise.tsx`, canvas). Body text is
-  never under 16px. Motion shares one easing (`--ease`, `--fast`, `--slow`): buttons fade to their
+  white (one column under 860px), over the backlog field (`BacklogField.tsx`, canvas: a faint dot grid
+  whose cells light red or green in today's arrived/closed ratio from `GET /stats`, and lift near the
+  pointer; still under reduced motion). The hero is the Backlog Clock (`BacklogClock.tsx`: open issues,
+  arrived and closed today, the live bar) and the issue finder (`IssueFinder.tsx`: a language and a level,
+  three For you picks, one per repository, unassigned, no account). Further down, the repository finder
+  (`RepoFinder.tsx`): a name searches the Repository category, owner/name or a GitHub link asks
+  `GET /repositories/lookup` and says why one isn't listed, and a dead end offers the
+  `repository_coverage.yml` issue form, prefilled. Body text is never under 16px. Motion shares one easing (`--ease`, `--fast`, `--slow`): buttons fade to their
   hover colour, links draw their underline, live counts glide between polls; all of it stops under reduced
-  motion. Fonts are
+  motion. Colours are the brand tokens on `:root` in `styles/base.css`, the one place they are written
+  (warm paper and ink, not pure black and white; one saturated red per mode at the brightness that
+  passes AA as text and under paper-coloured text): `tokens.module.css` reads them, and the copies CSS
+  can't reach (the Default and Midnight themes, `favicon.svg`, `theme-color`) change with them. Fonts are
   self-hosted through `@fontsource` (Instrument Serif headings and nav, JetBrains Mono everything
-  else, Krona One for the wordmark: SkillIssues in the ink, the "i" of Skill red, one ink underline across,
+  else but long reading, Inter for the docs' and legal pages' prose (`--sans`), Krona One for the wordmark: SkillIssues in the ink, the "i" of Skill red, one ink underline across,
   `Logo.tsx`). The owner's mark (a ring, a rough dashed ring, a red "!") is the favicon and the app
   icons only (the desktop's window and installer icon included), never beside the wordmark, in the web app,
-  the desktop app or the installer (`public/favicon.svg`, its black white in a dark browser theme;
+  the desktop app or the installer (`public/favicon.svg`, its ink and red lighter in a dark browser theme;
   PNGs rendered from it). In the site and app headers the logo swaps with the live count every few
   seconds (`LogoLive.tsx`: closed against open, `GET /stats`; never under reduced motion).
 - **`pages/`** — the written pages; every claim must describe what the code does. The docs are Markdown in

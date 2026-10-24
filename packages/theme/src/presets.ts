@@ -1,6 +1,8 @@
 /*
  * The built-in themes. "default" is the app in the landing page's language:
- * white paper, black ink, one red. A user theme starts from one of these
+ * warm paper, warm ink, one saturated red, set per mode to pass AA. Its
+ * colours and Midnight's are the site's brand colours (web/src/styles/base.css):
+ * change them together. A user theme starts from one of these
  * (meta.base) and overrides what it names.
  */
 export const presets = {
@@ -8,22 +10,22 @@ export const presets = {
 [meta]
 schema = 1
 name = "Default"
-description = "Paper and ink, one red."
+description = "Warm paper and ink, one red."
 
 [colors]
-background = "#ffffff"
-surface = "#ffffff"
-surface-raised = "#f6f6f6"
-text = "#000000"
-text-muted = "#6b6b6b"
-accent = "#ff0000"
-accent-text = "#000000"
-border = "#000000"
-focus = "#ff0000"
-success = "#5ac800"
+background = "#faf9f6"
+surface = "#fdfcfa"
+surface-raised = "#f3f1ec"
+text = "#161412"
+text-muted = "#5a554f"
+accent = "#d81b0c"
+accent-text = "#faf9f6"
+border = "#3a3631"
+focus = "#d81b0c"
+success = "#16873a"
 warning = "#f0a000"
-danger = "#ff0000"
-selection = "#ff000033"
+danger = "#d81b0c"
+selection = "#d81b0c33"
 
 [background]
 image = "none"
@@ -70,19 +72,19 @@ transition = "wipe"
 
 # Midnight's colours, after dark.
 [dark]
-background = "#0a0a0c"
-surface = "#111114"
-surface-raised = "#18181c"
-text = "#f2f2f2"
-text-muted = "#9a9aa2"
-accent = "#ff3030"
-accent-text = "#000000"
-border = "#f2f2f2"
-focus = "#ff3030"
-success = "#5ac800"
+background = "#0f0e0d"
+surface = "#151413"
+surface-raised = "#1c1a18"
+text = "#f3f0ea"
+text-muted = "#a8a39b"
+accent = "#ff3322"
+accent-text = "#0f0e0d"
+border = "#9c968e"
+focus = "#ff3322"
+success = "#43c463"
 warning = "#f0a000"
-danger = "#ff3030"
-selection = "#ff303040"
+danger = "#ff3322"
+selection = "#ff332240"
 `,
   midnight: `
 [meta]
@@ -92,31 +94,34 @@ base = "default"
 description = "The same page, after dark."
 
 [colors]
-background = "#0a0a0c"
-surface = "#111114"
-surface-raised = "#18181c"
-text = "#f2f2f2"
-text-muted = "#9a9aa2"
-accent = "#ff3030"
-accent-text = "#000000"
-border = "#f2f2f2"
-selection = "#ff303040"
+background = "#0f0e0d"
+surface = "#151413"
+surface-raised = "#1c1a18"
+text = "#f3f0ea"
+text-muted = "#a8a39b"
+accent = "#ff3322"
+accent-text = "#0f0e0d"
+border = "#9c968e"
+focus = "#ff3322"
+success = "#43c463"
+danger = "#ff3322"
+selection = "#ff332240"
 
 # Default's paper and ink, by day.
 [light]
-background = "#ffffff"
-surface = "#ffffff"
-surface-raised = "#f6f6f6"
-text = "#000000"
-text-muted = "#6b6b6b"
-accent = "#ff0000"
-accent-text = "#000000"
-border = "#000000"
-focus = "#ff0000"
-success = "#5ac800"
+background = "#faf9f6"
+surface = "#fdfcfa"
+surface-raised = "#f3f1ec"
+text = "#161412"
+text-muted = "#5a554f"
+accent = "#d81b0c"
+accent-text = "#faf9f6"
+border = "#3a3631"
+focus = "#d81b0c"
+success = "#16873a"
 warning = "#f0a000"
-danger = "#ff0000"
-selection = "#ff000033"
+danger = "#d81b0c"
+selection = "#d81b0c33"
 `,
   terminal: `
 [meta]

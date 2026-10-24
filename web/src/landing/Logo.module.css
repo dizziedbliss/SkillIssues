@@ -20,7 +20,7 @@
 }
 
 .i {
-  color: var(--signal, #ff0000);
+  color: var(--signal, var(--brand-signal));
 }
 
 .header { --size: clamp(1.05rem, 0.8rem + 0.55vw, 1.4rem); }

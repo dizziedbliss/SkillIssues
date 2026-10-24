@@ -46,7 +46,7 @@ Set `base` in the `[meta]` table to start from one of these:
 
 | Preset | Description |
 |---|---|
-| `default` | Paper and ink, one red. This is the default if you set no base. |
+| `default` | Warm paper and ink, one red. This is the default if you set no base. |
 | `midnight` | The same page, after dark. |
 | `terminal` | Green on black, all mono. |
 | `contrast` | Larger type, heavier lines. |

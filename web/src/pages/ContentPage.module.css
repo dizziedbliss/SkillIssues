@@ -16,8 +16,10 @@
 
 .lede {
   margin-top: 1rem;
-  font-size: var(--body-size);
-  line-height: var(--body-leading);
+  max-width: var(--prose-measure);
+  font-family: var(--sans);
+  font-size: calc(var(--prose-size) * 1.1);
+  line-height: 1.5;
 }
 
 .draft {
@@ -30,8 +32,10 @@
 
 .body {
   margin-top: clamp(2rem, 4vw, 3.5rem);
-  font-size: calc(var(--body-size) * 0.9);
-  line-height: 1.55;
+  max-width: var(--prose-measure);
+  font-family: var(--sans);
+  font-size: var(--prose-size);
+  line-height: var(--prose-leading);
 }
 
 .h2 {
@@ -84,7 +88,7 @@
   display: inline-block;
   padding: 0.5em 0.8em 0.45em;
   background: var(--signal);
-  color: var(--ink);
+  color: var(--on-signal);
   font-size: var(--button-size);
   text-decoration: none;
   transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
@@ -92,5 +96,5 @@
 
 .button:hover {
   background: var(--ink);
-  color: var(--signal);
+  color: var(--paper);
 }

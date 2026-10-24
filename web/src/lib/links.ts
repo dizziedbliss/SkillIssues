@@ -8,5 +8,6 @@ export const external = {
   reportVulnerability: "https://github.com/dizziedbliss/SkillIssues/security/advisories/new",
   reportBug: "https://github.com/dizziedbliss/SkillIssues/issues/new?template=bug_report.yml",
   requestFeature: "https://github.com/dizziedbliss/SkillIssues/issues/new?template=feature_request.yml",
+  repositoryCoverage: "https://github.com/dizziedbliss/SkillIssues/issues/new?template=repository_coverage.yml",
   live: "https://flow.dizziedbliss.lol",
 } as const;

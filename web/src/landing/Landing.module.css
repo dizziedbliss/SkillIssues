@@ -52,7 +52,7 @@
   padding: 0.7em 1.1em 0.65em;
   /* Fades to ink on hover, over the red. */
   background: var(--signal);
-  color: var(--ink);
+  color: var(--on-signal);
   font-family: var(--mono);
   font-size: var(--button-size);
   line-height: 1.2;
@@ -65,7 +65,7 @@
 
 .button:hover {
   background-color: var(--ink);
-  color: var(--signal);
+  color: var(--paper);
 }
 
 .button:active {
@@ -107,7 +107,7 @@
 
 /*
  * The top: the heading and its paragraph in the left half like every left
- * section of the zig-zag, and the live bar alone centred on the page.
+ * section of the zig-zag, and the Backlog Clock centred on the page.
  */
 .hero {
   padding-top: clamp(2.5rem, 5vw, 4.5rem);
@@ -116,11 +116,6 @@
 .hero > .heading,
 .hero > .body {
   max-width: var(--half);
-}
-
-.hero > figure {
-  width: min(100%, 60rem);
-  margin-inline: auto;
 }
 
 .section {
@@ -155,6 +150,97 @@
   padding: var(--section-gap) 0 clamp(4rem, 8vw, 7rem);
 }
 
+/* ---- the four steps ---- */
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(1rem, 2.5vw, 2.5rem);
+  margin: clamp(2rem, 4vw, 3.5rem) 0;
+  list-style: none;
+}
+
+.step {
+  padding-top: 1rem;
+  border-top: 1px solid var(--hair);
+}
+
+.stepNumber {
+  display: block;
+  font-family: var(--serif);
+  font-size: clamp(3rem, 2rem + 3vw, 5rem);
+  line-height: 0.9;
+  color: var(--signal);
+}
+
+.stepTitle {
+  margin-top: 0.75rem;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 1.75rem;
+  line-height: 1.1;
+}
+
+.stepBody {
+  margin-top: 0.5rem;
+  font-size: 1rem;
+  line-height: var(--body-leading);
+}
+
+.lead {
+  font-family: var(--serif);
+  font-size: clamp(1.6rem, 1.2rem + 1.2vw, 2.25rem);
+  line-height: 1.1;
+}
+
+.lead + .body {
+  margin-top: 0.75rem;
+}
+
+.link {
+  color: var(--ink);
+  font-size: 1rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* ---- developers and maintainers, side by side: the zig-zag's two halves at once ---- */
+
+.split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(2rem, 6vw, 6rem);
+}
+
+/* ---- XP facts ---- */
+
+.facts {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.fact {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--hair);
+  font-size: 1rem;
+  line-height: var(--body-leading);
+}
+
+.fact dt {
+  font-family: var(--serif);
+  font-size: 1.5rem;
+  line-height: 1.1;
+}
+
 /* Narrow screens: one column, every section full width. */
 @media (max-width: 860px) {
   .left,
@@ -163,6 +249,21 @@
   .hero > .body {
     max-width: none;
     margin-left: 0;
+  }
+
+  .steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .split {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .steps,
+  .fact {
+    grid-template-columns: 1fr;
   }
 }
 
