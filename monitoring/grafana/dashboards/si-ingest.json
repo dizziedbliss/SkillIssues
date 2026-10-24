@@ -37,15 +37,15 @@
     },
     {
       "type": "stat",
-      "title": "Jobs pending",
-      "description": "",
+      "title": "Jobs pending (claimable)",
+      "description": "Pending jobs of eligible repositories: work the crawl will claim. Jobs of repositories that are no longer eligible wait without running (ingest_jobs_parked) and are left out.",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(ingest_jobs{status=\"pending\"})",
+          "expr": "sum(ingest_jobs{status=\"pending\"}) - (sum(ingest_jobs_parked) or vector(0))",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -518,7 +518,7 @@
     {
       "type": "timeseries",
       "title": "Jobs by type (pending)",
-      "description": "",
+      "description": "Pending jobs by type, and the parked ones among them: jobs of repositories no longer eligible, which run only if the repository qualifies again.",
       "targets": [
         {
           "datasource": {
@@ -528,6 +528,15 @@
           "expr": "sum by (job_type) (ingest_jobs{status=\"pending\"})",
           "legendFormat": "{{job_type}}",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(ingest_jobs_parked)",
+          "legendFormat": "parked (repository not eligible)",
+          "refId": "B"
         }
       ],
       "datasource": {
@@ -1860,8 +1869,8 @@
     },
     {
       "type": "stat",
-      "title": "Windows failed",
-      "description": "A failed window makes its sweep end failed; the discovery watermark does not advance.",
+      "title": "Windows failed (latest sweep)",
+      "description": "Failed windows of the latest sweep. A failed sweep is reopened after ingest.discovery.failed_retry_seconds, sending them back to pending.",
       "targets": [
         {
           "datasource": {
@@ -1923,7 +1932,7 @@
     {
       "type": "stat",
       "title": "Last full sweep",
-      "description": "",
+      "description": "When the latest successful sweep of this kind completed; never if none has.",
       "targets": [
         {
           "datasource": {
@@ -1944,7 +1953,17 @@
       "fieldConfig": {
         "defaults": {
           "unit": "dateTimeFromNow",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "never",
+                  "index": 0
+                }
+              }
+            }
+          ],
           "color": {
             "mode": "thresholds"
           },
@@ -1985,7 +2004,7 @@
     {
       "type": "stat",
       "title": "Last incremental sweep",
-      "description": "",
+      "description": "When the latest successful sweep of this kind completed; never if none has.",
       "targets": [
         {
           "datasource": {
@@ -2006,7 +2025,17 @@
       "fieldConfig": {
         "defaults": {
           "unit": "dateTimeFromNow",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "never",
+                  "index": 0
+                }
+              }
+            }
+          ],
           "color": {
             "mode": "thresholds"
           },
@@ -2116,7 +2145,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(repository_identity_conflicts_total[24h]))",
+          "expr": "sum(increase(repository_identity_conflicts_total[24h])) or vector(0)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
