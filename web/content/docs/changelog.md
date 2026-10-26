@@ -11,6 +11,13 @@ Every version of the website and the desktop app, newest first. The full, techni
 
 Both follow [Semantic Versioning](https://semver.org/): the first number changes when something you relied on works differently, the second for new features, the third for fixes. The website and the API share one version, since they're deployed together every time a change is merged; the desktop app has its own. This page follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Website 2.7.1 and desktop 1.5.1, 26 October 2026
+
+### Security
+
+- **Safer issue descriptions.** The sanitiser that cleans what people write on GitHub before it's shown here is updated for two serious bypasses.
+- **The desktop app runs on Electron 44.9.3**, with its security fixes.
+
 ## Website 2.7.0 and desktop 1.5.0, 26 October 2026
 
 ### Added

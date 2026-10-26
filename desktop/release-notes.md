@@ -13,6 +13,13 @@ before the tag.
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-26
+
+### Security
+
+- **Electron 44.9.3**, with the fixes for the advisories against 44.3.0.
+- **Safer issue descriptions**: the sanitiser that cleans them (DOMPurify) is updated for two serious bypasses.
+
 ## [1.5.0] - 2026-10-26
 
 ### Added
@@ -64,7 +71,8 @@ before the tag.
 - Issue descriptions show attached images and colour their code.
 - The app is smaller to download.
 
-[unreleased]: https://github.com/dizziedbliss/SkillIssues/compare/v1.5.0...HEAD
+[unreleased]: https://github.com/dizziedbliss/SkillIssues/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/dizziedbliss/SkillIssues/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/dizziedbliss/SkillIssues/compare/v1.3.0...v1.5.0
 [1.3.0]: https://github.com/dizziedbliss/SkillIssues/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/dizziedbliss/SkillIssues/compare/v1.2.0...v1.2.1
