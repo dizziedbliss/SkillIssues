@@ -9,13 +9,13 @@ updated: 2026-10-27
 
 ## Releases
 
-Desktop builds and release notes are published on the [GitHub releases page](https://github.com/dizziedbliss/SkillIssues/releases), numbered like `1.4.0`. The website and API deploy every change merged to the main branch once it passes its checks, so they're versioned by date instead: **website `2026.10.26`** is what was merged on 26 October (UTC).
+Desktop builds and release notes are published on the [GitHub releases page](https://github.com/dizziedbliss/SkillIssues/releases), numbered like `1.3.0`. The website and API deploy every change merged to the main branch once it passes its checks, so they're versioned by date instead: **website `2026.10.26`** is what was merged on 26 October (UTC).
 
 The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/SkillIssues/blob/main/CHANGELOG.md) in the repository. This page summarises the parts you are most likely to notice.
 
 ## October 2026
 
-### Website 2026.10.26 · Desktop 1.4.0: a waiting issue, and a calmer app
+### Website 2026.10.26 · Desktop 1.5.0: a waiting issue, and a calmer app
 
 - **The home page leads with a real issue that has been waiting**, and how long: "Someone opened this 260 days ago. Nobody has fixed it yet." Pick a language and a level to swap it, or **[Find an issue]** to open Explore with those choices. It never shows an issue from a repository that's slow to merge, or one over a year old.
 - **Your profile, rebuilt.** Your level large at the top; **Next up** with your pull requests in review, issues you've claimed and your learning path, then the quests you're closest to finishing; one list of your pull requests with the XP each earned; earned badges, with how you earned each on hover.

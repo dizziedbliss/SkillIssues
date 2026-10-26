@@ -7,11 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 **Versions.** The website and API deploy on every merge to `main`, so they are versioned by date:
 **website `YYYY.MM.DD`**, the UTC day the changes were merged (a second deploy that day would be
 `YYYY.MM.DD.2`). The desktop app keeps [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
-(`v1.4.0`), one tag per release; its notes are in `desktop/release-notes.md`.
+(`v1.5.0`), one tag per release; its notes are in `desktop/release-notes.md`.
 
 | Website | Pull requests | What changed |
 |---|---|---|
-| **2026.10.26** | #148–#151 | A real waiting issue leads the home page; the app, profile, contributions, docs and footer refreshed; calmer colours and a softer light mode; `/stats` no longer counts against the rate limit; contributor rules for AI tools; dead files removed. Desktop 1.4.0. |
+| **2026.10.26** | #148–#151 | A real waiting issue leads the home page; the app, profile, contributions, docs and footer refreshed; calmer colours and a softer light mode; `/stats` no longer counts against the rate limit; contributor rules for AI tools; dead files removed. Desktop 1.5.0. |
 | 2026.10.24 | #143–#147 | The Backlog Clock home page, repository finder, AA brand colours, readable docs; persistent logs with IPs stripped, discovery sweeps reopen, image pruning. Desktop 1.3.0. |
 | 2026.10.22 | #136–#141 | GitHub errors classified by type; stars no longer raise recommendations; docs checked against the code; the README. |
 | 2026.10.21 | #53, #106–#135 | Reporting, the beginner's checklist, community themes; XP, claims, quests, learning paths, public profiles, repository health; For you as the default feed; moderators' Reports; SEO; the mark and wordmark. Desktop 1.1.0–1.2.1. |

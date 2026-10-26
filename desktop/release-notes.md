@@ -5,7 +5,7 @@ Each release's notes are the section under its version. The release workflow
 refuses to build a tag that has none; the app shows the same notes when an
 update is available, and once after it installs.
 
-## 1.4.0
+## 1.5.0
 
 **A calmer, clearer app.** Lines and chips are quiet now, and red is kept for what matters: the main button, where you are, what you've earned, and section headings. Light mode uses warmer, slightly dimmed paper and softer ink, easier on the eyes over a long session.
 
