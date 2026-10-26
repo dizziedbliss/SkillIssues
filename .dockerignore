@@ -16,10 +16,8 @@ app.env
 id_ed25519*
 id_rsa*
 
-# Kaggle dataset import source and benchmark scratch — large, irrelevant to
-# any image build.
+# Kaggle dataset import source — large, irrelevant to any image build.
 data/
-benchmark/
 
 # Dependency and build output — reinstalled/rebuilt inside the image.
 **/node_modules
