@@ -9,13 +9,13 @@ updated: 2026-10-27
 
 ## Releases
 
-Desktop builds and release notes are published on the [GitHub releases page](https://github.com/dizziedbliss/SkillIssues/releases), numbered like `1.3.0`. The website and API deploy every change merged to the main branch once it passes its checks, so they're versioned by date instead: **website `2026.10.26`** is what was merged on 26 October (UTC).
+Desktop builds and release notes are published on the [GitHub releases page](https://github.com/dizziedbliss/SkillIssues/releases). Both the website and the desktop app follow [Semantic Versioning](https://semver.org/): the first number changes when something you relied on works differently, the second for new features, the third for fixes. The website and API share one version, since they deploy together every time a change is merged; the desktop app has its own.
 
 The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/SkillIssues/blob/main/CHANGELOG.md) in the repository. This page summarises the parts you are most likely to notice.
 
 ## October 2026
 
-### Website 2026.10.26: a waiting issue, and a calmer app
+### Website 2.6.0: a waiting issue, and a calmer app
 
 - **The home page leads with a real issue that has been waiting**, and how long: "Someone opened this 260 days ago. Nobody has fixed it yet." Pick a language and a level to swap it, or **[Find an issue]** to open Explore with those choices. It never shows an issue from a repository that's slow to merge, or one over a year old.
 - **Your profile, rebuilt.** Your level large at the top; **Next up** with your pull requests in review, issues you've claimed and your learning path, then the quests you're closest to finishing; one list of your pull requests with the XP each earned; earned badges, with how you earned each on hover.
@@ -25,7 +25,7 @@ The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/
 - **These docs** have an *On this page* index and previous and next pages.
 - **The live numbers no longer lock you out.** Leaving the home page open used to use up the requests a visitor may make in an hour; they don't count any more.
 
-### Website 2026.10.24 · Desktop 1.3.0: a new home page and calmer colours
+### Website 2.5.0 · Desktop 1.3.0: a new home page and calmer colours
 
 - **The Backlog Clock.** The home page opens on every open issue in the catalog as one live number, what arrived and closed today, and the closed-against-open bar.
 - **Find your issue in ten seconds.** Pick a language and a level and get three of today's picks, one per repository and nobody assigned, with no account.
@@ -34,13 +34,13 @@ The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/
 - **Easier reading.** These docs and the legal pages set their text in a proportional face, larger and with a shorter line, and lists show their bullets again.
 - **A living background**: a quiet grid where issues light up as they arrive and close, in today's real proportions.
 
-### Website 2026.10.21: For you
+### Website 2.4.0: For you
 
 - **For you replaces Shuffle** as Explore's default. It picks issues that suit you (your languages, your level, what you've merged before), that look likely to get merged (labelled, a short discussion, recently active, a welcoming repository), and that have waited, with few people shown them lately. Each page is a weighted draw, so good matches come first more often but everyone sees different issues. Each card says why it's there. See [Finding issues](/docs/finding-issues).
 - **Explore starts from your profile.** Signed in, your preferred languages and level are the starting filters, shown under the search box with **Show every language**.
 - **Coming back keeps your place.** Opening an issue and returning, by Back or the link, keeps Explore's filters and page.
 
-### Website 2026.10.21 · Desktop 1.1.0 to 1.2.1: polish from review
+### Website 2.4.0 · Desktop 1.1.0 to 1.2.1: polish from review
 
 - **Working on, in the desktop app.** Every issue you've started in the app, and what's next for each. Commit (a title and an optional description), push (commits only) and open the pull request (you write it, and choose whether it closes the issue) are separate steps, each offered once there's something to do.
 - **Asked before it's done.** Giving up a learning path, releasing a claim and deleting a theme ask first.
@@ -52,7 +52,7 @@ The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/
 - **The download page** offers the newest version for your system, the others, and older versions.
 - **Smaller desktop app**, and copying the sign-in code works.
 
-### Website 2026.10.20: the app, from its designs
+### Website 2.3.0: the app, from its designs
 
 - **Explore.** The catalog as designed: search, a filter panel where every filter explains itself, difficulty buttons that start from your profile's level, and pages you can go back through. Click a card anywhere to open its issue, or its repository's name to see that repository's issues.
 - **Search, everywhere.** Press `/` or Ctrl+K on any page in the app. Results come as you type, sorted into repositories, titles and labels, and languages and tech, each with View more. See all results on the search page. See [Finding issues](/docs/finding-issues).
@@ -72,7 +72,7 @@ The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/
 - **Reporting.** Signed in, report an issue, a repository or a shared theme. Reports are private, and enough of them take it out of lists until it's reviewed. See [Reporting](/docs/reporting).
 - **Community themes.** Browse the themes people have shared, most used or newest, in **Settings → Themes → Community**.
 
-### Website 2026.10.14 to 2026.10.20: the groundwork
+### Website 1.1.0 to 2.3.0: the groundwork
 
 #### Catalog and search
 
@@ -116,6 +116,6 @@ The full, detailed history is in [CHANGELOG.md](https://github.com/dizziedbliss/
 
 - **XP, levels and badges.** The first version awarded these from pull requests verified with a stored user token. They were removed with the no-stored-tokens redesign, and came back on 21 October as a ledger of merges the server verifies itself. See [How XP works](/docs/xp).
 
-## Website 2026.10.13 · Desktop 1.0.0
+## Website 1.0.0 · Desktop 1.0.0
 
 The first production release. The site went live on a real server with automated, gated deploys, and the web and desktop apps began sharing one set of code for talking to the API and drawing the interface.
