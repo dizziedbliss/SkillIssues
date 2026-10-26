@@ -47,3 +47,25 @@ func TestParseTrustedProxiesRejectsBadCIDR(t *testing.T) {
 		t.Fatal("expected an error for an entry that is not a CIDR")
 	}
 }
+
+func TestExempt(t *testing.T) {
+	cases := []struct {
+		method, path string
+		want         bool
+	}{
+		{http.MethodGet, "/health", true},
+		{http.MethodGet, "/metrics", true},
+		{http.MethodGet, "/stats", true},
+		{http.MethodHead, "/stats", true},
+		{http.MethodPost, "/stats", false},
+		{http.MethodGet, "/stats/", false},
+		{http.MethodGet, "/issues", false},
+		{http.MethodGet, "/auth/github", false},
+	}
+	for _, tc := range cases {
+		r := httptest.NewRequest(tc.method, tc.path, nil)
+		if got := exempt(r); got != tc.want {
+			t.Errorf("exempt(%s %s) = %v, want %v", tc.method, tc.path, got, tc.want)
+		}
+	}
+}
