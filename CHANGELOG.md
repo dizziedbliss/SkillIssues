@@ -2,12 +2,63 @@
 
 All notable changes to **SkillIssues** will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+**Versions.** The website and API deploy on every merge to `main`, so they are versioned by date:
+**website `YYYY.MM.DD`**, the UTC day the changes were merged (a second deploy that day would be
+`YYYY.MM.DD.2`). The desktop app keeps [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
+(`v1.4.0`), one tag per release; its notes are in `desktop/release-notes.md`.
+
+| Website | Pull requests | What changed |
+|---|---|---|
+| **2026.10.26** | #148–#151 | A real waiting issue leads the home page; the app, profile, contributions, docs and footer refreshed; calmer colours and a softer light mode; `/stats` no longer counts against the rate limit; contributor rules for AI tools; dead files removed. Desktop 1.4.0. |
+| 2026.10.24 | #143–#147 | The Backlog Clock home page, repository finder, AA brand colours, readable docs; persistent logs with IPs stripped, discovery sweeps reopen, image pruning. Desktop 1.3.0. |
+| 2026.10.22 | #136–#141 | GitHub errors classified by type; stars no longer raise recommendations; docs checked against the code; the README. |
+| 2026.10.21 | #53, #106–#135 | Reporting, the beginner's checklist, community themes; XP, claims, quests, learning paths, public profiles, repository health; For you as the default feed; moderators' Reports; SEO; the mark and wordmark. Desktop 1.1.0–1.2.1. |
+| 2026.10.20 | #71–#105 | Faster search and catalog; filters, the shuffled feed, facets, `/stats`; user themes; the rebuilt web app, docs on the site; the site on Vercel; sign-in, Settings and themes in the app. |
+| 2026.10.19 | #64–#70 | The catalog read in index order; a reserved interactive budget; GH Archive freshness; issue bodies as a fallback; Cloudflare-aware client addresses. |
+| 2026.10.18 | #63 | More repositories excluded by name. |
+| 2026.10.17 | #58–#62 | The discovery sweeper; the live flow tap and its relay. |
+| 2026.10.16 | #34–#57 | No user tokens on the server; least-privilege database roles; SOPS secrets and encrypted backups; supply-chain hardening (pinned actions, signed images, govulncheck). |
+| 2026.10.15 | #27–#33 | Incremental freshness that detects closed issues; closed-issue pruning; notifications when a saved issue closes. |
+| 2026.10.14 | #15–#26 | Truthful metrics and Grafana; deploy fixes; an audit's fixes; first-seen and last-synced times. |
+| 2026.10.13 | #4–#14 | Production on one VPS: images, CI, deploys, guardrails. Desktop 1.0.0. |
 
 ---
 
-## [Unreleased]
+## [Website 2026.10.26] - 2026-10-26
+
+### Added
+- Home page: a real open issue that has waited, from today's For you picks (never a repository
+  flagged slow, never over a year old, welcoming repositories first), with language and level chips
+  to swap it, and four live numbers in place of the live bar (#149).
+- Profile header shared with public profiles; Next up (pull requests in review, claims, the learning
+  path, the closest quests); one merged pull request list with XP; earned badges as chips with their
+  criteria on hover (#150).
+- Docs: an On this page index and previous/next pages (#150).
+- `CONTRIBUTING.md`: *Using AI tools* and *What gets a pull request closed, even when CI passes*; a
+  pull request template; `AGENTS.md` for coding agents (#150).
+
+### Changed
+- One shared search bar (Explore, the search page, the palette); filters as self-explaining pills;
+  quieter issue cards; the learning path as rows; Settings as rows; themes drawn as miniatures;
+  reports as rows; the nav holds where you work, the menu what's about you (#150).
+- Rules and chips mix from the text colour, the accent marks headings and what matters; light mode
+  warmer and dimmer (ink 13.5:1); square corners follow the theme radius (#150).
+- The footer rebuilt (#150).
+
+### Fixed
+- `GET /stats` no longer counts against the signed-out rate limit and is cached in memory, so an
+  open landing tab can't lock a visitor out of the site (#148).
+
+### Removed
+- `benchmark/` (the early Python import prototype) and an unused image (#151).
+- Git history rewritten to drop committed build binaries and personal email addresses from commit
+  metadata; commit ids changed, code unchanged.
+
+## [Website 2026.10.13 – 2026.10.24, Desktop 1.1.0 – 1.3.0]
+
+Everything below, until 1.0.0, landed between those versions; the table above dates each one.
 
 ### Changed
 - Home page rework (web): the Backlog Clock (open issues, arrived and closed today from `GET /stats`),

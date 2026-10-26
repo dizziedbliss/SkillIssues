@@ -371,6 +371,10 @@ top frame.
   credentials) and downloads only when asked; then restart, or it installs on quit. The first start
   after an update shows What's new once (`whatsNew`, from `lastVersion` in state.json). macOS isn't
   signed, so there "download" opens the release page.
+- **Versions.** The website and API are versioned by the UTC date their changes merged (`2026.10.26`;
+  a second deploy that day is `2026.10.26.2`); the desktop by semver tags. Each website version gets a
+  row in `CHANGELOG.md`'s table and a section there, and a section in `web/content/docs/changelog.md`
+  (with the desktop version it shipped with, if any). Update both in the pull request that ships it.
 - **Release notes are in the repository**: `desktop/release-notes.md`, one `## x.y.z` section per
   version. `release.yml` refuses a tag without one (`scripts/release-notes.sh`) and puts it on the
   GitHub release.

@@ -12,13 +12,14 @@
     <a href="https://github.com/dizziedbliss/SkillIssues/actions/workflows/deploy.yml"><img src="https://github.com/dizziedbliss/SkillIssues/actions/workflows/deploy.yml/badge.svg" alt="Deploy status"></a>
     <a href="https://github.com/dizziedbliss/SkillIssues/blob/main/backend/go.mod"><img src="https://img.shields.io/github/go-mod/go-version/dizziedbliss/SkillIssues?filename=backend%2Fgo.mod" alt="Go version"></a>
     <a href="LICENSE"><img src="https://img.shields.io/github/license/dizziedbliss/SkillIssues" alt="MIT license"></a>
+    <a href="https://skillissues.dizziedbliss.lol/docs/changelog"><img src="https://img.shields.io/badge/website-2026.10.26-c8190b" alt="Website version"></a>
 </p>
 
-<p align="center"><strong>You have the skills. We have the issues.</strong><br />
+<p align="center"><strong>Find an issue you can solve, in ten seconds.</strong><br />
 Open issues from active GitHub projects, matched to your languages, skills and level.<br />
-Pick one, fix it, get it merged, level up.</p>
+Pick one, fix it, get it merged, level up. Free and open source, every feature.</p>
 
-<p align="center"><img width="800" alt="Explore: beginner issues from real repositories, with their labels and languages" src=".github/assets/explore.png" /></p>
+<p align="center"><img width="800" alt="The home page: a real issue that has been waiting 260 days, and the promise to find one in ten seconds" src=".github/assets/landing.png" /></p>
 
 ## Why
 
@@ -29,6 +30,8 @@ Meanwhile millions of open issues sit on GitHub waiting for exactly that person.
 SkillIssues connects the two. It keeps every open issue of hundreds of thousands of active
 repositories fresh, works out which ones fit you, helps you set up a workspace, and pays you XP
 when GitHub says your fix was merged.
+
+<p align="center"><img width="800" alt="Explore: beginner TypeScript issues from real repositories, with their labels and languages" src=".github/assets/explore.png" /></p>
 
 ## Features
 
@@ -52,6 +55,10 @@ when GitHub says your fix was merged.
   or write your own in TOML and share it
 - **Private by design:** the server never holds your GitHub token, not even encrypted. Public
   profiles are opt-in
+- **Free, all of it:** no plans, no ads, no paywalled features. If you have money for open source,
+  the site points you at the maintainers to sponsor instead
+- **Easy on the eyes:** dark by default, and a light mode with warm, slightly dimmed paper for
+  long reading
 - **Watch it run:** [SkillIssues Live](https://flow.dizziedbliss.lol) draws every request, query
   and crawled page moving through the system, in real time, with anything of yours turned into
   symbols
@@ -263,6 +270,7 @@ The full reference: [the themes guide](https://skillissues.dizziedbliss.lol/docs
 
 | | |
 |---|---|
+| [Changelog](https://skillissues.dizziedbliss.lol/docs/changelog) | What changed in each website and desktop version |
 | [Getting started](https://skillissues.dizziedbliss.lol/docs/getting-started) | Your first issue, from sign-in to merge |
 | [How XP works](https://skillissues.dizziedbliss.lol/docs/xp) | What earns XP, levels, streaks, badges, quests |
 | [For maintainers](https://skillissues.dizziedbliss.lol/maintainers) | How your repository gets listed, and how to ask for it not to be |
@@ -277,6 +285,11 @@ Bug reports, fixes, docs, tests, translations and accessibility improvements are
 Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md), then open
 an issue (there's a form for each kind, including "my repository isn't indexed" and "exclude my
 repository") or a pull request.
+
+SkillIssues is built with AI coding tools, mostly Claude, with every change directed, read and
+tested by a person before it merges. You're welcome to use them too: *Using AI tools* in
+CONTRIBUTING.md has the rules, and [AGENTS.md](AGENTS.md) is the brief for coding agents
+([CLAUDE.md](CLAUDE.md) is the full one).
 
 Found a security problem? Please don't open an issue: use
 [private vulnerability reporting](https://github.com/dizziedbliss/SkillIssues/security/advisories/new).
