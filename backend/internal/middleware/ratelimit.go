@@ -27,12 +27,16 @@ type RateLimits struct {
 // trustedProxies lists the CIDRs permitted to set X-Forwarded-For/X-Real-IP;
 // a request from any other peer has those headers ignored so a client can't
 // spoof its own rate-limit identity. auth/health/metrics endpoints are not
-// blanket-exempt — only /health, /health/detail and /metrics are, so PAT and
-// OAuth login are rate limited like everything else.
+// blanket-exempt — only /health, /health/detail, /metrics and GET /stats are,
+// so PAT and OAuth login are rate limited like everything else. GET /stats is
+// exempt because the landing page polls it every few seconds: counted, one open
+// tab spent the whole signed-out allowance and then every other request from
+// that address failed. It is served from memory (cmd/api getStats), so an
+// unlimited caller costs no more than one database read per cache lifetime.
 func RateLimiter(c *cache.Client, limits func() RateLimits, keyPrefix string, trustedProxies []*net.IPNet) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if c == nil || r.URL.Path == "/health" || r.URL.Path == "/health/detail" || r.URL.Path == "/metrics" {
+			if c == nil || exempt(r) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -169,6 +173,17 @@ func isTrustedProxy(host string, trusted []*net.IPNet) bool {
 		if n.Contains(ip) {
 			return true
 		}
+	}
+	return false
+}
+
+// exempt reports whether a request skips the rate limiter (see RateLimiter).
+func exempt(r *http.Request) bool {
+	switch r.URL.Path {
+	case "/health", "/health/detail", "/metrics":
+		return true
+	case "/stats":
+		return r.Method == http.MethodGet || r.Method == http.MethodHead
 	}
 	return false
 }

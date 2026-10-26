@@ -899,8 +899,11 @@ Every key with its default and bounds: `docs/settings.md`.
   row. The case-insensitive unique index on `lower(username)` is why a username that moved to
   another account is cleared on the old row first.
 - **Rate limiting**: Redis `INCR` counter per user (signed in) or per client (signed out; IPv6 keyed by /64, `X-Forwarded-For` read from the right past `TRUSTED_PROXIES`, which must parse or the API will not start) —
-  180 / 1,000 per `api.rate_limit.window_seconds`. Only `/health`, `/health/detail` and
-  `/metrics` are exempt; `/auth/*` (login) **is** limited. Fixed window: the first request sets
+  180 / 1,000 per `api.rate_limit.window_seconds`. Only `/health`, `/health/detail`,
+  `/metrics` and `GET /stats` are exempt; `/auth/*` (login) **is** limited. `/stats` is exempt because the
+  landing polls it every 10s (counted, one open tab spent a whole signed-out hour and every other request
+  from that address then failed); go-api keeps its answer in memory for `api.stats.max_age_seconds`
+  (at least 1s), so an unlimited caller costs one database read per lifetime. Fixed window: the first request sets
   the key's expiry with `EXPIRE … NX`, so later requests never push it back. Fails open
   when Redis is down — within `api.cache.redis_timeout_ms`, and after a failure Redis is skipped
   (`cache_skipped_total`) except one probe per `api.cache.redis_retry_seconds`.
