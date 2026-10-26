@@ -280,8 +280,7 @@ services:
 
   # --------------------------------------------------------------------------
   # Monitoring. Nothing here is published publicly: Grafana and Prometheus
-  # bind to 127.0.0.1 and are reached over `ssh -L` (DEPLOYMENT.md,
-  # "Monitoring"). Limits sum to ~640m on top of the ~3.0g above; actual use
+  # bind to 127.0.0.1 and are reached over `ssh -L`. Limits sum to ~640m on top of the ~3.0g above; actual use
   # is well below the caps. Every limit is overridable from .env.
   # --------------------------------------------------------------------------
 
@@ -340,7 +339,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set in production}
       # Encrypts the secrets Grafana stores (the metrics_ro datasource
       # password, re-provisioned on every start). Grafana's built-in default
-      # is public. See DEPLOYMENT.md, "Rotating the monitoring secrets".
+      # is public.
       GF_SECURITY_SECRET_KEY: ${GRAFANA_SECRET_KEY:?GRAFANA_SECRET_KEY must be set in production}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"

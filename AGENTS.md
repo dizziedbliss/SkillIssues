@@ -86,8 +86,7 @@ The maintainer's direction for every screen. Full version: *Interface design* in
 
 ## Never do these
 
-- Commit or push `DEPLOYMENT.md`, `docs/runbook.md`, or any document about running production (host
-  access, rotation, restore). They are local only and ignored by git; don't `git add -f` them.
+- Commit notes about operating production (host access, credentials, rotation or restore steps).
 - Commit a plaintext secret. Secrets are SOPS-encrypted in `secrets/prod.env.sops`.
 - Add `pull_request_target`, widen a workflow's `permissions`, or replace a pinned action SHA with a tag.
 - Add a dependency without a reason, from a git URL or tarball, or without checking that the package

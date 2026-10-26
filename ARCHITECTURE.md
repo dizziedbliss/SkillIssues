@@ -191,7 +191,7 @@ pattern, outbound GitHub calls, ingest job outcomes, queue depth, repository cov
 budget per lane, worker pools, connection pools, and Go runtime stats. The compose stacks run
 Prometheus, Grafana (six provisioned dashboards), node-exporter, cAdvisor and Postgres/Redis
 exporters. Product panels query Postgres as `metrics_ro`, a read-only role that cannot see session tokens
-or OAuth state. See DEPLOYMENT.md → *Monitoring*.
+or OAuth state.
 
 ## 9. Clients
 

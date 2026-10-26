@@ -16,7 +16,7 @@ out="$2"
 key_file="${SOPS_AGE_KEY_FILE:-/etc/skillissues/age.key}"
 
 if ! command -v sops >/dev/null 2>&1; then
-	echo "sops is not installed on this host — see DEPLOYMENT.md, 'Secrets'" >&2
+	echo "sops is not installed on this host" >&2
 	exit 1
 fi
 if [ ! -r "$key_file" ]; then

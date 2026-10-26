@@ -39,8 +39,7 @@ complete successfully. A fresh `up` needs **no manual SQL**.
 
 ### Production (VPS, `compose.prod.yaml`)
 Pulls pre-built GHCR images; never builds on the host. Deployed by CI (`.github/workflows/deploy.yml`)
-on every push to `main` — see *Deployment* below and `DEPLOYMENT.md` for the full runbook,
-including first-time host setup, rollback and restore.
+on every push to `main` — see *Deployment* below.
 
 ### Hybrid dev (databases in Docker, services native)
 ```bash
@@ -574,7 +573,6 @@ took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
 ## Deployment
 
 Single VPS, `compose.prod.yaml`, Caddy, for everything but the site, which is on Vercel.
-Full runbook: `DEPLOYMENT.md` (local only).
 
 - **The site is on Vercel; the API has its own host.** `vercel.json` (repo root) builds the npm
   workspace, serves `web/dist` with the CSP and security headers, and falls back to `shell.html`.
@@ -587,13 +585,8 @@ Full runbook: `DEPLOYMENT.md` (local only).
   Vercel project is linked by id only: its git integration is disconnected, and must stay so.
   Rollback for the site is Vercel's Instant Rollback.
 
-**Local-only documents.** `DEPLOYMENT.md` and `docs/runbook.md` (the operator runbook) describe
-how production is run, so they live only on the maintainer's machine: they are in `.gitignore`, were
-removed from the index, and must **never be committed or pushed**. Do not `git add -f` them. The
-same applies to any new operational document of that kind (host setup, access, rotation or
-restore procedures): create it, add it to `.gitignore`, and keep it out of tracked files. Do not
-link to them from tracked docs (`README.md`, `ARCHITECTURE.md`); code comments may name them. They
-remain in earlier git history, which is not rewritten.
+**Operational notes stay out of the repository.** How production is operated (host access,
+credentials, rotation and restore steps) is never committed, linked or described in tracked files.
 
 - `.github/workflows/ci.yml` gates everything: backend (vet/gofmt/build/test), web/desktop
   (typecheck then a real build, not just a type check), and a buildx build of the four
@@ -619,7 +612,7 @@ remain in earlier git history, which is not rewritten.
   ranges current with https://www.cloudflare.com/ips/.
 - Caddy is the only service publishing a public port. `{$API_DOMAIN}` proxies to `go-api` at the
   root and returns **404 for `/metrics`, `/health/detail` and `/admin/*`** — those are internal only
-  (admin is reached over ssh, see `DEPLOYMENT.md`). Cloudflare's "Always Use HTTPS" must stay off:
+  (admin is reached over ssh). Cloudflare's "Always Use HTTPS" must stay off:
   it redirects the ACME HTTP-01 challenge before it reaches Caddy, which redirects plain HTTP
   itself. A second site, `{$STREAM_DOMAIN}`, proxies only `GET /stream`
   to `flowd` (`flush_interval -1`) and returns 404 for everything else. `go-api`, `ingestd` and
@@ -652,8 +645,7 @@ remain in earlier git history, which is not rewritten.
   scrapes both (`up{job=~"loki|alloy"}`). Both run with `GOMEMLIMIT`: Go ignores a container's
   memory limit otherwise. The deploy prunes unused images older than `IMAGE_PRUNE_AFTER_HOURS` (72).
   Grafana (:3000) and Prometheus (:9090) bind to `127.0.0.1` and are reached over `ssh -L`.
-  `deploy.yml` scp's `monitoring/` alongside the compose file. Runbook: `DEPLOYMENT.md`,
-  *Monitoring*.
+  `deploy.yml` scp's `monitoring/` alongside the compose file.
 - **The services do not run as the database owner.** `go-api` connects as `skillissues_api`,
   `ingestd` as `skillissues_ingest` (migration 00029) and `flowd` as `skillissues_flow` (00033,
   `SELECT` on `settings` only): no ownership, no DDL, no `TRUNCATE`, no `COPY ... PROGRAM`.
