@@ -10,6 +10,14 @@ when something people or the API relied on works differently, MINOR for new feat
 
 ## [Unreleased]
 
+## [2.7.1] - 2026-10-26
+
+### Security
+
+- Issue descriptions are sanitised with DOMPurify 3.4.17, which fixes a critical and a high-severity
+  bypass in 3.4.16. Descriptions are written by anyone on GitHub, so this one matters.
+- Updated undici and fast-uri in the build tools for their advisories.
+
 ## [2.7.0] - 2026-10-26
 
 ### Added
@@ -402,7 +410,8 @@ the product twice.
 - Account deletion (`authPurge`) previously discarded its own delete errors and always reported
   success; it is now a single cascading `DELETE` whose error is returned to the caller.
 
-[unreleased]: https://github.com/dizziedbliss/SkillIssues/compare/web-v2.7.0...HEAD
+[unreleased]: https://github.com/dizziedbliss/SkillIssues/compare/web-v2.7.1...HEAD
+[2.7.1]: https://github.com/dizziedbliss/SkillIssues/compare/web-v2.7.0...web-v2.7.1
 [2.7.0]: https://github.com/dizziedbliss/SkillIssues/compare/web-v2.6.0...web-v2.7.0
 [2.6.0]: https://github.com/dizziedbliss/SkillIssues/compare/web-v2.5.0...web-v2.6.0
 [2.5.0]: https://github.com/dizziedbliss/SkillIssues/compare/web-v2.4.1...web-v2.5.0
