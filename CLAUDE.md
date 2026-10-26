@@ -371,7 +371,16 @@ top frame.
   credentials) and downloads only when asked; then restart, or it installs on quit. The first start
   after an update shows What's new once (`whatsNew`, from `lastVersion` in state.json). macOS isn't
   signed, so there "download" opens the release page.
-- **Release notes are in the repository**: `desktop/release-notes.md`, one `## x.y.z` section per
+- **Versions follow [SemVer](https://semver.org/) and changelogs [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/).**
+  MAJOR breaks what people or the API relied on, MINOR adds features, PATCH only fixes. The website and
+  API share one version (`CHANGELOG.md`, tagged `web-vX.Y.Z` on the last `main` commit of the release;
+  those tags trigger no workflow); the desktop has its own (`desktop/release-notes.md`, tagged `vX.Y.Z`,
+  which builds the release). In both files: an `## [Unreleased]` section on top, then
+  `## [X.Y.Z] - YYYY-MM-DD` newest first, only Added, Changed, Deprecated, Removed, Fixed and Security,
+  and compare links at the bottom. Every pull request people will notice adds its line under
+  `[Unreleased]`; releasing renames it and adds the link. The site's `web/content/docs/changelog.md`
+  summarises each version for people.
+- **Release notes are in the repository**: `desktop/release-notes.md`, one `## [x.y.z] - date` section per
   version. `release.yml` refuses a tag without one (`scripts/release-notes.sh`) and puts it on the
   GitHub release.
 - **The Windows installer is assisted** (`build.nsis`): a welcome page (`build/installer.nsh`), the

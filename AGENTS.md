@@ -83,6 +83,9 @@ The maintainer's direction for every screen. Full version: *Interface design* in
 - Never push to `main`; it changes only through reviewed pull requests.
 - Commit only when the maintainer asks. When you do, push the branch in the same step.
 - One concern per pull request. Say what changed, why, how you tested it, and that an AI tool was used.
+- Versions follow [SemVer](https://semver.org/) and changelogs [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+  The website and API share one version (`CHANGELOG.md`); the desktop has its own (`desktop/release-notes.md`).
+  A change people will notice adds a line under `## [Unreleased]` in the right one.
 
 ## Never do these
 
