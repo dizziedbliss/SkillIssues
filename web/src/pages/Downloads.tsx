@@ -31,14 +31,24 @@ interface Release {
   assets: Asset[];
 }
 
-/** Which file of a release is each system's installer. */
+/**
+ * Which file of a release is each system's installer. On Windows, the small
+ * setup (SkillIssues-Installer.exe, which downloads the app) when the release
+ * has one, else the full one.
+ */
 function installer(release: Release, os: OS): Asset | null {
+  if (os === "windows") return release.assets.find((a) => a.name === "SkillIssues-Installer.exe") ?? offline(release);
   const match = {
     windows: (n: string) => /\.exe$/i.test(n),
     mac: (n: string) => /\.dmg$/i.test(n),
     linux: (n: string) => /\.AppImage$/i.test(n),
   }[os];
   return release.assets.find((a) => match(a.name)) ?? null;
+}
+
+/** The full Windows installer, which needs no internet while it installs. */
+function offline(release: Release): Asset | null {
+  return release.assets.find((a) => /^SkillIssues-Setup-.*\.exe$/i.test(a.name)) ?? null;
 }
 
 function detectOS(): OS | null {
@@ -94,6 +104,11 @@ export function Downloads() {
             <a className={s.button} href={mine.browser_download_url}>
               {t(`download.for.${os}`)} <span className={s.size}>{t("download.size", { mb: mb(mine.size) })}</span>
             </a>
+          )}
+          {os === "windows" && mine && mine.name === "SkillIssues-Installer.exe" && offline(latest) && (
+            <p className={s.version}>
+              <a href={offline(latest)!.browser_download_url}>{t("download.offline", { mb: mb(offline(latest)!.size) })}</a>
+            </p>
           )}
           <ul className={s.systems}>
             {(mine ? others : SYSTEMS).map((x) => {

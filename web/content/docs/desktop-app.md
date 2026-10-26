@@ -4,7 +4,7 @@ slug: /download
 section: SkillIssues
 summary: What the desktop app is for, where to get it, and why your GitHub token stays on your computer.
 draft: false
-updated: 2026-10-21
+updated: 2026-10-27
 ---
 
 The desktop app handles the Git side of fixing an issue, so you don't juggle terminals and browser tabs. It is built for Windows, macOS and Linux.
@@ -38,7 +38,9 @@ The download above is the newest version for your system. Every version is also 
 
 ## Updates
 
-On Windows and Linux, from version 1.1.0 on, the app checks for a new version when it starts and every few hours, downloads it in the background, and installs it when you close the app. A button in the title bar restarts into it straight away. The macOS build isn't signed yet, so it can't update itself: the button opens this page instead. The first time you open it on a Mac, right-click it and choose **Open**.
+On Windows, install it with `SkillIssues-Installer.exe` from the [download page](/download): agree to the terms, press **Install**, and it downloads the newest version from GitHub, checks it against the release's checksum, and installs it, for you or for everyone on the PC. Run it again later to **Update**, **Repair** or **Remove** SkillIssues. Without internet while installing, use the full offline installer, `SkillIssues-Setup-<version>.exe`, from the same page.
+
+On Windows and Linux the app checks for a new version when it starts and every few hours, but never downloads one on its own: the title bar says **Update available**, and the update shows what's new and downloads when you choose. After it downloads, restart into it, or it installs when you close the app. The macOS build isn't signed yet, so it can't update itself: the button opens this page instead. The first time you open it on a Mac, right-click it and choose **Open**.
 
 What each version changed is in its release notes. If something on this page doesn't match the version you have, tell us through [Report a bug](/docs/report-a-bug).
 

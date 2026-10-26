@@ -10,6 +10,11 @@ when something people or the API relied on works differently, MINOR for new feat
 
 ## [Unreleased]
 
+### Added
+
+- The download page offers the new Windows setup (`SkillIssues-Installer.exe`), with the full offline
+  installer beside it.
+
 ## [2.6.0] - 2026-10-26
 
 ### Added

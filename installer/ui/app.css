@@ -1,0 +1,351 @@
+/*
+ * SkillIssues Setup: the site's look in one window. Warm paper and ink, one
+ * red, the wordmark in Krona One, headings in Instrument Serif, the rest in
+ * JetBrains Mono. Light or dark by the system. Fonts are inlined at build time.
+ */
+
+@font-face { font-family: "Krona One"; src: url("fonts/krona-one-latin-400-normal.woff2") format("woff2"); font-weight: 400; }
+@font-face { font-family: "Instrument Serif"; src: url("fonts/instrument-serif-latin-400-normal.woff2") format("woff2"); font-weight: 400; }
+@font-face { font-family: "JetBrains Mono"; src: url("fonts/jetbrains-mono-latin-400-normal.woff2") format("woff2"); font-weight: 400; }
+@font-face { font-family: "JetBrains Mono"; src: url("fonts/jetbrains-mono-latin-700-normal.woff2") format("woff2"); font-weight: 700; }
+
+:root {
+  --paper: #f1eee7;
+  --surface: #f6f4ef;
+  --ink: #26231f;
+  --quiet: #5b554e;
+  --rule: color-mix(in srgb, var(--ink) 18%, var(--paper));
+  --chip: color-mix(in srgb, var(--ink) 7%, var(--surface));
+  --signal: #c8190b;
+  --on-signal: #f1eee7;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0f0e0d;
+    --surface: #151413;
+    --ink: #f3f0ea;
+    --quiet: #a8a39b;
+    --signal: #ff3322;
+    --on-signal: #0f0e0d;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; margin: 0; }
+
+html, body { height: 100%; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 14px/1.5 "JetBrains Mono", ui-monospace, monospace;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+  padding: 32px 44px 18px;
+}
+
+/* ---- the wordmark ---- */
+
+.brand {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.wordmark {
+  font-family: "Krona One", sans-serif;
+  font-size: 30px;
+  letter-spacing: 0.02em;
+  padding-bottom: 4px;
+  border-bottom: 2px solid var(--ink);
+  line-height: 1.1;
+}
+
+.wordmark .i { color: var(--signal); }
+
+.tagline {
+  color: var(--quiet);
+  font-size: 12px;
+}
+
+/* ---- screens: one shown at a time ---- */
+
+.screen {
+  display: none;
+  align-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 20px 0;
+  overflow-y: auto;
+  text-align: center;
+  animation: arrive 320ms var(--ease) both;
+}
+
+.app[data-screen="loading"] [data-for="loading"],
+.app[data-screen="welcome"] [data-for="welcome"],
+.app[data-screen="installed"] [data-for="installed"],
+.app[data-screen="working"] [data-for="working"],
+.app[data-screen="done"] [data-for="done"],
+.app[data-screen="error"] [data-for="error"] {
+  display: grid;
+}
+
+@keyframes arrive {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+.title {
+  font-family: "Instrument Serif", serif;
+  font-weight: 400;
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.lede {
+  max-width: 380px;
+  color: var(--quiet);
+}
+
+/* ---- controls ---- */
+
+button { font: inherit; cursor: pointer; }
+
+.primary {
+  min-width: 240px;
+  padding: 14px 28px;
+  border: 0;
+  background: var(--signal);
+  color: var(--on-signal);
+  font-size: 15px;
+  font-weight: 700;
+  transition: background-color 240ms var(--ease), color 240ms var(--ease), transform 120ms var(--ease);
+}
+
+.primary:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+.primary:active:not(:disabled) { transform: translateY(1px) scale(0.99); }
+.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.secondary {
+  padding: 12px 20px;
+  border: 1px solid var(--rule);
+  background: none;
+  color: var(--ink);
+}
+
+.secondary:hover { border-color: var(--ink); background: var(--chip); }
+
+.link {
+  border: 0;
+  padding: 4px;
+  background: none;
+  color: var(--quiet);
+  font-size: 12px;
+  text-decoration: underline;
+  text-decoration-color: var(--signal);
+  text-underline-offset: 0.25em;
+}
+
+.link:hover { color: var(--ink); }
+
+button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 3px;
+}
+
+a { color: var(--ink); text-decoration-color: var(--signal); text-underline-offset: 0.2em; }
+
+.agree {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  max-width: 360px;
+  text-align: left;
+  font-size: 12px;
+  color: var(--quiet);
+  cursor: pointer;
+}
+
+.agree input { margin-top: 2px; accent-color: var(--signal); width: 15px; height: 15px; }
+
+/* Options, folded under Install. */
+.options {
+  width: 100%;
+  max-width: 380px;
+  text-align: left;
+  font-size: 12px;
+}
+
+.options summary {
+  color: var(--quiet);
+  text-align: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+.options summary::after { content: " ▾"; }
+.options[open] summary::after { content: " ▴"; }
+.options summary::-webkit-details-marker { display: none; }
+
+.scope {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+}
+
+.scope label { display: flex; gap: 8px; align-items: baseline; cursor: pointer; }
+.scope input { accent-color: var(--signal); }
+.hint { color: var(--quiet); }
+
+.folder { display: grid; gap: 6px; margin-top: 12px; }
+
+.folder input {
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  user-select: text;
+}
+
+.folder input:focus { outline: none; border-color: var(--signal); }
+
+/* Already installed: three choices as rows. */
+.choices {
+  display: grid;
+  width: 100%;
+  max-width: 400px;
+  border-top: 1px solid var(--rule);
+}
+
+.choice {
+  display: grid;
+  gap: 2px;
+  padding: 14px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  color: var(--ink);
+  text-align: left;
+  transition: background-color 160ms var(--ease);
+}
+
+.choice:hover { background: var(--chip); }
+.choice-name { font-family: "Instrument Serif", serif; font-size: 22px; line-height: 1.1; }
+.choice-help { color: var(--quiet); font-size: 12px; }
+.choice.recommended .choice-name { color: var(--signal); }
+.choice.danger:hover .choice-name { color: var(--signal); }
+.choice[hidden] { display: none; }
+
+/* ---- progress ---- */
+
+.bar {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  height: 6px;
+  background: var(--chip);
+  overflow: hidden;
+}
+
+.bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: var(--signal);
+  transition: width 200ms linear;
+}
+
+.bar.indeterminate span {
+  width: 30%;
+  animation: slide 1.3s var(--ease) infinite;
+}
+
+@keyframes slide {
+  from { left: -30%; }
+  to { left: 100%; }
+}
+
+.numbers {
+  color: var(--quiet);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  min-height: 18px;
+}
+
+/* ---- the foot ---- */
+
+.foot {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+  color: var(--quiet);
+  font-size: 11px;
+}
+
+.foot a { color: var(--quiet); }
+
+/* ---- the confirmation dialog ---- */
+
+.dialog {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--paper) 60%, transparent);
+  backdrop-filter: blur(6px);
+  animation: fade 200ms var(--ease) both;
+}
+
+.dialog[hidden] { display: none; }
+
+@keyframes fade { from { opacity: 0; } }
+
+.dialog-box {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  max-width: 380px;
+  padding: 24px;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 25%);
+  text-align: left;
+  animation: arrive 240ms var(--ease) both;
+}
+
+.dialog-box h2 {
+  font-family: "Instrument Serif", serif;
+  font-weight: 400;
+  font-size: 28px;
+  line-height: 1.05;
+}
+
+.dialog-box p { color: var(--quiet); }
+
+.dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.dialog-actions .primary { min-width: 0; padding: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
