@@ -39,9 +39,9 @@ if [ -f secrets/prod.env.sops ]; then
 	./decrypt-env.sh secrets/prod.env.sops .env
 elif [ -f .env ]; then
 	echo "WARNING: secrets/prod.env.sops not found; using the .env already on this host." >&2
-	echo "         Move it into SOPS (DEPLOYMENT.md, 'Secrets') so CI-delivered secrets stay encrypted." >&2
+	echo "         Move it into SOPS so CI-delivered secrets stay encrypted." >&2
 else
-	echo "neither secrets/prod.env.sops nor .env found in $(pwd) — see DEPLOYMENT.md for first-time host setup" >&2
+	echo "neither secrets/prod.env.sops nor .env found in $(pwd)" >&2
 	exit 1
 fi
 
@@ -52,7 +52,6 @@ COMPOSE=(docker compose -f compose.prod.yaml --env-file .env)
 if ! "${COMPOSE[@]}" config --quiet; then
 	echo "compose.prod.yaml does not resolve against .env — add the key named above." >&2
 	echo "Nothing was changed; production is still on the previous release." >&2
-	echo "See DEPLOYMENT.md, 'First-time host setup' step 2, for every required key." >&2
 	exit 1
 fi
 
@@ -62,7 +61,7 @@ fi
 # *_IMAGE overrides). Anyone who can push to GHCR can move a tag; they cannot
 # produce a signature whose certificate names this workflow on main.
 if ! command -v cosign >/dev/null 2>&1; then
-	echo "cosign is not installed on this host — see DEPLOYMENT.md, 'First-time host setup'." >&2
+	echo "cosign is not installed on this host." >&2
 	echo "Nothing was changed; production is still on the previous release." >&2
 	exit 1
 fi

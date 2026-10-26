@@ -12,7 +12,7 @@
 #   local  keep it in BACKUP_DIR on this host and prune it after
 #          BACKUP_RETENTION_DAYS (default 14). There is NO off-site copy: it
 #          is safe from a thief reading it, not from this disk or VPS being
-#          lost. Pull the files to another machine (DEPLOYMENT.md, "Backups").
+#          lost. Pull the files to another machine.
 # There is no default: an unset destination is an error, so nobody ends up
 # with a backup policy they did not choose.
 #
@@ -41,7 +41,7 @@ case "$destination" in
 r2) required=(BACKUP_AGE_RECIPIENT R2_ENDPOINT R2_BUCKET R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY) ;;
 local) required=(BACKUP_AGE_RECIPIENT) ;;
 *)
-	echo "BACKUP_DESTINATION must be 'r2' or 'local' (got '${destination}') — DEPLOYMENT.md, 'Backups'" >&2
+	echo "BACKUP_DESTINATION must be 'r2' or 'local' (got '${destination}')" >&2
 	exit 1
 	;;
 esac
@@ -51,7 +51,7 @@ for var in "${required[@]}"; do
 	[ -n "${!var:-}" ] || missing+=("$var")
 done
 if [ ${#missing[@]} -gt 0 ]; then
-	echo "backup is not configured: ${missing[*]} unset in .env (DEPLOYMENT.md, 'Backups')" >&2
+	echo "backup is not configured: ${missing[*]} unset in .env" >&2
 	exit 1
 fi
 case "$BACKUP_AGE_RECIPIENT" in
@@ -112,7 +112,7 @@ trap - EXIT
 echo "Wrote $dest ($(du -h "$dest" | cut -f1), encrypted)"
 
 if [ "$destination" = local ]; then
-	echo "LOCAL ONLY: no off-site copy exists. Pull $BACKUP_DIR to another machine (DEPLOYMENT.md, 'Backups')." >&2
+	echo "LOCAL ONLY: no off-site copy exists. Pull $BACKUP_DIR to another machine." >&2
 	find "$BACKUP_DIR" -name 'skillissues-*.sql.gz.age' -mtime "+${RETENTION_DAYS}" -print -delete
 	failed=0
 else

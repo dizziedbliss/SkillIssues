@@ -181,8 +181,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `R2_SECRET_ACCESS_KEY`).
 - Images are signed and verified. The deploy builds, attests provenance for and cosign-signs each
   image by digest; the host verifies the signature (`deploy.yml` on `main`) and runs that digest,
-  so a pushed or retagged image does not deploy. **The host needs `cosign`** (DEPLOYMENT.md,
-  step 0). Rollback to a tag built before this change fails verification (it is unsigned).
+  so a pushed or retagged image does not deploy. **The host needs `cosign`**. Rollback to a tag built before this change fails verification (it is unsigned).
 - CI: Actions pinned to commit SHAs, `contents: read` by default, a `govulncheck` job, and
   Dependabot for Go modules, Actions, Dockerfiles and compose files. Base images are pinned by
   digest. go-redis upgraded to 9.7.3 (GO-2025-3540).
