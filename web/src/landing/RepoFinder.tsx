@@ -5,7 +5,7 @@ import type { Issue } from "@skillissues/client";
 import { api } from "../lib/api";
 import { external } from "../lib/links";
 import { useI18n, useT, type MessageKey } from "../i18n";
-import f from "./IssueFinder.module.css";
+import f from "./Finder.module.css";
 import s from "./RepoFinder.module.css";
 
 /** How many issues the name search reads to find repositories: a few per repository at most (api.search.per_repo_cap). */
@@ -102,9 +102,9 @@ export function RepoFinder() {
           {active.isPending && <p className={f.note}>{t("landing.repo.loading")}</p>}
           {active.isError && (
             <p className={f.note}>
-              {t("landing.finder.error")}{" "}
+              {t("landing.repo.error")}{" "}
               <button type="button" className={f.retry} onClick={() => active.refetch()}>
-                {t("landing.finder.retry")}
+                {t("landing.repo.retry")}
               </button>
             </p>
           )}
@@ -200,7 +200,7 @@ function Matches({ term, issues }: { term: string; issues: Issue[] }) {
           <li key={r.repository}>
             <Link to={exploreRepo(r.repository)} className={s.row}>
               <span className={s.name}>{r.repository}</span>
-              <span className={s.lang}>{r.language || t("landing.finder.noLanguage")}</span>
+              <span className={s.lang}>{r.language || t("landing.repo.noLanguage")}</span>
               {r.repository_description && <span className={s.desc}>{r.repository_description}</span>}
             </Link>
           </li>

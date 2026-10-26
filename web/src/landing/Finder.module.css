@@ -1,9 +1,8 @@
-/* The hero's issue finder: two choices, a red button, three cards. */
+/* The repository finder's box: a title, a form with a red button, results under it. */
 
 .finder {
-  margin-top: clamp(3rem, 6vw, 5rem);
   padding: clamp(1.25rem, 3vw, 2.25rem);
-  border: 1px solid var(--hair);
+  border: 1px solid color-mix(in srgb, var(--hair) 55%, transparent);
   background: var(--paper);
 }
 
@@ -41,24 +40,7 @@
   font-size: var(--label-size);
 }
 
-.select {
-  appearance: none;
-  padding: 0.65em 2.4em 0.6em 0.8em;
-  border: 1px solid var(--hair);
-  border-radius: 0;
-  /* A plain chevron drawn in the ink colour. */
-  background:
-    linear-gradient(45deg, transparent 50%, var(--ink) 50%) calc(100% - 1.15em) 55% / 0.4em 0.4em no-repeat,
-    linear-gradient(135deg, var(--ink) 50%, transparent 50%) calc(100% - 0.75em) 55% / 0.4em 0.4em no-repeat,
-    var(--paper);
-  color: var(--ink);
-  font: inherit;
-  font-size: 1rem;
-}
-
-.select:focus-visible,
 .go:focus-visible,
-.card:focus-visible,
 .retry:focus-visible,
 .more:focus-visible {
   outline: 2px solid var(--ink);
@@ -70,8 +52,10 @@
   border: 0;
   background: var(--signal);
   color: var(--on-signal);
+  /* After the shorthand, which would reset it. */
   font: inherit;
   font-size: 1rem;
+  font-weight: 700;
   cursor: pointer;
   transition:
     background-color var(--slow) var(--ease),
@@ -106,78 +90,6 @@
   cursor: pointer;
 }
 
-.cards {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  list-style: none;
-}
-
-.cards li {
-  display: flex;
-  /* Each card rises in, one after another. */
-  animation: rise var(--slow) var(--ease) both;
-}
-
-.cards li:nth-child(2) {
-  animation-delay: 80ms;
-}
-
-.cards li:nth-child(3) {
-  animation-delay: 160ms;
-}
-
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(0.75rem);
-  }
-}
-
-.card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  width: 100%;
-  padding: 1.1rem 1.1rem 1rem;
-  border: 1px solid var(--hair);
-  background: var(--paper);
-  color: var(--ink);
-  text-decoration: none;
-  transition:
-    background-color var(--slow) var(--ease),
-    transform var(--fast) var(--ease);
-}
-
-.card:hover {
-  background: var(--wash);
-}
-
-.card:active {
-  transform: translateY(1px);
-}
-
-.repo {
-  font-size: var(--label-size);
-  color: var(--quiet);
-  overflow-wrap: anywhere;
-}
-
-.issueTitle {
-  flex: 1;
-  font-family: var(--serif);
-  font-size: 1.5rem;
-  line-height: 1.15;
-  overflow-wrap: anywhere;
-}
-
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-  font-size: var(--label-size);
-}
-
 .after {
   display: flex;
   flex-wrap: wrap;
@@ -198,19 +110,8 @@
   color: var(--quiet);
 }
 
-@media (max-width: 860px) {
-  .cards {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .cards li {
-    animation: none;
-  }
-
-  .go,
-  .card {
+  .go {
     transition: none;
   }
 }

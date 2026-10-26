@@ -1,4 +1,13 @@
-/* Layout of the landing page: a zig-zag inside one container with equal margins. */
+/*
+ * The landing page: centred, over the backlog field. The hero
+ * (Hero.module.css), then full-width bands,
+ * each with a centred head and the real thing under it. Hairlines, square
+ * corners, the one red. Locked: tokens.module.css, never a user theme.
+ */
+
+.page {
+  position: relative;
+}
 
 .page header,
 .page main,
@@ -7,86 +16,138 @@
   z-index: 1;
 }
 
-/* Equal margins on both sides at every width. */
 .container {
   width: min(var(--container), 100% - 2 * var(--gutter));
   margin-inline: auto;
 }
 
-/* ---- type ---- */
+/* ---- shared with the hero: the pill and the buttons ---- */
 
-.heading {
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.4em 0.9em;
+  border: 1px solid color-mix(in srgb, var(--hair) 50%, transparent);
+  background: color-mix(in srgb, var(--paper) 70%, transparent);
+  font-size: var(--label-size);
+}
+
+.dot {
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background: var(--signal);
+  animation: breathe 2.4s var(--ease) infinite;
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.ctas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem 1rem;
+  margin-top: 2rem;
+}
+
+.button,
+.ghost {
+  display: inline-block;
+  padding: 0.8em 1.3em 0.75em;
+  font-family: var(--mono);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: none;
+  transition:
+    background-color var(--slow) var(--ease),
+    color var(--slow) var(--ease),
+    border-color var(--slow) var(--ease),
+    transform var(--fast) var(--ease);
+}
+
+.button {
+  background: var(--signal);
+  color: var(--on-signal);
+  /* Bold: lighter weights read thin and broken up on the red. */
+  font-weight: 700;
+}
+
+.button:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.ghost {
+  border: 1px solid var(--hair);
+  color: var(--ink);
+}
+
+.ghost:hover {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.button:active,
+.ghost:active {
+  transform: translateY(1px) scale(0.985);
+}
+
+.button:focus-visible,
+.ghost:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* ---- bands ---- */
+
+.band {
+  margin-top: var(--section-gap);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 64rem;
+  margin-inline: auto;
+}
+
+.kicker {
+  font-size: var(--label-size);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--signal);
+}
+
+.title {
+  margin-top: 0.5rem;
   font-family: var(--serif);
   font-weight: 400;
   font-size: var(--h-size);
   line-height: 1.02;
   letter-spacing: var(--h-track);
   text-wrap: balance;
-  font-kerning: normal;
 }
 
-.body {
+.lede {
+  margin-top: 1rem;
+  /* About 75 characters of mono: as wide as it stays easy to read. */
+  max-width: 52rem;
   font-size: var(--body-size);
   line-height: var(--body-leading);
-  letter-spacing: var(--body-track);
-  max-width: var(--measure);
 }
 
-.heading + .body {
-  margin-top: 1rem;
-}
-
-.body + .body {
+.lede + .lede {
   margin-top: 0.75rem;
-}
-
-.kicker {
-  font-size: var(--label-size);
-  letter-spacing: var(--body-track);
-  margin-bottom: 0.5rem;
-}
-
-.button {
-  display: inline-block;
-  margin-top: 1.5rem;
-  padding: 0.7em 1.1em 0.65em;
-  /* Fades to ink on hover, over the red. */
-  background: var(--signal);
-  color: var(--on-signal);
-  font-family: var(--mono);
-  font-size: var(--button-size);
-  line-height: 1.2;
-  text-decoration: none;
-  transition:
-    background-color var(--slow) var(--ease),
-    color var(--slow) var(--ease),
-    transform var(--fast) var(--ease);
-}
-
-.button:hover {
-  background-color: var(--ink);
-  color: var(--paper);
-}
-
-.button:active {
-  transform: translateY(1px) scale(0.985);
-}
-
-.button:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 3px;
-}
-
-.ctaLine {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  margin-top: 1.5rem;
-}
-
-.ctaLine .button {
-  margin-top: 0;
 }
 
 .aside {
@@ -99,176 +160,238 @@
   align-items: baseline;
   justify-content: center;
   gap: 0.75em;
+  margin-top: 2.5rem;
   font-size: var(--body-size);
-  margin-bottom: 0.75rem;
 }
 
-/* ---- sections ---- */
-
-/*
- * The top: the heading and its paragraph in the left half like every left
- * section of the zig-zag, and the Backlog Clock centred on the page.
- */
-.hero {
-  padding-top: clamp(2.5rem, 5vw, 4.5rem);
-}
-
-.hero > .heading,
-.hero > .body {
-  max-width: var(--half);
-}
-
-.section {
-  margin-top: var(--section-gap);
-}
-
-/* One half of the zig-zag: text on the left, the right left white … */
-.left {
-  max-width: var(--half);
-}
-
-/* … or text on the right, the left left white. */
-.right {
-  max-width: var(--half);
-  margin-left: auto;
-}
-
-.centred {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  max-width: 46rem;
-  margin-inline: auto;
-}
-
-.centred .body {
-  margin-inline: auto;
-}
-
-.closing {
-  padding: var(--section-gap) 0 clamp(4rem, 8vw, 7rem);
-}
-
-/* ---- the four steps ---- */
-
-.steps {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: clamp(1rem, 2.5vw, 2.5rem);
-  margin: clamp(2rem, 4vw, 3.5rem) 0;
-  list-style: none;
-}
-
-.step {
-  padding-top: 1rem;
-  border-top: 1px solid var(--hair);
-}
-
-.stepNumber {
-  display: block;
+.made + .lede {
+  margin-top: 0.5rem;
   font-family: var(--serif);
-  font-size: clamp(3rem, 2rem + 3vw, 5rem);
-  line-height: 0.9;
-  color: var(--signal);
+  font-size: clamp(1.5rem, 1.1rem + 1.2vw, 2.25rem);
+  line-height: 1.15;
 }
 
-.stepTitle {
-  margin-top: 0.75rem;
+/* ---- the comparison ---- */
+
+.tableWrap {
+  margin-top: clamp(2rem, 4vw, 3rem);
+  overflow-x: auto;
+}
+
+.compare {
+  width: 100%;
+  min-width: 46rem;
+  border-collapse: collapse;
+  background: var(--paper);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.compare th,
+.compare td {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--hair) 45%, transparent);
+  text-align: left;
+  vertical-align: top;
+}
+
+.compare thead th,
+.compare thead td {
+  border-bottom-color: var(--ink);
+  font-weight: 400;
+  font-size: var(--label-size);
+  color: var(--quiet);
+  vertical-align: bottom;
+}
+
+.compare tbody th {
+  font-weight: 400;
+  font-size: var(--label-size);
+  color: var(--quiet);
+  width: 18%;
+}
+
+/* Our column: tinted, with a red rule on top, so the eye lands there. */
+.compare .us {
+  background: color-mix(in srgb, var(--signal) 9%, var(--paper));
+  color: var(--ink);
+}
+
+.compare thead .us {
+  border-top: 2px solid var(--signal);
+}
+
+/* ---- feature rows: no boxes, hairlines between, a red number on each ---- */
+
+.rows {
+  margin-top: clamp(2rem, 4vw, 3rem);
+  list-style: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--hair) 45%, transparent);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: clamp(2rem, 6vw, 6rem);
+  align-items: center;
+  padding: clamp(2rem, 5vw, 3.5rem) 0;
+  border-top: 1px solid color-mix(in srgb, var(--hair) 45%, transparent);
+}
+
+.rowTitle {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 1.75rem;
-  line-height: 1.1;
+  font-size: clamp(1.75rem, 1.2rem + 1.6vw, 2.75rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
-.stepBody {
+.kicker + .rowTitle {
   margin-top: 0.5rem;
-  font-size: 1rem;
+}
+
+.rowBody {
+  margin-top: 0.75rem;
+  max-width: var(--measure);
+  font-size: var(--body-size);
   line-height: var(--body-leading);
 }
 
-.lead {
-  font-family: var(--serif);
-  font-size: clamp(1.6rem, 1.2rem + 1.2vw, 2.25rem);
-  line-height: 1.1;
+.rowWidget {
+  max-width: 34rem;
+  width: 100%;
+  justify-self: end;
 }
 
-.lead + .body {
-  margin-top: 0.75rem;
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin-top: 1.25rem;
 }
 
 .link {
   color: var(--ink);
   font-size: 1rem;
   text-decoration: underline;
-  text-underline-offset: 0.2em;
+  text-decoration-color: var(--signal);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.25em;
 }
 
-.link:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 3px;
-}
-
-/* ---- developers and maintainers, side by side: the zig-zag's two halves at once ---- */
-
+/* Developers | maintainers: two halves, a hairline between, no boxes. */
 .split {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: clamp(2rem, 6vw, 6rem);
+  border-top: 1px solid color-mix(in srgb, var(--hair) 45%, transparent);
 }
 
-/* ---- XP facts ---- */
-
-.facts {
-  display: grid;
-  gap: 1rem;
-  margin-top: 1.5rem;
+.side {
+  padding: clamp(2rem, 5vw, 3rem) clamp(1rem, 4vw, 3rem) 0 0;
 }
 
-.fact {
-  display: grid;
-  grid-template-columns: 8rem minmax(0, 1fr);
-  gap: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--hair);
-  font-size: 1rem;
-  line-height: var(--body-leading);
+.side + .side {
+  padding-left: clamp(1rem, 4vw, 3rem);
+  border-left: 1px solid color-mix(in srgb, var(--hair) 45%, transparent);
 }
 
-.fact dt {
-  font-family: var(--serif);
-  font-size: 1.5rem;
-  line-height: 1.1;
+/* ---- free, and the end: a second glow, lower and softer ---- */
+
+.free,
+.closing {
+  position: relative;
+  padding: clamp(3rem, 7vw, 5rem) 0;
 }
 
-/* Narrow screens: one column, every section full width. */
+.free::before,
+.closing::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse 55% 60% at 50% 50%, color-mix(in srgb, var(--signal) 14%, transparent), transparent 70%);
+}
+
+.closing {
+  margin-bottom: clamp(3rem, 7vw, 5rem);
+}
+
+/* Narrow: no sideways scrolling. Each row stacks, our answer first and tinted, the others under it, each labelled. */
+@media (max-width: 700px) {
+  .compare {
+    min-width: 0;
+  }
+
+  .compare thead {
+    display: none;
+  }
+
+  .compare tbody tr {
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--hair) 45%, transparent);
+  }
+
+  .compare tbody th,
+  .compare tbody td {
+    display: block;
+    width: auto;
+    padding: 0.35rem 0.75rem;
+    border: 0;
+  }
+
+  .compare tbody th {
+    padding-bottom: 0.6rem;
+  }
+
+  .compare tbody td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: var(--label-size);
+    color: var(--quiet);
+  }
+
+  .compare tbody .us {
+    order: -1;
+    margin-bottom: 0.4rem;
+    padding-block: 0.75rem;
+    border-left: 2px solid var(--signal);
+  }
+
+  .compare tbody th {
+    order: -2;
+  }
+}
+
 @media (max-width: 860px) {
-  .left,
-  .right,
-  .hero > .heading,
-  .hero > .body {
-    max-width: none;
-    margin-left: 0;
-  }
-
-  .steps {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
+  .row,
   .split {
     grid-template-columns: 1fr;
   }
-}
 
-@media (max-width: 520px) {
-  .steps,
-  .fact {
-    grid-template-columns: 1fr;
+  .rowWidget {
+    justify-self: start;
+    max-width: none;
+  }
+
+  .side + .side {
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid color-mix(in srgb, var(--hair) 45%, transparent);
+    margin-top: 2rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .button {
+  .dot {
+    animation: none;
+  }
+
+  .button,
+  .ghost {
     transition: none;
   }
 }

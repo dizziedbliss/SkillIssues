@@ -1,4 +1,4 @@
-/* The repository finder: the issue finder's box (IssueFinder.module.css), a text box, rows. */
+/* The repository finder: the box and form from Finder.module.css, a text box, rows. */
 
 .grow {
   flex: 1 1 22rem;
@@ -142,6 +142,7 @@
   padding: 0.7em 1.1em 0.65em;
   background: var(--signal);
   color: var(--on-signal);
+  font-weight: 700;
   font-size: 1rem;
   text-decoration: none;
   transition:
