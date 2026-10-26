@@ -1,0 +1,269 @@
+/*
+ * The hero: one column, everything centred on one axis and as wide as the
+ * issue. The waiting line, the issue, what it's worth, the promise with the
+ * chips that keep it, the buttons; then the live numbers. The pill, buttons
+ * and dot come from Landing.module.css. Locked like the rest of the landing.
+ */
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-height: min(92vh, 60rem);
+  justify-content: center;
+  padding: clamp(3rem, 8vw, 6rem) 0 clamp(2rem, 5vw, 4rem);
+}
+
+/* The promise: the page's h1, leading into the chips that keep it. */
+.promise {
+  margin-top: clamp(2rem, 5vw, 3rem);
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 2.1rem);
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.notThis {
+  color: var(--quiet);
+}
+
+/* One width for everything under the pill, so every line shares the same edges. */
+.column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(100%, 46rem);
+}
+
+.display {
+  margin-top: 1.75rem;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(2.6rem, 1.5rem + 4.2vw, 5.5rem);
+  line-height: 0.95;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+  animation: arrive var(--slow) var(--ease) both;
+}
+
+.nobody {
+  display: block;
+  color: var(--signal);
+}
+
+/* Room for the issue before it arrives, so the page doesn't jump under the reader. */
+.issueSlot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 9.5rem;
+  margin-top: clamp(1.75rem, 4vw, 2.5rem);
+}
+
+/* The issue: a hairline frame on paper, so it reads over the ticker; the whole thing opens it. */
+.issue {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 1.25rem 1.5rem 1.15rem;
+  border: 1px solid var(--hair);
+  border-top: 2px solid var(--signal);
+  background: var(--paper);
+  color: var(--ink);
+  text-align: left;
+  text-decoration: none;
+  animation: arrive var(--slow) var(--ease) both;
+  transition:
+    background-color var(--slow) var(--ease),
+    transform var(--fast) var(--ease);
+}
+
+.issue:hover {
+  background: var(--wash);
+}
+
+.issue:active {
+  transform: translateY(1px);
+}
+
+.repo {
+  font-size: var(--label-size);
+  color: var(--quiet);
+  overflow-wrap: anywhere;
+}
+
+.title {
+  font-family: var(--serif);
+  font-size: clamp(1.4rem, 1.1rem + 1vw, 1.9rem);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  font-size: var(--label-size);
+}
+
+/* A green square, not green text: the green is under 4.5:1 as small text on light paper. */
+.welcoming {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+}
+
+.welcoming::before {
+  content: "";
+  width: 0.55em;
+  height: 0.55em;
+  background: var(--closed);
+}
+
+.note {
+  font-size: var(--body-size);
+  color: var(--quiet);
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.chip {
+  padding: 0.4em 0.8em;
+  border: 1px solid color-mix(in srgb, var(--hair) 60%, transparent);
+  background: color-mix(in srgb, var(--paper) 80%, transparent);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--label-size);
+  cursor: pointer;
+  transition:
+    background-color var(--slow) var(--ease),
+    border-color var(--slow) var(--ease),
+    color var(--slow) var(--ease);
+}
+
+.chip:hover {
+  border-color: var(--ink);
+}
+
+.chip[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.textButton {
+  margin-left: 0.5rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--label-size);
+  text-decoration: underline;
+  text-decoration-color: var(--signal);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.25em;
+  cursor: pointer;
+}
+
+.chip:focus-visible,
+.textButton:focus-visible,
+.issue:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.tonight {
+  margin-top: 1.25rem;
+  font-size: var(--body-size);
+  line-height: var(--body-leading);
+  text-wrap: balance;
+}
+
+/* The live numbers: four figures in a row, hairlines between, no bar. */
+.numbers {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: min(100%, 60rem);
+  margin-top: clamp(3rem, 7vw, 4.5rem);
+  border-top: 1px solid color-mix(in srgb, var(--hair) 45%, transparent);
+}
+
+.numbers > div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.35rem;
+  padding: 1.25rem 0.75rem 0;
+}
+
+.numbers > div + div {
+  border-left: 1px solid color-mix(in srgb, var(--hair) 45%, transparent);
+}
+
+.numbers dt {
+  font-size: var(--label-size);
+  color: var(--quiet);
+}
+
+.numbers dd {
+  font-family: var(--serif);
+  font-size: clamp(1.75rem, 1.3rem + 1.4vw, 2.75rem);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.red {
+  color: var(--signal);
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+@media (max-width: 860px) {
+  .hero {
+    min-height: auto;
+  }
+
+  .numbers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .numbers > div:nth-child(3) {
+    border-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .display,
+  .issue {
+    animation: none;
+  }
+
+  .chip,
+  .issue {
+    transition: none;
+  }
+}

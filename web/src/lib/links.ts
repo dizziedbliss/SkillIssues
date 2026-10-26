@@ -10,4 +10,11 @@ export const external = {
   requestFeature: "https://github.com/dizziedbliss/SkillIssues/issues/new?template=feature_request.yml",
   repositoryCoverage: "https://github.com/dizziedbliss/SkillIssues/issues/new?template=repository_coverage.yml",
   live: "https://flow.dizziedbliss.lol",
+  // Projects to sponsor, starting with the ones the signed-in visitor depends on.
+  sponsorsExplore: "https://github.com/sponsors/explore",
+  openCollective: "https://opencollective.com/discover",
+  // Splits a donation across the open source projects you depend on.
+  thanksDev: "https://thanks.dev",
+  // A curated list of grants and programs maintainers can apply to.
+  maintainerFunding: "https://github.com/mechko/awesome-maintainer-funding",
 } as const;
