@@ -1,0 +1,72 @@
+/* A profile's pull requests: hairline rows, the title first, what it earned on the right in the accent. */
+
+.list {
+  display: grid;
+  border-top: 1px solid color-mix(in srgb, var(--rule) 50%, transparent);
+}
+
+.list li {
+  border-bottom: 1px solid color-mix(in srgb, var(--rule) 50%, transparent);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title outcome"
+    "meta outcome";
+  gap: 0.25rem 1.5rem;
+  align-items: center;
+  padding: 0.85rem 0.25rem;
+  color: inherit;
+  text-decoration: none;
+  transition: background-color var(--slow) var(--ease);
+}
+
+.row:hover {
+  background: color-mix(in srgb, var(--colors-surface-raised) 60%, transparent);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--colors-text);
+  outline-offset: 2px;
+}
+
+.title {
+  grid-area: title;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  grid-area: meta;
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+  overflow-wrap: anywhere;
+}
+
+.outcome {
+  grid-area: outcome;
+  font-size: var(--label-size);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.outcome[data-state="merged"] {
+  color: var(--colors-success);
+}
+
+.xp {
+  color: var(--colors-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.muted,
+.empty {
+  color: var(--colors-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    transition: none;
+  }
+}

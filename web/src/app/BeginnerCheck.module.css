@@ -13,6 +13,7 @@
   font-weight: var(--typography-heading-weight);
   font-size: 1.35rem;
   letter-spacing: var(--heading-tracking);
+  color: var(--colors-accent);
 }
 
 .verdict {

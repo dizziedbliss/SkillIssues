@@ -1,14 +1,14 @@
-/* The search overlay, as designed: a red-framed panel over the page, which blurs behind it. */
+/* The search overlay: a palette near the top of the page, the page blurred behind it, results right under the bar. */
 
 .dialog {
-  width: min(90rem, 100% - 2 * var(--gutter));
+  width: min(56rem, 100% - 2 * var(--gutter));
   max-width: none;
-  max-height: min(50rem, 100dvh - 4rem);
-  margin: clamp(1rem, 8vh, 6rem) auto auto;
+  max-height: min(44rem, 100dvh - 4rem);
+  margin: clamp(1rem, 10vh, 7rem) auto auto;
   padding: 0;
-  border: var(--border-width) solid var(--colors-accent);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-large);
-  background: color-mix(in srgb, var(--colors-surface) 88%, transparent);
+  background: var(--colors-surface);
   box-shadow: var(--shadow-large);
   color: var(--colors-text);
   overflow-y: auto;
@@ -20,145 +20,65 @@
 }
 
 .dialog::backdrop {
-  background: color-mix(in srgb, var(--colors-background) 35%, transparent);
+  background: color-mix(in srgb, var(--colors-background) 45%, transparent);
   backdrop-filter: blur(8px);
   animation: dim var(--slow) var(--ease);
 }
 
 /* The panel fills the dialog: a click that reaches the dialog itself is outside it. */
 .panel {
-  padding: clamp(1.25rem, 4vw, 4rem) clamp(1rem, 6vw, 7.5rem);
+  padding: 1rem;
 }
 
 .head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
+  align-items: stretch;
+  gap: 0.5rem;
 }
 
-.title {
-  font-family: var(--serif);
-  font-weight: var(--typography-heading-weight);
-  font-size: clamp(2.25rem, 1.5rem + 2.4vw, 3.25rem);
-  line-height: 1.05;
-  letter-spacing: var(--heading-tracking);
+.head > form {
+  flex: 1;
+  min-width: 0;
 }
 
 .close {
+  flex: none;
+  padding: 0 0.6rem;
   border: 0;
-  padding: 0.3rem 0;
   background: none;
   color: var(--colors-text-muted);
   font: inherit;
-  font-size: var(--label-size);
-  text-decoration: underline;
-  text-decoration-color: var(--colors-accent);
-  text-underline-offset: 0.2em;
   cursor: pointer;
 }
 
-.sub {
-  max-width: 46rem;
-  margin-top: 0.75rem;
-  color: var(--colors-text-muted);
-  font-size: 0.9375rem;
+.cross {
+  display: none;
 }
 
-.form {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem clamp(0.75rem, 1.5vw, 1.25rem);
-  margin-top: clamp(1.25rem, 3vw, 2rem);
+.close kbd {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-small);
+  font: inherit;
+  font-size: 0.75rem;
 }
 
-.label {
-  flex: none;
-  font-family: var(--serif);
-  font-size: 1.4rem;
-  letter-spacing: var(--heading-tracking);
-}
-
-.box {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  border: var(--border-width) solid var(--colors-accent);
-  border-radius: var(--radius-medium);
-  background: var(--colors-surface);
-}
-
-.box:focus-within {
-  box-shadow: 0 0 0 1px var(--colors-accent);
-}
-
-.box input {
-  flex: 1;
-  min-width: 0;
-  padding: 0.5rem 0.6rem;
-  border: 0;
-  background: none;
+.close:hover {
   color: var(--colors-text);
-  font: inherit;
-  font-size: 0.9375rem;
 }
-
-.box input:focus {
-  outline: none;
-}
-
-.box input::-webkit-search-cancel-button {
-  appearance: none;
-}
-
-.inBox {
-  flex: none;
-  align-self: stretch;
-  padding: 0 0.85rem;
-  border: 0;
-  background: none;
-  color: var(--colors-text);
-  font: inherit;
-  font-size: var(--label-size);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.filter {
-  color: var(--colors-accent);
-}
-
-.submit {
-  flex: none;
-  padding: 0.55rem 0.9rem;
-  border: 0;
-  border-radius: var(--radius-medium);
-  background: var(--colors-accent);
-  color: var(--colors-accent-text);
-  font: inherit;
-  font-size: var(--label-size);
-  cursor: pointer;
-  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
-}
-
-.submit:hover,
-.submit:focus-visible {
-  background-color: var(--accent-hover);
-  color: var(--colors-accent);
-}
-
-/* ---- results ---- */
 
 .results {
-  margin-top: 1.5rem;
+  padding: 0.25rem 0.25rem 0.5rem;
 }
 
 .note {
+  margin-top: 1rem;
   color: var(--colors-text-muted);
+  font-size: var(--label-size);
 }
 
 .error {
+  margin-top: 1rem;
   color: var(--colors-danger);
 }
 
@@ -172,52 +92,42 @@
   cursor: pointer;
 }
 
-/* The kinds side by side where there's room, stacked where there isn't. */
 .groups {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  gap: 1.5rem 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 0.5rem 1.5rem;
 }
 
-.more {
-  display: inline-block;
-  margin-top: 0.5rem;
-  color: var(--colors-accent);
-  font-size: var(--label-size);
-  text-decoration: none;
-  background: linear-gradient(currentColor, currentColor) no-repeat 0 100% / 0% 1px;
-  transition: background-size var(--slow) var(--ease);
-}
-
-.more:hover,
-.more:focus-visible {
-  background-size: 100% 1px;
+.group {
+  margin-top: 1rem;
 }
 
 .groupTitle {
-  padding-bottom: 0.35rem;
-  border-bottom: var(--border-width) var(--border-style) var(--rule);
-  color: var(--colors-text-muted);
-  font-size: var(--label-size);
-  font-weight: 400;
+  padding: 0 0.5rem 0.4rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--colors-accent);
 }
 
+/* A result: a row that lights on hover and focus, like a menu. */
 .result {
   display: grid;
   gap: 0.15rem;
-  padding: 0.6rem 0.5rem;
+  padding: 0.55rem 0.5rem;
+  border-radius: var(--radius-medium);
   color: inherit;
   text-decoration: none;
-  background: transparent;
-  transition: background-color var(--slow) var(--ease);
 }
 
 .result:hover,
 .result:focus-visible {
-  background-color: var(--chip);
+  background: var(--chip);
+  outline: none;
 }
 
 .resultTitle {
+  font-size: 0.9375rem;
   overflow-wrap: anywhere;
 }
 
@@ -227,37 +137,42 @@
 }
 
 .resultRepo {
+  font-size: 0.8125rem;
+}
+
+.more {
+  display: inline-block;
+  margin: 0.25rem 0.5rem 0;
+  color: var(--colors-text);
   font-size: var(--label-size);
+  text-decoration: underline;
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
 }
 
 .all {
-  margin-top: 1.25rem;
-  padding: 0.5em 1em;
-  border: var(--border-width) solid var(--colors-accent);
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.7rem;
+  border: 1px solid var(--rule);
   border-radius: var(--radius-medium);
-  background: transparent;
+  background: none;
   color: var(--colors-text);
   font: inherit;
-  font-size: var(--button-size);
+  font-size: var(--label-size);
   cursor: pointer;
-  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
+  transition: background-color var(--fast) var(--ease);
 }
 
 .all:hover,
 .all:focus-visible {
-  background-color: var(--colors-accent);
-  color: var(--colors-accent-text);
+  background: var(--chip);
 }
 
-/* The panel draws itself in from the left edge, the theme's wipe in miniature. */
 @keyframes open {
   from {
     opacity: 0;
-    clip-path: inset(0 100% 0 0);
-  }
-  to {
-    opacity: 1;
-    clip-path: inset(0 0 0 0);
+    transform: translateY(-0.5rem) scale(0.99);
   }
 }
 
@@ -268,12 +183,16 @@
 }
 
 @media (max-width: 640px) {
-  .form {
-    flex-wrap: wrap;
+  .dialog {
+    margin-top: 0.75rem;
   }
 
-  .label {
-    flex-basis: 100%;
+  .esc {
+    display: none;
+  }
+
+  .cross {
+    display: flex;
   }
 }
 
@@ -283,8 +202,6 @@
     animation: none;
   }
 
-  .submit,
-  .result,
   .all {
     transition: none;
   }

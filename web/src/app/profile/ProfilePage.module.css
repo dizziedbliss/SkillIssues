@@ -1,161 +1,174 @@
-/* The profile, as designed: you and your numbers on the left, red-framed activity boxes on the right. */
+/*
+ * The profile: the header band (Header.module.css), then a wide main column
+ * (Next up, pull requests) and a narrow rail (languages, badges) with a
+ * hairline between. Sections are split by space and hairlines, never boxed.
+ */
 
 .page {
-  width: min(100%, 84rem);
+  width: min(100%, 76rem);
   margin-inline: auto;
-}
-
-.hello {
-  font-family: var(--serif);
-  font-weight: var(--typography-heading-weight);
-  font-size: clamp(2.25rem, 1.5rem + 2.4vw, 3.25rem);
-  line-height: 1.05;
-  letter-spacing: var(--heading-tracking);
-  padding-left: clamp(0rem, 5vw, 5rem);
-}
-
-.columns {
-  display: grid;
-  grid-template-columns: minmax(0, 28rem) minmax(0, 1fr);
-  gap: 2.5rem clamp(2rem, 7vw, 7rem);
-  margin-top: clamp(1.5rem, 4vw, 3rem);
-}
-
-.left {
-  display: grid;
-  gap: 1.5rem;
-  align-content: start;
-}
-
-.who {
-  display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr);
-  gap: 1.25rem;
-}
-
-.avatar {
-  width: 4rem;
-  height: 4rem;
-  border-radius: var(--radius-pill);
-  background: var(--colors-surface-raised);
-  object-fit: cover;
-}
-
-/* Everything about you in the body face; only headings take the serif. */
-.handle {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  font-family: var(--typography-mono-font);
-}
-
-.username {
-  font-size: 1.25rem;
-}
-
-.handle .muted {
-  font-size: var(--label-size);
 }
 
 .bio {
   margin-top: 0.75rem;
+  max-width: 44rem;
   color: var(--colors-text-muted);
-  font-family: var(--typography-mono-font);
   font-size: 0.9375rem;
   line-height: 1.55;
 }
 
-.bio a,
-.none a {
+.bio a {
   color: inherit;
   text-decoration-color: var(--colors-accent);
   text-underline-offset: 0.2em;
 }
 
-.languages {
+.looking {
+  margin-top: 0.35rem;
+  font-size: var(--label-size);
+}
+
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
+  gap: 0 clamp(2rem, 5vw, 4rem);
+}
+
+.main,
+.rail {
+  display: grid;
+  align-content: start;
+}
+
+.rail {
+  padding-left: clamp(2rem, 5vw, 4rem);
+  border-left: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
+}
+
+.section {
+  padding-top: clamp(1.75rem, 3vw, 2.5rem);
+}
+
+.heading {
+  margin-bottom: 0.9rem;
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: 1.6rem;
+  line-height: 1.1;
+  letter-spacing: var(--heading-tracking);
+  /* Headings carry the accent: short and large, they guide the eye without tiring it, unlike long text. */
+  color: var(--colors-accent);
+}
+
+.count {
+  color: var(--colors-text-muted);
+  font-family: var(--typography-mono-font);
+  font-size: var(--label-size);
+  vertical-align: 0.3em;
+}
+
+/* Next up: what you're doing, one row each, the whole row a target: a label, the thing, how it stands, where it goes. */
+.tasks {
+  display: grid;
+  border-top: 1px solid var(--rule);
+}
+
+.tasks > li {
+  border-bottom: 1px solid var(--rule);
+}
+
+.task {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "label go"
+    "title go"
+    "meta go";
+  gap: 0.2rem 1.5rem;
+  align-items: center;
+  padding: 0.9rem 0.25rem;
+  color: inherit;
+  text-decoration: none;
+  transition: background-color var(--fast) var(--ease);
+}
+
+.task:hover,
+.task:focus-visible {
+  background: color-mix(in srgb, var(--colors-surface-raised) 60%, transparent);
+}
+
+.task:focus-visible {
+  outline: 2px solid var(--colors-text);
+  outline-offset: 2px;
+}
+
+.task .label {
+  grid-area: label;
+}
+
+.taskTitle {
+  grid-area: title;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.taskMeta {
+  grid-area: meta;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-.languages li:not(.none) {
-  padding: 0.1rem 0.4rem;
-  border-radius: var(--radius-small);
-  background: var(--chip);
-  box-shadow: var(--shadow-small);
-  font-size: 0.9375rem;
-}
-
-.none {
+  align-items: center;
+  gap: 0.3rem 0.75rem;
   color: var(--colors-text-muted);
   font-size: var(--label-size);
 }
 
-.heading {
-  margin-top: 0.5rem;
-  font-family: var(--serif);
-  font-weight: var(--typography-heading-weight);
-  font-size: 1.4rem;
-  letter-spacing: var(--heading-tracking);
+.fact {
+  padding: 0.05rem 0.45rem;
+  border-radius: var(--radius-small);
+  background: var(--chip);
+  color: var(--colors-text);
 }
 
-.right {
-  display: grid;
-  gap: 1.75rem;
-  align-content: start;
-}
-
-.right .heading {
-  margin-top: 0;
-}
-
-.box {
-  min-height: 9.5rem;
-  padding: 1rem 1.25rem 1.25rem;
-  border: var(--border-width) solid var(--colors-accent);
-  border-radius: var(--radius-large);
-}
-
-.boxTitle {
-  margin-bottom: 0.75rem;
-  font-family: var(--typography-mono-font);
-  font-size: 1.25rem;
-  font-weight: 400;
-}
-
-.savedList {
-  display: grid;
-}
-
-.savedList li {
-  display: grid;
-  gap: 0.3rem;
-  padding: 0.85rem 0.6rem;
-}
-
-.savedList li + li {
-  border-top: 1px solid color-mix(in srgb, var(--rule) 50%, transparent);
-}
-
-.savedList a {
-  color: inherit;
-  text-decoration: none;
-  overflow-wrap: anywhere;
-}
-
-.savedList a:hover {
-  text-decoration: underline;
-  text-decoration-color: var(--colors-accent);
-}
-
-.savedList span.muted {
+.go {
+  grid-area: go;
+  color: var(--colors-text-muted);
   font-size: var(--label-size);
+  white-space: nowrap;
+  transition: color var(--fast) var(--ease), translate var(--fast) var(--ease);
+}
+
+.task:hover .go,
+.task:focus-visible .go {
+  color: var(--colors-accent);
+  translate: 0.2rem 0;
+}
+
+.taskError {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.9rem 0.25rem;
+}
+
+.subheading {
+  margin: 1.75rem 0 0.4rem;
+  color: var(--colors-accent);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.label {
+  color: var(--colors-text-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .more {
   display: inline-block;
-  margin-top: 0.5rem;
+  justify-self: start;
+  margin-top: 0.75rem;
   color: var(--colors-text);
   font-size: var(--label-size);
   text-decoration-color: var(--colors-accent);
@@ -171,8 +184,25 @@
   color: var(--colors-danger);
 }
 
-@media (max-width: 960px) {
-  .columns {
-    grid-template-columns: minmax(0, 1fr);
+.taskError .error {
+  margin-top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task,
+  .go {
+    transition: none;
   }
 }
+
+@media (max-width: 960px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rail {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+

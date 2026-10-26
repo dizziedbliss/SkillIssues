@@ -1,4 +1,4 @@
-/* SkillIssues XP: a red-framed level card, badges in the profile's grid, and plain lists. */
+/* SkillIssues XP on the profile: badges, languages and quests in hairline rows, the accent for what's earned. */
 
 .muted {
   color: var(--colors-text-muted);
@@ -26,118 +26,168 @@
   cursor: default;
 }
 
-/* ---- the level ---- */
+/* ---- badges: earned ones as chips, the rest listed behind a disclosure ---- */
 
-.card {
-  display: grid;
+.earnedBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.earnedBadge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
   gap: 0.45rem;
-  min-height: 9rem;
-  padding: 0.9rem 1rem 1rem;
-  border: var(--border-width) solid var(--colors-accent);
-  border-radius: var(--radius-large);
-}
-
-.kicker {
-  color: var(--colors-text-muted);
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius-small);
+  background: var(--chip);
   font-size: var(--label-size);
+  cursor: help;
 }
 
-.level {
-  font-family: var(--serif);
-  font-weight: var(--typography-heading-weight);
-  font-size: clamp(2rem, 1.6rem + 1.4vw, 2.75rem);
-  line-height: 1;
-  letter-spacing: var(--heading-tracking);
+.earnedBadge:focus-visible {
+  outline: 2px solid var(--colors-accent);
+  outline-offset: 2px;
 }
 
-.total {
-  font-size: 1.05rem;
-}
-
-.bar {
-  height: 0.5rem;
-  border-radius: var(--radius-pill);
-  background: var(--colors-surface-raised);
-  overflow: hidden;
-}
-
-.bar span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--colors-accent);
-  transition: width var(--slow) var(--ease);
-}
-
-.streak {
-  margin-top: 0.35rem;
-  font-size: 0.9375rem;
-}
-
-.how {
-  justify-self: start;
-  font-size: var(--label-size);
+/* How it was earned, on hover or focus: the criteria, then the date. */
+.badgeTip {
+  position: absolute;
+  bottom: calc(100% + 0.45rem);
+  left: 0;
+  z-index: 20;
+  display: grid;
+  gap: 0.3rem;
+  width: max-content;
+  max-width: 16rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-small);
+  background: var(--colors-surface);
+  box-shadow: var(--shadow-medium);
   color: var(--colors-text);
-  text-decoration-color: var(--colors-accent);
-  text-underline-offset: 0.2em;
+  font-size: var(--label-size);
+  line-height: 1.45;
+  opacity: 0;
+  visibility: hidden;
+  translate: 0 0.2rem;
+  transition: opacity var(--fast) var(--ease), translate var(--fast) var(--ease), visibility 0s linear var(--fast);
 }
 
-/* ---- badges: the profile's three-across boxes ---- */
+.earnedBadge:hover .badgeTip,
+.earnedBadge:focus-visible .badgeTip {
+  opacity: 1;
+  visibility: visible;
+  translate: 0 0;
+  transition-delay: 0s;
+}
+
+.badgeTipDate {
+  color: var(--colors-accent);
+}
+
+.earnedBadge::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 1px;
+  background: var(--colors-accent);
+}
 
 .badges {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(0.6rem, 2vw, 1.25rem);
+  border-top: 1px solid color-mix(in srgb, var(--rule) 50%, transparent);
 }
 
 .badge {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  min-height: 4.25rem;
-  padding: 0.55rem 0.65rem;
-  border: var(--border-width) solid var(--rule);
-  border-radius: var(--radius-large);
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--rule) 50%, transparent);
   color: var(--colors-text-muted);
 }
 
 .earned {
-  border-color: var(--colors-accent);
   color: var(--colors-text);
 }
 
 .badgeName {
-  font-size: 0.875rem;
-  line-height: 1.25;
+  font-size: 0.9375rem;
+}
+
+.earned .badgeName::before {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-right: 0.6em;
+  background: var(--colors-accent);
+  vertical-align: 0.1em;
 }
 
 .badgeState {
-  margin-top: auto;
-  font-size: 0.75rem;
-}
-
-.earned .badgeState {
-  color: var(--colors-accent);
-}
-
-/* ---- by language ---- */
-
-.subheading {
-  margin-bottom: 0.5rem;
-  font-size: var(--label-size);
+  font-size: 0.8125rem;
   color: var(--colors-text-muted);
 }
 
+.more {
+  margin-top: 0.75rem;
+}
+
+.more summary {
+  width: fit-content;
+  color: var(--colors-text);
+  font-size: var(--label-size);
+  text-decoration: underline;
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.more[open] summary {
+  margin-bottom: 0.5rem;
+}
+
+/* ---- by language: name, level, a bar against the strongest ---- */
+
 .languages {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.55rem;
 }
 
 .languages li {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.3rem 1rem;
   font-size: 0.9375rem;
+}
+
+.languageName {
+  overflow-wrap: anywhere;
+}
+
+.languageLevel {
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.languageBar,
+.questBar {
+  grid-column: 1 / -1;
+  height: 0.25rem;
+  border-radius: var(--radius-small);
+  background: var(--colors-surface-raised);
+  overflow: hidden;
+}
+
+.languageBar span,
+.questBar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--colors-accent);
 }
 
 /* ---- tracking ---- */
@@ -149,64 +199,36 @@
   font-size: 0.9375rem;
 }
 
-.pulls,
 .recent {
   display: grid;
   gap: 0.75rem;
 }
 
-.pull {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.15rem 1rem;
-  color: var(--colors-text);
-  text-decoration: none;
-}
-
-.pullTitle {
-  overflow-wrap: anywhere;
-  text-decoration: underline;
-  text-decoration-color: transparent;
-  text-underline-offset: 0.2em;
-  transition: text-decoration-color var(--fast) var(--ease);
-}
-
-.pull:hover .pullTitle,
-.pull:focus-visible .pullTitle {
-  text-decoration-color: var(--colors-accent);
-}
-
-.pullMeta {
-  grid-column: 1;
-  color: var(--colors-text-muted);
-  font-size: 0.8125rem;
-}
-
-.pullXP {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  align-self: center;
-  color: var(--colors-accent);
-  font-size: 0.875rem;
-  text-align: right;
-}
-
-/* Earning nothing is information, not an alarm. */
-.pullXP[data-none] {
-  max-width: 12rem;
-  color: var(--colors-text-muted);
-}
-
-.merged {
-  color: color-mix(in srgb, var(--colors-success) 55%, var(--colors-text));
-}
-
+/* The amount and when on one line, what it was for under them at full width: fits a narrow rail. */
 .recent li {
   display: grid;
-  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  align-items: baseline;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "amount when"
+    "what what";
+  gap: 0.2rem 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--rule) 50%, transparent);
   font-size: 0.9375rem;
+}
+
+.recent li > :nth-child(1) {
+  grid-area: amount;
+}
+
+.recent li > :nth-child(2) {
+  grid-area: what;
+  overflow-wrap: anywhere;
+}
+
+.recent li > :nth-child(3) {
+  grid-area: when;
+  font-size: var(--label-size);
 }
 
 .recent a {
@@ -275,57 +297,47 @@
   color: var(--colors-accent);
 }
 
-@media (max-width: 540px) {
-  .badges {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  /* No room beside the title: what it earned goes under it. */
-  .pull {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .pullXP {
-    grid-column: 1;
-    grid-row: auto;
-    text-align: left;
-  }
-
-  .pullXP[data-none] {
-    max-width: none;
-  }
-
-  .recent li {
-    grid-template-columns: 3.5rem minmax(0, 1fr);
-  }
-
-  .recent li > :last-child {
-    grid-column: 2;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .bar span,
-  .pullTitle,
+  .badgeTip {
+    transition: none;
+  }
+
   .button {
     transition: none;
   }
 }
 
-/* ---- quests: one per row, done ones framed in the accent ---- */
+/* ---- quests: hairline rows, how far along on the right, a bar under the open ones ---- */
 
 .quests {
   display: grid;
-  gap: 0.6rem;
 }
 
 .quest {
   display: grid;
-  gap: 0.2rem;
-  padding: 0.6rem 0.75rem;
-  border: var(--border-width) solid var(--rule);
-  border-radius: var(--radius-large);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.2rem 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--rule) 50%, transparent);
   font-size: 0.9375rem;
+}
+
+.quest > .muted {
+  grid-column: 1 / -1;
+}
+
+.questName {
+  overflow-wrap: anywhere;
+}
+
+.questProgress {
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.quest.earned .questProgress {
+  color: var(--colors-accent);
 }
 
 .quest .muted {

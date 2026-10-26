@@ -72,6 +72,7 @@ export function ModerationPage() {
           <ul className={s.list}>
             {reports.data?.map((r) => (
               <li key={`${r.type}:${r.id}`} className={s.item} data-ui="report" data-ui-state={r.type}>
+                <div className={s.body}>
                 <div className={s.head}>
                   <span className={s.kind}>{t(`mod.kind.${r.type}` as MessageKey)}</span>
                   <Target item={r} />
@@ -94,6 +95,7 @@ export function ModerationPage() {
                     ))}
                   </ul>
                 )}
+                </div>
                 <div className={s.actions}>
                   <button type="button" className={s.uphold} onClick={() => void decide(r, "uphold")} disabled={resolve.isPending}>
                     {t("mod.uphold")}

@@ -1,4 +1,4 @@
-/* Reports for moderators: one bordered block per reported thing, the decision at its foot. */
+/* Reports for moderators: one row per reported thing, hairlines between, the decision on the right. */
 
 .page {
   width: min(100%, 52rem);
@@ -41,17 +41,23 @@
 
 .list {
   display: grid;
-  gap: 1rem;
   margin-top: 2rem;
   list-style: none;
+  border-top: 1px solid var(--rule);
 }
 
 .item {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem 2rem;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.body {
+  display: grid;
   gap: 0.6rem;
-  padding: 1rem 1.25rem 1.25rem;
-  border: var(--border-width) solid var(--rule);
-  border-radius: var(--radius-large);
+  min-width: 0;
 }
 
 .head {
@@ -89,11 +95,22 @@ a.label {
 }
 
 .reason {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
   padding: 0.15em 0.6em;
-  border: 1px solid color-mix(in srgb, var(--colors-warning) 60%, transparent);
   border-radius: var(--radius-small);
-  background: color-mix(in srgb, var(--colors-warning) 12%, var(--colors-surface));
+  background: var(--chip);
   font-size: var(--label-size);
+}
+
+/* Why it was reported: a small warning dot, not a yellow box. */
+.reason::before {
+  content: "";
+  width: 0.45em;
+  height: 0.45em;
+  border-radius: var(--radius-pill);
+  background: var(--colors-warning);
 }
 
 .times {
@@ -113,9 +130,9 @@ a.label {
 
 .actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 0.25rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
 }
 
 .uphold,
@@ -131,12 +148,28 @@ a.label {
   border: 0;
   background: var(--colors-danger);
   color: var(--colors-accent-text);
+  font-weight: 700;
 }
 
 .dismiss {
-  border: var(--border-width) solid var(--rule);
+  border: 1px solid var(--rule);
   background: none;
   color: var(--colors-text);
+}
+
+.dismiss:hover {
+  border-color: var(--colors-text);
+  background: var(--chip);
+}
+
+@media (max-width: 640px) {
+  .item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .actions {
+    flex-direction: row;
+  }
 }
 
 .uphold:disabled,

@@ -1,10 +1,15 @@
-.page {
+/*
+ * Your contributions: a top band (title, numbers, the year), then the
+ * profile's main column and rail (ProfilePage.module.css). Hairlines, no boxes.
+ */
+
+.top {
   display: grid;
-  /* One column no wider than the page: the year graph scrolls inside it rather than widening it. */
+  /* No wider than the page: the year graph scrolls inside it rather than widening it. */
   grid-template-columns: minmax(0, 1fr);
-  gap: 1.5rem;
-  width: min(100%, 84rem);
-  margin-inline: auto;
+  gap: 1.25rem;
+  padding-bottom: clamp(1.5rem, 3vw, 2.25rem);
+  border-bottom: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
 }
 
 .title {
@@ -17,60 +22,73 @@
 
 .lede {
   margin-top: -0.75rem;
+  max-width: 48rem;
   color: var(--colors-text-muted);
 }
 
-.stats {
-  max-width: 40rem;
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.75rem 0 1rem;
 }
 
-.lists {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.5rem clamp(1.5rem, 4vw, 3rem);
+.filter {
+  padding: 0.25em 0.8em;
+  border: 1px solid color-mix(in srgb, var(--rule) 70%, transparent);
+  background: none;
+  color: var(--colors-text);
+  font: inherit;
+  font-size: var(--label-size);
+  cursor: pointer;
+  transition: border-color var(--slow) var(--ease);
 }
 
-.box {
-  padding: 1rem 1.25rem 1.25rem;
-  border: var(--border-width) solid var(--colors-accent);
-  border-radius: var(--radius-large);
+.filter:hover {
+  border-color: var(--colors-text);
 }
 
-.boxTitle {
-  margin-bottom: 0.75rem;
-  font-family: var(--typography-mono-font);
-  font-size: 1.25rem;
-  font-weight: 400;
+.filter[aria-pressed="true"] {
+  border-color: var(--colors-text);
+  background: var(--colors-text);
+  color: var(--colors-background);
+}
+
+.filter:focus-visible,
+.more:focus-visible {
+  outline: 2px solid var(--colors-text);
+  outline-offset: 2px;
 }
 
 .more {
   display: inline-block;
+  justify-self: start;
   margin-top: 0.75rem;
   border: 0;
   padding: 0;
   background: none;
-  color: var(--colors-accent);
+  color: var(--colors-text);
   font: inherit;
   font-size: var(--label-size);
   text-decoration: underline;
+  text-decoration-color: var(--colors-accent);
   text-underline-offset: 0.2em;
   cursor: pointer;
 }
 
-.heading {
-  font-family: var(--serif);
-  font-weight: var(--typography-heading-weight);
-  font-size: 1.6rem;
-  letter-spacing: var(--heading-tracking);
-}
-
-@media (max-width: 860px) {
-  .lists {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.note {
+  margin-bottom: 0.5rem;
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
 }
 
 .error {
   color: var(--colors-danger);
   font-size: 0.9375rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter {
+    transition: none;
+  }
 }

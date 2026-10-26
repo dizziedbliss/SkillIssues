@@ -7,6 +7,8 @@ import { useT } from "../../i18n";
 import { withTransition } from "../transition";
 import { CATEGORIES, searchURL } from "./categories";
 import { PersonResult } from "./PersonResult";
+import { SearchBar } from "../explore/SearchBar";
+import { CrossIcon } from "../icons";
 import s from "./SearchOverlay.module.css";
 
 /** Results read while typing, across the kinds; each kind shows a few and "View more". */
@@ -16,8 +18,9 @@ const PER_KIND = 4;
 const PAUSE_MS = 300;
 
 /**
- * Search over whatever page you're on, the page blurred behind it. Results
- * come as you type, grouped by what matched, each kind with View more. Going
+ * Search over whatever page you're on, as a palette: the shared bar at the
+ * top, the page blurred behind it, results as you type grouped by what
+ * matched, each kind with View more. Going
  * anywhere (a result, a kind, every result, the filters) opens the search
  * page or the issue inside the theme's page transition; search never sends
  * you back to Explore. A click outside the panel closes it.
@@ -73,7 +76,6 @@ export function SearchOverlay({ onClose }: { onClose: () => void }) {
       className={s.dialog}
       data-ui="search-dialog"
       aria-labelledby="search-title"
-      aria-describedby="search-sub"
       onClose={onClose}
       // The panel fills the dialog, so a click on the dialog itself is on the backdrop.
       onClick={(e) => {
@@ -81,43 +83,28 @@ export function SearchOverlay({ onClose }: { onClose: () => void }) {
       }}
     >
       <div className={s.panel}>
+        <h2 id="search-title" className="visually-hidden">{t("search.title")}</h2>
         <div className={s.head}>
-          <h2 id="search-title" className={s.title}>{t("search.title")}</h2>
-          <button type="button" className={s.close} onClick={() => dialog.current?.close()}>
-            {t("search.close")}
+          <SearchBar
+            id="overlay-search"
+            value={draft}
+            onChange={setDraft}
+            onSubmit={submit}
+            // Nothing typed: filters alone are browsing, so Explore with its filters open.
+            onFilters={() => leave(draft.trim() ? searchURL(draft.trim()) : "/app", { filters: true })}
+            transitionName="search-box"
+            inputRef={input}
+          />
+          <button type="button" className={s.close} onClick={() => dialog.current?.close()} aria-label={t("search.close")}>
+            <kbd className={s.esc}>Esc</kbd>
+            <span className={s.cross}>
+              <CrossIcon />
+            </span>
           </button>
         </div>
-        <p className={s.sub} id="search-sub">{t("search.sub")}</p>
-        <form className={s.form} role="search" onSubmit={submit}>
-          <label htmlFor="overlay-search" className={s.label}>{t("explore.searchLabel")}</label>
-          <div className={s.box} style={{ viewTransitionName: "search-box" }}>
-            <input
-              ref={input}
-              id="overlay-search"
-              type="search"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder={t("explore.searchPlaceholder")}
-              autoComplete="off"
-            />
-            {draft && (
-              <button type="button" className={s.inBox} aria-label={t("explore.clearLabel")} onClick={() => setDraft("")}>
-                <span aria-hidden="true">x</span> {t("explore.clear")}
-              </button>
-            )}
-            <button
-              type="button"
-              className={`${s.inBox} ${s.filter}`}
-              // Nothing typed: filters alone are browsing, so Explore with its filters open.
-              onClick={() => leave(draft.trim() ? searchURL(draft.trim()) : "/app", { filters: true })}
-            >
-              {t("explore.filter")}
-            </button>
-          </div>
-          <button type="submit" className={s.submit}>{t("explore.search")}</button>
-        </form>
 
         <div className={s.results} aria-live="polite" aria-busy={results.isFetching}>
+          {draft.trim() === "" && <p className={s.note}>{t("search.sub")}</p>}
           {term.length > 0 && term.length < 2 && <p className={s.note}>{t("search.short")}</p>}
           {results.isFetching && !results.data && <p className={s.note}>{t("search.searching")}</p>}
           {results.error && (

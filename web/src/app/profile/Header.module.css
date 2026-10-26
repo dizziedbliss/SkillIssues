@@ -1,0 +1,161 @@
+/*
+ * A profile's header band: who on the left, the level large on the right, the
+ * numbers in one line under both, a hairline below. No box: the level's size
+ * and the one accent bar carry it. Themed like the rest of the app.
+ */
+
+.header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 24rem);
+  grid-template-areas:
+    "who level"
+    "numbers numbers";
+  gap: 1.5rem clamp(2rem, 6vw, 5rem);
+  align-items: end;
+  padding-bottom: clamp(1.5rem, 3vw, 2.25rem);
+  border-bottom: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
+}
+
+.who {
+  grid-area: who;
+  display: flex;
+  align-items: center;
+  gap: clamp(1rem, 3vw, 1.75rem);
+  min-width: 0;
+}
+
+.avatar {
+  flex: none;
+  width: clamp(4.5rem, 3rem + 4vw, 6rem);
+  height: clamp(4.5rem, 3rem + 4vw, 6rem);
+  border-radius: var(--radius-pill);
+  background: var(--colors-surface-raised);
+  object-fit: cover;
+}
+
+.identity {
+  min-width: 0;
+}
+
+.above {
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+}
+
+.name {
+  margin-top: 0.15rem;
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: clamp(2rem, 1.4rem + 2vw, 3rem);
+  line-height: 1.02;
+  letter-spacing: var(--heading-tracking);
+  overflow-wrap: anywhere;
+}
+
+.login {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin-top: 0.4rem;
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+}
+
+.login a {
+  color: inherit;
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+}
+
+.level {
+  grid-area: level;
+  display: grid;
+  gap: 0.4rem;
+  min-height: 7.5rem;
+  align-content: end;
+}
+
+.kicker {
+  font-size: var(--label-size);
+  color: var(--colors-accent);
+}
+
+/* The level is the page's biggest thing. */
+.levelNumber {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: clamp(3.25rem, 2rem + 4vw, 5.25rem);
+  line-height: 0.9;
+  letter-spacing: var(--heading-tracking);
+}
+
+.bar {
+  height: 0.45rem;
+  margin-top: 0.35rem;
+  border-radius: var(--radius-small);
+  background: var(--colors-surface-raised);
+  overflow: hidden;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--colors-accent);
+  transition: width var(--slow) var(--ease);
+}
+
+.toNext {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.nudge {
+  font-size: var(--label-size);
+}
+
+.how {
+  justify-self: start;
+  color: var(--colors-text);
+  font-size: var(--label-size);
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
+}
+
+.numbers {
+  grid-area: numbers;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0;
+  font-size: 0.9375rem;
+}
+
+.numbers li + li::before {
+  content: "·";
+  margin-inline: 0.75rem;
+  color: var(--colors-text-muted);
+}
+
+.lit {
+  color: var(--colors-accent);
+}
+
+@media (max-width: 760px) {
+  .header {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "who"
+      "level"
+      "numbers";
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar span {
+    transition: none;
+  }
+}

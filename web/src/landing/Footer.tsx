@@ -65,36 +65,39 @@ const columns: { title: MessageKey; items: { label: MessageKey; to: string }[] }
   },
 ];
 
+/** The footer: the wordmark, its line and the site's tools on one side, every page on the other, then the small print. */
 export function Footer() {
   const t = useT();
   const theme = useThemeToggle();
   return (
     <footer className={s.footer} data-ui="footer">
-      <div className={s.columns}>
-        {columns.map((c) => (
-          <nav key={c.title} aria-label={t(c.title)}>
-            <h2 className={s.title}>{t(c.title)}</h2>
-            <ul>
-              {c.items.map((i) => (
-                <li key={i.label}>
-                  <SiteLink to={i.to}>{t(i.label)}</SiteLink>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        ))}
-      </div>
-      <div className={s.sign}>
-        <Logo size="footer" />
-        <p>{t("footer.sign")}</p>
-        <div className={s.tools} role="group" aria-label={t("footer.tools")}>
-          <button type="button" className={s.tool} aria-pressed={theme.on} aria-label={theme.label(t)} title={theme.label(t)} onClick={theme.toggle}>
-            <ThemeIcon />
-          </button>
-          <LanguagePicker className={s.tool} label={t("language.choose")} trigger={<GlobeIcon />} />
-          <a className={s.tool} href={external.repo} aria-label={t("footer.source")} title={t("footer.source")}>
-            <CodeIcon />
-          </a>
+      <div className={s.top}>
+        <div className={s.sign}>
+          <Logo size="footer" />
+          <p className={s.tagline}>{t("footer.sign")}</p>
+          <div className={s.tools} role="group" aria-label={t("footer.tools")}>
+            <button type="button" className={s.tool} aria-pressed={theme.on} aria-label={theme.label(t)} title={theme.label(t)} onClick={theme.toggle}>
+              <ThemeIcon />
+            </button>
+            <LanguagePicker className={s.tool} label={t("language.choose")} trigger={<GlobeIcon />} />
+            <a className={s.tool} href={external.repo} aria-label={t("footer.source")} title={t("footer.source")}>
+              <CodeIcon />
+            </a>
+          </div>
+        </div>
+        <div className={s.columns}>
+          {columns.map((c) => (
+            <nav key={c.title} aria-label={t(c.title)}>
+              <h2 className={s.title}>{t(c.title)}</h2>
+              <ul>
+                {c.items.map((i) => (
+                  <li key={i.label}>
+                    <SiteLink to={i.to}>{t(i.label)}</SiteLink>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
         </div>
       </div>
       <div className={s.base}>

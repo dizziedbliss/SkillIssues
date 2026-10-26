@@ -1,4 +1,4 @@
-/* An issue in a list: red rules between cards, pink chips, the title in the body face. */
+/* An issue in a list: hairlines between cards, quiet chips, the title in the body face. */
 
 .card {
   position: relative;
@@ -79,29 +79,28 @@
   margin-top: 0.85rem;
 }
 
-.chips,
-.tech {
+.chips {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
-.chip,
-.techChip,
-.view {
+/* The repository's languages, as quiet text: the labels are the chips. */
+.tech {
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+}
+
+.chip {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   padding: 0.15rem 0.45rem;
   border-radius: var(--radius-small);
-  box-shadow: var(--shadow-small);
-  font-size: 0.9375rem;
+  font-size: var(--label-size);
   line-height: 1.4;
   white-space: nowrap;
-}
-
-.chip {
   background: var(--chip);
   color: var(--colors-text);
 }
@@ -119,7 +118,7 @@
   border-radius: var(--radius-small);
   background: color-mix(in srgb, var(--colors-text-muted) 30%, var(--colors-surface));
   color: var(--colors-text);
-  font-size: 0.9375rem;
+  font-size: var(--label-size);
 }
 
 .card[data-ui-state="closed"] {
@@ -137,7 +136,7 @@
   border-radius: var(--radius-small);
   background: color-mix(in srgb, var(--colors-warning) 14%, var(--colors-surface));
   color: var(--colors-text);
-  font-size: 0.9375rem;
+  font-size: var(--label-size);
 }
 
 /* Something to know before starting: someone's on it, or merges are slow. */
@@ -146,21 +145,16 @@
   border: 1px solid var(--rule);
   border-radius: var(--radius-small);
   color: var(--colors-text-muted);
-  font-size: 0.9375rem;
+  font-size: var(--label-size);
 }
 
 .welcoming {
   padding: 0.15rem 0.45rem;
   border: 1px solid var(--colors-success);
   border-radius: var(--radius-small);
-  font-size: 0.9375rem;
+  font-size: var(--label-size);
 }
 
-.techChip {
-  border: 1px solid var(--chip);
-  background: var(--colors-surface);
-  color: var(--colors-text);
-}
 
 .end {
   display: flex;
@@ -170,20 +164,8 @@
   margin-left: auto;
 }
 
-.view {
-  padding: 0.2rem 0.55rem;
-  background: var(--chip-strong);
-  color: var(--colors-text);
-  text-decoration: none;
-  transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease);
-}
 
-.view:hover {
-  background: var(--colors-accent);
-  color: var(--colors-accent-text);
-}
-
-/* Phones: the languages take their own line; View Issue and the bookmark share the next. */
+/* Phones: the languages and the bookmark share their own line. */
 @media (max-width: 640px) {
   .end {
     width: 100%;
@@ -191,14 +173,10 @@
     justify-content: space-between;
   }
 
-  .tech {
-    flex-basis: 100%;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .title a,
-  .view {
+  .title a {
     transition: none;
   }
 }

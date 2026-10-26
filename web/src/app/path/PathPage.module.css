@@ -1,4 +1,4 @@
-/* A learning path: role choices as red-framed boxes, then the steps as one numbered list. */
+/* A learning path: the kinds of work as rows to pick, then the steps as one numbered list. */
 
 .page {
   width: min(100%, 52rem);
@@ -25,6 +25,7 @@
   font-weight: var(--typography-heading-weight);
   font-size: 1.6rem;
   letter-spacing: var(--heading-tracking);
+  color: var(--colors-accent);
 }
 
 .note,
@@ -57,30 +58,31 @@
 
 .roles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-  gap: 1rem;
+  border-top: 1px solid var(--rule);
 }
 
+/* A kind of work: a row like a menu item, the name, what it covers, Start. */
 .role {
   display: grid;
-  gap: 0.4rem;
+  grid-template-columns: 11rem minmax(0, 1fr) auto;
+  gap: 0.35rem 1.5rem;
+  align-items: baseline;
   width: 100%;
-  height: 100%;
-  padding: 0.9rem 1rem;
-  border: var(--border-width) solid var(--colors-accent);
-  border-radius: var(--radius-large);
+  padding: 1.1rem 0.75rem;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
   background: transparent;
   color: var(--colors-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
+  transition: background-color var(--fast) var(--ease);
 }
 
 .role:hover,
 .role:focus-visible {
-  background-color: var(--colors-accent);
-  color: var(--colors-accent-text);
+  background-color: var(--chip);
+  outline: none;
 }
 
 .role:disabled {
@@ -88,12 +90,28 @@
 }
 
 .roleName {
-  font-size: 1.1rem;
+  font-family: var(--serif);
+  font-size: 1.4rem;
+  line-height: 1.1;
+  letter-spacing: var(--heading-tracking);
 }
 
 .roleHelp {
-  font-size: 0.875rem;
-  opacity: 0.85;
+  color: var(--colors-text-muted);
+  font-size: 0.9375rem;
+}
+
+.roleGo {
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+  white-space: nowrap;
+  transition: color var(--fast) var(--ease), translate var(--fast) var(--ease);
+}
+
+.role:hover .roleGo,
+.role:focus-visible .roleGo {
+  color: var(--colors-accent);
+  translate: 0.2rem 0;
 }
 
 .head {
@@ -129,7 +147,7 @@
   gap: 1rem;
   align-items: baseline;
   padding-block: 1rem;
-  border-bottom: var(--border-width) var(--border-style) var(--rule);
+  border-bottom: 1px solid var(--rule);
 }
 
 .number {
@@ -137,7 +155,7 @@
   place-items: center;
   width: 2rem;
   height: 2rem;
-  border: var(--border-width) solid var(--colors-accent);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-pill);
   font-size: 0.9375rem;
 }
@@ -158,6 +176,17 @@
   text-underline-offset: 0.2em;
 }
 
+@media (max-width: 640px) {
+  .role {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .roleHelp {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
 @media (max-width: 540px) {
   .step {
     grid-template-columns: 2.25rem minmax(0, 1fr);
@@ -171,6 +200,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .role,
+  .roleGo,
   .bar span {
     transition: none;
   }
