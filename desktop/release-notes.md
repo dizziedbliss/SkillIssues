@@ -13,6 +13,8 @@ before the tag.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-26
+
 ### Added
 
 - **A new installer for Windows.** One clean window with the SkillIssues look: agree to the terms, press Install, and watch it download (with its size and speed) and install. Cancelling asks first. Run it again when SkillIssues is installed to **Update**, **Repair** or **Remove** it. It downloads the newest version from GitHub and checks it against the release's checksum before running anything. The full offline installer is still on the releases page.
@@ -62,7 +64,8 @@ before the tag.
 - Issue descriptions show attached images and colour their code.
 - The app is smaller to download.
 
-[unreleased]: https://github.com/dizziedbliss/SkillIssues/compare/v1.3.0...HEAD
+[unreleased]: https://github.com/dizziedbliss/SkillIssues/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/dizziedbliss/SkillIssues/compare/v1.3.0...v1.5.0
 [1.3.0]: https://github.com/dizziedbliss/SkillIssues/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/dizziedbliss/SkillIssues/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/dizziedbliss/SkillIssues/compare/v1.1.1...v1.2.0

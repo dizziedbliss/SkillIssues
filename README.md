@@ -12,7 +12,7 @@
     <a href="https://github.com/dizziedbliss/SkillIssues/actions/workflows/deploy.yml"><img src="https://github.com/dizziedbliss/SkillIssues/actions/workflows/deploy.yml/badge.svg" alt="Deploy status"></a>
     <a href="https://github.com/dizziedbliss/SkillIssues/blob/main/backend/go.mod"><img src="https://img.shields.io/github/go-mod/go-version/dizziedbliss/SkillIssues?filename=backend%2Fgo.mod" alt="Go version"></a>
     <a href="LICENSE"><img src="https://img.shields.io/github/license/dizziedbliss/SkillIssues" alt="MIT license"></a>
-    <a href="https://skillissues.dizziedbliss.lol/docs/changelog"><img src="https://img.shields.io/badge/website-2.6.0-c8190b" alt="Website version"></a>
+    <a href="https://skillissues.dizziedbliss.lol/docs/changelog"><img src="https://img.shields.io/badge/website-2.7.0-c8190b" alt="Website version"></a>
 </p>
 
 <p align="center"><strong>Find an issue you can solve, in ten seconds.</strong><br />
