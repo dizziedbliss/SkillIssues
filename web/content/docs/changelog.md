@@ -11,11 +11,15 @@ Every version of the website and the desktop app, newest first. The full, techni
 
 Both follow [Semantic Versioning](https://semver.org/): the first number changes when something you relied on works differently, the second for new features, the third for fixes. The website and the API share one version, since they're deployed together every time a change is merged; the desktop app has its own. This page follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased
+## Website 2.7.0 and desktop 1.5.0, 26 October 2026
 
 ### Added
 
-- **A new installer for Windows** (desktop 1.5.0): one clean window that downloads and installs SkillIssues, with clear terms, a progress view, and Update, Repair or Remove when it's already installed.
+- **A new installer for Windows**: one clean window that downloads SkillIssues from GitHub, checks it, and installs it, with clear terms, a progress view, and Update, Repair or Remove when it's already installed. The download page offers it, with the full offline installer beside it.
+
+### Changed
+
+- **The desktop app gets everything from website 2.6.0**: the rebuilt profile and contributions, one search bar, self-explaining filters, calmer colours and a softer light mode.
 
 ## Website 2.6.0, 26 October 2026
 

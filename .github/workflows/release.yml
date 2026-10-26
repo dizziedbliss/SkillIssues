@@ -107,7 +107,7 @@ jobs:
       - name: Write the release notes
         run: |
           scripts/release-notes.sh "${GITHUB_REF_NAME#v}" > release-notes.md
-          printf '\n---\n\n**Download** the file for your system below: `SkillIssues-Installer.exe` for Windows (or `SkillIssues-Setup-*.exe`, the full offline installer), `*.dmg` for macOS (Apple silicon), `*.AppImage` for Linux. Or get the newest from https://skillissues.dizziedbliss.lol/download.\n' >> release-notes.md
+          printf '\n---\n\n**Download** the file for your system below: `SkillIssues-Installer.exe` for Windows (or `SkillIssues-Setup-*.exe`, the full offline installer), `*.dmg` for macOS (Apple silicon), `*.AppImage` for Linux. Or get the newest from https://skillissues.dizziedbliss.lol/download.\n\nThe Windows files aren\x27t code-signed yet, so Windows may warn that it doesn\x27t recognise them: choose **More info → Run anyway**.\n' >> release-notes.md
       - name: Create GitHub Release with Assets
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
