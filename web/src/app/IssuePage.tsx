@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { platform } from "./platform";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -20,6 +20,9 @@ import { external } from "../lib/links";
 import s from "./IssuePage.module.css";
 import { exploreURL } from "./explore/where";
 import { useDocumentTitle } from "../lib/title";
+
+/** Labels shown before "+n more". */
+const LABELS = 6;
 
 /**
  * One issue: what it is, where it lives, and what to do next (open it on
@@ -48,6 +51,7 @@ export function IssuePage() {
     retry: false,
   });
   const claim = useClaimState(valid ? id : 0);
+  const [allLabels, setAllLabels] = useState(false);
   const html = useMemo(() => (body.data && "body" in body.data ? renderMarkdown(body.data.body) : ""), [body.data]);
   const prose = useRef<HTMLDivElement>(null);
   // Colours the code blocks once they're on the page. Only cosmetic: a failure
@@ -104,17 +108,28 @@ export function IssuePage() {
         </p>
       )}
 
-      <ul className={s.chips}>
-        <li className={s.level}>{t(`difficulty.${it.difficulty}`)}</li>
-        {it.updated_at && <li className={s.chip}>{t("issue.updated", { ago: ago(it.updated_at, locale) })}</li>}
-        <li className={s.chip}>
+      <p className={s.meta}>
+        <span className={s.level}>{t(`difficulty.${it.difficulty}`)}</span>
+        {it.updated_at && <span>{t("issue.updated", { ago: ago(it.updated_at, locale) })}</span>}
+        <span className={s.comments}>
           <CommentIcon />
           {t("issue.comments", { count: it.comments })}
-        </li>
-        {it.labels.map((l) => (
-          <li key={l} className={s.chip}>{l}</li>
-        ))}
-      </ul>
+        </span>
+      </p>
+      {it.labels.length > 0 && (
+        <ul className={s.chips} aria-label={t("issue.labels")}>
+          {(allLabels ? it.labels : it.labels.slice(0, LABELS)).map((l) => (
+            <li key={l} className={s.chip}>{l}</li>
+          ))}
+          {it.labels.length > LABELS && (
+            <li>
+              <button type="button" className={s.moreLabels} onClick={() => setAllLabels((v) => !v)} aria-expanded={allLabels}>
+                {allLabels ? t("issue.fewerLabels") : t("issue.moreLabelsLong", { count: it.labels.length - LABELS })}
+              </button>
+            </li>
+          )}
+        </ul>
+      )}
 
       <div className={s.actions}>
         <a href={it.url} target="_blank" rel="noreferrer" className={s.primary} data-ui="button-primary">{t("issue.openGitHub")}</a>
@@ -201,13 +216,7 @@ export function IssuePage() {
               <ReportButton target={{ type: "repository", id: it.repository_id }} label="report.repository" />
             </li>
           </ul>
-          {it.tech.length > 0 && (
-            <ul className={s.tech}>
-              {it.tech.map((x) => (
-                <li key={x}>{x}</li>
-              ))}
-            </ul>
-          )}
+          {it.tech.length > 0 && <p className={s.tech}>{it.tech.join(" · ")}</p>}
         </aside>
       </div>
       <p className={s.problem}>

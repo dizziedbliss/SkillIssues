@@ -1,4 +1,4 @@
-/* The profile's pieces: red-framed number boxes, the year's graph, achievements, pull request lists. */
+/* The profile's pieces from GitHub: the numbers, the year's graph, the read status; and the sign-in prompt. */
 
 .pageTitle {
   font-family: var(--serif);
@@ -63,12 +63,12 @@
   font-size: 1rem;
 }
 
-/* ---- numbers ---- */
+/* ---- numbers: large figures, hairlines between, no boxes ---- */
 
 .stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(0.75rem, 2.5vw, 2.25rem);
+  max-width: 48rem;
   margin: 0;
 }
 
@@ -76,21 +76,29 @@
   display: flex;
   flex-direction: column-reverse;
   justify-content: flex-end;
-  gap: 0.4rem;
-  min-height: 4.5rem;
-  padding: 0.55rem 0.65rem;
-  border: var(--border-width) solid var(--colors-accent);
-  border-radius: var(--radius-large);
+  gap: 0.35rem;
+  padding: 0.25rem 1.25rem;
+}
+
+.stat:first-child {
+  padding-left: 0;
+}
+
+.stat + .stat {
+  border-left: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
 }
 
 .statValue {
   margin: 0;
-  font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+  font-family: var(--serif);
+  font-size: clamp(2rem, 1.5rem + 1.6vw, 2.75rem);
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .statLabel {
-  font-size: 0.75rem;
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
   line-height: 1.3;
 }
 
@@ -98,9 +106,6 @@
 
 .graph {
   margin: 0;
-  padding: 0.6rem 0.7rem 0.8rem;
-  border-radius: var(--radius-large);
-  background: var(--chip);
 }
 
 .graphTitle {
@@ -156,10 +161,6 @@
   background: var(--colors-accent);
 }
 
-.graphLarge {
-  padding: 1rem 1.25rem 1.1rem;
-}
-
 .graphLarge .graphTitle {
   font-size: 0.9375rem;
 }
@@ -188,109 +189,14 @@
   width: 0.7rem;
 }
 
-/* ---- pull requests ---- */
-
-.prs {
-  display: grid;
-}
-
-.pr {
-  display: grid;
-  gap: 0.3rem;
-  padding: 0.85rem 0.6rem;
-  color: inherit;
-  text-decoration: none;
-  background: transparent;
-  transition: background-color var(--slow) var(--ease);
-}
-
-.pr:hover,
-.pr:focus-visible {
-  background-color: var(--chip);
-}
-
-.prs li + li .pr {
-  border-top: 1px solid color-mix(in srgb, var(--rule) 50%, transparent);
-}
-
-.prTitle {
-  overflow-wrap: anywhere;
-}
-
-.prMeta {
-  color: var(--colors-text-muted);
-  font-size: var(--label-size);
-}
-
-/* A pull request's state, as a small chip: merged green, open the accent, closed quiet. */
-.prState {
-  display: inline-block;
-  padding: 0 0.45em;
-  border-radius: var(--radius-small);
-  font-size: 0.8125rem;
-  line-height: 1.5;
-}
-
-.prState[data-state="merged"] {
-  background: color-mix(in srgb, var(--colors-success) 22%, var(--colors-surface));
-  color: color-mix(in srgb, var(--colors-success) 55%, var(--colors-text));
-}
-
-.prState[data-state="open"] {
-  background: var(--chip);
-  color: var(--colors-text);
-}
-
-.prState[data-state="closed"] {
-  border: 1px solid color-mix(in srgb, var(--colors-text-muted) 45%, transparent);
-  color: var(--colors-text-muted);
-}
-
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-bottom: 0.4rem;
-}
-
-.filter {
-  padding: 0.2em 0.7em;
-  border: var(--border-width) solid var(--rule);
-  border-radius: var(--radius-pill);
-  background: none;
-  color: var(--colors-text);
-  font: inherit;
-  font-size: var(--label-size);
-  cursor: pointer;
-  transition: background-color var(--slow) var(--ease);
-}
-
-.filter:hover,
-.filter:focus-visible {
-  background: var(--chip);
-}
-
-.filter[aria-pressed="true"] {
-  border-color: var(--colors-accent);
-  background: var(--colors-accent);
-  color: var(--colors-accent-text);
-}
-
-.count {
-  opacity: 0.75;
-}
-
 @media (max-width: 480px) {
-  .stats,
-  .achievements {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .stat {
+    padding-inline: 0.75rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .button,
-  .pr,
-  .filter {
+  .button {
     transition: none;
   }
 }

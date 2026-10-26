@@ -31,7 +31,7 @@
 
 .labelled {
   padding: 0.45em 0.9em 0.45em 0.6em;
-  border: var(--border-width) solid var(--colors-accent);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-medium);
   color: var(--colors-text);
   font-size: var(--button-size);

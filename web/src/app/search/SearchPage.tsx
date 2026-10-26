@@ -12,6 +12,7 @@ import { useSearchOverlay } from "./context";
 import es from "../explore/Explore.module.css";
 import s from "./SearchPage.module.css";
 import { PersonResult } from "./PersonResult";
+import { SearchBar } from "../explore/SearchBar";
 import { useDocumentTitle } from "../../lib/title";
 
 /** Issues on a page of one kind. */
@@ -75,36 +76,19 @@ export function SearchPage() {
     <div className={es.explore}>
       <h1 className={es.title}>{t("search.page.title")}</h1>
 
-      <form className={es.search} role="search" onSubmit={submit}>
-        <label htmlFor="page-search" className={es.searchLabel}>{t("explore.searchLabel")}</label>
+      <div className={s.bar}>
         {/* Shares its name with the overlay's box, so one glides into the other. */}
-        <div className={es.box} style={{ viewTransitionName: overlay.isOpen ? "none" : "search-box" }}>
-          <input
-            id="page-search"
-            type="search"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder={t("explore.searchPlaceholder")}
-            autoComplete="off"
-          />
-          {draft && (
-            <button type="button" className={es.inBox} aria-label={t("explore.clearLabel")} onClick={() => setDraft("")}>
-              <span aria-hidden="true">x</span> <span className={es.clearWord}>{t("explore.clear")}</span>
-            </button>
-          )}
-          <button
-            type="button"
-            className={`${es.inBox} ${es.filterToggle}`}
-            aria-expanded={filtersOpen}
-            aria-controls="search-filters"
-            onClick={() => setFiltersOpen((o) => !o)}
-          >
-            {t("explore.filter")}
-          </button>
-        </div>
-        <button type="submit" className={es.submit}>{t("explore.search")}</button>
-      </form>
-      <p className={es.hint}>{t("search.page.sub")}</p>
+        <SearchBar
+          id="page-search"
+          value={draft}
+          onChange={setDraft}
+          onSubmit={submit}
+          onFilters={() => setFiltersOpen((o) => !o)}
+          filtersOpen={filtersOpen}
+          filtersId="search-filters"
+          transitionName={overlay.isOpen ? "none" : "search-box"}
+        />
+      </div>
 
       {filtersOpen && (
         <div id="search-filters">
@@ -137,7 +121,7 @@ export function SearchPage() {
       {query.search && kind && (
         <section className={s.kind} aria-labelledby="kind-title">
           <div className={s.kindHead}>
-            <h2 id="kind-title" className={es.next}>{t("search.page.in", { kind: t(kind.label), term: query.search })}</h2>
+            <h2 id="kind-title" className={s.heading}>{t("search.page.in", { kind: t(kind.label), term: query.search })}</h2>
             <Link to={searchURL(query.search)} className={s.back}>{t("search.page.all")}</Link>
           </div>
           {results.isSuccess && data.length === 0 && <p className={s.note}>{t("search.page.none")}</p>}
@@ -166,7 +150,7 @@ export function SearchPage() {
       {query.search && !kind && <PersonResult term={query.search} />}
       {query.search && !kind && results.isSuccess && (
         <>
-          <h2 className={`${es.next} ${s.resultsTitle}`}>{t("search.page.results", { term: query.search })}</h2>
+          <h2 className={`${s.heading} ${s.resultsTitle}`}>{t("search.page.results", { term: query.search })}</h2>
           {data.length === 0 && <p className={s.note}>{t("explore.emptySearch")}</p>}
           {CATEGORIES.map((c) => {
             const issues = data.filter((i) => i.match_category === c.key).slice(0, PER_KIND);

@@ -4,7 +4,7 @@ slug: /docs/themes
 section: Guides
 summary: How to restyle the signed-in app with a theme file of design tokens and an optional stylesheet, with every key and rule spelled out.
 draft: false
-updated: 2026-10-21
+updated: 2026-10-27
 ---
 
 A theme restyles the signed-in app. It has two parts:
@@ -16,7 +16,7 @@ Themes are saved to your account, so they follow you from one device to another.
 
 The landing page is never themed. A theme applies only inside the signed-in app.
 
-The signed-in app is being rebuilt, so where you create and apply themes in it may change. The format on this page is what the server and the app both enforce, and it is the same whichever screen you use.
+The format on this page is what the server and the app both enforce.
 
 ## How a theme is checked
 
@@ -63,9 +63,9 @@ The palettes come from each project's published colours, and every built-in has 
 
 ## Starting a theme in the app
 
-In the app, **Settings → Themes** has three tabs:
+In the app, **Settings → Themes** has four tabs:
 
-- **Built-in** lists every built-in with its colours. Built-ins can't be changed: **Use** applies one as it is, and **Customize** makes your own copy and opens it in the editor.
+- **Built-in** shows every built-in as a miniature of itself: its background, a panel, its text and its accent. Built-ins can't be changed: **Use** applies one as it is, and **Customize** makes your own copy and opens it in the editor.
 - **Yours** lists your themes: use, edit, duplicate or delete one, or start a **New theme** from the theme you're using or any built-in.
 - **Community** lists the themes people have shared, most used or newest, searchable by name: use one, duplicate it, or report it.
 - **Shared with you** finds a public theme by its id: use it as it is, or **Duplicate** it into your themes to change it.
@@ -73,6 +73,15 @@ In the app, **Settings → Themes** has three tabs:
 A new theme, a customised built-in and a duplicate all start as a full copy: every token written out, so you change only the lines you want. Delete a line and it falls back to the base preset.
 
 **Appearance** in the profile menu lists your last few themes, to switch between in one click, and **See more themes** opens this page. With nothing chosen, the app uses Midnight. The switch beside the theme in use, and the theme button in the footer, switch it between its light and dark halves.
+
+### What your colours paint
+
+The app keeps its accent rare, so a theme's accent marks what matters rather than everything:
+
+- **`accent`** colours the main button on a page, where you are (the current nav item and settings view), what you've earned or what's live (level bars, XP, badge dots), and section headings. Page titles and body text use `text`.
+- **Lines and chips** (the hairlines between rows, label chips, hover backgrounds) are mixed from `text` into `background` and `surface`, not from the accent, so a loud accent doesn't flood the page.
+- **`surface`** is for things that float or hold input: menus, dialogs, the search palette, search boxes and fields.
+- **`radius.small`** rounds chips, badges and progress bars; **`radius.medium`** buttons, fields and segmented controls. Set them to `"0px"` for square corners.
 
 ### The editor
 
@@ -238,7 +247,10 @@ These `data-ui` attributes are stable. Select them as `[data-ui="card"]`.
 | `card`, `card-title`, `card-repo`, `chips`, `tech` | An issue in a list: the card, its title, its repository, its labels, its repository's languages. |
 | `button`, `button-primary`, `bookmark` | Buttons, the main one on a page, the save bookmark. |
 | `issue`, `issue-body` | An issue's page, its description. |
-| `stat`, `graph`, `achievement`, `activity` | On the profile: a number, the year's graph, a milestone (`data-ui-state="done"` or `"locked"`), an activity box. |
+| `profile-header`, `level`, `stat` | A profile's top band (yours and public ones), the level with its bar, one of the numbers under it. |
+| `language-level`, `badge`, `quest` | On a profile: one language's level, a badge (`data-ui-state="earned"` or `"locked"`), a quest (`data-ui-state="open"` or `"done"`). |
+| `activity`, `pull-request`, `tracked-pull` | A list of pull requests; one of them (`data-ui-state="open"`, `"merged"` or `"closed"`); one the XP tracker holds, on Your contributions and, while open, in Next up. |
+| `path`, `claims`, `graph`, `xp-reveal` | In Next up: your learning path, an issue you claimed; the year's graph on Your contributions; the one-time level reveal. |
 | `settings-nav` | The menu beside Settings. |
 | `link`, `input`, `notice` | A link, a field, a notice. |
 

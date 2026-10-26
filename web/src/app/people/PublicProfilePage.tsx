@@ -3,11 +3,14 @@ import { useParams } from "react-router";
 import { ApiError } from "@skillissues/client";
 import { useI18n } from "../../i18n";
 import { api } from "../../lib/api";
-import { Badges, LanguageLevels, LevelCard } from "../profile/xp";
+import { Badges, LanguageLevels } from "../profile/xp";
+import { ProfileHeader } from "../profile/Header";
+import { PullList } from "../profile/activity";
+import layout from "../profile/ProfilePage.module.css";
 import s from "./people.module.css";
 import { useDocumentTitle } from "../../lib/title";
 
-/** Someone's public profile: only there if they chose to show it. */
+/** Someone's public profile, laid out like your own minus the private parts: only there if they chose to show it. */
 export function PublicProfilePage() {
   const { t, locale } = useI18n();
   const login = useParams().login ?? "";
@@ -34,37 +37,31 @@ export function PublicProfilePage() {
   const joined = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" }).format(new Date(p.joined_at));
 
   return (
-    <div className={s.page}>
-      <div className={s.who}>
-        {p.avatar_url ? <img className={s.avatar} src={p.avatar_url} alt="" width={64} height={64} /> : <span className={s.avatar} />}
-        <div>
-          <h1 className={s.title}>{p.name || p.username}</h1>
-          <p className={s.muted}>
-            <a href={`https://github.com/${p.username}`} target="_blank" rel="noreferrer">@{p.username}</a>, {t("public.joined", { date: joined })}
-          </p>
+    <div className={layout.page}>
+      <ProfileHeader avatar={p.avatar_url} name={p.name || p.username} login={p.username} joined={joined} summary={p.summary} own={false} />
+      <div className={layout.body}>
+        <div className={layout.main}>
+          <section className={layout.section} aria-labelledby="merged-title">
+            <h2 id="merged-title" className={layout.heading}>{t("public.merged")}</h2>
+            <PullList
+              items={p.merged.map((m) => ({ ...m, state: "merged" as const, created_at: "" }))}
+              empty={t("public.noMerged")}
+              showState={false}
+            />
+          </section>
         </div>
-      </div>
-      <div className={s.columns}>
-        <div className={s.left}>
-          <LevelCard summary={p.summary} own={false} />
-          <LanguageLevels summary={p.summary} />
-          <h2 className={s.heading}>{t("xp.badges")}</h2>
-          <Badges summary={p.summary} keys={p.badge_keys} earnedOnly />
-        </div>
-        <section aria-labelledby="merged-title" className={s.box}>
-          <h2 id="merged-title" className={s.boxTitle}>{t("public.merged")}</h2>
-          {p.merged.length === 0 && <p className={s.muted}>{t("public.noMerged")}</p>}
-          <ul className={s.list}>
-            {p.merged.map((m) => (
-              <li key={m.id}>
-                <a href={m.url} target="_blank" rel="noreferrer">
-                  {m.title} <span className={s.muted}>#{m.number}</span>
-                </a>
-                <span className={s.muted}>{m.repository}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <aside className={layout.rail}>
+          <section className={layout.section} aria-labelledby="languages-title">
+            <h2 id="languages-title" className={layout.heading}>{t("xp.languages")}</h2>
+            <LanguageLevels summary={p.summary} />
+          </section>
+          <section className={layout.section} aria-labelledby="badges-title">
+            <h2 id="badges-title" className={layout.heading}>
+              {t("xp.badges")} <span className={layout.count}>{p.summary.badges.length}</span>
+            </h2>
+            <Badges summary={p.summary} keys={p.badge_keys} earnedOnly />
+          </section>
+        </aside>
       </div>
     </div>
   );

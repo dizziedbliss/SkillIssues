@@ -4,7 +4,7 @@ slug: /docs/xp
 section: Guides
 summary: What earns XP, how much, how levels, streaks and badges follow from it, and what earns nothing.
 draft: false
-updated: 2026-10-21
+updated: 2026-10-27
 ---
 
 XP is SkillIssues' record of the work you got merged. It counts merged pull requests to repositories in the catalog, and pays more for the issues that most need fixing. Opening pull requests earns very little, so spamming maintainers gets you nowhere.
@@ -88,7 +88,7 @@ Quests are one-off goals. Each pays **50 XP**, once, and only merges since you j
 
 ## Learning paths
 
-A learning path is five open issues for one kind of work: frontend, backend, documentation, DevOps, data or mobile. You get three for beginners, then two a step up. They come from different projects, and nobody is assigned to or has claimed any of them. Start one from **Learning path** in your profile menu.
+A learning path is five open issues for one kind of work: frontend, backend, documentation, DevOps, data or mobile. You get three for beginners, then two a step up. They come from different projects, and nobody is assigned to or has claimed any of them. Start one from **Learning path** in the top bar.
 
 - A step is done when a pull request of yours that closes its issue is merged.
 - **Swap** replaces a step you haven't done with another issue of the same level, for example if someone else got to it first. An issue you swap away isn't offered again on that path, so each swap brings a new one, until no other issue fits.

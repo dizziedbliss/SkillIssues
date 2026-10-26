@@ -26,10 +26,14 @@
   --body-size: var(--typography-base-size);
   --button-size: 0.9375rem;
 
-  /* Derived from the theme's colours, so every theme gets them. */
-  --rule: color-mix(in srgb, var(--colors-accent) 55%, var(--colors-background));
-  --chip: color-mix(in srgb, var(--colors-accent) 20%, var(--colors-surface));
-  --chip-strong: color-mix(in srgb, var(--colors-accent) 55%, var(--colors-surface));
+  /*
+   * Derived from the theme's colours, so every theme gets them. Rules and chips
+   * mix from the text, not the accent: the accent marks what matters (the main
+   * button, the current place, what's earned), and stays rare enough to.
+   */
+  --rule: color-mix(in srgb, var(--colors-text) 22%, var(--colors-background));
+  --chip: color-mix(in srgb, var(--colors-text) 9%, var(--colors-surface));
+  --chip-strong: color-mix(in srgb, var(--colors-text) 18%, var(--colors-surface));
   --menu-shadow: var(--shadow-medium);
 
   /* Tokens a theme may leave out, with what the app does without them. */

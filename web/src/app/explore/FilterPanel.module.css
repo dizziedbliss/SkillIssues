@@ -1,98 +1,29 @@
-/* The filter panel, as designed: a red frame, the filters in a row, Clear and Apply bottom right. */
+/* The filter panel: a quiet raised panel, the filters as a row of pills, Clear and Apply at the end. */
 
 .panel {
-  margin-top: 1.5rem;
-  padding: clamp(1rem, 2.5vw, 1.75rem) clamp(1rem, 3vw, 3rem);
-  border: var(--border-width) solid var(--colors-accent);
+  margin-top: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--rule);
   border-radius: var(--radius-large);
+  background: var(--colors-surface);
   animation: unfold var(--slow) var(--ease);
 }
 
 .fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
-  gap: 1.25rem clamp(1rem, 2.5vw, 2.25rem);
-}
-
-.field {
-  display: grid;
-  gap: 0.35rem;
-  min-width: 0;
-}
-
-.fieldName {
   display: flex;
-  align-items: flex-end;
-  gap: 0.2rem;
-  font-size: var(--label-size);
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
-/* "?" and the note it opens on hover or focus. */
-.help {
-  position: relative;
-}
-
-/* A small boxed "?", raised to sit above the name's line. */
-.helpButton {
-  display: grid;
-  place-items: center;
-  width: 0.95rem;
-  height: 0.95rem;
-  padding: 0;
-  translate: 0 -0.45rem;
-  border: 1px solid var(--colors-accent);
-  border-radius: var(--radius-small);
-  background: var(--colors-surface);
-  color: var(--colors-accent);
-  font: inherit;
-  font-size: 0.625rem;
-  line-height: 1;
-  cursor: help;
-  transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease);
-}
-
-.helpButton:hover,
-.helpButton:focus-visible {
-  background: var(--colors-accent);
-  color: var(--colors-accent-text);
-}
-
-/* The dropdown's ">" turns down while it is open. */
+/* The dropdown's chevron turns while it is open. */
 .chevron {
   flex: none;
+  color: var(--colors-text-muted);
   transition: rotate var(--fast) var(--ease);
 }
 
 [aria-expanded="true"] > .chevron {
-  rotate: 90deg;
-}
-
-.tip {
-  position: absolute;
-  bottom: calc(100% + 0.4rem);
-  left: -0.5rem;
-  z-index: 25;
-  width: 16rem;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--colors-accent);
-  border-radius: var(--radius-large);
-  background: var(--colors-surface);
-  box-shadow: var(--shadow-medium);
-  color: var(--colors-text);
-  font-size: var(--label-size);
-  line-height: 1.45;
-  opacity: 0;
-  visibility: hidden;
-  translate: 0 0.25rem;
-  transition: opacity var(--fast) var(--ease), translate var(--fast) var(--ease), visibility 0s linear var(--fast);
-}
-
-.help:hover .tip,
-.help:focus-within .tip {
-  opacity: 1;
-  visibility: visible;
-  translate: 0 0;
-  transition-delay: 0s;
+  rotate: 180deg;
 }
 
 /* ---- a dropdown ---- */
@@ -104,16 +35,15 @@
 .select {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.45rem 0.6rem;
-  border: var(--border-width) solid var(--colors-border);
-  border-radius: var(--radius-medium);
-  background: var(--colors-surface);
+  gap: 0.4rem;
+  max-width: 18rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-small);
+  background: none;
   color: var(--colors-text);
   font: inherit;
-  font-size: 0.9375rem;
+  font-size: var(--label-size);
   text-align: left;
   cursor: pointer;
   transition: background-color var(--slow) var(--ease), border-color var(--fast) var(--ease);
@@ -125,7 +55,12 @@
 }
 
 .selectChosen {
-  border-color: var(--colors-accent);
+  border-color: var(--colors-text);
+  background: var(--chip);
+}
+
+.selectName {
+  color: var(--colors-text-muted);
 }
 
 .selectValue {
@@ -139,10 +74,10 @@
   top: calc(100% + 0.35rem);
   left: 0;
   z-index: 25;
-  width: max(100%, 16rem);
+  width: max(100%, 18rem);
   margin: 0;
   padding: 0.5rem;
-  border: var(--border-width) solid var(--colors-accent);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-large);
   background: var(--colors-surface);
   box-shadow: var(--shadow-medium);
@@ -198,6 +133,15 @@
   font-variant-numeric: tabular-nums;
 }
 
+.menuHelp {
+  margin-bottom: 0.4rem;
+  padding: 0.25rem 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--rule);
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+  line-height: 1.45;
+}
+
 .menuNote {
   padding: 0.35rem 0.3rem;
   color: var(--colors-text-muted);
@@ -209,8 +153,8 @@
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  margin-top: 1.25rem;
-  font-size: 0.9375rem;
+  margin-top: 1rem;
+  font-size: var(--label-size);
   cursor: pointer;
 }
 
@@ -219,8 +163,10 @@
 .actions {
   display: flex;
   justify-content: flex-end;
-  gap: 1.25rem;
-  margin-top: 1.5rem;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
 }
 
 .clear,
@@ -235,12 +181,17 @@
 
 .clear {
   background: none;
-  color: var(--colors-accent);
+  color: var(--colors-text-muted);
+}
+
+.clear:hover {
+  color: var(--colors-text);
 }
 
 .apply {
   background: var(--colors-accent);
   color: var(--colors-accent-text);
+  font-weight: 700;
   transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
 }
 
@@ -278,7 +229,6 @@
     animation: none;
   }
 
-  .tip,
   .select,
   .apply {
     transition: none;

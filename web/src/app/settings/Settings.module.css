@@ -1,4 +1,4 @@
-/* Settings: sections under red rules, each setting a row with its action on the right. */
+/* Settings: a menu of views beside the open one; each setting a row, its name on the left, its control on the right, hairlines between. */
 
 .title {
   font-family: var(--serif);
@@ -72,6 +72,7 @@
   letter-spacing: var(--heading-tracking);
   line-height: 1.1;
   margin-bottom: 1rem;
+  color: var(--colors-accent);
 }
 
 .who {
@@ -89,7 +90,9 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem 2rem;
-  margin-top: 1.5rem;
+  margin-top: 0;
+  padding: 1.35rem 0;
+  border-top: 1px solid var(--rule);
 }
 
 .label {
@@ -108,7 +111,7 @@
 .quietButton {
   flex: none;
   padding: 0.5em 0.9em;
-  border: var(--border-width) solid var(--colors-accent);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-medium);
   background: transparent;
   color: var(--colors-text);
@@ -121,8 +124,8 @@
 /* Buttons fill with a fade, as on the landing page. */
 .button:hover,
 .button:focus-visible {
-  background-color: var(--colors-accent);
-  color: var(--colors-accent-text);
+  border-color: var(--colors-text);
+  background-color: var(--chip);
 }
 
 .danger {
@@ -194,6 +197,112 @@
   margin-top: 1.25rem;
 }
 
+/* The profile form drops the gap: its rows are split by hairlines. */
+.form {
+  gap: 0;
+  margin-top: 0.5rem;
+}
+
+.settingRow {
+  display: grid;
+  grid-template-columns: minmax(10rem, 15rem) minmax(0, 1fr);
+  gap: 0.75rem clamp(1.5rem, 4vw, 3rem);
+  margin: 0;
+  padding: 1.35rem 0;
+  border: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.settingHead {
+  display: grid;
+  align-content: start;
+  gap: 0.3rem;
+}
+
+.settingControl {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.settingControl textarea {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-medium);
+  background: var(--colors-surface);
+  color: var(--colors-text);
+  font: inherit;
+  font-size: 0.9375rem;
+}
+
+.settingControl textarea:focus {
+  outline: none;
+  border-color: var(--colors-accent);
+  box-shadow: 0 0 0 1px var(--colors-accent);
+}
+
+/* A choice of one, as one control: the chosen part filled with the text colour. */
+.segments {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-self: start;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-medium);
+  overflow: hidden;
+}
+
+.segment {
+  padding: 0.45rem 0.9rem;
+  color: var(--colors-text-muted);
+  font-size: var(--label-size);
+  cursor: pointer;
+  transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+.segment + .segment {
+  border-left: 1px solid var(--rule);
+}
+
+.segment:hover {
+  background: var(--chip);
+  color: var(--colors-text);
+}
+
+.segmentOn,
+.segmentOn:hover {
+  background: var(--colors-text);
+  color: var(--colors-background);
+}
+
+.segment:has(:focus-visible) {
+  outline: 2px solid var(--colors-accent);
+  outline-offset: -2px;
+}
+
+.tagMore {
+  padding: 0.15rem 0.5rem;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius-small);
+  background: none;
+  color: var(--colors-text-muted);
+  font: inherit;
+  font-size: var(--label-size);
+  cursor: pointer;
+}
+
+.tagMore:hover {
+  border-color: var(--colors-text);
+  color: var(--colors-text);
+}
+
+@media (max-width: 760px) {
+  .settingRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .field {
   display: grid;
   gap: 0.45rem;
@@ -257,8 +366,8 @@
 .tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  max-height: 14rem;
+  gap: 0.4rem;
+  max-height: 16rem;
   overflow-y: auto;
 }
 
@@ -268,10 +377,10 @@
   align-items: center;
   gap: 0.35rem;
   padding: 0.15rem 0.5rem;
-  border: 1px solid var(--chip);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-small);
-  background: var(--colors-surface);
-  font-size: 0.9375rem;
+  background: none;
+  font-size: var(--label-size);
   cursor: pointer;
   transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease);
 }
@@ -282,8 +391,13 @@
 }
 
 .tagOn {
-  border-color: var(--colors-accent);
-  background: var(--chip);
+  border-color: var(--colors-text);
+  background: var(--colors-text);
+  color: var(--colors-background);
+}
+
+.tagOn .untag {
+  color: inherit;
 }
 
 .untag {
@@ -300,6 +414,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem 1.25rem;
+  padding-top: 1.35rem;
+  border-top: 1px solid var(--rule);
 }
 
 .primary {
@@ -310,6 +426,7 @@
   color: var(--colors-accent-text);
   font: inherit;
   font-size: var(--button-size);
+  font-weight: 700;
   cursor: pointer;
   transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
 }
@@ -390,7 +507,7 @@
   display: grid;
   gap: 1rem;
   padding: 1rem 1.25rem 1.25rem;
-  border: var(--border-width) solid var(--colors-accent);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-large);
 }
 
@@ -419,36 +536,77 @@
   }
 }
 
-/* Built-in themes: a strip of each one's colours, its name, Use. */
+/* Built-in themes: each one large in miniature, its name, Use and Customize. */
 .gallery {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 1rem;
 }
 
 .swatchCard {
   display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
-  border-radius: var(--radius-large);
+  gap: 0.6rem;
   font-size: 0.9375rem;
 }
 
+.swatchName {
+  font-size: 0.9375rem;
+}
+
+/* The theme in use: its preview ringed in the accent. */
+.swatchCardOn .swatches {
+  outline: 2px solid var(--colors-accent);
+  outline-offset: 2px;
+}
+
+/* The miniature: small in a list row, large in the gallery. */
 .swatches {
-  display: flex;
+  display: inline-grid;
+  flex: none;
+  width: 3.25rem;
+  height: 2.25rem;
+  padding: 0.3rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-small);
 }
 
-.swatches span {
-  width: 0.9rem;
-  height: 1.6rem;
-  border: 1px solid color-mix(in srgb, var(--colors-text) 25%, transparent);
+.swatchCard .swatches {
+  width: 100%;
+  height: 6.5rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-medium);
 }
 
-.swatches span + span {
-  margin-left: -1px;
+.previewPanel {
+  display: grid;
+  align-content: start;
+  gap: 12%;
+  padding: 10% 12%;
+  border-radius: 2px;
+}
+
+.previewLine {
+  height: 0.2rem;
+  border-radius: 1px;
+}
+
+.previewLine:nth-child(2) {
+  width: 70%;
+}
+
+.swatchCard .previewLine {
+  height: 0.4rem;
+}
+
+.previewButton {
+  justify-self: start;
+  width: 40%;
+  height: 0.3rem;
+  border-radius: 1px;
+}
+
+.swatchCard .previewButton {
+  height: 0.85rem;
 }
 
 /* ---- themes: tabs, gallery actions, the editor ---- */
@@ -457,7 +615,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
-  border-bottom: var(--border-width) var(--border-style) var(--rule);
+  border-bottom: 1px solid var(--rule);
 }
 
 .tab {
@@ -480,8 +638,15 @@
 
 .cardActions {
   display: flex;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 1rem;
   grid-column: 1 / -1;
+  font-size: var(--label-size);
+}
+
+.cardActions .quietButton {
+  padding-inline: 0;
+  font-size: var(--label-size);
 }
 
 .themeName {

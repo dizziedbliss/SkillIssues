@@ -25,12 +25,20 @@ function swatches(toml: string): string[] {
   return [colors.background, colors.surface, colors.text, colors.accent].map(String);
 }
 
+/**
+ * A theme in miniature: its background, a surface panel on it, two lines in its
+ * text colour and a button in its accent. Small beside a name in a list; the
+ * built-ins' gallery shows it large.
+ */
 function Swatches({ colors }: { colors: string[] }) {
+  const [background, surface, text, accent] = colors;
   return (
-    <span className={s.swatches} aria-hidden="true">
-      {colors.map((c, i) => (
-        <span key={i} style={{ background: c }} />
-      ))}
+    <span className={s.swatches} style={{ background }} aria-hidden="true">
+      <span className={s.previewPanel} style={{ background: surface }}>
+        <span className={s.previewLine} style={{ background: text }} />
+        <span className={s.previewLine} style={{ background: text, opacity: 0.45 }} />
+        <span className={s.previewButton} style={{ background: accent }} />
+      </span>
     </span>
   );
 }
@@ -108,9 +116,9 @@ function BuiltIns() {
         {PRESETS.map((p) => {
           const choice: Choice = { preset: p };
           return (
-            <li key={p} className={s.swatchCard}>
+            <li key={p} className={`${s.swatchCard} ${inUse(p) ? s.swatchCardOn : ""}`}>
               <Swatches colors={swatches(presets[p])} />
-              <span>{choiceName(choice)}</span>
+              <span className={s.swatchName}>{choiceName(choice)}</span>
               <span className={s.cardActions}>
                 {inUse(p) ? (
                   <span className={s.ok}>{t("settings.themes.using")}</span>

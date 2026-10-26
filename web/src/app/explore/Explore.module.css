@@ -1,7 +1,7 @@
-/* Explore, as designed: a serif heading, the search bar in a red frame, a rule, the difficulty chips, the list. */
+/* Explore: the heading, the search bar, one toolbar (levels, then removable scopes), the list. */
 
 .explore {
-  width: min(100%, 80rem);
+  width: min(100%, 72rem);
   margin-inline: auto;
 }
 
@@ -11,195 +11,92 @@
   font-size: clamp(2.25rem, 1.5rem + 2.4vw, 3.25rem);
   line-height: 1.05;
   letter-spacing: var(--heading-tracking);
-  padding-left: clamp(0rem, 5vw, 5rem);
 }
-
-/* ---- the search bar ---- */
 
 .search {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem clamp(0.75rem, 1.5vw, 1.25rem);
-  margin-top: clamp(1.5rem, 3vw, 2.25rem);
-  padding: 0 clamp(0rem, 5vw, 5rem) clamp(1.25rem, 2.5vw, 1.75rem);
-  border-bottom: var(--border-width) var(--border-style) var(--rule);
-}
-
-.searchLabel {
-  flex: none;
-  font-family: var(--serif);
-  font-size: 1.4rem;
-  letter-spacing: var(--heading-tracking);
-}
-
-.box {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  border: var(--border-width) solid var(--colors-accent);
-  border-radius: var(--radius-medium);
-  background: var(--colors-surface);
-  transition: box-shadow var(--fast) var(--ease);
-}
-
-.box:focus-within {
-  box-shadow: 0 0 0 1px var(--colors-accent);
-}
-
-.box input {
-  flex: 1;
-  min-width: 0;
-  padding: 0.5rem 0.6rem;
-  border: 0;
-  background: none;
-  color: var(--colors-text);
-  font: inherit;
-  font-size: 0.9375rem;
-}
-
-.box input:focus {
-  outline: none;
-}
-
-.box input::placeholder {
-  color: var(--colors-text-muted);
-}
-
-/* The native clear button would double ours. */
-.box input::-webkit-search-cancel-button {
-  appearance: none;
-}
-
-.inBox {
-  flex: none;
-  align-self: stretch;
-  padding: 0 0.85rem;
-  border: 0;
-  background: none;
-  color: var(--colors-text);
-  font: inherit;
-  font-size: var(--label-size);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.filterToggle {
-  color: var(--colors-accent);
-  background: transparent;
-  transition: background-color var(--slow) var(--ease);
-}
-
-.filterToggle:hover,
-.filterToggle[aria-expanded="true"] {
-  background-color: var(--chip);
-}
-
-.submit {
-  flex: none;
-  padding: 0.55rem 0.9rem;
-  border: 0;
-  border-radius: var(--radius-medium);
-  background: var(--colors-accent);
-  color: var(--colors-accent-text);
-  font: inherit;
-  font-size: var(--label-size);
-  cursor: pointer;
-  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
-}
-
-/* Buttons fade to ink. */
-.submit:hover,
-.submit:focus-visible {
-  background-color: var(--accent-hover);
-  color: var(--colors-accent);
-}
-
-/* Under the bar: what this search does, and the overlay that sorts results by kind. */
-.hint,
-.scope {
-  margin-top: 0.75rem;
-  padding: 0 clamp(0rem, 5vw, 5rem);
-  color: var(--colors-text-muted);
-  font-size: var(--label-size);
-}
-
-.hintLink {
-  border: 0;
-  padding: 0;
-  background: none;
-  color: var(--colors-text);
-  font: inherit;
-  text-decoration: underline;
-  text-decoration-color: var(--colors-accent);
-  text-underline-offset: 0.2em;
-  cursor: pointer;
-}
-
-.scope {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--colors-text);
-}
-
-.scopeChip {
-  padding: 0.1rem 0.45rem;
-  border-radius: var(--radius-small);
-  background: var(--chip);
-  box-shadow: var(--shadow-small);
-}
-
-/* ---- difficulty ---- */
-
-.levels {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem 1.5rem;
   margin-top: clamp(1.25rem, 2.5vw, 1.75rem);
+}
+
+/* ---- the toolbar ---- */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.75rem;
+  margin-top: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--rule);
   scroll-margin-top: 6rem;
 }
 
-.next {
-  font-family: var(--serif);
-  font-weight: var(--typography-heading-weight);
-  font-size: 1.4rem;
-  letter-spacing: var(--heading-tracking);
-  line-height: 1.1;
-}
-
-.chips {
-  display: flex;
+/* The levels as one segmented control: several may be on. */
+.segments {
+  display: inline-flex;
   flex-wrap: wrap;
-  gap: 0.6rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-medium);
+  overflow: hidden;
 }
 
-.level {
-  padding: 0.15rem 0.45rem;
+.segment {
+  padding: 0.4rem 0.85rem;
   border: 0;
+  background: none;
+  color: var(--colors-text-muted);
+  font: inherit;
+  font-size: var(--label-size);
+  cursor: pointer;
+  transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+.segment + .segment {
+  border-left: 1px solid var(--rule);
+}
+
+.segment:hover {
+  color: var(--colors-text);
+  background: var(--chip);
+}
+
+.segment[aria-pressed="true"] {
+  background: var(--colors-text);
+  color: var(--colors-background);
+}
+
+.segment:disabled {
+  cursor: default;
+}
+
+.segment:focus-visible {
+  outline: 2px solid var(--colors-accent);
+  outline-offset: -2px;
+}
+
+/* What narrows the list beyond the levels: a repository, an owner, your languages. Each has its cross. */
+.scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.35rem 0.3rem 0.7rem;
   border-radius: var(--radius-small);
   background: var(--chip);
-  box-shadow: var(--shadow-small);
-  color: var(--colors-text);
-  font: inherit;
-  font-size: 0.9375rem;
+  font-size: var(--label-size);
+}
+
+.scope button {
+  display: flex;
+  padding: 0.25rem;
+  border: 0;
+  border-radius: var(--radius-small);
+  background: none;
+  color: var(--colors-text-muted);
   cursor: pointer;
-  transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease), scale var(--fast) var(--ease);
 }
 
-.level:hover {
+.scope button:hover {
   background: var(--chip-strong);
-}
-
-.level:active {
-  scale: 0.95;
-}
-
-.level[aria-pressed="true"] {
-  background: var(--colors-accent);
-  color: var(--colors-accent-text);
+  color: var(--colors-text);
 }
 
 .newHere {
@@ -210,10 +107,18 @@
   text-underline-offset: 0.2em;
 }
 
+.resultsFor {
+  margin-top: 1.5rem;
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: 1.5rem;
+  letter-spacing: var(--heading-tracking);
+  color: var(--colors-accent);
+}
+
 /* ---- the list ---- */
 
 .results {
-  margin-top: 0.5rem;
   min-height: 20rem;
 }
 
@@ -225,7 +130,6 @@
 .quiet,
 .error {
   margin-top: 2rem;
-  padding: 0 clamp(0rem, 2vw, 2rem);
   color: var(--colors-text-muted);
 }
 
@@ -245,28 +149,13 @@
 }
 
 @media (max-width: 640px) {
-  .search {
-    flex-wrap: wrap;
-  }
-
-  .searchLabel {
-    flex-basis: 100%;
-  }
-
-  .box {
-    flex-basis: calc(100% - 6rem);
-  }
-
-  .clearWord {
-    display: none;
+  .newHere {
+    margin-left: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .box,
-  .filterToggle,
-  .submit,
-  .level,
+  .segment,
   .stale {
     transition: none;
   }

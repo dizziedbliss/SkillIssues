@@ -1,6 +1,13 @@
+/*
+ * The footer: the wordmark, its line and the tools on the left, five columns
+ * of links on the right, the small print under a hairline. Quiet: the column
+ * titles carry the red, the links are muted until hovered.
+ */
+
 .footer {
-  border-top: 1px solid var(--signal);
-  padding: clamp(2rem, 4vw, 3rem) var(--gutter) 1.5rem;
+  margin-top: clamp(3rem, 6vw, 5rem);
+  border-top: 1px solid color-mix(in srgb, var(--hair) 35%, transparent);
+  padding: clamp(2.5rem, 5vw, 4rem) var(--gutter) 1.5rem;
   font-size: 0.9375rem;
   line-height: 1.6;
 }
@@ -10,10 +17,61 @@
   margin-inline: auto;
 }
 
+.top {
+  display: grid;
+  grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
+  gap: 2.5rem clamp(2rem, 6vw, 6rem);
+}
+
+.sign {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.tagline {
+  max-width: 18rem;
+  color: var(--quiet);
+  font-size: var(--label-size);
+}
+
+.tools {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+
+/* A 44px target around a 22px icon. */
+.tool {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--hair) 35%, transparent);
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+.tool:hover,
+.tool[aria-pressed="true"],
+.tool[aria-expanded="true"] {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+.tool:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
 .columns {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 2rem;
+  gap: 2rem 1.5rem;
 }
 
 .columns ul {
@@ -21,13 +79,16 @@
   padding: 0;
   margin: 0;
   display: grid;
-  gap: 0.4rem;
+  gap: 0.45rem;
 }
 
 .title {
-  font-size: var(--label-size);
-  font-weight: 700;
   margin-bottom: 0.9rem;
+  color: var(--signal);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .columns a {
@@ -45,66 +106,28 @@
   background-size: 100% 1px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .columns a {
-    transition: none;
-  }
-}
-
-.sign {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 2rem;
-  text-align: center;
-}
-
-.tools {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-/* A 44px target around a 22px icon, in the page's red. */
-.tool {
-  display: grid;
-  place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  padding: 0;
-  border: 1px solid transparent;
-  background: none;
-  color: var(--signal);
-  cursor: pointer;
-  transition: border-color var(--fast) var(--ease), background-color var(--fast) var(--ease);
-}
-
-.tool:hover {
-  border-color: var(--signal);
-}
-
-.tool[aria-pressed="true"],
-.tool[aria-expanded="true"] {
-  border-color: var(--signal);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tool {
-    transition: none;
-  }
-}
-
 .base {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  margin-top: 2.5rem;
+  margin-top: clamp(2rem, 4vw, 3rem);
+  padding-top: 1.25rem;
+  border-top: 1px solid color-mix(in srgb, var(--hair) 25%, transparent);
   font-size: var(--label-size);
   color: var(--quiet);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1080px) {
+  .top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .columns {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
   .columns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -114,8 +137,9 @@
   }
 }
 
-@media (max-width: 420px) {
-  .columns {
-    grid-template-columns: 1fr;
+@media (prefers-reduced-motion: reduce) {
+  .columns a,
+  .tool {
+    transition: none;
   }
 }

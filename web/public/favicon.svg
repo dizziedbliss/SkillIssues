@@ -1,8 +1,8 @@
 <svg width="111" height="111" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <!-- The owner's mark, in the site's ink and red (landing/tokens.module.css), lighter in a dark browser theme. -->
 <style>
-  .ink { stroke: #161412; }
-  .signal { fill: #d81b0c; }
+  .ink { stroke: #26231f; }
+  .signal { fill: #c8190b; }
   @media (prefers-color-scheme: dark) { .ink { stroke: #f3f0ea; } .signal { fill: #ff3322; } }
 </style>
 

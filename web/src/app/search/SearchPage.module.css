@@ -1,4 +1,17 @@
-/* The search page: Explore's bar and cards, results grouped by kind under red-ruled heads. */
+/* The search page: the shared bar and Explore's cards, results grouped by kind under ruled heads. */
+
+.bar {
+  margin-top: clamp(1.25rem, 2.5vw, 1.75rem);
+}
+
+.heading {
+  font-family: var(--serif);
+  font-weight: var(--typography-heading-weight);
+  font-size: 1.5rem;
+  line-height: 1.1;
+  letter-spacing: var(--heading-tracking);
+  color: var(--colors-accent);
+}
 
 .note {
   margin-top: 2rem;
@@ -35,27 +48,23 @@
   justify-content: space-between;
   gap: 0.5rem 1.5rem;
   padding-bottom: 0.5rem;
-  border-bottom: var(--border-width) var(--border-style) var(--rule);
+  border-bottom: 1px solid var(--rule);
 }
 
 .kindTitle {
   font-family: var(--typography-mono-font);
-  font-size: 1.15rem;
+  font-size: var(--label-size);
   font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--colors-accent);
 }
 
 .more,
 .back {
-  color: var(--colors-accent);
+  color: var(--colors-text);
   font-size: var(--label-size);
-  text-decoration: none;
-  background: linear-gradient(currentColor, currentColor) no-repeat 0 100% / 0% 1px;
-  transition: background-size var(--slow) var(--ease);
-}
-
-.more:hover,
-.more:focus-visible,
-.back:hover,
-.back:focus-visible {
-  background-size: 100% 1px;
+  text-decoration: underline;
+  text-decoration-color: var(--colors-accent);
+  text-underline-offset: 0.2em;
 }

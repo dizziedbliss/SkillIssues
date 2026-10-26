@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useId, useMemo, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Level, Profile } from "@skillissues/client";
@@ -7,6 +7,8 @@ import { useT } from "../../i18n";
 import s from "./Settings.module.css";
 
 const LEVELS: Level[] = ["BEGINNER", "INTERMEDIATE", "ADVANCED"];
+/** Languages listed before "Show all": your picks always show, then the most common. */
+const LANGS_SHOWN = 24;
 
 /**
  * The editable profile: bio, levels, languages and interests. Saved whole;
@@ -24,6 +26,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
   const [findLang, setFindLang] = useState("");
   const [newInterest, setNewInterest] = useState("");
   const [isPublic, setPublic] = useState(profile.public_profile);
+  const [allLangs, setAllLangs] = useState(false);
 
   const options = useQuery({ queryKey: ["preferenceOptions"], queryFn: ({ signal }) => api.preferenceOptions({ signal }), staleTime: Infinity });
   const shownLangs = useMemo(() => {
@@ -57,11 +60,12 @@ export function ProfileForm({ profile }: { profile: Profile }) {
     setNewInterest("");
   }
 
+  // The three levels as one segmented control (radios underneath).
   const levelGroup = (name: string, value: Level, set: (l: Level) => void) => (
-    <div className={s.choices}>
+    <div className={s.segments}>
       {LEVELS.map((l) => (
-        <label key={l} className={s.choice}>
-          <input type="radio" name={name} checked={value === l} onChange={() => set(l)} />
+        <label key={l} className={`${s.segment} ${value === l ? s.segmentOn : ""}`}>
+          <input type="radio" className="visually-hidden" name={name} checked={value === l} onChange={() => set(l)} />
           {t(`settings.level.${l}`)}
         </label>
       ))}
@@ -70,26 +74,19 @@ export function ProfileForm({ profile }: { profile: Profile }) {
 
   return (
     <form className={s.form} onSubmit={submit}>
-      <label className={s.field}>
-        <span className={s.label}>{t("settings.bio")}</span>
-        <textarea value={bio} rows={3} onChange={(e) => setBio(e.target.value)} />
-        <span className={s.hint}>{t("settings.bio.count", { count: [...bio.trim()].length })}</span>
-      </label>
+      <Row label={t("settings.bio")} hint={t("settings.bio.count", { count: [...bio.trim()].length })} htmlFor="settings-bio">
+        <textarea id="settings-bio" value={bio} rows={3} placeholder={t("settings.bio.placeholder")} onChange={(e) => setBio(e.target.value)} />
+      </Row>
 
-      <fieldset className={s.field}>
-        <legend className={s.label}>{t("settings.level")}</legend>
+      <Row label={t("settings.level")} hint={t("settings.level.help")} group>
         {levelGroup("level", level, setLevel)}
-        <span className={s.hint}>{t("settings.level.help")}</span>
-      </fieldset>
+      </Row>
 
-      <fieldset className={s.field}>
-        <legend className={s.label}>{t("settings.target")}</legend>
+      <Row label={t("settings.target")} group>
         {levelGroup("target", target, setTarget)}
-      </fieldset>
+      </Row>
 
-      <fieldset className={s.field}>
-        <legend className={s.label}>{t("settings.languages")}</legend>
-        <span className={s.hint}>{t("settings.languages.help")}</span>
+      <Row label={t("settings.languages")} hint={t("settings.languages.help")} group>
         <input
           className={s.input}
           type="search"
@@ -100,7 +97,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
         />
         {options.error && <p className={s.error} role="alert">{options.error.message}</p>}
         <div className={s.tags}>
-          {shownLangs.map((l) => (
+          {(allLangs || findLang.trim() ? shownLangs : shownLangs.slice(0, Math.max(LANGS_SHOWN, langs.length))).map((l) => (
             <label key={l} className={`${s.tag} ${langs.includes(l) ? s.tagOn : ""}`}>
               <input
                 type="checkbox"
@@ -111,21 +108,27 @@ export function ProfileForm({ profile }: { profile: Profile }) {
               {l}
             </label>
           ))}
+          {!findLang.trim() && shownLangs.length > Math.max(LANGS_SHOWN, langs.length) && (
+            <button type="button" className={s.tagMore} onClick={() => setAllLangs((v) => !v)} aria-expanded={allLangs}>
+              {allLangs ? t("settings.languages.fewer") : t("settings.languages.all", { count: shownLangs.length })}
+            </button>
+          )}
         </div>
-      </fieldset>
+      </Row>
 
-      <fieldset className={s.field}>
-        <legend className={s.label}>{t("settings.interests")}</legend>
-        <div className={s.tags}>
-          {interests.map((i) => (
-            <span key={i} className={`${s.tag} ${s.tagOn}`}>
-              {i}
-              <button type="button" className={s.untag} aria-label={t("settings.interests.remove", { name: i })} onClick={() => setInterests(interests.filter((x) => x !== i))}>
-                x
-              </button>
-            </span>
-          ))}
-        </div>
+      <Row label={t("settings.interests")} hint={t("settings.interests.help")} group>
+        {interests.length > 0 && (
+          <div className={s.tags}>
+            {interests.map((i) => (
+              <span key={i} className={`${s.tag} ${s.tagOn}`}>
+                {i}
+                <button type="button" className={s.untag} aria-label={t("settings.interests.remove", { name: i })} onClick={() => setInterests(interests.filter((x) => x !== i))}>
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <input
           className={s.input}
           value={newInterest}
@@ -134,20 +137,23 @@ export function ProfileForm({ profile }: { profile: Profile }) {
           onChange={(e) => setNewInterest(e.target.value)}
           onKeyDown={addInterest}
         />
-        <span className={s.hint}>{t("settings.interests.help")}</span>
-      </fieldset>
+      </Row>
 
-      <fieldset className={s.field}>
-        <legend className={s.label}>{t("settings.public")}</legend>
+      <Row
+        label={t("settings.public")}
+        hint={
+          <>
+            {t("settings.public.help")}{" "}
+            {profile.public_profile && <Link to={`/app/u/${profile.username}`}>{t("settings.public.view")}</Link>}
+          </>
+        }
+        group
+      >
         <label className={s.choice}>
           <input type="checkbox" checked={isPublic} onChange={(e) => setPublic(e.target.checked)} />
           {t("settings.public.on")}
         </label>
-        <span className={s.hint}>
-          {t("settings.public.help")}{" "}
-          {profile.public_profile && <Link to={`/app/u/${profile.username}`}>{t("settings.public.view")}</Link>}
-        </span>
-      </fieldset>
+      </Row>
 
       <div className={s.saveRow}>
         <button type="submit" className={s.primary} disabled={save.isPending}>
@@ -157,5 +163,35 @@ export function ProfileForm({ profile }: { profile: Profile }) {
         {save.error && <span className={s.error} role="alert">{save.error.message}</span>}
       </div>
     </form>
+  );
+}
+
+/**
+ * One setting as a row: its name and what it does on the left, the control on
+ * the right, a hairline above. group: the control is several inputs, so the
+ * row is a labelled group rather than one input's label.
+ */
+function Row({
+  label,
+  hint,
+  htmlFor,
+  group = false,
+  children,
+}: {
+  label: string;
+  hint?: ReactNode;
+  htmlFor?: string;
+  group?: boolean;
+  children: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <div className={s.settingRow} role={group ? "group" : undefined} aria-labelledby={group ? id : undefined}>
+      <div className={s.settingHead}>
+        {group ? <span id={id} className={s.label}>{label}</span> : <label htmlFor={htmlFor} className={s.label}>{label}</label>}
+        {hint && <span className={s.hint}>{hint}</span>}
+      </div>
+      <div className={s.settingControl}>{children}</div>
+    </div>
   );
 }

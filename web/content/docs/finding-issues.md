@@ -4,7 +4,7 @@ slug: /docs/finding-issues
 section: Guides
 summary: How the catalog is ordered, how to filter it, and how search works.
 draft: false
-updated: 2026-10-21
+updated: 2026-10-27
 ---
 
 The catalog lists open issues from every repository SkillIssues tracks. You can browse it in one of three orders, narrow it with filters, or search it.
@@ -28,7 +28,7 @@ The catalog lists open issues from every repository SkillIssues tracks. You can 
 
 Each card says why it's there, in a line under the repository ("Why: your language, merges outsiders' pull requests"). Signed out, Fit doesn't apply and everyone shares one draw a day.
 
-If you're signed in, Explore starts with your profile's languages and level as filters, shown under the search box. **Show every language** removes the languages; the difficulty buttons change the level. With Easiest, your preferred languages also come first.
+If you're signed in, Explore starts with your profile's languages and level as filters, shown under the search box: the level as the pressed difficulty buttons, your languages as one chip. The chip's **×** removes the languages; the difficulty buttons change the level. With Easiest, your preferred languages also come first.
 
 Choose the sort under **filter**, beside the search box.
 
@@ -63,7 +63,7 @@ The values in each filter's list come from the catalog itself, most common first
 
 There are two ways to search.
 
-**Search** in the menu (or `/`, or Ctrl+K, from anywhere in the app) opens a search over the page. Results come as you type, sorted into three kinds, and each kind has **View more**, which opens that kind on its own on the search page, with pages of its own. **See all results** opens every kind at once on the search page. Search never takes you back to Explore.
+**Search** in the top bar (or `/`, or Ctrl+K, from anywhere in the app) opens a search over the page. Results come as you type, sorted into three kinds, and each kind has **View more**, which opens that kind on its own on the search page, with pages of its own. **See all results** opens every kind at once on the search page. Search never takes you back to Explore.
 
 The search box on Explore searches the catalog you're browsing and shows every kind of match mixed together in one list. **x clear** empties it.
 
