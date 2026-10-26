@@ -57,4 +57,7 @@ type handlers struct {
 	// issuesFlight collapses concurrent identical signed-out catalog
 	// requests that miss the cache into one query (handlers_issues.go).
 	issuesFlight singleflight.Group
+
+	// statsCache is GET /stats's answer, kept for its lifetime (handlers_stats.go).
+	statsCache statsCache
 }
