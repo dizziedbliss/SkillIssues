@@ -23,6 +23,7 @@
   padding: 0.7em 1.1em 0.65em;
   background: var(--signal);
   color: var(--on-signal);
+  font-weight: 700;
   font-family: var(--mono);
   line-height: 1.2;
   text-decoration: none;

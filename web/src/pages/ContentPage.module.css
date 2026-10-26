@@ -89,6 +89,7 @@
   padding: 0.5em 0.8em 0.45em;
   background: var(--signal);
   color: var(--on-signal);
+  font-weight: 700;
   font-size: var(--button-size);
   text-decoration: none;
   transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease);
