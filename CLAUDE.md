@@ -191,16 +191,22 @@ path reaching outside the importing project). Both apps are built on `client`; t
 
 ### Web (`web/src/`)
 - **`landing/`** — the landing page, the owner's design. Its look is **locked**
-  (`landing/tokens.module.css`, light and a dark version) and outside the theme system: no user theme reaches it. A zig-zag:
-  each section in the left or right part of one container with equal margins, the other side left
-  white (one column under 860px), over the backlog field (`BacklogField.tsx`, canvas: a faint dot grid
-  whose cells light red or green in today's arrived/closed ratio from `GET /stats`, and lift near the
-  pointer; still under reduced motion). The hero is the Backlog Clock (`BacklogClock.tsx`: open issues,
-  arrived and closed today, the live bar) and the issue finder (`IssueFinder.tsx`: a language and a level,
-  three For you picks, one per repository, unassigned, no account). Further down, the repository finder
-  (`RepoFinder.tsx`): a name searches the Repository category, owner/name or a GitHub link asks
-  `GET /repositories/lookup` and says why one isn't listed, and a dead end offers the
-  `repository_coverage.yml` issue form, prefilled. Body text is never under 16px. Motion shares one easing (`--ease`, `--fast`, `--slow`): buttons fade to their
+  (`landing/tokens.module.css`, light and a dark version) and outside the theme system: no user theme reaches it. Centred,
+  over the backlog field (`BacklogField.tsx`, canvas: a faint dot grid whose cells light red or green in today's
+  arrived/closed ratio from `GET /stats`, and lift near the pointer; still under reduced motion). The hero (`Hero.tsx`)
+  is one column: "Someone opened this N days ago. Nobody has fixed it yet." over a real issue, chosen
+  from today's For you picks (unassigned, one per repository, no account) by `waitingOrder`: never a repository flagged
+  slow, never older than a year, welcoming repositories first, then the longest waiting; language chips, a level and
+  "Another one" swap it, under the promise as the h1 ("Not this one? Find an issue you can solve, in ten seconds."),
+  and [Find an issue] opens Explore with those choices; then four live numbers (open, arrived and closed today, closed
+  since counting began). Until the issue arrives (and in the prerendered page) the live open count stands in: never an
+  invented issue. Then full-width bands with no boxes: feature rows with
+  live miniatures (`Widgets.tsx`: levels, the desktop's steps, what sign-in can't do, latest activity), the repository
+  finder (`RepoFinder.tsx`, styled with `Finder.module.css`): a name searches the Repository category, owner/name or a
+  GitHub link asks `GET /repositories/lookup` and says why one isn't listed, and a dead end offers the
+  `repository_coverage.yml` issue form, prefilled. After it, a comparison by kind of tool (issue lists, repo finders;
+  never named products, cells hedged), why it's free (sponsor maintainers instead), developers and maintainers, and a
+  closing that says why we made it. Body text is never under 16px. Motion shares one easing (`--ease`, `--fast`, `--slow`): buttons fade to their
   hover colour, links draw their underline, live counts glide between polls; all of it stops under reduced
   motion. Colours are the brand tokens on `:root` in `styles/base.css`, the one place they are written
   (warm paper and ink, not pure black and white; one saturated red per mode at the brightness that
