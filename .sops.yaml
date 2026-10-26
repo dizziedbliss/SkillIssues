@@ -1,4 +1,4 @@
-# SOPS rules for the repo's encrypted secrets (see DEPLOYMENT.md, "Secrets").
+# SOPS rules for the repo's encrypted secrets.
 #
 # Every file under secrets/ is encrypted to TWO age keys: yours (so you can
 # edit it) and the VPS's (so deploy-remote.sh can decrypt it on the host).

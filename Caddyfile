@@ -46,7 +46,7 @@
 
 	# Operational and admin endpoints are internal only: /metrics and
 	# /health/detail are scraped on the Docker network, /admin is reached over
-	# ssh (see DEPLOYMENT.md). Admin has its own bearer token, but a token is
+	# ssh. Admin has its own bearer token, but a token is
 	# not a reason to put the endpoint on the internet.
 	@internal path /metrics /metrics/* /health/detail /admin /admin/*
 	handle @internal {

@@ -14,18 +14,18 @@
  * Default and Midnight themes (packages/theme/src/presets.ts), the favicon
  * (public/favicon.svg) and theme-color (index.html), so change those with it.
  * Warm paper and ink, not pure white and black (21:1 glares and makes thin
- * type halo), and a fully saturated red set per mode at the brightness that
+ * type halo; light mode's paper is dimmed a step further for long reading), and a fully saturated red set per mode at the brightness that
  * still passes AA as text and under paper-coloured text.
  */
 :root {
-  --brand-ink: #161412;        /* 17:1 on paper */
-  --brand-paper: #faf9f6;
-  --brand-signal: #d81b0c;     /* 4.9:1 as text, 4.6:1 on wash, and under on-signal */
-  --brand-on-signal: #faf9f6;  /* text on the red */
-  --brand-closed: #16873a;     /* 4.4:1: past a graphic's 3:1 */
-  --brand-quiet: #5a554f;      /* 7:1 on paper */
-  --brand-hair: #3a3631;       /* lines and control borders, 11:1 */
-  --brand-wash: #f3f1ec;       /* code and quiet panels */
+  --brand-ink: #26231f;        /* 13.5:1 on paper: past AAA, without the glare of 17:1 */
+  --brand-paper: #f1eee7;      /* warm and a little dim: bright white tires eyes over long reading */
+  --brand-signal: #c8190b;     /* 5:1 as text, 4.6:1 on wash, and under on-signal */
+  --brand-on-signal: #f1eee7;  /* text on the red */
+  --brand-closed: #16873a;     /* past a graphic's 3:1 */
+  --brand-quiet: #5b554e;      /* 6.3:1 on paper */
+  --brand-hair: #3a3631;       /* lines and control borders, 10:1 */
+  --brand-wash: #e8e4db;       /* code and quiet panels */
 }
 
 /* Dark: the red a step brighter, which dark paper needs for the same contrast. */

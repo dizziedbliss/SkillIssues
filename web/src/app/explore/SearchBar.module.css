@@ -1,0 +1,154 @@
+/* The search bar: a quiet box with a magnifier, a neutral Filters, the accent Search. */
+
+.bar {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.box {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-medium);
+  background: var(--colors-surface);
+  transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+
+.box:hover {
+  border-color: color-mix(in srgb, var(--colors-text) 40%, transparent);
+}
+
+.box:focus-within {
+  border-color: var(--colors-accent);
+  box-shadow: 0 0 0 1px var(--colors-accent);
+}
+
+.icon {
+  display: flex;
+  padding-left: 0.85rem;
+  color: var(--colors-text-muted);
+}
+
+.box input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.75rem 0.7rem;
+  border: 0;
+  background: none;
+  color: var(--colors-text);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.box input:focus {
+  outline: none;
+}
+
+.box input::placeholder {
+  color: var(--colors-text-muted);
+}
+
+/* The native clear button would double ours. */
+.box input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.clear {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  padding: 0 0.75rem;
+  border: 0;
+  background: none;
+  color: var(--colors-text-muted);
+  cursor: pointer;
+}
+
+.clear:hover {
+  color: var(--colors-text);
+}
+
+.kbd {
+  margin-right: 0.75rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-small);
+  color: var(--colors-text-muted);
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.filters,
+.submit {
+  flex: none;
+  padding: 0 1.1rem;
+  border-radius: var(--radius-medium);
+  font: inherit;
+  font-size: var(--button-size);
+  cursor: pointer;
+  transition: background-color var(--slow) var(--ease), color var(--slow) var(--ease), border-color var(--slow) var(--ease);
+}
+
+.filters {
+  border: 1px solid var(--rule);
+  background: none;
+  color: var(--colors-text);
+}
+
+.filters:hover,
+.filters[aria-expanded="true"] {
+  border-color: var(--colors-text);
+  background: var(--chip);
+}
+
+.submit {
+  border: 0;
+  background: var(--colors-accent);
+  color: var(--colors-accent-text);
+  font-weight: 700;
+}
+
+.submit:hover,
+.submit:focus-visible {
+  background-color: var(--accent-hover);
+  color: var(--colors-accent);
+}
+
+.clear:focus-visible,
+.filters:focus-visible,
+.submit:focus-visible {
+  outline: 2px solid var(--colors-text);
+  outline-offset: 2px;
+}
+
+/* Phones: the box takes the row; Filters and Search share the next. */
+@media (max-width: 560px) {
+  .bar {
+    flex-wrap: wrap;
+  }
+
+  .box {
+    flex-basis: 100%;
+  }
+
+  .filters,
+  .submit {
+    flex: 1;
+    padding-block: 0.6rem;
+  }
+
+  .kbd {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .box,
+  .filters,
+  .submit {
+    transition: none;
+  }
+}

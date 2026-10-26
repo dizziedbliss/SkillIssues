@@ -12,10 +12,10 @@ import s from "./IssueCard.module.css";
 const LABELS = 4;
 
 /**
- * One issue in a list, as designed: the title and number, the repository,
- * then its age, comments and labels on the left, the repository's languages,
- * View Issue and the bookmark on the right. The whole card opens the issue
- * (the title's link covers it); the repository's name opens its issues.
+ * One issue in a list: the title and number, the repository, then its age,
+ * comments and labels on the left, the repository's languages and the bookmark
+ * on the right. The whole card opens the issue (the title's link covers it);
+ * the repository's name opens its issues.
  */
 export function IssueCard({ issue, index }: { issue: Issue; index?: number }) {
   const { t, locale } = useI18n();
@@ -81,15 +81,8 @@ export function IssueCard({ issue, index }: { issue: Issue; index?: number }) {
         </ul>
         <div className={s.end}>
           {issue.tech.length > 0 && (
-            <ul className={s.tech} data-ui="tech">
-              {issue.tech.map((x) => (
-                <li key={x} className={s.techChip}>{x}</li>
-              ))}
-            </ul>
+            <p className={s.tech} data-ui="tech">{issue.tech.join(" · ")}</p>
           )}
-          <Link to={`/app/issues/${issue.id}`} className={s.view} tabIndex={-1} data-ui="button">
-            {t("issue.view")}
-          </Link>
           <SaveButton issue={issue} />
         </div>
       </div>

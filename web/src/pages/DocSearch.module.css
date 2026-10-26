@@ -8,8 +8,13 @@
 .box {
   display: flex;
   align-items: center;
-  border: 1px solid var(--signal);
+  border: 1px solid color-mix(in srgb, var(--hair) 40%, transparent);
   background: var(--paper);
+  transition: border-color var(--fast) var(--ease);
+}
+
+.box:hover {
+  border-color: var(--hair);
 }
 
 .box input {
@@ -28,13 +33,14 @@
 }
 
 .box:focus-within {
+  border-color: var(--signal);
   box-shadow: 0 0 0 1px var(--signal);
 }
 
 .kbd {
   margin-right: 0.5rem;
   padding: 0 0.35rem;
-  border: 1px solid var(--quiet);
+  border: 1px solid color-mix(in srgb, var(--hair) 40%, transparent);
   color: var(--quiet);
   font-family: var(--mono);
   font-size: 0.75rem;
@@ -48,12 +54,13 @@
   width: max(100%, 22rem);
   max-height: 70vh;
   overflow-y: auto;
-  border: 1px solid var(--signal);
+  border: 1px solid color-mix(in srgb, var(--hair) 40%, transparent);
   background: var(--paper);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
 }
 
 .results li + li {
-  border-top: 1px solid color-mix(in srgb, var(--signal) 30%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--hair) 25%, transparent);
 }
 
 .results a {
@@ -67,7 +74,7 @@
 
 .results a:hover,
 .results a:focus-visible {
-  background: color-mix(in srgb, var(--signal) 12%, transparent);
+  background: var(--wash);
 }
 
 .title {

@@ -1,4 +1,4 @@
-/* The app's header, as designed: the wordmark left, the sections right in the heading face, a red rule under them. */
+/* The app's header: the wordmark left, the sections right in the heading face, a hairline under them. */
 
 .header {
   position: sticky;
@@ -15,7 +15,7 @@
   width: calc(100% - 2 * var(--gutter));
   margin-inline: auto;
   padding: 1rem 0 0.9rem;
-  border-bottom: var(--border-width) var(--border-style) var(--rule);
+  border-bottom: 1px solid var(--rule);
 }
 
 .home {
@@ -56,6 +56,39 @@
 
 .nav .active {
   color: var(--colors-accent);
+}
+
+/* Search shows its key after it. */
+.navButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.kbd {
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-small);
+  color: var(--colors-text-muted);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0;
+}
+
+.avatar {
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: var(--radius-pill);
+  object-fit: cover;
+}
+
+.chevron {
+  color: var(--colors-text-muted);
+  transition: rotate var(--fast) var(--ease);
+}
+
+[aria-expanded="true"] > .chevron {
+  rotate: 180deg;
 }
 
 .navButton:disabled {
@@ -101,17 +134,23 @@
   position: absolute;
   top: calc(100% + 0.75rem);
   right: 0;
-  min-width: 15rem;
-  padding: 0.35rem 0;
-  border: var(--border-width) solid var(--colors-accent);
+  min-width: 16rem;
+  padding: 0.35rem;
+  border: 1px solid var(--rule);
   border-radius: var(--radius-large);
   background: var(--colors-surface);
   box-shadow: var(--shadow-medium);
   font-family: var(--mono);
-  font-size: 0.9375rem;
+  font-size: var(--label-size);
   letter-spacing: 0;
   line-height: 1.3;
   animation: drop var(--fast) var(--ease);
+}
+
+.separator {
+  height: 1px;
+  margin: 0.35rem 0.25rem;
+  background: var(--rule);
 }
 
 .item {
@@ -120,8 +159,9 @@
   justify-content: space-between;
   gap: 1rem;
   width: 100%;
-  padding: 0.55rem 0.9rem;
+  padding: 0.55rem 0.7rem;
   border: 0;
+  border-radius: var(--radius-medium);
   background: none;
   color: var(--colors-text);
   font: inherit;
@@ -138,11 +178,17 @@
 
 /* Under Appearance: one theme each. */
 .subItem {
-  padding-left: 1.6rem;
+  padding-left: 1.4rem;
 }
 
+/* Sign out is quiet until you reach for it. */
 .signOut {
-  color: var(--colors-accent);
+  color: var(--colors-text-muted);
+}
+
+.signOut:hover,
+.signOut:focus-visible {
+  color: var(--colors-danger);
 }
 
 .value {
@@ -154,7 +200,9 @@
 .heading {
   cursor: default;
   color: var(--colors-text-muted);
-  font-size: var(--label-size);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .heading:hover {
@@ -162,8 +210,12 @@
 }
 
 .recent [aria-current="true"] {
-  color: var(--colors-accent);
   cursor: default;
+}
+
+/* The theme in use: a tick, not a colour. */
+.current span {
+  color: var(--colors-accent);
 }
 
 .recent [aria-current="true"]:hover {
@@ -217,12 +269,16 @@
 }
 
 .more {
-  color: var(--colors-accent);
+  color: var(--colors-text-muted);
+}
+
+.more:hover {
+  color: var(--colors-text);
 }
 
 .languages {
   margin: 0;
-  padding: 0.25rem 0.9rem 0.6rem 1.6rem;
+  padding: 0.25rem 0.7rem 0.6rem 1.4rem;
   border: 0;
 }
 
@@ -246,7 +302,7 @@
 }
 
 .menuError {
-  padding: 0.4rem 0.9rem 0.6rem;
+  padding: 0.4rem 0.7rem 0.6rem;
   color: var(--colors-danger);
 }
 
@@ -277,6 +333,10 @@
 
 /* Narrow screens: the sections take their own row under the wordmark. */
 @media (max-width: 640px) {
+  .kbd {
+    display: none;
+  }
+
   .bar {
     flex-direction: column;
     align-items: flex-start;

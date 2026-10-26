@@ -1,4 +1,4 @@
-/* Public profiles and the leaderboard: the profile's layout, read-only. */
+/* The leaderboard, and a public profile's not-found and error states (the profile itself uses the profile's layout). */
 
 .page {
   width: min(100%, 72rem);
@@ -24,7 +24,6 @@
 }
 
 .muted a,
-.list a,
 .row a {
   color: var(--colors-text);
   text-decoration-color: var(--colors-accent);
@@ -33,63 +32,6 @@
 
 .error {
   color: var(--colors-danger);
-}
-
-.heading {
-  font-family: var(--serif);
-  font-weight: var(--typography-heading-weight);
-  font-size: 1.6rem;
-  letter-spacing: var(--heading-tracking);
-}
-
-.who {
-  display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr);
-  gap: 1.25rem;
-  align-items: center;
-}
-
-.avatar {
-  width: 4rem;
-  height: 4rem;
-  border-radius: var(--radius-pill);
-  background: var(--colors-surface-raised);
-  object-fit: cover;
-}
-
-.columns {
-  display: grid;
-  grid-template-columns: minmax(0, 28rem) minmax(0, 1fr);
-  gap: 2.5rem clamp(2rem, 6vw, 5rem);
-  margin-top: 2.5rem;
-}
-
-.left {
-  display: grid;
-  gap: 1.5rem;
-  align-content: start;
-}
-
-.box {
-  align-self: start;
-  padding: 1rem 1.25rem 1.25rem;
-  border: var(--border-width) solid var(--colors-accent);
-  border-radius: var(--radius-large);
-}
-
-.boxTitle {
-  margin-bottom: 1rem;
-  font-size: 1.15rem;
-}
-
-.list {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.list li {
-  display: grid;
-  gap: 0.15rem;
 }
 
 .controls {
@@ -160,12 +102,6 @@
   height: 2rem;
   border-radius: var(--radius-pill);
   background: var(--colors-surface-raised);
-}
-
-@media (max-width: 960px) {
-  .columns {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 @media (max-width: 540px) {

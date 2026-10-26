@@ -14,8 +14,8 @@ const SHOWN = 200;
 
 /**
  * The filters under the search bar: labels, tech, topics, languages,
- * comments, difficulty and sort, each with a "?" that says what it means.
- * Choices stay a draft until Apply; Clear empties and applies at once.
+ * comments, difficulty and sort, as a row of pills, each saying what it means
+ * when opened. Choices stay a draft until Apply; Clear empties and applies at once.
  */
 export function FilterPanel({
   value,
@@ -42,40 +42,37 @@ export function FilterPanel({
     <section className={s.panel} aria-label={t("filters.title")} data-ui="filters">
       <div className={s.fields}>
         {lists.map((l) => (
-          <Field key={l.key} name={t(l.name)} help={t(l.help)}>
-            <Choices
-              name={t(l.name)}
-              options={l.facets?.map((f) => ({ value: f.value, count: f.issues }))}
-              error={facets.error?.message}
-              chosen={draft[l.key]}
-              onChange={(v) => setDraft({ ...draft, [l.key]: v })}
-            />
-          </Field>
+          <Choices
+            key={l.key}
+            name={t(l.name)}
+            help={t(l.help)}
+            options={l.facets?.map((f) => ({ value: f.value, count: f.issues }))}
+            error={facets.error?.message}
+            chosen={draft[l.key]}
+            onChange={(v) => setDraft({ ...draft, [l.key]: v })}
+          />
         ))}
-        <Field name={t("filters.comments")} help={t("filters.help.comments")}>
-          <Comments
-            min={draft.comments_min}
-            max={draft.comments_max}
-            onChange={(min, max) => setDraft({ ...draft, comments_min: min, comments_max: max })}
-          />
-        </Field>
-        <Field name={t("filters.difficulty")} help={t("filters.help.difficulty")}>
-          <Choices
-            name={t("filters.difficulty")}
-            options={DIFFICULTIES.map((d) => ({ value: d, label: t(`difficulty.${d}`) }))}
-            chosen={levels}
-            onChange={(v) => setLevels(v as Difficulty[])}
-          />
-        </Field>
-        <Field name={t("filters.sort")} help={t("filters.help.sort")}>
-          <Choices
-            single
-            name={t("filters.sort")}
-            options={SORTS.map((x) => ({ value: x, label: t(`sort.${x}`) }))}
-            chosen={[draft.sort]}
-            onChange={(v) => setDraft({ ...draft, sort: (v[0] as Sort | undefined) ?? "foryou" })}
-          />
-        </Field>
+        <Comments
+          help={t("filters.help.comments")}
+          min={draft.comments_min}
+          max={draft.comments_max}
+          onChange={(min, max) => setDraft({ ...draft, comments_min: min, comments_max: max })}
+        />
+        <Choices
+          name={t("filters.difficulty")}
+          help={t("filters.help.difficulty")}
+          options={DIFFICULTIES.map((d) => ({ value: d, label: t(`difficulty.${d}`) }))}
+          chosen={levels}
+          onChange={(v) => setLevels(v as Difficulty[])}
+        />
+        <Choices
+          single
+          name={t("filters.sort")}
+          help={t("filters.help.sort")}
+          options={SORTS.map((x) => ({ value: x, label: t(`sort.${x}`) }))}
+          chosen={[draft.sort]}
+          onChange={(v) => setDraft({ ...draft, sort: (v[0] as Sort | undefined) ?? "foryou" })}
+        />
       </div>
       <label className={s.assigned}>
         <input type="checkbox" checked={draft.includeAssigned} onChange={(e) => setDraft({ ...draft, includeAssigned: e.target.checked })} />
@@ -101,37 +98,20 @@ export function FilterPanel({
   );
 }
 
-/** A filter's name, its "?" and its control. */
-function Field({ name, help, children }: { name: string; help: string; children: React.ReactNode }) {
-  const t = useT();
-  const id = useId();
-  return (
-    <div className={s.field}>
-      <div className={s.fieldName}>
-        <span>{name}</span>
-        <span className={s.help}>
-          <button type="button" className={s.helpButton} aria-label={t("filters.whatIs", { name })} aria-describedby={id}>
-            ?
-          </button>
-          <span id={id} role="tooltip" className={s.tip}>
-            {help}
-          </span>
-        </span>
-      </div>
-      {children}
-    </div>
-  );
-}
-
 interface Option {
   value: string;
   label?: string;
   count?: number;
 }
 
-/** A dropdown of choices: several (checkboxes, with a box to narrow a long list) or one (`single`). */
+/**
+ * One filter as a pill, "Labels: any", opening a dropdown of choices: several
+ * (checkboxes, with a box to narrow a long list) or one (`single`). What the
+ * filter means is the dropdown's first line.
+ */
 function Choices({
   name,
+  help,
   options,
   chosen,
   onChange,
@@ -139,6 +119,7 @@ function Choices({
   error,
 }: {
   name: string;
+  help: string;
   options: Option[] | undefined;
   chosen: string[];
   onChange: (v: string[]) => void;
@@ -179,12 +160,16 @@ function Choices({
         aria-label={`${name}: ${summary}`}
         onClick={() => setOpen((o) => !o)}
       >
+        <span className={s.selectName}>{name}:</span>
         <span className={s.selectValue}>{summary}</span>
-        <span className={s.chevron} aria-hidden="true">&gt;</span>
+        <svg className={s.chevron} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </button>
       {open && (
         <fieldset id={id} className={s.menu}>
           <legend className="visually-hidden">{name}</legend>
+          <p className={s.menuHelp}>{help}</p>
           {long && (
             <input
               className={s.find}
@@ -234,7 +219,7 @@ const COMMENT_RANGES: { label: MessageKey; min?: number; max?: number }[] = [
 ];
 
 /** A comment-count range, from a short list; a range typed into the address shows as itself. */
-function Comments({ min, max, onChange }: { min?: number; max?: number; onChange: (min?: number, max?: number) => void }) {
+function Comments({ help, min, max, onChange }: { help: string; min?: number; max?: number; onChange: (min?: number, max?: number) => void }) {
   const t = useT();
   const known = COMMENT_RANGES.find((r) => r.min === min && r.max === max);
   const value = known ? t(known.label) : `${min ?? 0}–${max ?? "∞"}`;
@@ -242,6 +227,7 @@ function Comments({ min, max, onChange }: { min?: number; max?: number; onChange
     <Choices
       single
       name={t("filters.comments")}
+      help={help}
       options={COMMENT_RANGES.map((r) => ({ value: t(r.label) }))}
       chosen={[value]}
       onChange={(v) => {

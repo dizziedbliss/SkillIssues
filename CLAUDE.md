@@ -39,8 +39,7 @@ complete successfully. A fresh `up` needs **no manual SQL**.
 
 ### Production (VPS, `compose.prod.yaml`)
 Pulls pre-built GHCR images; never builds on the host. Deployed by CI (`.github/workflows/deploy.yml`)
-on every push to `main` — see *Deployment* below and `DEPLOYMENT.md` for the full runbook,
-including first-time host setup, rollback and restore.
+on every push to `main` — see *Deployment* below.
 
 ### Hybrid dev (databases in Docker, services native)
 ```bash
@@ -190,7 +189,7 @@ path reaching outside the importing project). Both apps are built on `client`; t
   highlight.js (its own lazily loaded chunk, a fixed set of languages), reading their text, never HTML.
 
 ### Web (`web/src/`)
-- **`landing/`** — the landing page, the owner's design. Its look is **locked**
+- **`landing/`** — the landing page, the maintainer's design. Its look is **locked**
   (`landing/tokens.module.css`, light and a dark version) and outside the theme system: no user theme reaches it. Centred,
   over the backlog field (`BacklogField.tsx`, canvas: a faint dot grid whose cells light red or green in today's
   arrived/closed ratio from `GET /stats`, and lift near the pointer; still under reduced motion). The hero (`Hero.tsx`)
@@ -214,7 +213,7 @@ path reaching outside the importing project). Both apps are built on `client`; t
   can't reach (the Default and Midnight themes, `favicon.svg`, `theme-color`) change with them. Fonts are
   self-hosted through `@fontsource` (Instrument Serif headings and nav, JetBrains Mono everything
   else but long reading, Inter for the docs' and legal pages' prose (`--sans`), Krona One for the wordmark: SkillIssues in the ink, the "i" of Skill red, one ink underline across,
-  `Logo.tsx`). The owner's mark (a ring, a rough dashed ring, a red "!") is the favicon and the app
+  `Logo.tsx`). The project's mark (a ring, a rough dashed ring, a red "!") is the favicon and the app
   icons only (the desktop's window and installer icon included), never beside the wordmark, in the web app,
   the desktop app or the installer (`public/favicon.svg`, its ink and red lighter in a dark browser theme;
   PNGs rendered from it). In the site and app headers the logo swaps with the live count every few
@@ -222,22 +221,29 @@ path reaching outside the importing project). Both apps are built on `client`; t
 - **`pages/`** — the written pages; every claim must describe what the code does. The docs are Markdown in
   `web/content/docs/` (frontmatter `slug`, `title`, `section`, `summary`), read and rendered at build
   time by `docs.ts` (markdown-it, raw HTML off: first-party text, so not through `packages/markdown`,
-  whose DOMPurify needs a DOM) and shown by `DocPage.tsx` with a sidebar by section and a search
-  over every page (`DocSearch.tsx`, `/` or Ctrl/⌘K). The four legal pages
-  (privacy, terms, security, licenses) stay in `content.ts` by the owner's choice. Pages marked
+  whose DOMPurify needs a DOM) and shown by `DocPage.tsx` with a sidebar by section, a search
+  over every page (`DocSearch.tsx`, `/` or Ctrl/⌘K), an "On this page" index of the page's h2s
+  (collected by `docs.ts`; sticky on the right, folded above the text under 1200px, marking the section
+  being read) and the previous and next pages in the sidebar's order. The four legal pages
+  (privacy, terms, security, licenses) stay in `content.ts` by the maintainer's choice. Pages marked
   `draft` say so on the page. The footer links only to these pages and `/app`.
-- **`app/`** — the signed-in app, being built from the owner's designs in stages (plan:
+- **`app/`** — the signed-in app, being built from the maintainer's designs in stages (plan:
   `~/.claude/plans/quirky-splashing-key.md`). `AppShell.tsx` is its themed root (`data-app`): the
-  header (`AppHeader.tsx`: Explore, and Profile's menu: Settings, Appearance, Language, Sign out —
-  "Sign in" while signed out), the page for the route, and the shared footer. `theme.tsx` applies the
+  header (`AppHeader.tsx`: the places you work, Explore, Learning path, the desktop's Working on and
+  Search with its `/` key; then Profile with the avatar, whose menu holds what's about you: Profile,
+  Saved issues, Your contributions, Reports for moderators; then Settings, Appearance, Language; then
+  Sign out — "Sign in" while signed out. Nothing is in both), the page for the route, and the shared footer. `theme.tsx` applies the
   chosen theme to that root only: a built-in by name or a stored theme, kept by the server signed in
   (`GET/PUT /me/theme`) and by the browser signed out; nothing chosen is Midnight. Every theme has light and dark
   halves (`[light]`/`[dark]`, folded per layer in `packages/theme/src/modes.ts`; every built-in has
   both); the mode is the person's, kept by the browser, dark by default, and the footer's theme
   button switches it. The browser keeps the last few choices: Appearance in the
-  menu lists them to switch between (no switch), with "See more themes". `explore/` is the catalog as designed: its state
-  lives in the address (`query.ts`: absent `difficulty` means the profile's level, empty means all),
-  the filter panel takes `/issues/facets`, and the pager (`useCatalog.ts`) pages forward on cursors
+  menu lists them to switch between (no switch), with "See more themes". `explore/` is the catalog: one search bar
+  (`explore/SearchBar.tsx`, shared with the search page and the palette), then one toolbar (the levels
+  as a segmented control, then the profile's languages, a repository or an owner as chips, each with a ×).
+  Its state lives in the address (`query.ts`: absent `difficulty` means the profile's level, empty
+  means all), the filter panel (`FilterPanel.tsx`: a row of pills, each saying what it means at the top
+  of its dropdown) takes `/issues/facets`, and the pager (`useCatalog.ts`) pages forward on cursors
   and back over the pages seen, reading on through short pages. `IssuePage.tsx` (`/app/issues/:id`)
   reads the body from GitHub in the browser and asks `GET /issues/{id}/body` only when GitHub
   rate-limits it (`lib/issueBody.ts`), rendered through `packages/markdown`. Bookmarks
@@ -245,10 +251,11 @@ path reaching outside the importing project). Both apps are built on `client`; t
   you click it; its repository's name opens Explore narrowed to that repository (`?repo=`), and the
   issue page also offers its owner (`?owner=`), both easiest first: the shuffled feed would show one
   issue per repository. The issue page says at once when GitHub reports the issue closed, from the
-  same answer that brought its description. "Work on it in the desktop app" opens
+  same answer that brought its description, and shows six labels before "+n more". "Work on it in the desktop app" opens
   `skillissues://issue/<id>` and, if the page keeps focus, offers the download or GitHub.
-  Search (`search/SearchOverlay.tsx`: the nav, `/` or Ctrl/⌘K) is a modal over the blurred page with
-  results as you type, grouped by kind, each with View more; a click outside closes it. It leads to
+  Search (`search/SearchOverlay.tsx`: the nav, `/` or Ctrl/⌘K) is a palette over the blurred page: the
+  shared bar on top, results as you type grouped by kind, each with View more; Esc or a click outside
+  closes it. It leads to
   the search page (`search/SearchPage.tsx`, `/app/search?search=…&in=repository|title|language`),
   never to Explore: every kind, or one kind paged on its own, with the same filters. Its box shares
   a `view-transition-name` with the search page's (and Explore's), so one glides into the other.
@@ -265,18 +272,25 @@ path reaching outside the importing project). Both apps are built on `client`; t
   visitor's system, the others and older versions, read from GitHub's releases API in the browser
   (`pages/Downloads.tsx`); its prerendered HTML is the releases link alone. Page changes inside the app run the theme's `[motion] transition` through View
   Transitions (`transition.ts`, `transition.css`; never under reduced motion). The profile
-  (`profile/`: `/app/profile`, and `/app/contributions` for Contribute) counts the person's public
+  (`profile/`: `/app/profile`, and `/app/contributions`, Your contributions in the menu) counts the person's public
   pull requests from GitHub's search **in the browser**, with no token (`lib/github.ts`, cached per
   browser, GitHub's rate limit shown as such), so the server still holds no user token. Beside it,
-  SkillIssues XP comes from the server (`profile/xp.tsx`: level card, badges, per-language levels,
+  SkillIssues XP comes from the server (`profile/xp.tsx`: badges, per-language levels, quests,
   tracked pull requests with "Check now", latest XP, and a one-time reveal after the backfill,
-  remembered per browser). `/app/saved` lists saved issues under their notifications (closed issues
+  remembered per browser). The profile page is a header band (`profile/Header.tsx`, shared with public
+  profiles: the level large with its bar, merges, languages and streak), then Next up (the closest
+  quests, the learning path, claims, open pull requests in review) and one list of pull requests
+  (`profile/activity.tsx`: the tracker's and GitHub's merged by URL, the tracker's XP shown) beside a
+  rail of languages and earned badges (the rest behind "N more to earn"). Hairlines, no boxes; the
+  graph, the stat boxes and every quest are on `/app/contributions`. `/app/saved` lists saved issues under their notifications (closed issues
   and paid merges), and
   Profile shows a red dot while any are unread. `lib/devPreview.ts` (development builds only,
   `?preview=signed-in`) answers the account endpoints locally, since GitHub sign-in returns to
   production. `settings/` is Settings: the profile form (`PUT /profile`, refused whole with the
-  reason past the `api.profile.*` limits), one view per address beside a menu (`/app/settings/<view>`):
-  themes in tabs (built-ins are read-only: Use applies one as it is, Customize makes an editable
+  reason past the `api.profile.*` limits; each setting a row, its name and help on the left, the control
+  on the right; levels as segmented controls; languages show your picks and the most common, then
+  "Show all"), one view per address beside a menu (`/app/settings/<view>`):
+  themes in tabs (each theme drawn as a miniature of its own colours; built-ins are read-only: Use applies one as it is, Customize makes an editable
   copy; yours: use, edit, duplicate, delete, new as a full copy; shared by id: use or duplicate) and
   an editor page (`themes/:id`) that checks as you type, with a live preview of the app's own
   components in a separate stylesheet slot and a token map; the desktop app; the account (sign out
@@ -559,7 +573,6 @@ took 3 days 23 h for 7.19M open issues; see §9 of the architecture doc.
 ## Deployment
 
 Single VPS, `compose.prod.yaml`, Caddy, for everything but the site, which is on Vercel.
-Full runbook: `DEPLOYMENT.md` (local only).
 
 - **The site is on Vercel; the API has its own host.** `vercel.json` (repo root) builds the npm
   workspace, serves `web/dist` with the CSP and security headers, and falls back to `shell.html`.
@@ -572,13 +585,8 @@ Full runbook: `DEPLOYMENT.md` (local only).
   Vercel project is linked by id only: its git integration is disconnected, and must stay so.
   Rollback for the site is Vercel's Instant Rollback.
 
-**Local-only documents.** `DEPLOYMENT.md` and `docs/runbook.md` (the operator runbook) describe
-how production is run, so they live only on the owner's machine: they are in `.gitignore`, were
-removed from the index, and must **never be committed or pushed**. Do not `git add -f` them. The
-same applies to any new operational document of that kind (host setup, access, rotation or
-restore procedures): create it, add it to `.gitignore`, and keep it out of tracked files. Do not
-link to them from tracked docs (`README.md`, `ARCHITECTURE.md`); code comments may name them. They
-remain in earlier git history, which is not rewritten.
+**Operational notes stay out of the repository.** How production is operated (host access,
+credentials, rotation and restore steps) is never committed, linked or described in tracked files.
 
 - `.github/workflows/ci.yml` gates everything: backend (vet/gofmt/build/test), web/desktop
   (typecheck then a real build, not just a type check), and a buildx build of the four
@@ -604,12 +612,12 @@ remain in earlier git history, which is not rewritten.
   ranges current with https://www.cloudflare.com/ips/.
 - Caddy is the only service publishing a public port. `{$API_DOMAIN}` proxies to `go-api` at the
   root and returns **404 for `/metrics`, `/health/detail` and `/admin/*`** — those are internal only
-  (admin is reached over ssh, see `DEPLOYMENT.md`). Cloudflare's "Always Use HTTPS" must stay off:
+  (admin is reached over ssh). Cloudflare's "Always Use HTTPS" must stay off:
   it redirects the ACME HTTP-01 challenge before it reaches Caddy, which redirects plain HTTP
   itself. A second site, `{$STREAM_DOMAIN}`, proxies only `GET /stream`
   to `flowd` (`flush_interval -1`) and returns 404 for everything else. `go-api`, `ingestd` and
   `flowd` have no published ports in prod.
-- **Secrets are in git, encrypted.** `secrets/prod.env.sops` (SOPS + age, to the owner's key and
+- **Secrets are in git, encrypted.** `secrets/prod.env.sops` (SOPS + age, to the maintainer's key and
   the VPS's key; `.sops.yaml`). `deploy.yml` ships it as ciphertext and `deploy-remote.sh` runs
   `decrypt-env.sh` on the host to write `.env`; CI never holds a key. A present file that will not
   decrypt fails the deploy rather than falling back to a stale `.env`. `scripts/check-secrets-encrypted.sh`
@@ -637,8 +645,7 @@ remain in earlier git history, which is not rewritten.
   scrapes both (`up{job=~"loki|alloy"}`). Both run with `GOMEMLIMIT`: Go ignores a container's
   memory limit otherwise. The deploy prunes unused images older than `IMAGE_PRUNE_AFTER_HOURS` (72).
   Grafana (:3000) and Prometheus (:9090) bind to `127.0.0.1` and are reached over `ssh -L`.
-  `deploy.yml` scp's `monitoring/` alongside the compose file. Runbook: `DEPLOYMENT.md`,
-  *Monitoring*.
+  `deploy.yml` scp's `monitoring/` alongside the compose file.
 - **The services do not run as the database owner.** `go-api` connects as `skillissues_api`,
   `ingestd` as `skillissues_ingest` (migration 00029) and `flowd` as `skillissues_flow` (00033,
   `SELECT` on `settings` only): no ownership, no DDL, no `TRUNCATE`, no `COPY ... PROGRAM`.
@@ -747,6 +754,39 @@ Every key with its default and bounds: `docs/settings.md`.
 - Use a maintained Markdown library with sanitisation; never hand-roll Markdown rendering.
   Issue bodies are attacker-controlled — anyone can open an issue on a crawled repo.
 
+### Interface design
+The maintainer's direction for every screen (landing, docs, app, desktop). Hold new work to it; the maintainer
+may override any of it, but don't drift back on your own.
+- **Hairlines, not boxes.** Sections are split by space and 1px rules. No bordered cards, no red
+  frames around panels. A box is for something that floats (a menu, a dialog, the search palette).
+- **The accent is rare, and means something:** the main button on a page, where you are (the nav item),
+  what's earned or live (level bars, XP, badges), and headings. Section headings (h2) and small
+  group labels are accent-coloured; page titles (h1) and all body text stay in the text colour.
+  Short large text can carry colour without tiring the eye; long text can't (and saturated red
+  text on dark flickers).
+- **Rules and chips are neutral.** `--rule`, `--chip` and `--chip-strong` (`app/App.module.css`)
+  mix from the text colour, not the accent, so every theme stays calm. Labels are quiet chips.
+- **Light mode is soft, not sharp.** Warm, slightly dim paper (`#f1eee7`) and softened ink
+  (`#26231f`, 13.5:1): past AAA without the glare of near-white. Never pure white or black.
+  Brand colours live in `styles/base.css` and are copied into the Default and Midnight presets and
+  the favicon: change them together.
+- **Fewer words on screen.** No paragraph explaining a control that can explain itself. A filter's
+  meaning is the first line of its dropdown; a search box's hints are its placeholder and a `/` key.
+- **One component per job.** The search bar is `explore/SearchBar.tsx` everywhere (Explore, the
+  search page, the palette); a profile's header is `profile/Header.tsx` (own and public). Reuse,
+  don't restyle a copy.
+- **Whole rows are targets.** A card or a row opens its thing anywhere you click; no extra "View"
+  button beside it. Targets are at least 44px where they stand alone.
+- **Red buttons use bold text** (JetBrains Mono 700 is loaded): lighter weights break up on red.
+- **Check both modes and a phone** (390px) before calling a screen done, with real data, and
+  keep `data-ui` hooks stable: themes select them (`web/content/docs/themes.md`).
+
+### Working with AI tools
+This project is built with AI coding tools, mostly Claude, under the maintainer's direction and review.
+`CONTRIBUTING.md` (*Using AI tools*, *What gets a pull request closed, even when CI passes*) holds
+the rules for contributors who use them, and `AGENTS.md` is the short version of this file for
+agents that read that instead. When a rule here changes, change `AGENTS.md` with it.
+
 ### Testing
 - **Tests must pass with Redis stopped.** Redis is cache and rate limiting only; sessions and
   authentication fall through to Postgres.
@@ -794,7 +834,7 @@ Every key with its default and bounds: `docs/settings.md`.
   ingestd (`POST /bodies/{id}`, admin token) on the `interactive` lane. go-api holds no GitHub
   credential and never writes a body. Bodies are attacker-controlled; render them only through
   `packages/markdown`.
-- **The default feed is For you, fair to the whole backlog** (`issue/foryou.go`, owner's decision
+- **The default feed is For you, fair to the whole backlog** (`issue/foryou.go`, the maintainer's decision
   2026-10-21, replacing the plain shuffle): `sort=foryou` (the cursor-paging default) walks repositories
   in `repositories.shuffle_key` order, each one's best open issue (one slot per repository, however
   many issues it has), starting at a point seeded per person per UTC day (`forYouSeed`; person 0 is

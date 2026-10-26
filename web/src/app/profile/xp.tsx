@@ -1,56 +1,23 @@
 import { useEffect, useRef, useState } from "react";
-import { SiteLink } from "../SiteLink";
-import { ApiError, type MyXP, type TrackedPull, type XPEvent, type XPSummary } from "@skillissues/client";
+import { ApiError, type MyXP, type XPEvent, type XPSummary } from "@skillissues/client";
 import { useI18n, type MessageKey } from "../../i18n";
 import { ago } from "../../lib/time";
 import { useRefreshPulls } from "./data";
 import s from "./xp.module.css";
 
 /*
- * SkillIssues XP on the profile: the level, the streak, the badges, XP by
- * language, the pull requests the tracker holds, and the latest XP. All of it
- * is read from the server's ledger (GET /me/xp, /me/pulls); the browser
- * computes nothing here.
+ * SkillIssues XP on the profile: the badges, XP by language, the quests, where
+ * tracking stands, and the latest XP (the level and streak are
+ * in Header.tsx). All of it is read from the server's ledger (GET /me/xp,
+ * /me/pulls); the browser only orders and draws it, and computes no XP.
  */
 
 /**
- * A level and how far into it, with the streak beneath. own is your own card:
- * it nudges you to keep the streak and links to how XP works.
+ * Earned badges first, as compact chips (what each is for and when, on hover);
+ * the ones still to earn behind "N more to earn", as a list saying how to get
+ * each, in the server's display order. Someone else's profile shows only
+ * what they've earned, never what they haven't.
  */
-export function LevelCard({ summary, own = true }: { summary: XPSummary | undefined; own?: boolean }) {
-  const { t, locale } = useI18n();
-  const n = new Intl.NumberFormat(locale);
-  if (!summary) return <div className={s.card} data-ui="level" aria-busy="true" />;
-  const { level, total, streak } = summary;
-  const span = Math.max(1, level.next - level.start);
-  const into = Math.min(span, Math.max(0, total - level.start));
-  return (
-    <section className={s.card} aria-labelledby="xp-level" data-ui="level">
-      <p className={s.kicker}>{t("xp.title")}</p>
-      <h2 id="xp-level" className={s.level}>{t("xp.level", { level: level.level })}</h2>
-      <p className={s.total}>{t("xp.total", { xp: n.format(total) })}</p>
-      <div
-        className={s.bar}
-        role="progressbar"
-        aria-valuemin={level.start}
-        aria-valuemax={level.next}
-        aria-valuenow={total}
-        aria-label={t("xp.toNext", { left: n.format(level.next - total), level: level.level + 1 })}
-      >
-        <span style={{ width: `${(into / span) * 100}%` }} />
-      </div>
-      <p className={s.muted}>{t("xp.toNext", { left: n.format(level.next - total), level: level.level + 1 })}</p>
-      <p className={s.streak}>
-        {streak.current > 0 ? t("xp.streak", { weeks: streak.current }) : t("xp.streakNone")}
-        {own && streak.current > 0 && !streak.this_week && <span className={s.muted}> {t("xp.streakKeep")}</span>}
-        {streak.best > 1 && <span className={s.muted}> {t("xp.streakBest", { weeks: streak.best })}</span>}
-      </p>
-      {own && <SiteLink to="/docs/xp" className={s.how}>{t("xp.how")}</SiteLink>}
-    </section>
-  );
-}
-
-/** Every badge in the server's display order, earned or still to earn. */
 export function Badges({
   summary,
   keys,
@@ -58,51 +25,76 @@ export function Badges({
 }: {
   summary: XPSummary | undefined;
   keys: string[] | undefined;
-  /** Someone else's profile: only what they've earned, never what they haven't. */
   earnedOnly?: boolean;
 }) {
   const { t, locale } = useI18n();
   if (!summary || !keys) return null;
   const earned = new Map(summary.badges.map((b) => [b.key, b.earned_at]));
   const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" });
-  const shown = earnedOnly ? keys.filter((k) => earned.has(k)) : keys;
-  if (shown.length === 0) return <p className={s.muted}>{t("xp.badgesNone")}</p>;
+  const have = keys.filter((k) => earned.has(k));
+  const left = keys.filter((k) => !earned.has(k));
+  const badge = (key: string) => {
+    const at = earned.get(key);
+    const name = `badge.${key}` as MessageKey;
+    return (
+      <li key={key} className={`${s.badge} ${at ? s.earned : ""}`} title={t(`${name}.help` as MessageKey)}
+        data-ui="badge" data-ui-state={at ? "earned" : "locked"}>
+        <span className={s.badgeName}>{t(name)}</span>
+        <span className={s.badgeState}>{at ? t("xp.badgeEarned", { date: date.format(new Date(at)) }) : t(`${name}.help` as MessageKey)}</span>
+      </li>
+    );
+  };
   return (
-    <ul className={s.badges}>
-      {shown.map((key) => {
-        const at = earned.get(key);
-        const name = `badge.${key}` as MessageKey;
-        return (
-          <li key={key} className={`${s.badge} ${at ? s.earned : ""}`} title={t(`${name}.help` as MessageKey)}
-            data-ui="badge" data-ui-state={at ? "earned" : "locked"}>
-            <span className={s.badgeName}>{t(name)}</span>
-            <span className={s.badgeState}>{at ? t("xp.badgeEarned", { date: date.format(new Date(at)) }) : t("xp.badgeLocked")}</span>
-          </li>
-        );
-      })}
-    </ul>
+    <>
+      {have.length > 0 ? (
+        <ul className={s.earnedBadges}>
+          {have.map((key) => {
+            const name = `badge.${key}` as MessageKey;
+            const at = earned.get(key)!;
+            return (
+              <li key={key} className={s.earnedBadge} data-ui="badge" data-ui-state="earned"
+                tabIndex={0} aria-describedby={`badge-tip-${key}`}>
+                {t(name)}
+                <span id={`badge-tip-${key}`} role="tooltip" className={s.badgeTip}>
+                  {t(`${name}.help` as MessageKey)}
+                  <span className={s.badgeTipDate}>{t("xp.badgeEarned", { date: date.format(new Date(at)) })}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className={s.muted}>{t("xp.badgesNone")}</p>
+      )}
+      {!earnedOnly && left.length > 0 && (
+        <details className={s.more}>
+          <summary>{t("xp.badgesLeft", { count: left.length })}</summary>
+          <ul className={s.badges}>{left.map(badge)}</ul>
+        </details>
+      )}
+    </>
   );
 }
 
-/** XP earned in repositories of each main language, as levels. */
+/** XP earned in repositories of each main language: a level and a bar against the strongest. */
 export function LanguageLevels({ summary }: { summary: XPSummary | undefined }) {
   const { t, locale } = useI18n();
-  if (!summary || summary.languages.length === 0) return null;
+  if (!summary) return null;
+  if (summary.languages.length === 0) return <p className={s.muted}>{t("xp.languagesNone")}</p>;
   const n = new Intl.NumberFormat(locale);
+  const top = Math.max(1, ...summary.languages.map((l) => l.xp));
   return (
-    <section aria-labelledby="xp-languages">
-      <h3 id="xp-languages" className={s.subheading}>{t("xp.languages")}</h3>
-      <ul className={s.languages}>
-        {summary.languages.map((l) => (
-          <li key={l.language} data-ui="language-level">
-            <span>{l.language}</span>
-            <span className={s.muted}>
-              {t("xp.level", { level: l.level.level })}, {t("xp.total", { xp: n.format(l.xp) })}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <ul className={s.languages}>
+      {summary.languages.map((l) => (
+        <li key={l.language} data-ui="language-level" title={t("xp.total", { xp: n.format(l.xp) })}>
+          <span className={s.languageName}>{l.language}</span>
+          <span className={s.languageLevel}>{t("xp.levelShort", { level: l.level.level })}</span>
+          <span className={s.languageBar} aria-hidden="true">
+            <span style={{ width: `${(l.xp / top) * 100}%` }} />
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -135,43 +127,6 @@ export function SyncStatus({ data }: { data: MyXP | undefined }) {
       {sync.last_error && <p className={s.error}>{t("xp.sync.failed", { reason: sync.last_error })}</p>}
       {feedback && <p className={refresh.error ? s.error : s.muted} role="status">{feedback}</p>}
     </div>
-  );
-}
-
-/** Your pull requests to catalog repositories, with what each earned. */
-export function TrackedPulls({ items, limit }: { items: TrackedPull[] | undefined; limit?: number }) {
-  const { t, locale } = useI18n();
-  if (!items) return null;
-  if (items.length === 0) return <p className={s.muted}>{t("xp.pulls.empty")}</p>;
-  const n = new Intl.NumberFormat(locale);
-  return (
-    <ul className={s.pulls}>
-      {items.slice(0, limit).map((p) => {
-        const facts: string[] = [];
-        if (p.issues.length) facts.push(t("xp.pulls.closes", { count: p.issues.length }));
-        if (p.checks === "SUCCESS") facts.push(t("xp.pulls.checksPassed"));
-        if (p.checks === "FAILURE" || p.checks === "ERROR") facts.push(t("xp.pulls.checksFailed"));
-        if (p.approvals > 0) facts.push(t("xp.pulls.approved"));
-        if (p.changes_requested > 0) facts.push(t("xp.pulls.changes"));
-        return (
-          <li key={p.id} data-ui="tracked-pull" data-ui-state={p.state.toLowerCase()}>
-            <a href={p.url} target="_blank" rel="noreferrer" className={s.pull}>
-              <span className={s.pullTitle}>
-                {p.title} <span className={s.muted}>#{p.number}</span>
-              </span>
-              <span className={s.pullMeta}>
-                {p.repository}, {ago(p.updated_at, locale)},{" "}
-                <span className={p.state === "MERGED" ? s.merged : undefined}>{t(`xp.pulls.${p.state}` as MessageKey)}</span>
-                {facts.length > 0 && <>, {facts.join(", ")}</>}
-              </span>
-              <span className={s.pullXP} data-none={p.no_xp_reason ? "" : undefined}>
-                {p.no_xp_reason ? t(`xp.pulls.${p.no_xp_reason}` as MessageKey) : p.xp > 0 ? t("xp.pulls.xp", { xp: n.format(p.xp) }) : null}
-              </span>
-            </a>
-          </li>
-        );
-      })}
-    </ul>
   );
 }
 
@@ -248,20 +203,31 @@ export function BackfillReveal({ data, login }: { data: MyXP | undefined; login:
 }
 
 
-/** Every quest with how far you are, and what finishing one pays. */
-export function Quests({ data }: { data: MyXP | undefined }) {
+/**
+ * Quests with how far you are. next: only open ones, closest to done first,
+ * at most limit, each with a bar; otherwise all of them, done ones dated.
+ */
+export function Quests({ data, next = false, limit }: { data: MyXP | undefined; next?: boolean; limit?: number }) {
   const { t, locale } = useI18n();
   if (!data) return null;
   const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" });
+  const share = (q: { have: number; need: number }) => Math.min(1, q.have / Math.max(1, q.need));
+  const quests = next ? data.quests.filter((q) => !q.done_at).sort((a, b) => share(b) - share(a)) : data.quests;
+  if (next && quests.length === 0) return <p className={s.muted}>{t("xp.questsAllDone")}</p>;
   return (
     <ul className={s.quests}>
-      {data.quests.map((q) => (
+      {quests.slice(0, limit).map((q) => (
         <li key={q.key} className={`${s.quest} ${q.done_at ? s.earned : ""}`} data-ui="quest" data-ui-state={q.done_at ? "done" : "open"}>
-          <span className={s.badgeName}>{t(`quest.${q.key}` as MessageKey)}</span>
-          <span className={s.muted}>{t(`quest.${q.key}.help` as MessageKey)}</span>
-          <span className={s.badgeState}>
+          <span className={s.questName}>{t(`quest.${q.key}` as MessageKey)}</span>
+          <span className={s.questProgress}>
             {q.done_at ? t("quest.done", { date: date.format(new Date(q.done_at)) }) : t("quest.progress", { have: q.have, need: q.need })}
           </span>
+          <span className={s.muted}>{t(`quest.${q.key}.help` as MessageKey)}</span>
+          {!q.done_at && (
+            <span className={s.questBar} aria-hidden="true">
+              <span style={{ width: `${share(q) * 100}%` }} />
+            </span>
+          )}
         </li>
       ))}
     </ul>

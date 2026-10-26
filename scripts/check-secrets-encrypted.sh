@@ -17,7 +17,7 @@ while IFS= read -r f; do
 	fi
 done < <(git ls-files secrets)
 
-if git grep -lI 'AGE-SECRET-KEY-' -- . ':!scripts/check-secrets-encrypted.sh' ':!DEPLOYMENT.md' ':!CLAUDE.md' >/tmp/age-hits.$$ 2>/dev/null; then
+if git grep -lI 'AGE-SECRET-KEY-' -- . ':!scripts/check-secrets-encrypted.sh' ':!CLAUDE.md' >/tmp/age-hits.$$ 2>/dev/null; then
 	echo "an age private key is committed:" >&2
 	cat /tmp/age-hits.$$ >&2
 	status=1

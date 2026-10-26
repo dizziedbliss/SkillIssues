@@ -8,6 +8,8 @@ import { useT } from "../../i18n";
 import { useSession } from "../session";
 import { useSearchOverlay } from "../search/context";
 import { IssueCard } from "../IssueCard";
+import { CrossIcon } from "../icons";
+import { SearchBar } from "./SearchBar";
 import { FilterPanel } from "./FilterPanel";
 import { Pager } from "./Pager";
 import { DIFFICULTIES, readQuery, toFilters, writeQuery, type CatalogQuery } from "./query";
@@ -17,9 +19,9 @@ import { rememberExplore } from "./where";
 import { useDocumentTitle } from "../../lib/title";
 
 /**
- * Explore, as designed: the heading, the search bar (with clear, the filter
- * panel and Search), the difficulty chips, the issues and the pager. All of
- * it is kept in the address (query.ts).
+ * Explore: the heading, one search bar (clear, the filter panel, Search),
+ * one toolbar (the levels, then what narrows the list, each removable), the
+ * issues and the pager. All of it is kept in the address (query.ts).
  */
 export function Explore() {
   const t = useT();
@@ -91,74 +93,24 @@ export function Explore() {
     <div className={s.explore}>
       <h1 className={s.title}>{t("explore.title")}</h1>
 
-      <form className={s.search} role="search" onSubmit={submit} data-ui="search">
-        <label htmlFor="explore-search" className={s.searchLabel}>{t("explore.searchLabel")}</label>
+      <div className={s.search}>
         {/* Shares its name with the overlay's box, so one glides into the other; never both at once. */}
-        <div className={s.box} style={{ viewTransitionName: overlay.isOpen ? "none" : "search-box" }}>
-          <input
-            id="explore-search"
-            type="search"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder={t("explore.searchPlaceholder")}
-            autoComplete="off"
-          />
-          {(draft || query.search) && (
-            <button
-              type="button"
-              className={s.inBox}
-              aria-label={t("explore.clearLabel")}
-              onClick={() => {
-                setDraft("");
-                update({ search: "" });
-              }}
-            >
-              <span aria-hidden="true">x</span> <span className={s.clearWord}>{t("explore.clear")}</span>
-            </button>
-          )}
-          <button
-            type="button"
-            className={`${s.inBox} ${s.filterToggle}`}
-            aria-expanded={filtersOpen}
-            aria-controls="explore-filters"
-            onClick={() => setFiltersOpen((o) => !o)}
-          >
-            {t("explore.filter")}
-          </button>
-        </div>
-        <button type="submit" className={s.submit}>{t("explore.search")}</button>
-      </form>
-
-      <p className={s.hint}>
-        {t("explore.searchHint")}{" "}
-        <button type="button" className={s.hintLink} onClick={overlay.open}>
-          {t("explore.searchHintLink")}
-        </button>
-      </p>
-
-      {(query.repo.length > 0 || query.owner.length > 0) && (
-        <p className={s.scope}>
-          {t("explore.scope")}{" "}
-          {[...query.repo, ...query.owner].map((v) => (
-            <span key={v} className={s.scopeChip}>{v}</span>
-          ))}
-          <button type="button" className={s.hintLink} onClick={() => update({ repo: [], owner: [] })}>
-            {t("explore.scopeClear")}
-          </button>
-        </p>
-      )}
-
-      {!query.languageChosen && language && language.length > 0 && (
-        <p className={s.scope} data-ui="your-languages">
-          {t("explore.yourLanguages")}{" "}
-          {language.map((l) => (
-            <span key={l} className={s.scopeChip}>{l}</span>
-          ))}
-          <button type="button" className={s.hintLink} onClick={() => update({ language: [], languageChosen: true })}>
-            {t("explore.allLanguages")}
-          </button>
-        </p>
-      )}
+        <SearchBar
+          id="explore-search"
+          value={draft}
+          onChange={setDraft}
+          onSubmit={submit}
+          onClear={() => {
+            setDraft("");
+            update({ search: "" });
+          }}
+          onFilters={() => setFiltersOpen((o) => !o)}
+          filtersOpen={filtersOpen}
+          filtersId="explore-filters"
+          transitionName={overlay.isOpen ? "none" : "search-box"}
+          hint={{ key: "/", title: t("explore.searchHintLink") }}
+        />
+      </div>
 
       {filtersOpen && settled && (
         <div id="explore-filters">
@@ -174,14 +126,14 @@ export function Explore() {
         </div>
       )}
 
-      <div ref={top} className={s.levels}>
-        <h2 className={s.next}>{query.search ? t("explore.results", { term: query.search }) : t("explore.next")}</h2>
-        <div className={s.chips} role="group" aria-label={t("explore.difficulties")} data-ui="difficulty">
+      {/* One row under the bar: the level, then what narrows the list, each removable. */}
+      <div ref={top} className={s.toolbar}>
+        <div className={s.segments} role="group" aria-label={t("explore.difficulties")} data-ui="difficulty">
           {DIFFICULTIES.map((d) => (
             <button
               key={d}
               type="button"
-              className={s.level}
+              className={s.segment}
               aria-pressed={difficulty?.includes(d) ?? false}
               disabled={!difficulty}
               onClick={() => toggleLevel(d)}
@@ -190,8 +142,29 @@ export function Explore() {
             </button>
           ))}
         </div>
+
+        {[...query.repo, ...query.owner].map((v) => (
+          <span key={v} className={s.scope}>
+            {v}
+            <button type="button" aria-label={t("explore.scopeClear")} onClick={() => update({ repo: [], owner: [] })}>
+              <CrossIcon />
+            </button>
+          </span>
+        ))}
+
+        {!query.languageChosen && language && language.length > 0 && (
+          <span className={s.scope} data-ui="your-languages" title={t("explore.yourLanguages")}>
+            {language.join(", ")}
+            <button type="button" aria-label={t("explore.allLanguages")} onClick={() => update({ language: [], languageChosen: true })}>
+              <CrossIcon />
+            </button>
+          </span>
+        )}
+
         <SiteLink to="/docs/good-first-issues" className={s.newHere}>{t("explore.newHere")}</SiteLink>
       </div>
+
+      {query.search && <h2 className={s.resultsFor}>{t("explore.results", { term: query.search })}</h2>}
 
       <div className={s.results} aria-busy={catalog.isFetching}>
         {catalog.error && (

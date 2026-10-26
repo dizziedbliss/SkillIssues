@@ -11,7 +11,7 @@ import MarkdownIt from "markdown-it";
  * escapes it rather than passing it through.
  *
  * The legal pages (privacy, terms, security, licenses) stay as content.ts has
- * them, by the owner's decision; their docs copies are not served.
+ * them, by the maintainer's decision; their docs copies are not served.
  */
 
 export interface DocPage {
@@ -21,6 +21,8 @@ export interface DocPage {
   section: string;
   updated: string;
   html: string;
+  /** The page's sections (its h2s), for "On this page". */
+  toc: { id: string; text: string }[];
 }
 
 const LEGAL = new Set(["/privacy", "/terms", "/security", "/licenses"]);
@@ -30,8 +32,9 @@ export const SECTIONS = ["SkillIssues", "Guides", "Resources", "Community", "Sup
 
 const md = new MarkdownIt({ html: false, linkify: true, typographer: false });
 
-// Headings get ids, so a section can be linked to.
+// Headings get ids, so a section can be linked to; the h2s are collected for the page's index.
 md.core.ruler.push("heading_ids", (state) => {
+  const toc = (state.env as { toc?: { id: string; text: string }[] }).toc;
   const seen = new Map<string, number>();
   for (let i = 0; i < state.tokens.length; i++) {
     const t = state.tokens[i]!;
@@ -42,6 +45,7 @@ md.core.ruler.push("heading_ids", (state) => {
     seen.set(id, n + 1);
     if (n) id = `${id}-${n}`;
     t.attrSet("id", id);
+    if (t.tag === "h2" && toc) toc.push({ id, text });
   }
 });
 
@@ -79,13 +83,16 @@ export const docs: DocPage[] = Object.entries(files)
       if (!meta[key]) throw new Error(`docs: ${file} has no ${key}`);
     }
     if (!meta.slug!.startsWith("/")) throw new Error(`docs: ${file} slug must start with /`);
+    const env = { toc: [] as { id: string; text: string }[] };
+    const html = md.render(body, env);
     return {
       path: meta.slug!,
       title: meta.title!,
       summary: meta.summary!,
       section: meta.section!,
       updated: meta.updated ?? "",
-      html: md.render(body),
+      html,
+      toc: env.toc,
     };
   })
   .filter((d) => !LEGAL.has(d.path))

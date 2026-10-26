@@ -13,8 +13,9 @@ import { choiceName, useAppearance } from "./theme";
 import s from "./AppHeader.module.css";
 
 /**
- * The app's header: the wordmark, the sections, and Profile, which opens the
- * account menu (or reads "Sign in" while signed out). Sticks to the top.
+ * The app's header: the wordmark, the places you work (Explore, Learning path,
+ * the desktop's Working on, Search), and Profile, which opens the account menu
+ * (or reads "Sign in" while signed out). Sticks to the top.
  */
 export function AppHeader() {
   const { t } = useI18n();
@@ -36,13 +37,6 @@ export function AppHeader() {
           {/* Back to Explore as it was left; the wordmark starts it afresh. */}
           <Link to={exploreURL()} className={exploring ? s.active : undefined} aria-current={exploring ? "page" : undefined}>
             {t("app.nav.explore")}
-          </Link>
-          <Link
-            to="/app/contributions"
-            className={pathname.startsWith("/app/contributions") ? s.active : undefined}
-            aria-current={pathname.startsWith("/app/contributions") ? "page" : undefined}
-          >
-            {t("app.nav.contribute")}
           </Link>
           <Link
             to="/app/path"
@@ -68,6 +62,7 @@ export function AppHeader() {
             onClick={search.open}
           >
             {t("app.nav.search")}
+            <kbd className={s.kbd} aria-hidden="true">/</kbd>
           </button>
           {user ? (
             <ProfileMenu />
@@ -87,9 +82,14 @@ export function AppHeader() {
   );
 }
 
-/** Profile's menu: settings, light and dark, language, sign out. */
+/**
+ * Profile's menu: the things about you (profile, saved issues, your
+ * contributions; reports for moderators), then settings, appearance and
+ * language, then sign out. Places you go to work are in the nav, not here.
+ */
 function ProfileMenu() {
   const { t, locale, setLocale } = useI18n();
+  const { user } = useSession();
   const appearance = useAppearance();
   const signOut = useSignOut();
   const [open, setOpen] = useState(false);
@@ -123,7 +123,7 @@ function ProfileMenu() {
     };
   }, [open]);
 
-  const inAccount = /^\/app\/(settings|profile|saved)/.test(pathname);
+  const inAccount = /^\/app\/(settings|profile|saved|contributions|moderation)/.test(pathname);
   const unread = useNotifications().data?.unread_count ?? 0;
   // Moderators get Reports in the menu; the server decides who is one.
   const me = useQuery({ queryKey: ["me"], queryFn: ({ signal }) => api.me({ signal }), staleTime: 5 * 60_000 });
@@ -138,7 +138,11 @@ function ProfileMenu() {
         aria-controls={id}
         onClick={() => setOpen((o) => !o)}
       >
+        {user?.avatar_url && <img className={s.avatar} src={user.avatar_url} alt="" width={22} height={22} />}
         {t("app.nav.profile")}
+        <svg className={s.chevron} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
         {unread > 0 && (
           <span className={s.dot}>
             <span className="visually-hidden">{t("app.nav.unread", { count: unread })}</span>
@@ -165,9 +169,7 @@ function ProfileMenu() {
                 <Link to="/app/moderation" className={s.item}>{t("mod.title")}</Link>
               </li>
             )}
-            <li>
-              <Link to="/app/path" className={s.item}>{t("path.mine")}</Link>
-            </li>
+            <li className={s.separator} role="separator" />
             <li>
               <Link to="/app/settings/profile" className={s.item}>{t("app.menu.settings")}</Link>
             </li>
@@ -183,7 +185,9 @@ function ProfileMenu() {
                       {inUse ? (
                         // The theme in use: its name, and a switch between its light and dark halves.
                         <span className={`${s.item} ${s.subItem}`} aria-current="true">
-                          <span>{name}</span>
+                          <span className={s.current}>
+                            <span aria-hidden="true">✓</span> {name}
+                          </span>
                           {appearance.hasModes && (
                             <button
                               type="button"
@@ -215,7 +219,10 @@ function ProfileMenu() {
                   );
                 })}
               </ul>
-              <Link to="/app/settings/themes" className={`${s.item} ${s.subItem} ${s.more}`}>{t("app.menu.seeMore")}</Link>
+              <Link to="/app/settings/themes" className={`${s.item} ${s.subItem} ${s.more}`}>
+                <span>{t("app.menu.seeMore")}</span>
+                <span aria-hidden="true">→</span>
+              </Link>
             </li>
             <li>
               <button type="button" className={s.item} aria-expanded={languages} onClick={() => setLanguages((l) => !l)}>
@@ -235,6 +242,7 @@ function ProfileMenu() {
                 </fieldset>
               )}
             </li>
+            <li className={s.separator} role="separator" />
             <li>
               <button type="button" className={`${s.item} ${s.signOut}`} onClick={() => signOut.mutate()} disabled={signOut.isPending}>
                 {signOut.isPending ? t("app.menu.signingOut") : t("app.menu.signOut")}

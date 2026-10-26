@@ -47,6 +47,7 @@ export function PathPage() {
                   data-ui="path-role">
                   <span className={s.roleName}>{t(`path.role.${r.key}` as MessageKey)}</span>
                   <span className={s.roleHelp}>{t(`path.role.${r.key}.help` as MessageKey)}</span>
+                  <span className={s.roleGo} aria-hidden="true">{t("path.startRole")}</span>
                 </button>
               </li>
             ))}

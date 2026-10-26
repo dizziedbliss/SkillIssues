@@ -4,7 +4,7 @@ slug: /docs/getting-started
 section: Resources
 summary: Four steps from the catalog to your first pull request.
 draft: false
-updated: 2026-10-21
+updated: 2026-10-27
 ---
 
 You don't need an account to browse. Open the catalog and start looking.
@@ -22,8 +22,8 @@ If you sign in with GitHub, you can save issues and set the languages and level 
 Around the app:
 
 - **Explore** is the catalog. **Search** (or `/`, or Ctrl+K) searches from anywhere.
-- **Contributions** shows your public pull requests and your year.
-- **Profile** opens a menu: your profile, saved issues, settings, themes (Appearance) and language.
+- **Learning path** gives you five issues for one kind of work, beginner first.
+- **Profile** opens a menu: your profile, saved issues, your contributions (your pull requests and your year), settings, themes (Appearance) and language.
 - **Saved issues** tells you when a saved issue is closed on GitHub.
 
 ## 2. Say you're taking it
