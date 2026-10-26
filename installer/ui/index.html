@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SkillIssues Setup</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<main class="app" data-screen="loading">
+
+  <header class="brand">
+    <p class="wordmark" aria-label="SkillIssues">Sk<span class="i">i</span>llIssues</p>
+    <p class="tagline">Find an issue you can solve, in ten seconds.</p>
+  </header>
+
+  <!-- Looking up what's installed and the newest version. -->
+  <section class="screen" data-for="loading" aria-live="polite">
+    <h1 class="title">Getting ready…</h1>
+    <div class="bar indeterminate" aria-hidden="true"><span></span></div>
+  </section>
+
+  <!-- A fresh install. -->
+  <section class="screen" data-for="welcome">
+    <h1 class="title">Install SkillIssues</h1>
+    <p class="lede">Open issues from active GitHub projects, matched to your languages and level, with a desktop app that forks, branches and opens the pull request for you.</p>
+
+    <label class="agree">
+      <input type="checkbox" id="agree">
+      <span>I agree to the <a href="#" data-link="terms">Terms of service</a> and the <a href="#" data-link="privacy">Privacy policy</a>.</span>
+    </label>
+
+    <button class="primary" id="install" disabled>Install</button>
+
+    <details class="options">
+      <summary>Options</summary>
+      <fieldset class="scope">
+        <legend class="visually-hidden">Install for</legend>
+        <label><input type="radio" name="scope" value="user" checked> Just me <span class="hint">No administrator needed</span></label>
+        <label><input type="radio" name="scope" value="machine"> Everyone on this PC <span class="hint">Windows asks for permission</span></label>
+      </fieldset>
+      <label class="folder">
+        <span>Folder</span>
+        <input type="text" id="dir" spellcheck="false" autocomplete="off">
+      </label>
+    </details>
+  </section>
+
+  <!-- Already installed: update, repair or remove. -->
+  <section class="screen" data-for="installed">
+    <h1 class="title" id="installed-title">SkillIssues is installed</h1>
+    <p class="lede" id="installed-lede"></p>
+    <div class="choices">
+      <button class="choice" id="update"><span class="choice-name">Update</span><span class="choice-help" id="update-help"></span></button>
+      <button class="choice" id="repair"><span class="choice-name">Repair</span><span class="choice-help">Reinstall it, keeping your sign-in, settings and workspaces.</span></button>
+      <button class="choice danger" id="remove"><span class="choice-name">Remove</span><span class="choice-help">Uninstall it from this PC. Your workspaces stay where they are.</span></button>
+    </div>
+    <button class="link" id="open-installed">Open SkillIssues</button>
+  </section>
+
+  <!-- Working: downloading, checking, installing, removing. -->
+  <section class="screen" data-for="working" aria-live="polite">
+    <h1 class="title" id="work-title">Downloading…</h1>
+    <p class="lede" id="work-detail"></p>
+    <div class="bar" id="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><span id="fill"></span></div>
+    <p class="numbers" id="work-numbers"></p>
+    <button class="link" id="cancel">Cancel</button>
+  </section>
+
+  <!-- Done. -->
+  <section class="screen" data-for="done">
+    <h1 class="title" id="done-title">SkillIssues is ready.</h1>
+    <p class="lede" id="done-lede">Sign in with GitHub, pick an issue, and the app sets up the rest.</p>
+    <button class="primary" id="launch">Open SkillIssues</button>
+    <button class="link" id="close">Close</button>
+  </section>
+
+  <!-- Something went wrong. -->
+  <section class="screen" data-for="error" aria-live="assertive">
+    <h1 class="title">That didn't work.</h1>
+    <p class="lede" id="error-message"></p>
+    <button class="primary" id="retry">Try again</button>
+    <button class="link" data-link="releases">Download the full installer instead</button>
+  </section>
+
+  <footer class="foot">
+    <span id="version"></span>
+    <span><a href="#" data-link="site">skillissues.dizziedbliss.lol</a></span>
+  </footer>
+
+  <!-- Confirmations, over the window. -->
+  <div class="dialog" id="dialog" hidden>
+    <div class="dialog-box" role="alertdialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-body">
+      <h2 id="dialog-title"></h2>
+      <p id="dialog-body"></p>
+      <div class="dialog-actions">
+        <button class="primary" id="dialog-keep"></button>
+        <button class="secondary" id="dialog-go"></button>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

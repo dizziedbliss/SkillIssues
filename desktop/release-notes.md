@@ -13,6 +13,10 @@ before the tag.
 
 ## [Unreleased]
 
+### Added
+
+- **A new installer for Windows.** One clean window with the SkillIssues look: agree to the terms, press Install, and watch it download (with its size and speed) and install. Cancelling asks first. Run it again when SkillIssues is installed to **Update**, **Repair** or **Remove** it. It downloads the newest version from GitHub and checks it against the release's checksum before running anything. The full offline installer is still on the releases page.
+
 ### Changed
 
 - **A calmer, clearer app.** Lines and chips are quiet now, and red is kept for what matters: the main button, where you are, what you've earned, and section headings. Light mode uses warmer, slightly dimmed paper and softer ink, easier on the eyes over a long session.

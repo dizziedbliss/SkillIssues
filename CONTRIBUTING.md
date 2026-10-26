@@ -23,6 +23,7 @@ backend/internal/     auth, issue (search, bodies), ingest (crawler), xp and pro
                       claim, learnpath, theme, settings, metrics, middleware, migrate/migrations, …
 web/src/              React web app
 desktop/src/          main/ (Electron main process), preload/, renderer/ (React)
+installer/            the Windows setup (Go + WebView2): downloads, checks and installs a release
 packages/             client (typed API), theme, markdown — shared by web and desktop
 monitoring/           Prometheus and Grafana config
 docs/                 API reference, settings reference, ingestion design
@@ -76,6 +77,7 @@ These are what CI runs; please run the ones for the parts you touched.
 cd backend && go vet ./... && gofmt -l . && go build ./... && go test -short ./...
 cd web && npm run typecheck && npm run build
 cd desktop && npm run check && npm run build
+cd installer && go vet ./... && go test ./... && GOOS=windows go build .
 ```
 
 `-short` skips tests that need live GitHub. Tests must pass with Redis stopped.

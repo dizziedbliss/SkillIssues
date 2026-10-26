@@ -390,6 +390,15 @@ top frame.
   no mark in them: the mark is the app icon and favicon only, like everywhere else). CI builds it on
   every desktop change (`desktop-installer`). Builds are unsigned, which is why Windows SmartScreen
   warns; `release.yml` signs once `WIN_CSC_LINK`/`WIN_CSC_KEY_PASSWORD` secrets exist.
+- **The Windows setup people download is `installer/`** (its own Go module, `SkillIssues-Installer.exe`, built
+  by `release.yml` on the Windows runner and checked by CI's `installer` job). A WebView2 window
+  (`github.com/jchv/go-webview2`, no cgo) shows `installer/ui` (the site's look, fonts inlined): terms, Install,
+  options folded (just me or everyone, the folder), real download progress, an in-page cancel confirmation,
+  and, when the app is installed (its Uninstall registry entry), Update, Repair or Remove. It reads the newest
+  release from `releases/latest/download/latest.yml` (no API, no rate limit), downloads only from GitHub's
+  release hosts, checks the SHA-512 before running anything, and runs the NSIS installer above silently
+  (`/S`, `/currentuser` or `/allusers`, `/D=`). The page can open only named links. No WebView2: a message box
+  offers the full installer. The download page offers it for Windows, the NSIS exe as the offline option.
 
 Runs **Electron 44**. Release builds: `.github/workflows/release.yml`.
 

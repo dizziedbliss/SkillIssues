@@ -249,6 +249,7 @@ export const en = {
   "download.system.mac": "macOS",
   "download.system.linux": "Linux",
   "download.size": (p: { mb: string }) => `${p.mb} MB`,
+  "download.offline": (p: { mb: string }) => `Or the full installer, which works offline (${p.mb} MB)`,
   "download.none": (p: { system: string }) => `No ${p.system} build in this version.`,
   "download.notesSystems":
     "On Windows and Linux the app updates itself from then on. The macOS build isn't signed yet: open it the first time with right-click, Open, and download new versions from here.",

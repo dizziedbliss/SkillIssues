@@ -75,10 +75,12 @@ before it downloads an update, every time.
 <details>
 <summary><strong>Windows</strong></summary>
 
-Run `SkillIssues-Setup-<version>.exe`. It installs for you or for everyone on the machine, in the
-folder you choose.
+Run `SkillIssues-Installer.exe`. It downloads the newest version from this repository's releases,
+checks it against the release's SHA-512, and installs it, for you or for everyone on the PC. Run it
+again later to update, repair or remove SkillIssues. No internet while installing? The release also
+has `SkillIssues-Setup-<version>.exe`, the full offline installer.
 
-The installer isn't code-signed yet, so SmartScreen will warn about an unrecognised app. Choose
+Neither is code-signed yet, so SmartScreen will warn about an unrecognised app. Choose
 **More info → Run anyway**.
 
 </details>

@@ -53,6 +53,23 @@ jobs:
           if [ -z "$WIN_CSC_LINK" ]; then unset WIN_CSC_LINK WIN_CSC_KEY_PASSWORD; fi
           cd desktop
           npm run dist:win
+      # The setup people download from the site: a small branded window that
+      # fetches the newest SkillIssues-Setup-*.exe from this release, checks
+      # its SHA-512 against latest.yml and runs it silently (installer/).
+      - name: Set up Go
+        if: matrix.os == 'windows-latest'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: '1.27'
+          cache-dependency-path: installer/go.sum
+      - name: Build the Windows setup
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        working-directory: installer
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --arch amd64 --product-version "${v%%-*}.0" --file-version "${v%%-*}.0"
+          CGO_ENABLED=0 go build -trimpath -ldflags "-H windowsgui -s -w" -o ../desktop/dist/SkillIssues-Installer.exe .
       - name: Package Linux AppImage
         if: matrix.os == 'ubuntu-24.04'
         run: |
@@ -90,7 +107,7 @@ jobs:
       - name: Write the release notes
         run: |
           scripts/release-notes.sh "${GITHUB_REF_NAME#v}" > release-notes.md
-          printf '\n---\n\n**Download** the file for your system below: `SkillIssues-Setup-*.exe` for Windows, `*.dmg` for macOS (Apple silicon), `*.AppImage` for Linux. Or get the newest from https://skillissues.dizziedbliss.lol/download.\n' >> release-notes.md
+          printf '\n---\n\n**Download** the file for your system below: `SkillIssues-Installer.exe` for Windows (or `SkillIssues-Setup-*.exe`, the full offline installer), `*.dmg` for macOS (Apple silicon), `*.AppImage` for Linux. Or get the newest from https://skillissues.dizziedbliss.lol/download.\n' >> release-notes.md
       - name: Create GitHub Release with Assets
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
