@@ -28,7 +28,7 @@ this table is how you find out.
 | GH Archive reader (hourly public events) | **Built** (off by default) | `ingest/archive.go`; its own queue (`archive_hours`). Applies issue events to stored repositories when newer; while it is current, freshness drops to `ingest.archive.repair_interval_seconds` and the incremental discovery sweep stops. See *GH Archive reader* below |
 | Discovery Sweeper (GitHub Search over date windows) | **Built** (off by default) | `ingest/discovery.go`; its own queue (`discovery_sweeps`, `discovery_windows`), not `ingest_jobs` — nothing writes `job_type='discovery'`. Windows are over **pushed** date (not created), deduplication is by `repositories.github_database_id`. See *Discovery Sweeper* below |
 
-Sections 4 and 6 record observations from the Python v6 prototype (still in `benchmark/`);
+Sections 4 and 6 record observations from the Python v6 prototype (removed from the tree; it is in git history before the `chore: remove dead files` commit);
 they are history, not a description of the Go worker.
 
 ## 1. Current goal
