@@ -46,7 +46,9 @@ Make the change, run the project's tests, and commit.
 
 ## 4. Open a pull request
 
-Push your branch and open a pull request that links the issue. Write "Fixes #123" in the description, using the issue's number, so GitHub connects the two.
+Push your branch and open a pull request that links the issue. Write "Fixes #123" in the description, using the issue's number, so GitHub connects the two. "Closes" and "Resolves" work as well. The keyword only links the issue when the pull request targets the repository's default branch.
+
+Forgot it? Open the pull request's **Development** section on GitHub and link the issue there. SkillIssues counts a pull request as closing an issue when GitHub links the two, however the link was made, and a linked issue is worth more XP than none (see [How XP works](/docs/xp)).
 
 Answer review comments. Needing a few rounds is normal and doesn't mean you did something wrong.
 
