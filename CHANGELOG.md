@@ -10,6 +10,8 @@ when something people or the API relied on works differently, MINOR for new feat
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-10-29
+
 ### Changed
 
 - A new logo: the wordmark's "i" turned into a bang on a solid tile, as the favicon, the home-screen and install icons. The wordmark is unchanged.
@@ -414,7 +416,8 @@ the product twice.
 - Account deletion (`authPurge`) previously discarded its own delete errors and always reported
   success; it is now a single cascading `DELETE` whose error is returned to the caller.
 
-[unreleased]: https://github.com/dizziedbliss/SkillIssues/compare/web-v2.7.1...HEAD
+[unreleased]: https://github.com/dizziedbliss/SkillIssues/compare/web-v2.8.0...HEAD
+[2.8.0]: https://github.com/dizziedbliss/SkillIssues/compare/web-v2.7.1...web-v2.8.0
 [2.7.1]: https://github.com/dizziedbliss/SkillIssues/compare/web-v2.7.0...web-v2.7.1
 [2.7.0]: https://github.com/dizziedbliss/SkillIssues/compare/web-v2.6.0...web-v2.7.0
 [2.6.0]: https://github.com/dizziedbliss/SkillIssues/compare/web-v2.5.0...web-v2.6.0

@@ -13,6 +13,8 @@ before the tag.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-29
+
 ### Changed
 
 - A new app icon, for the window, the installer and the Windows setup: the wordmark's "i" turned into a bang on a solid tile.
@@ -75,7 +77,8 @@ before the tag.
 - Issue descriptions show attached images and colour their code.
 - The app is smaller to download.
 
-[unreleased]: https://github.com/dizziedbliss/SkillIssues/compare/v1.5.1...HEAD
+[unreleased]: https://github.com/dizziedbliss/SkillIssues/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/dizziedbliss/SkillIssues/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/dizziedbliss/SkillIssues/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/dizziedbliss/SkillIssues/compare/v1.3.0...v1.5.0
 [1.3.0]: https://github.com/dizziedbliss/SkillIssues/compare/v1.2.1...v1.3.0
