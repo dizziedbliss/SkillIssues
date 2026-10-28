@@ -4,12 +4,18 @@ slug: /docs/changelog
 section: SkillIssues
 summary: What changed in each version of the website and the desktop app, newest first.
 draft: false
-updated: 2026-10-27
+updated: 2026-10-29
 ---
 
 Every version of the website and the desktop app, newest first. The full, technical history is in [CHANGELOG.md](https://github.com/dizziedbliss/SkillIssues/blob/main/CHANGELOG.md) in the repository, and desktop downloads are on the [releases page](https://github.com/dizziedbliss/SkillIssues/releases).
 
 Both follow [Semantic Versioning](https://semver.org/): the first number changes when something you relied on works differently, the second for new features, the third for fixes. The website and the API share one version, since they're deployed together every time a change is merged; the desktop app has its own. This page follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## Website 2.8.0 and desktop 1.6.0, 29 October 2026
+
+### Changed
+
+- **A new logo.** The red "i" from the wordmark, turned into a bang on a solid tile: the browser tab, the home-screen icon, the desktop app and its installers all carry it. The wordmark is unchanged.
 
 ## Website 2.7.1 and desktop 1.5.1, 26 October 2026
 
