@@ -13,6 +13,10 @@ before the tag.
 
 ## [Unreleased]
 
+### Changed
+
+- A new app icon, for the window, the installer and the Windows setup: the wordmark's "i" turned into a bang on a solid tile.
+
 ## [1.5.1] - 2026-10-26
 
 ### Security

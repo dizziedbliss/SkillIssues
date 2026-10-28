@@ -10,6 +10,10 @@ when something people or the API relied on works differently, MINOR for new feat
 
 ## [Unreleased]
 
+### Changed
+
+- A new logo: the wordmark's "i" turned into a bang on a solid tile, as the favicon, the home-screen and install icons. The wordmark is unchanged.
+
 ## [2.7.1] - 2026-10-26
 
 ### Security

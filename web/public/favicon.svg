@@ -1,31 +1,12 @@
-<svg width="111" height="111" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<!-- The owner's mark, in the site's ink and red (landing/tokens.module.css), lighter in a dark browser theme. -->
+<svg width="111" height="111" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- SkillIssues mark: the wordmark's "i" turned over into a bang, knocked out of a solid tile. Ink and red from landing/tokens.module.css; inverted in a dark browser theme. -->
 <style>
-  .ink { stroke: #26231f; }
-  .signal { fill: #c8190b; }
-  @media (prefers-color-scheme: dark) { .ink { stroke: #f3f0ea; } .signal { fill: #ff3322; } }
+  .tile { fill: #26231f; }
+  .stem { fill: #f1eee7; }
+  .dot  { fill: #c8190b; }
+  @media (prefers-color-scheme: dark) { .tile { fill: #f3f0ea; } .stem { fill: #26231f; } .dot { fill: #ff3322; } }
 </style>
-
-<g filter="url(#filter0_g_159_347)">
-<circle cx="56" cy="55" r="47" class="ink" stroke-miterlimit="1" stroke-linecap="round" stroke-dasharray="22 22"/>
-</g>
-<path d="M97.5 55C97.5 77.9198 78.9198 96.5 56 96.5C33.0802 96.5 14.5 77.9198 14.5 55C14.5 32.0802 33.0802 13.5 56 13.5C78.9198 13.5 97.5 32.0802 97.5 55Z" stroke-width="5" class="ink"/>
-<use xlink:href="#stroke0_159_347" class="signal"/>
-<mask id="stroke1_159_347" maskUnits="userSpaceOnUse" x="49" y="31" width="15" height="54" fill="black">
-<rect fill="white" x="49" y="31" width="15" height="54"/>
-<use xlink:href="#stroke0_159_347"/>
-</mask>
-<path d="M56.3438 73.9062C57.2604 73.9062 58.0938 74.0312 58.8438 74.2812C59.5729 74.5521 60.1979 74.9062 60.7188 75.3438C61.2396 75.8021 61.6458 76.3229 61.9375 76.9062C62.2083 77.5104 62.3438 78.1458 62.3438 78.8125C62.3438 79.5 62.2083 80.1354 61.9375 80.7188C61.6458 81.3229 61.2396 81.8438 60.7188 82.2812C60.1979 82.7188 59.5729 83.0625 58.8438 83.3125C58.0938 83.5833 57.2604 83.7188 56.3438 83.7188C55.4062 83.7188 54.5729 83.5833 53.8438 83.3125C53.0938 83.0625 52.4583 82.7188 51.9375 82.2812C51.4167 81.8438 51.0208 81.3229 50.75 80.7188C50.4583 80.1354 50.3125 79.5 50.3125 78.8125C50.3125 78.1458 50.4583 77.5104 50.75 76.9062C51.0208 76.3229 51.4167 75.8021 51.9375 75.3438C52.4583 74.9062 53.0938 74.5521 53.8438 74.2812C54.5729 74.0312 55.4063 73.9062 56.3438 73.9062ZM60.9688 68.875H51.7188L51.7188 32L60.9688 32L60.9688 68.875Z" stroke-width="2" class="ink" mask="url(#stroke1_159_347)"/>
-<defs>
-<filter id="filter0_g_159_347" x="5.9" y="4.9" width="100.2" height="100.2" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-<feFlood flood-opacity="0" result="BackgroundImageFix"/>
-<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
-<feTurbulence type="fractalNoise" baseFrequency="0.18518517911434174 0.18518517911434174" numOctaves="3" seed="1698" />
-<feDisplacementMap in="shape" scale="5.1999998092651367" xChannelSelector="R" yChannelSelector="G" result="displacedImage" width="100%" height="100%" />
-<feMerge result="effect1_texture_159_347">
-<feMergeNode in="displacedImage"/>
-</feMerge>
-</filter>
-<path id="stroke0_159_347" d="M56.3438 73.9062C57.2604 73.9062 58.0938 74.0312 58.8438 74.2812C59.5729 74.5521 60.1979 74.9062 60.7188 75.3438C61.2396 75.8021 61.6458 76.3229 61.9375 76.9062C62.2083 77.5104 62.3438 78.1458 62.3438 78.8125C62.3438 79.5 62.2083 80.1354 61.9375 80.7188C61.6458 81.3229 61.2396 81.8438 60.7188 82.2812C60.1979 82.7188 59.5729 83.0625 58.8438 83.3125C58.0938 83.5833 57.2604 83.7188 56.3438 83.7188C55.4062 83.7188 54.5729 83.5833 53.8438 83.3125C53.0938 83.0625 52.4583 82.7188 51.9375 82.2812C51.4167 81.8438 51.0208 81.3229 50.75 80.7188C50.4583 80.1354 50.3125 79.5 50.3125 78.8125C50.3125 78.1458 50.4583 77.5104 50.75 76.9062C51.0208 76.3229 51.4167 75.8021 51.9375 75.3438C52.4583 74.9062 53.0938 74.5521 53.8438 74.2812C54.5729 74.0312 55.4063 73.9062 56.3438 73.9062ZM60.9688 68.875H51.7188L51.7188 32L60.9688 32L60.9688 68.875Z"/>
-</defs>
+<rect x="4" y="4" width="92" height="92" rx="24" class="tile"/>
+<rect x="42.5" y="16.5" width="15" height="42" rx="1.8" class="stem"/>
+<circle cx="50" cy="74.5" r="9" class="dot"/>
 </svg>
