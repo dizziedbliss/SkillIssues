@@ -9,7 +9,7 @@ require (
 	github.com/pressly/goose/v3 v3.29.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/redis/go-redis/v9 v9.23.0
-	github.com/tdewolff/parse/v2 v2.8.18
+	github.com/tdewolff/parse/v2 v2.8.20
 	golang.org/x/sync v0.24.0
 )
 
