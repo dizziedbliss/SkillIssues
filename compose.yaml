@@ -375,7 +375,7 @@ services:
         condition: service_completed_successfully
 
   redis-exporter:
-    image: oliver006/redis_exporter:v1.94.0@sha256:0842ef7110e62b40bbde2d5c11f38c6fbd99f7100c75e3866637c1b335a1eff7
+    image: oliver006/redis_exporter:v1.96.0@sha256:3d57b9eb142a62ffc600063606a41cd471cd53d81bed10be5b56b3a8918f2c26
     environment:
       REDIS_ADDR: redis://redis:6379
     depends_on:
