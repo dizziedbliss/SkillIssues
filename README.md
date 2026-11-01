@@ -20,8 +20,7 @@ Open issues from active GitHub projects, matched to your languages, skills and l
 Pick one, fix it, get it merged, level up. Free and open source, every feature.</p>
 
 <p align="center">
-    <a href="https://youtu.be/SQYOyRIlwpE"><img width="800" alt="Watch the intro on YouTube: Nobody fixed this GitHub issue. SkillIssues finds it for you" src="https://img.youtube.com/vi/SQYOyRIlwpE/maxresdefault.jpg" /></a><br />
-    <a href="https://youtu.be/SQYOyRIlwpE">▶ Watch the intro</a>
+    <img width="800" alt="A walk through SkillIssues: the home page's waiting issue, Explore, an issue with its beginner checklist saved and claimed, search, saved issues, the profile's level and XP, contributions, a learning path, switching to the Dracula theme, the docs and the download page" src=".github/assets/flow.webp" />
 </p>
 
 ## Why
