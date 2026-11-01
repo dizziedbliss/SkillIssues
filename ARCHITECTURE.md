@@ -1,7 +1,7 @@
 # Architecture
 
 How SkillIssues is put together, as of the code in this repository. For the rules contributors
-must follow, see [AGENTS.md](AGENTS.md) and the guide in each folder.
+must follow, see [CLAUDE.md](CLAUDE.md) and the guide in each folder.
 
 ## 1. Components
 

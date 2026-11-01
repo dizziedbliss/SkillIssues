@@ -290,7 +290,7 @@ repository") or a pull request.
 
 SkillIssues is built with AI coding tools, mostly Claude, with every change directed, read and
 tested by a person before it merges. You're welcome to use them too: *Using AI tools* in
-CONTRIBUTING.md has the rules, and [AGENTS.md](AGENTS.md) is the brief for coding agents, with a
+CONTRIBUTING.md has the rules, and [CLAUDE.md](CLAUDE.md) is the brief for coding agents, with a
 guide in each part of the code.
 
 Found a security problem? Please don't open an issue: use
