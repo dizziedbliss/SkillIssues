@@ -4,8 +4,9 @@ Thanks for being here — typo fixes, bug reports, tests and features are all we
 expects you to understand the whole codebase on day one. Ask questions in [Discussions](https://github.com/dizziedbliss/SkillIssues/discussions) or on your PR.
 
 This is production code: it runs against the real GitHub API and attributes real contributions
-to real accounts. The non-negotiable rules are in [CLAUDE.md](CLAUDE.md) (written for AI
-assistants, but it's the most complete statement of the project's conventions — worth a read).
+to real accounts. The non-negotiable rules are in [AGENTS.md](AGENTS.md), with a guide in
+each part of the code (`backend/AGENTS.md`, `web/AGENTS.md`, …). They're written for AI assistants,
+but they're the most complete statement of the project's conventions — worth a read.
 
 ## What you need
 
@@ -117,8 +118,8 @@ cd installer && go vet ./... && go test ./... && GOOS=windows go build .
 ## Using AI tools
 
 SkillIssues itself is built with AI coding tools, mostly Claude (through Claude Code). A person
-directs every change, reads it, tests it and reviews it before it merges; [CLAUDE.md](CLAUDE.md) is
-the brief those tools work from. You're welcome to use AI tools too, on the same terms:
+directs every change, reads it, tests it and reviews it before it merges; [AGENTS.md](AGENTS.md) and
+the guide in each folder are the brief those tools work from. You're welcome to use AI tools too, on the same terms:
 
 1. **Say so.** Tick the box in the pull request template and name the tool. It changes nothing
    about whether we merge; it tells the reviewer where to look harder.
@@ -131,7 +132,8 @@ the brief those tools work from. You're welcome to use AI tools too, on the same
 5. **Check every name it gives you.** Functions, flags, settings, API fields and packages that
    don't exist are the classic AI mistake, and an invented package name is how attackers get code
    installed ("slopsquatting"). Every new dependency is verified by hand.
-6. **Give it the rules.** Point your tool at [CLAUDE.md](CLAUDE.md) before it writes anything.
+6. **Give it the rules.** Point your tool at [AGENTS.md](AGENTS.md) and the guide in the folder it
+   works in before it writes anything. (Claude Code reads them through each folder's `CLAUDE.md`.)
 7. **Never paste secrets** (`.env`, tokens, keys) or anyone's private data into an AI tool.
 8. **Tests must test.** A generated test that asserts nothing, or asserts whatever the code does
    today, is worse than none.
@@ -150,7 +152,7 @@ look for these on purpose. Any of them, without a clear reason stated in the PR,
   (`desktop/src/main/security.ts`); analytics, telemetry, tracking pixels or third-party scripts.
 - **Data leaving.** Sending tokens, cookies, session ids, email addresses, IP addresses or anything
   else about a person anywhere new, or writing them to a log. The server holds no user GitHub
-  token, ever (see *Credentials and identity* in [CLAUDE.md](CLAUDE.md)).
+  token, ever (see *Credentials* in [backend/AGENTS.md](backend/AGENTS.md)).
 - **Code that hides what it does.** Minified or encoded blobs, long base64 or hex strings, `eval`,
   `new Function`, importing code from a URL, `dangerouslySetInnerHTML` outside
   `packages/markdown`, a shell built from strings (`sh -c`, `shell: true`), or behaviour that only
