@@ -34,8 +34,6 @@ SkillIssues connects the two. It keeps every open issue of hundreds of thousands
 repositories fresh, works out which ones fit you, helps you set up a workspace, and pays you XP
 when GitHub says your fix was merged.
 
-<p align="center"><img width="800" alt="The home page: a real issue that has been waiting 260 days, and the promise to find one in ten seconds" src=".github/assets/landing.png" /></p>
-
 <p align="center"><img width="800" alt="Explore: beginner TypeScript issues from real repositories, with their labels and languages" src=".github/assets/explore.png" /></p>
 
 ## Features
