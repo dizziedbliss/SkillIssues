@@ -79,5 +79,9 @@ it changes the index plans. A page that loses every issue still continues.
 
 - **A short page with a non-null `next_cursor` is not the end.** Only a null cursor is. Clients and
   tests must keep paging.
+- **A chunk's draw must come out the same every time it's drawn.** Pages resume at an offset into a
+  chunk, and an uncached chunk is drawn again, so nothing that changes during a day may feed the draw:
+  serve counts are read from the days before today only. Reading today's counts repeated and skipped
+  issues (#168).
 - Signed-in responses are ordered by the caller's languages: `private, no-store`. Only signed-out
   responses are public, with `ETag` and a shared Redis copy (`singleflight`).
