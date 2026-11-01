@@ -65,7 +65,9 @@ type ForYouRules struct {
 type ForYouStore interface {
 	GetChunk(ctx context.Context, key string) []byte
 	SetChunk(ctx context.Context, key string, data []byte, ttl time.Duration)
-	// ShownCounts is how many times each issue was served lately.
+	// ShownCounts is how many times each issue was served lately. It must not
+	// change during a day (cache.ForYou reads only the days before today): a
+	// chunk drawn again has to come out in the same order.
 	ShownCounts(ctx context.Context, ids []int) map[int]int
 	RecordShown(ctx context.Context, ids []int)
 }

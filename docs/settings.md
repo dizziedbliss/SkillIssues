@@ -60,7 +60,7 @@ readable through the endpoint above and copied into backups.
 | `api.foryou.weight_fit_percent` | 100 | 0–300 | Weight (exponent, percent) of Fit: languages, level, interests, past merges |
 | `api.foryou.weight_doable_percent` | 100 | 0–300 | Weight of Doable: labelled, short discussion, recent, welcoming repository |
 | `api.foryou.weight_need_percent` | 100 | 0–300 | Weight of Need: how long it has waited, how few were shown it |
-| `api.foryou.exposure_days` | 7 | 1–30 | Days of serves counted against an issue |
+| `api.foryou.exposure_days` | 7 | 1–30 | Full UTC days before today whose serves count against an issue (today's count from tomorrow, so a draw is the same all day) |
 | `api.foryou.exposure_half` | 20 | 0–100000 | Serves in that window at which an issue's Need halves (0 ignores serves) |
 | `api.foryou.chunk_ttl_seconds` | 1800 | 0–86400 | How long a drawn chunk is kept in Redis (0 draws every time) |
 | `api.themes.max_per_user` | 20 | 1–200 | Most themes one account may keep |

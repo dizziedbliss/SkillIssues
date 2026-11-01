@@ -126,11 +126,13 @@ func TestDrawForYou(t *testing.T) {
 	}
 }
 
-// memStore is a ForYouStore in memory.
+// memStore is a ForYouStore in memory. Like cache.ForYou, it reads the serves
+// of earlier days and only records today's.
 type memStore struct {
-	mu     sync.Mutex
-	chunks map[string][]byte
-	shown  map[int]int
+	mu      sync.Mutex
+	chunks  map[string][]byte
+	earlier map[int]int
+	today   map[int]int
 }
 
 func (m *memStore) GetChunk(_ context.Context, key string) []byte {
@@ -150,7 +152,7 @@ func (m *memStore) ShownCounts(_ context.Context, ids []int) map[int]int {
 	defer m.mu.Unlock()
 	out := map[int]int{}
 	for _, id := range ids {
-		out[id] = m.shown[id]
+		out[id] = m.earlier[id]
 	}
 	return out
 }
@@ -159,7 +161,7 @@ func (m *memStore) RecordShown(_ context.Context, ids []int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, id := range ids {
-		m.shown[id]++
+		m.today[id]++
 	}
 }
 
@@ -183,7 +185,14 @@ func TestForYouWalksEverythingOnce(t *testing.T) {
 		f.issue(t, repo, 2, "ADVANCED", 8, 0, t0) // not the repository's slot
 	}
 
-	for _, store := range []ForYouStore{nil, &memStore{chunks: map[string][]byte{}, shown: map[int]int{}}} {
+	// Earlier serves that differ per issue, so exposure shapes the draw. No
+	// ChunkTTL: every page draws its chunk again, which must give the same
+	// order while today's serves are recorded.
+	earlier := map[int]int{}
+	for id := range want {
+		earlier[id] = id % 40
+	}
+	for _, store := range []ForYouStore{nil, &memStore{chunks: map[string][]byte{}, earlier: earlier, today: map[int]int{}}} {
 		f.svc.SetForYouStore(store)
 		for _, pool := range []int{1, 2, 3, 50} {
 			for _, limit := range []int{1, 2, 5, 20} {
