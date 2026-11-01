@@ -10,6 +10,11 @@ when something people or the API relied on works differently, MINOR for new feat
 
 ## [Unreleased]
 
+### Fixed
+
+- For you no longer shows an issue twice, or skips one, as you page through it. An issue's recent views
+  now count from the next day, so the feed's order holds steady all day.
+
 ## [2.8.0] - 2026-10-29
 
 ### Changed

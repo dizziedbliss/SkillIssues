@@ -39,7 +39,11 @@ func (f *ForYou) SetChunk(ctx context.Context, key string, data []byte, ttl time
 	f.c.set(ctx, key, data, ttl)
 }
 
-// ShownCounts adds up each issue's serves over the last days() days.
+// ShownCounts adds up each issue's serves over the days() full UTC days before
+// today. Today's serves are recorded but not read: they change with every page
+// anyone loads, and a chunk drawn again (a cache miss, or chunks not kept)
+// must come out in the same order, or a walk paging into it by offset repeats
+// or skips issues.
 func (f *ForYou) ShownCounts(ctx context.Context, ids []int) map[int]int {
 	out := make(map[int]int, len(ids))
 	if f == nil || f.c == nil || f.c.rdb == nil || len(ids) == 0 {
@@ -58,7 +62,7 @@ func (f *ForYou) ShownCounts(ctx context.Context, ids []int) map[int]int {
 	today := f.now()
 	days := max(f.days(), 1)
 	reads := make([]interface{ Val() []any }, 0, days)
-	for d := 0; d < days; d++ {
+	for d := 1; d <= days; d++ {
 		reads = append(reads, pipe.HMGet(callCtx, shownKey(today.AddDate(0, 0, -d)), fields...))
 	}
 	_, err := pipe.Exec(callCtx)
