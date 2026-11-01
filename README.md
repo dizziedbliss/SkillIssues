@@ -19,7 +19,10 @@
 Open issues from active GitHub projects, matched to your languages, skills and level.<br />
 Pick one, fix it, get it merged, level up. Free and open source, every feature.</p>
 
-<p align="center"><img width="800" alt="The home page: a real issue that has been waiting 260 days, and the promise to find one in ten seconds" src=".github/assets/landing.png" /></p>
+<p align="center">
+    <a href="https://youtu.be/SQYOyRIlwpE"><img width="800" alt="Watch the intro on YouTube: Nobody fixed this GitHub issue. SkillIssues finds it for you" src="https://img.youtube.com/vi/SQYOyRIlwpE/maxresdefault.jpg" /></a><br />
+    <a href="https://youtu.be/SQYOyRIlwpE">▶ Watch the intro</a>
+</p>
 
 ## Why
 
@@ -30,6 +33,8 @@ Meanwhile millions of open issues sit on GitHub waiting for exactly that person.
 SkillIssues connects the two. It keeps every open issue of hundreds of thousands of active
 repositories fresh, works out which ones fit you, helps you set up a workspace, and pays you XP
 when GitHub says your fix was merged.
+
+<p align="center"><img width="800" alt="The home page: a real issue that has been waiting 260 days, and the promise to find one in ten seconds" src=".github/assets/landing.png" /></p>
 
 <p align="center"><img width="800" alt="Explore: beginner TypeScript issues from real repositories, with their labels and languages" src=".github/assets/explore.png" /></p>
 
