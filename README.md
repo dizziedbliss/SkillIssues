@@ -19,7 +19,10 @@
 Open issues from active GitHub projects, matched to your languages, skills and level.<br />
 Pick one, fix it, get it merged, level up. Free and open source, every feature.</p>
 
-<p align="center"><img width="800" alt="The home page: a real issue that has been waiting 260 days, and the promise to find one in ten seconds" src=".github/assets/landing.png" /></p>
+<p align="center">
+    <a href="https://youtu.be/SQYOyRIlwpE"><img width="800" alt="Watch the intro on YouTube: Nobody fixed this GitHub issue. SkillIssues finds it for you" src="https://img.youtube.com/vi/SQYOyRIlwpE/maxresdefault.jpg" /></a><br />
+    <a href="https://youtu.be/SQYOyRIlwpE">▶ Watch the intro</a>
+</p>
 
 ## Why
 
