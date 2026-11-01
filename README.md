@@ -20,8 +20,7 @@ Open issues from active GitHub projects, matched to your languages, skills and l
 Pick one, fix it, get it merged, level up. Free and open source, every feature.</p>
 
 <p align="center">
-    <a href="https://youtu.be/SQYOyRIlwpE"><img width="800" alt="Watch the intro on YouTube: Nobody fixed this GitHub issue. SkillIssues finds it for you" src="https://img.youtube.com/vi/SQYOyRIlwpE/maxresdefault.jpg" /></a><br />
-    <a href="https://youtu.be/SQYOyRIlwpE">▶ Watch the intro</a>
+    <iframe width="800" height="450" src="https://www.youtube.com/embed/SQYOyRIlwpE" title="SkillIssues intro" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 </p>
 
 ## Why
